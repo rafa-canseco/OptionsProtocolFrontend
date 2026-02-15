@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback, useEffect } from "react";
+import { useRef, useState, useCallback, useEffect, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { TickingPrice } from "./TickingPrice";
 import { CountUp } from "./CountUp";
@@ -9,7 +9,8 @@ import { StrikethroughLine } from "./StrikethroughLine";
 import { CursorGlow } from "./CursorGlow";
 
 const ACCENT = "#3B82F6";
-const GREEN = "#0D9F6E";
+const BUY_COLOR = "#22C55E";
+const SELL_COLOR = "#EF4444";
 
 /* ── Token logo SVGs (subtle, decorative) ── */
 
@@ -205,8 +206,30 @@ function FadeBlock({
   );
 }
 
-const BUY = { strike: 2400, premium: 61 };
-const SELL = { strike: 2800, premium: 42 };
+const SPOT_BASE = 2621;
+const BUY_STRIKE = 2400;
+const SELL_STRIKE = 2800;
+const BUY_PREMIUM_BASE = 61;
+const SELL_PREMIUM_BASE = 42;
+
+function derivePremium(spot: number, side: "buy" | "sell"): number {
+  if (!Number.isFinite(spot)) return side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
+
+  let raw: number;
+  if (side === "buy") {
+    const denom = SPOT_BASE - BUY_STRIKE;
+    if (denom === 0) return BUY_PREMIUM_BASE;
+    const dist = (spot - BUY_STRIKE) / denom;
+    raw = BUY_PREMIUM_BASE * (2 - dist);
+  } else {
+    const denom = SELL_STRIKE - SPOT_BASE;
+    if (denom === 0) return SELL_PREMIUM_BASE;
+    const dist = (SELL_STRIKE - spot) / denom;
+    raw = SELL_PREMIUM_BASE * (2 - dist);
+  }
+  const base = side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
+  return Math.round(Math.max(1, Math.min(raw, base * 3)));
+}
 
 function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange: (s: "buy" | "sell") => void }) {
   return (
@@ -215,9 +238,10 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
         onClick={() => onSideChange("buy")}
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "buy"
-            ? "bg-[#27272A] text-[#FAFAFA] shadow-sm"
+            ? "shadow-sm"
             : "text-[#71717A] hover:text-[#FAFAFA]"
         }`}
+        style={side === "buy" ? { backgroundColor: "#27272A", color: BUY_COLOR } : undefined}
       >
         I&apos;d buy
       </button>
@@ -225,9 +249,10 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
         onClick={() => onSideChange("sell")}
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "sell"
-            ? "bg-[#27272A] text-[#FAFAFA] shadow-sm"
+            ? "shadow-sm"
             : "text-[#71717A] hover:text-[#FAFAFA]"
         }`}
+        style={side === "sell" ? { backgroundColor: "#27272A", color: SELL_COLOR } : undefined}
       >
         I&apos;d sell
       </button>
@@ -240,13 +265,19 @@ function HeroSection({
   onSideChange,
   hasLoaded,
   onLoaded,
+  spot,
+  onSpotChange,
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
   hasLoaded: boolean;
   onLoaded: () => void;
+  spot: number;
+  onSpotChange: (p: number) => void;
 }) {
-  const { strike, premium } = side === "buy" ? BUY : SELL;
+  const strike = side === "buy" ? BUY_STRIKE : SELL_STRIKE;
+  const premium = derivePremium(spot, side);
+  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
   // Mark loaded after initial counter finishes
   useEffect(() => {
@@ -295,7 +326,7 @@ function HeroSection({
           transition={{ duration: 0.6, delay: 0.2 }}
           className="text-[#71717A] text-[clamp(1.2rem,3vw,1.8rem)]"
         >
-          ETH is <TickingPrice base={2621} className="text-[#FAFAFA] font-bold" />
+          ETH is <TickingPrice base={SPOT_BASE} className="text-[#FAFAFA] font-bold" onPriceChange={onSpotChange} />
         </motion.div>
 
         <motion.h1
@@ -313,7 +344,7 @@ function HeroSection({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
               className="inline-block font-medium"
-              style={{ color: ACCENT }}
+              style={{ color: sideColor }}
             >
               {side} it
             </motion.span>
@@ -328,7 +359,7 @@ function HeroSection({
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.3 }}
               className="inline-block"
-              style={{ color: ACCENT }}
+              style={{ color: sideColor }}
             >
               ${strike.toLocaleString()}
             </motion.span>
@@ -347,8 +378,8 @@ function HeroSection({
           </p>
           <p className="text-[clamp(1.3rem,3vw,2rem)] font-light text-[#71717A]">
             Get{" "}
-            <span className="font-bold" style={{ color: ACCENT }}>
-              {hasLoaded ? <AnimatedPremium value={premium} /> : <CountUp target={BUY.premium} duration={1200} />}
+            <span className="font-bold" style={{ color: sideColor }}>
+              {hasLoaded ? <AnimatedPremium value={premium} /> : <CountUp target={side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE} duration={1200} />}
             </span>
             {" "}upfront.
           </p>
@@ -373,8 +404,10 @@ function HeroSection({
   );
 }
 
-function OutcomesSection({ side }: { side: "buy" | "sell" }) {
-  const { strike, premium } = side === "buy" ? BUY : SELL;
+function OutcomesSection({ side, spot }: { side: "buy" | "sell"; spot: number }) {
+  const strike = side === "buy" ? BUY_STRIKE : SELL_STRIKE;
+  const premium = derivePremium(spot, side);
+  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
   return (
     <section className="min-h-screen flex items-center justify-center px-6 relative">
@@ -413,7 +446,7 @@ function OutcomesSection({ side }: { side: "buy" | "sell" }) {
               </p>
               <p className="text-[clamp(1.2rem,3vw,2rem)] font-light text-[#71717A] mt-2">
                 And keep the{" "}
-                <span className="font-bold" style={{ color: ACCENT }}>${premium}</span>.
+                <span className="font-bold" style={{ color: sideColor }}>${premium}</span>.
               </p>
             </FadeBlock>
 
@@ -424,7 +457,7 @@ function OutcomesSection({ side }: { side: "buy" | "sell" }) {
                   ? `$${strike.toLocaleString()} back`
                   : "Your ETH comes back"}{" "}
                 + keep the{" "}
-                <span className="font-bold" style={{ color: ACCENT }}>${premium}</span>.
+                <span className="font-bold" style={{ color: sideColor }}>${premium}</span>.
               </p>
             </FadeBlock>
           </motion.div>
@@ -434,9 +467,10 @@ function OutcomesSection({ side }: { side: "buy" | "sell" }) {
   );
 }
 
-function HowItWorksSection({ side }: { side: "buy" | "sell" }) {
+const HowItWorksSection = memo(function HowItWorksSection({ side }: { side: "buy" | "sell" }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
+  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
   type Step = { text: string; accent: boolean; sub?: string[] };
   const steps: Step[] = side === "buy"
@@ -491,7 +525,7 @@ function HowItWorksSection({ side }: { side: "buy" | "sell" }) {
                   className={`text-[clamp(1.3rem,3vw,2rem)] font-light leading-relaxed ${
                     step.accent ? "font-medium" : "text-[#FAFAFA]"
                   }`}
-                  style={step.accent ? { color: ACCENT } : undefined}
+                  style={step.accent ? { color: sideColor } : undefined}
                 >
                   <span className="text-[#52525B] mr-3">{i + 1}.</span>
                   {step.text}
@@ -512,9 +546,9 @@ function HowItWorksSection({ side }: { side: "buy" | "sell" }) {
       </div>
     </section>
   );
-}
+});
 
-function RealYieldSection() {
+const RealYieldSection = memo(function RealYieldSection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-25%" });
 
@@ -566,7 +600,7 @@ function RealYieldSection() {
       </div>
     </section>
   );
-}
+});
 
 /* ── Loop frame types ── */
 type LoopFrame = {
@@ -628,11 +662,12 @@ function LoopCounter({ target }: { target: number }) {
   return <>${val}</>;
 }
 
-function LoopSection({ side }: { side: "buy" | "sell" }) {
+const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
   const [frameIndex, setFrameIndex] = useState(0);
   const frames = side === "buy" ? BUY_LOOP : SELL_LOOP;
+  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
   // Reset to frame 0 when side changes
   useEffect(() => {
@@ -699,7 +734,7 @@ function LoopSection({ side }: { side: "buy" | "sell" }) {
                         ? "text-[#71717A] font-light"
                         : "text-[#FAFAFA] font-light"
                   }`}
-                  style={frame.accent ? { color: ACCENT } : undefined}
+                  style={frame.accent ? { color: sideColor } : undefined}
                 >
                   {frame.counter && i === 0 ? (
                     <>Earn <LoopCounter target={frame.counter} /> ✓</>
@@ -721,9 +756,9 @@ function LoopSection({ side }: { side: "buy" | "sell" }) {
       </div>
     </section>
   );
-}
+});
 
-function PromiseSection() {
+const PromiseSection = memo(function PromiseSection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-25%" });
 
@@ -741,9 +776,9 @@ function PromiseSection() {
       </motion.p>
     </section>
   );
-}
+});
 
-function CTASection() {
+const CTASection = memo(function CTASection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
 
@@ -788,13 +823,15 @@ function CTASection() {
       </motion.div>
     </section>
   );
-}
+});
 
 export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [hasLoaded, setHasLoaded] = useState(false);
+  const [spot, setSpot] = useState(SPOT_BASE);
 
   const handleLoaded = useCallback(() => setHasLoaded(true), []);
+  const handleSpotChange = useCallback((p: number) => setSpot(p), []);
 
   return (
     <div className="bg-[#0A0A0A] relative overflow-hidden">
@@ -812,8 +849,8 @@ export function LandingPage() {
         </Link>
       </header>
 
-      <HeroSection side={side} onSideChange={setSide} hasLoaded={hasLoaded} onLoaded={handleLoaded} />
-      <OutcomesSection side={side} />
+      <HeroSection side={side} onSideChange={setSide} hasLoaded={hasLoaded} onLoaded={handleLoaded} spot={spot} onSpotChange={handleSpotChange} />
+      <OutcomesSection side={side} spot={spot} />
       <HowItWorksSection side={side} />
       <RealYieldSection />
       <LoopSection side={side} />
