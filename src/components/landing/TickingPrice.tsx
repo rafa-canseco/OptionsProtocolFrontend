@@ -5,31 +5,41 @@ import { useState, useEffect, useRef } from "react";
 export function TickingPrice({
   base,
   className = "",
+  onPriceChange,
 }: {
   base: number;
   className?: string;
+  onPriceChange?: (price: number) => void;
 }) {
   const [price, setPrice] = useState(base);
   const prevRef = useRef(base);
   const [display, setDisplay] = useState(base);
   const frameRef = useRef<number>(0);
   const [flash, setFlash] = useState(false);
+  const onPriceChangeRef = useRef(onPriceChange);
+  onPriceChangeRef.current = onPriceChange;
 
-  // Simulate frequent price ticks
+  // Simulate frequent price ticks with mean-reversion
   useEffect(() => {
     const scheduleTick = () => {
       const delay = 400 + Math.random() * 1200;
       return setTimeout(() => {
         setPrice((prev) => {
-          const delta = (Math.random() - 0.47) * 3;
-          return Math.round((prev + delta) * 100) / 100;
+          const delta = (Math.random() - 0.5) * 3;
+          const revert = (base - prev) * 0.02;
+          return Math.round((prev + delta + revert) * 100) / 100;
         });
         timeoutId = scheduleTick();
       }, delay);
     };
     let timeoutId = scheduleTick();
     return () => clearTimeout(timeoutId);
-  }, []);
+  }, [base]);
+
+  // Notify parent of price changes
+  useEffect(() => {
+    onPriceChangeRef.current?.(price);
+  }, [price]);
 
   // Animate number transition + flash
   useEffect(() => {
