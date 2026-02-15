@@ -5,30 +5,25 @@ import { useWallet } from "@/hooks/useWallet";
 export function ConnectButton() {
   const { address, isConnected, isReady, login, logout } = useWallet();
 
-  if (!isReady) return <div className="h-10 w-32 animate-pulse rounded-lg bg-[var(--card)]" />;
+  if (!isReady) return <div className="h-9 w-24 animate-pulse rounded-full bg-[var(--surface)]" />;
 
   if (isConnected && address) {
     return (
-      <div className="flex items-center gap-3">
-        <span className="text-sm text-[var(--muted)]">
-          {address.slice(0, 6)}...{address.slice(-4)}
-        </span>
-        <button
-          onClick={logout}
-          className="rounded-lg border border-[var(--card-border)] px-3 py-2 text-sm hover:bg-[var(--card)]"
-        >
-          Disconnect
-        </button>
-      </div>
+      <button
+        onClick={logout}
+        className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
+      >
+        {address.slice(0, 6)}...{address.slice(-4)}
+      </button>
     );
   }
 
   return (
     <button
       onClick={login}
-      className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-medium text-black hover:bg-[var(--accent-dim)]"
+      className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
     >
-      Connect Wallet
+      Connect
     </button>
   );
 }

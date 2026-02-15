@@ -5,6 +5,7 @@ import { api, type BatchStatus } from "@/lib/api";
 
 export function BatchTimer() {
   const [status, setStatus] = useState<BatchStatus | null>(null);
+  const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     const load = async () => {
@@ -16,8 +17,6 @@ export function BatchTimer() {
     const id = setInterval(load, 10_000);
     return () => clearInterval(id);
   }, []);
-
-  const [countdown, setCountdown] = useState("");
 
   useEffect(() => {
     if (!status) return;
@@ -39,21 +38,20 @@ export function BatchTimer() {
 
   if (!status) return null;
 
+  if (status.circuit_breaker.is_paused) {
+    return (
+      <p className="text-center text-sm text-[var(--text-secondary)]">
+        Prices are updating. Check back shortly.
+      </p>
+    );
+  }
+
+  if (status.pending_orders === 0) return null;
+
   return (
-    <div className="flex items-center gap-4 rounded-xl border border-[var(--card-border)] bg-[var(--card)] p-4">
-      <div className="flex-1">
-        <p className="text-sm text-[var(--muted)]">Next batch settlement</p>
-        <p className="text-2xl font-mono font-bold">{countdown}</p>
-      </div>
-      <div className="text-right">
-        <p className="text-sm text-[var(--muted)]">Pending orders</p>
-        <p className="text-2xl font-bold">{status.pending_orders}</p>
-      </div>
-      {status.circuit_breaker.is_paused && (
-        <div className="rounded-lg bg-[var(--danger)] px-3 py-1 text-sm font-medium">
-          PAUSED: {status.circuit_breaker.pause_reason}
-        </div>
-      )}
-    </div>
+    <p className="text-center text-sm text-[var(--text-secondary)]">
+      {status.pending_orders} order{status.pending_orders !== 1 ? "s" : ""} settling in{" "}
+      <span className="font-medium text-[var(--text)]">{countdown}</span>
+    </p>
   );
 }

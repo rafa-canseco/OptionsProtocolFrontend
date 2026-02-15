@@ -1,77 +1,88 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { usePrices } from "@/hooks/usePrices";
-import { AcceptButton } from "./AcceptButton";
+import { AcceptModal } from "./AcceptModal";
+import { LivePrice } from "./LivePrice";
 import type { PriceQuote } from "@/lib/api";
 
-function TTLBadge({ expiresAt }: { expiresAt: number }) {
-  const [remaining, setRemaining] = useState(0);
-
-  useEffect(() => {
-    const tick = () => setRemaining(Math.max(0, expiresAt - Date.now() / 1000));
-    tick();
-    const id = setInterval(tick, 1000);
-    return () => clearInterval(id);
-  }, [expiresAt]);
-
-  if (remaining <= 0) return <span className="text-xs text-[var(--danger)]">EXPIRED</span>;
-  return <span className="text-xs text-[var(--muted)]">{Math.ceil(remaining)}s</span>;
+function computeAPR(premium: number, strike: number, expiryDays: number): number {
+  return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-function PriceRow({ quote }: { quote: PriceQuote }) {
-  const isCall = quote.option_type === "call";
+function untilDate(expiryDays: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + expiryDays);
+  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function PriceRow({
+  quote,
+  onSelect,
+}: {
+  quote: PriceQuote;
+  onSelect: () => void;
+}) {
+  const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
 
   return (
-    <div className="flex items-center gap-4 rounded-lg border border-[var(--card-border)] bg-[var(--card)] p-4">
-      <span
-        className={`rounded px-2 py-0.5 text-xs font-bold uppercase ${
-          isCall ? "bg-green-900/50 text-green-400" : "bg-red-900/50 text-red-400"
-        }`}
-      >
-        {quote.option_type}
-      </span>
-
-      <div className="flex-1 grid grid-cols-5 gap-2 text-sm">
-        <div>
-          <p className="text-[var(--muted)] text-xs">Strike</p>
-          <p className="font-mono">${quote.strike.toLocaleString()}</p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)] text-xs">Premium</p>
-          <p className="font-mono">${quote.premium.toFixed(2)}</p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)] text-xs">Delta</p>
-          <p className="font-mono">{quote.delta.toFixed(2)}</p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)] text-xs">IV</p>
-          <p className="font-mono">{(quote.iv * 100).toFixed(1)}%</p>
-        </div>
-        <div>
-          <p className="text-[var(--muted)] text-xs">Expiry</p>
-          <p className="font-mono">{quote.expiry_days}d</p>
-        </div>
+    <button
+      onClick={onSelect}
+      className="w-full flex items-center justify-between py-4 px-5 hover:bg-[var(--surface)] transition-all duration-200 text-left group"
+    >
+      <div>
+        <span className="text-base font-semibold text-[var(--text)] group-hover:translate-x-0.5 transition-transform duration-200 inline-block">
+          ${quote.strike.toLocaleString()}
+        </span>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5">per ETH</p>
       </div>
-
-      <TTLBadge expiresAt={quote.expires_at} />
-      <AcceptButton quote={quote} />
-    </div>
+      <div className="text-right">
+        <span className="text-base font-bold text-[var(--accent)]">${quote.premium.toFixed(0)}</span>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+      </div>
+    </button>
   );
 }
 
 export function PriceMenu() {
-  const { prices, loading, error } = usePrices();
-  const [filter, setFilter] = useState<"all" | "call" | "put">("all");
+  const { prices, loading, error, refresh } = usePrices();
+  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
+  const [accepted, setAccepted] = useState(false);
 
-  const filtered = filter === "all" ? prices : prices.filter((p) => p.option_type === filter);
+  const expiries = useMemo(() => {
+    const unique = [...new Set(prices.map((p) => p.expiry_days))].sort((a, b) => a - b);
+    return unique;
+  }, [prices]);
+
+  const [selectedExpiry, setSelectedExpiry] = useState<number | null>(null);
+  const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
+
+  const filteredPrices = useMemo(
+    () =>
+      prices
+        .filter(
+          (p) =>
+            p.option_type === (side === "buy" ? "put" : "call") &&
+            p.expiry_days === activeExpiry
+        )
+        .sort((a, b) => a.strike - b.strike),
+    [prices, side, activeExpiry]
+  );
+
+  const spot = prices[0]?.spot;
+
+  const explanationText =
+    side === "buy"
+      ? "Choose the price you'd buy at. You get paid upfront and keep the earnings no matter what."
+      : "Choose the price you'd sell at. You get paid upfront and keep the earnings no matter what.";
 
   if (loading) {
     return (
       <div className="space-y-3">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-20 animate-pulse rounded-lg bg-[var(--card)]" />
+        <div className="h-14 w-48 animate-pulse rounded-xl bg-[var(--surface)]" />
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="h-14 animate-pulse rounded-xl bg-[var(--surface)]" />
         ))}
       </div>
     );
@@ -79,39 +90,109 @@ export function PriceMenu() {
 
   if (error) {
     return (
-      <div className="rounded-lg border border-[var(--danger)] bg-red-900/20 p-4 text-sm">
-        {error}
+      <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
+        Could not load prices. Is the backend running?
+      </div>
+    );
+  }
+
+  if (accepted) {
+    return (
+      <div className="text-center space-y-4 py-10 animate-fade-in-up">
+        <p className="text-3xl font-bold text-[var(--accent)]">You&apos;re in.</p>
+        <p className="text-sm text-[var(--text-secondary)]">
+          Your order is queued for the next batch settlement.
+        </p>
+        <button
+          onClick={() => {
+            setAccepted(false);
+            refresh();
+          }}
+          className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+        >
+          Accept another price
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold">Price Menu</h2>
-        <div className="flex gap-1 rounded-lg border border-[var(--card-border)] p-1">
-          {(["all", "call", "put"] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={`rounded-md px-3 py-1 text-sm capitalize ${
-                filter === f ? "bg-[var(--card)] text-white" : "text-[var(--muted)]"
-              }`}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
+    <div className="space-y-6">
+      <LivePrice spot={spot} className="animate-fade-in-up" />
+
+      {/* Buy / Sell toggle */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
+        <button
+          onClick={() => setSide("buy")}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
+            side === "buy"
+              ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+          }`}
+        >
+          I&apos;d buy
+        </button>
+        <button
+          onClick={() => setSide("sell")}
+          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
+            side === "sell"
+              ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+          }`}
+        >
+          I&apos;d sell
+        </button>
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="text-sm text-[var(--muted)]">No prices available</p>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((quote, i) => (
-            <PriceRow key={`${quote.option_type}-${quote.strike}-${quote.expiry_days}-${i}`} quote={quote} />
+      {/* Explanation text */}
+      <p className="text-sm text-[var(--text-secondary)] px-1 animate-fade-in-up">
+        {explanationText}
+      </p>
+
+      {/* Date selector */}
+      {expiries.length > 0 && (
+        <div className="animate-fade-in-up">
+          <select
+            value={activeExpiry ?? ""}
+            onChange={(e) => setSelectedExpiry(Number(e.target.value))}
+            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+          >
+            {expiries.map((days) => (
+              <option key={days} value={days}>
+                Until {untilDate(days)}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Price rows */}
+      {filteredPrices.length > 0 ? (
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] stagger-children animate-fade-in-up">
+          {filteredPrices.map((q, i) => (
+            <PriceRow
+              key={`${q.strike}-${q.expiry_days}-${i}`}
+              quote={q}
+              onSelect={() => setSelected({ quote: q, side })}
+            />
           ))}
         </div>
+      ) : (
+        <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
+          No prices available for this date.
+        </div>
+      )}
+
+      {selected && (
+        <AcceptModal
+          quote={selected.quote}
+          side={selected.side}
+          onClose={() => setSelected(null)}
+          onAccepted={() => {
+            setSelected(null);
+            setAccepted(true);
+          }}
+        />
       )}
     </div>
   );
