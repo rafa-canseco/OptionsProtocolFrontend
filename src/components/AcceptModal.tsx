@@ -101,6 +101,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
 
     setError(null);
     const oTokenAddress = quote.otoken_address as Address;
+    let currentStep: TxStep = "idle";
+    const updateStep = (s: TxStep) => { currentStep = s; setStep(s); };
 
     try {
       let oTokenAmount: bigint;
@@ -142,7 +144,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
 
       // Approve if needed — reset to 0 first (USDC requires this)
       if (currentAllowance < collateral) {
-        setStep("approving");
+        updateStep("approving");
         if (currentAllowance > BigInt(0)) {
           const resetHash = await walletClient.writeContract({
             address: collateralAsset,
@@ -176,7 +178,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       }
 
       // Execute order
-      setStep("executing");
+      updateStep("executing");
       const txHash = await walletClient.writeContract({
         address: ADDRESSES.batchSettler,
         abi: BATCH_SETTLER_ABI,
@@ -192,17 +194,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         return;
       }
 
-      setStep("confirmed");
+      updateStep("confirmed");
       onAccepted(txHash as string);
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
       if (err instanceof UserRejectedRequestError) {
         setError("Transaction cancelled.");
-      } else if (step === "idle") {
+      } else if (currentStep === "idle") {
         setError("Could not prepare the transaction. Check your connection and try again.");
-      } else if (step === "approving") {
+      } else if (currentStep === "approving") {
         setError("Token approval failed. Please try again.");
-      } else if (step === "executing") {
+      } else if (currentStep === "executing") {
         setError("Order execution failed. Your approval succeeded — try accepting again.");
       } else {
         setError("Transaction failed. Please try again.");
