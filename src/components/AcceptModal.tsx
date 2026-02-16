@@ -1,7 +1,13 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { parseUnits, UserRejectedRequestError, type Address, type Hash } from "viem";
+import {
+  parseUnits,
+  UserRejectedRequestError,
+  WaitForTransactionReceiptTimeoutError,
+  type Address,
+  type Hash,
+} from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
 import type { PriceQuote } from "@/lib/api";
@@ -91,17 +97,19 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       return;
     }
     if (!walletClient) {
-      setError("Wallet not ready. Try again.");
+      console.warn("[AcceptModal] walletClient is null despite isConnected=true");
+      setError("Wallet provider failed to initialize. Try disconnecting and reconnecting.");
       return;
     }
     if (!quote.otoken_address) {
+      console.warn("[AcceptModal] otoken_address is null but row was not disabled");
       setError("This option is not available on-chain yet.");
       return;
     }
 
     setError(null);
     const oTokenAddress = quote.otoken_address as Address;
-    let currentStep: TxStep = "idle";
+    let currentStep = "idle" as TxStep;
     const updateStep = (s: TxStep) => { currentStep = s; setStep(s); };
 
     try {
@@ -200,8 +208,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       console.error("[AcceptModal] Transaction failed:", err);
       if (err instanceof UserRejectedRequestError) {
         setError("Transaction cancelled.");
+      } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "executing") {
+        setError("Transaction submitted but confirmation is taking longer than expected. Check your wallet or block explorer before retrying.");
       } else if (currentStep === "idle") {
-        setError("Could not prepare the transaction. Check your connection and try again.");
+        setError("Could not read on-chain data. Check your network connection and try again.");
       } else if (currentStep === "approving") {
         setError("Token approval failed. Please try again.");
       } else if (currentStep === "executing") {
