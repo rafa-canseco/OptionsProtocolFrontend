@@ -18,7 +18,7 @@ export const ADDRESSES = {
 
 export const publicClient = createPublicClient({
   chain: baseSepolia,
-  transport: http(),
+  transport: http(process.env.NEXT_PUBLIC_RPC_URL),
 });
 
 // Minimal ABIs — only the functions the frontend needs to call/read
