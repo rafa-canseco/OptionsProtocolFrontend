@@ -24,21 +24,40 @@ function PriceRow({
   onSelect: () => void;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
+  const disabled = !quote.otoken_address || quote.available_amount <= 0;
 
   return (
     <button
       onClick={onSelect}
-      className="w-full flex items-center justify-between py-4 px-5 hover:bg-[var(--surface)] transition-all duration-200 text-left group"
+      disabled={disabled}
+      className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group ${
+        disabled
+          ? "opacity-40 cursor-not-allowed"
+          : "hover:bg-[var(--surface)]"
+      }`}
     >
       <div>
-        <span className="text-base font-semibold text-[var(--text)] group-hover:translate-x-0.5 transition-transform duration-200 inline-block">
+        <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
           ${quote.strike.toLocaleString()}
         </span>
         <p className="text-xs text-[var(--text-secondary)] mt-0.5">per ETH</p>
       </div>
       <div className="text-right">
         <span className="text-base font-bold text-[var(--accent)]">${quote.premium.toFixed(0)}</span>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+          {Math.round(apr)}% APR
+          {!disabled && (
+            <span className="ml-1.5 opacity-60">
+              · {quote.available_amount.toFixed(1)} avail
+            </span>
+          )}
+          {disabled && !quote.otoken_address && (
+            <span className="ml-1.5">· unavailable</span>
+          )}
+          {disabled && quote.otoken_address && quote.available_amount <= 0 && (
+            <span className="ml-1.5">· filled</span>
+          )}
+        </p>
       </div>
     </button>
   );
@@ -48,7 +67,7 @@ export function PriceMenu() {
   const { prices, loading, error, refresh } = usePrices();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState<{ txHash: string } | null>(null);
 
   const expiries = useMemo(() => {
     const unique = [...new Set(prices.map((p) => p.expiry_days))].sort((a, b) => a - b);
@@ -101,17 +120,27 @@ export function PriceMenu() {
       <div className="text-center space-y-4 py-10 animate-fade-in-up">
         <p className="text-3xl font-bold text-[var(--accent)]">You&apos;re in.</p>
         <p className="text-sm text-[var(--text-secondary)]">
-          Your order is queued for the next batch settlement.
+          Your order has been settled on-chain.
         </p>
-        <button
-          onClick={() => {
-            setAccepted(false);
-            refresh();
-          }}
-          className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+        <a
+          href={`https://base-sepolia.blockscout.com/tx/${accepted.txHash}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors inline-block"
         >
-          Accept another price
-        </button>
+          View transaction
+        </a>
+        <div>
+          <button
+            onClick={() => {
+              setAccepted(null);
+              refresh();
+            }}
+            className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+          >
+            Accept another price
+          </button>
+        </div>
       </div>
     );
   }
@@ -188,9 +217,9 @@ export function PriceMenu() {
           quote={selected.quote}
           side={selected.side}
           onClose={() => setSelected(null)}
-          onAccepted={() => {
+          onAccepted={(txHash) => {
             setSelected(null);
-            setAccepted(true);
+            setAccepted({ txHash });
           }}
         />
       )}

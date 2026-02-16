@@ -13,21 +13,7 @@ export interface PriceQuote {
   ttl: number;
   expires_at: number;
   available_amount: number;
-}
-
-export interface AcceptOrderRequest {
-  user_address: string;
-  option_type: OptionType;
-  strike: number;
-  expiry_days: number;
-  premium: number;
-  spot_at_lock: number;
-  iv_at_lock: number;
-}
-
-export interface AcceptOrderResponse {
-  order_id: string;
-  status: string;
+  otoken_address: string | null;
 }
 
 export type OrderStatus = "pending" | "batched" | "settled" | "expired" | "failed";
@@ -48,17 +34,6 @@ export interface Position {
   tx_hash: string | null;
 }
 
-export interface BatchStatus {
-  pending_orders: number;
-  batch_interval_minutes: number;
-  last_batch_at: string | null;
-  circuit_breaker: {
-    is_paused: boolean;
-    pause_reason: string | null;
-    reference_price: number | null;
-  };
-}
-
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -74,14 +49,6 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getPrices: () => fetchAPI<PriceQuote[]>("/prices"),
 
-  acceptOrder: (order: AcceptOrderRequest) =>
-    fetchAPI<AcceptOrderResponse>("/accept", {
-      method: "POST",
-      body: JSON.stringify(order),
-    }),
-
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
-
-  getBatchStatus: () => fetchAPI<BatchStatus>("/batch/status"),
 };

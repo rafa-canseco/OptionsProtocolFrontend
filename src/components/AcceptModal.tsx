@@ -1,15 +1,25 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import {
+  parseUnits,
+  UserRejectedRequestError,
+  WaitForTransactionReceiptTimeoutError,
+  type Address,
+  type Hash,
+} from "viem";
 import { useWallet } from "@/hooks/useWallet";
-import { api, type PriceQuote } from "@/lib/api";
+import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
+import type { PriceQuote } from "@/lib/api";
 
 interface Props {
   quote: PriceQuote;
   side: "buy" | "sell";
   onClose: () => void;
-  onAccepted: () => void;
+  onAccepted: (txHash: string) => void;
 }
+
+type TxStep = "idle" | "approving" | "executing" | "confirmed";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
   return (premium / strike) * (365 / expiryDays) * 100;
@@ -22,8 +32,8 @@ function untilDate(expiryDays: number): string {
 }
 
 export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
-  const { address, isConnected, login } = useWallet();
-  const [loading, setLoading] = useState(false);
+  const { address, walletClient, isConnected, login } = useWallet();
+  const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
 
   const isBuy = side === "buy";
@@ -52,11 +62,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
     ? `$${amount.toLocaleString()}`
     : `${amount} ETH`;
 
-  // Min / Max
+  // Min / Max — max capped by available capacity
   const minAmount = isBuy ? 100 : 0.01;
-  const maxAmount = isBuy ? quote.strike * 10 : 10;
+  const maxAmount = isBuy
+    ? quote.available_amount * quote.strike
+    : quote.available_amount;
   const minLabel = isBuy ? `$${minAmount.toLocaleString()}` : `${minAmount} ETH`;
-  const maxLabel = isBuy ? `$${maxAmount.toLocaleString()}` : `${maxAmount} ETH`;
+  const maxLabel = isBuy
+    ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `${maxAmount.toFixed(2)} ETH`;
 
   const contextText = useMemo(() => {
     if (isBuy) {
@@ -65,41 +79,165 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
     return `Choose the price you're happy to sell ETH at. If the price reaches $${quote.strike.toLocaleString()} by ${until}, you sell it at that price. If it doesn't, you keep your ETH. Either way, you keep the earnings.`;
   }, [isBuy, quote.strike, until]);
 
+  const loading = step !== "idle";
+  const buttonLabel =
+    step === "approving"
+      ? isBuy ? "Approving USDC..." : "Approving WETH..."
+      : step === "executing"
+        ? "Executing order..."
+        : step === "confirmed"
+          ? "Done"
+          : !isConnected
+            ? "Connect wallet"
+            : "Accept";
+
   async function handleAccept() {
     if (!isConnected || !address) {
       login();
       return;
     }
+    if (!walletClient) {
+      console.warn("[AcceptModal] walletClient is null despite isConnected=true");
+      setError("Wallet provider failed to initialize. Try disconnecting and reconnecting.");
+      return;
+    }
+    if (!quote.otoken_address) {
+      console.warn("[AcceptModal] otoken_address is null but row was not disabled");
+      setError("This option is not available on-chain yet.");
+      return;
+    }
+    if (amount <= 0 || amount < minAmount || amount > maxAmount) {
+      setError(`Amount must be between ${minLabel} and ${maxLabel}.`);
+      return;
+    }
 
-    setLoading(true);
     setError(null);
+    const oTokenAddress = quote.otoken_address as Address;
+    let currentStep = "idle" as TxStep;
+    const updateStep = (s: TxStep) => { currentStep = s; setStep(s); };
 
     try {
-      await api.acceptOrder({
-        user_address: address,
-        option_type: quote.option_type,
-        strike: quote.strike,
-        expiry_days: quote.expiry_days,
-        premium: quote.premium,
-        spot_at_lock: quote.spot,
-        iv_at_lock: quote.iv,
+      let oTokenAmount: bigint;
+      let collateral: bigint;
+      let collateralAsset: Address;
+
+      if (isBuy) {
+        const ethUnits = amount / quote.strike;
+        oTokenAmount = parseUnits(ethUnits.toFixed(8), 8);
+        collateral = parseUnits(amount.toFixed(6), 6);
+        collateralAsset = ADDRESSES.usdc;
+      } else {
+        const amountStr = amount.toFixed(8);
+        oTokenAmount = parseUnits(amountStr, 8);
+        collateral = parseUnits(amountStr, 18);
+        collateralAsset = ADDRESSES.weth;
+      }
+
+      // Check balance before spending gas
+      const balance = await publicClient.readContract({
+        address: collateralAsset,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address],
       });
-      onAccepted();
-    } catch {
-      setError("Something went wrong. Try again.");
-    } finally {
-      setLoading(false);
+      if (balance < collateral) {
+        const token = isBuy ? "USDC" : "WETH";
+        setError(`Insufficient ${token} balance.`);
+        return;
+      }
+
+      // Check allowance
+      const currentAllowance = await publicClient.readContract({
+        address: collateralAsset,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [address, ADDRESSES.marginPool],
+      });
+
+      // Approve if needed — reset to 0 first (USDC requires this)
+      if (currentAllowance < collateral) {
+        updateStep("approving");
+        if (currentAllowance > BigInt(0)) {
+          const resetHash = await walletClient.writeContract({
+            address: collateralAsset,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [ADDRESSES.marginPool, BigInt(0)],
+            account: address,
+            chain: publicClient.chain,
+          });
+          const resetReceipt = await publicClient.waitForTransactionReceipt({ hash: resetHash as Hash });
+          if (resetReceipt.status === "reverted") {
+            setError("Approval reset reverted. Please try again.");
+            setStep("idle");
+            return;
+          }
+        }
+        const approveHash = await walletClient.writeContract({
+          address: collateralAsset,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [ADDRESSES.marginPool, collateral],
+          account: address,
+          chain: publicClient.chain,
+        });
+        const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash as Hash });
+        if (approveReceipt.status === "reverted") {
+          setError("Token approval reverted on-chain.");
+          setStep("idle");
+          return;
+        }
+      }
+
+      // Execute order
+      updateStep("executing");
+      const txHash = await walletClient.writeContract({
+        address: ADDRESSES.batchSettler,
+        abi: BATCH_SETTLER_ABI,
+        functionName: "executeOrder",
+        args: [oTokenAddress, oTokenAmount, collateral],
+        account: address,
+        chain: publicClient.chain,
+      });
+      const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: txHash as Hash });
+      if (executeReceipt.status === "reverted") {
+        setError("Order reverted on-chain. The option may no longer be available.");
+        setStep("idle");
+        return;
+      }
+
+      updateStep("confirmed");
+      onAccepted(txHash as string);
+    } catch (err: unknown) {
+      console.error("[AcceptModal] Transaction failed:", err);
+      if (err instanceof UserRejectedRequestError) {
+        setError("Transaction cancelled.");
+      } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "approving") {
+        setError("Approval submitted but confirmation is taking longer than expected. Check your wallet before retrying.");
+      } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "executing") {
+        setError("Transaction submitted but confirmation is taking longer than expected. Check your wallet or block explorer before retrying.");
+      } else if (currentStep === "idle") {
+        setError("Could not read on-chain data. Check your network connection and try again.");
+      } else if (currentStep === "approving") {
+        setError("Token approval failed. Please try again.");
+      } else if (currentStep === "executing") {
+        setError("Order execution failed. Your approval succeeded — try accepting again.");
+      } else {
+        setError("Transaction failed. Please try again.");
+      }
+      setStep("idle");
     }
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="fixed inset-0 bg-black/30" onClick={onClose} />
+      <div className="fixed inset-0 bg-black/30" onClick={loading ? undefined : onClose} />
       <div className="relative w-full max-w-md bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5 max-h-[90vh] overflow-y-auto">
         {/* Back button */}
         <button
           onClick={onClose}
-          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+          disabled={loading}
+          className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40"
         >
           ← Back
         </button>
@@ -123,6 +261,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
               type="number"
               value={amount}
               step={isBuy ? 100 : 0.1}
+              disabled={loading}
               onChange={(e) => {
                 const val = Number(e.target.value);
                 if (val >= 0) setAmount(val);
@@ -197,7 +336,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           disabled={loading || amount < minAmount || amount > maxAmount}
           className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
         >
-          {loading ? "..." : !isConnected ? "Connect wallet" : "Accept"}
+          {buttonLabel}
         </button>
       </div>
     </div>
