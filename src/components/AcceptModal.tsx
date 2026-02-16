@@ -106,6 +106,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       setError("This option is not available on-chain yet.");
       return;
     }
+    if (amount <= 0 || amount < minAmount || amount > maxAmount) {
+      setError(`Amount must be between ${minLabel} and ${maxLabel}.`);
+      return;
+    }
 
     setError(null);
     const oTokenAddress = quote.otoken_address as Address;
@@ -208,6 +212,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       console.error("[AcceptModal] Transaction failed:", err);
       if (err instanceof UserRejectedRequestError) {
         setError("Transaction cancelled.");
+      } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "approving") {
+        setError("Approval submitted but confirmation is taking longer than expected. Check your wallet before retrying.");
       } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "executing") {
         setError("Transaction submitted but confirmation is taking longer than expected. Check your wallet or block explorer before retrying.");
       } else if (currentStep === "idle") {

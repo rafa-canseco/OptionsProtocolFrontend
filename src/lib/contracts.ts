@@ -16,9 +16,14 @@ export const ADDRESSES = {
   weth: "0x4200000000000000000000000000000000000006" as Address,
 } as const;
 
+const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+if (!rpcUrl && typeof window !== "undefined") {
+  console.warn("[contracts] NEXT_PUBLIC_RPC_URL is not set. Falling back to default public RPC, which may be rate-limited.");
+}
+
 export const publicClient = createPublicClient({
   chain: baseSepolia,
-  transport: http(process.env.NEXT_PUBLIC_RPC_URL),
+  transport: http(rpcUrl),
 });
 
 // Minimal ABIs — only the functions the frontend needs to call/read
