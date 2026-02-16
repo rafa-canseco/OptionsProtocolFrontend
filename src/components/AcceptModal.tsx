@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { parseUnits, type Address, type Hash } from "viem";
+import { parseUnits, UserRejectedRequestError, type Address, type Hash } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
 import type { PriceQuote } from "@/lib/api";
@@ -103,22 +103,33 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
     const oTokenAddress = quote.otoken_address as Address;
 
     try {
-      // Compute on-chain values
       let oTokenAmount: bigint;
       let collateral: bigint;
       let collateralAsset: Address;
 
       if (isBuy) {
-        // Put: user enters USD amount, collateral is USDC
         const ethUnits = amount / quote.strike;
         oTokenAmount = parseUnits(ethUnits.toFixed(8), 8);
         collateral = parseUnits(amount.toFixed(6), 6);
         collateralAsset = ADDRESSES.usdc;
       } else {
-        // Call: user enters ETH amount, collateral is WETH
-        oTokenAmount = parseUnits(amount.toFixed(8), 8);
-        collateral = parseUnits(amount.toFixed(18), 18);
+        const amountStr = amount.toFixed(8);
+        oTokenAmount = parseUnits(amountStr, 8);
+        collateral = parseUnits(amountStr, 18);
         collateralAsset = ADDRESSES.weth;
+      }
+
+      // Check balance before spending gas
+      const balance = await publicClient.readContract({
+        address: collateralAsset,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address],
+      });
+      if (balance < collateral) {
+        const token = isBuy ? "USDC" : "WETH";
+        setError(`Insufficient ${token} balance.`);
+        return;
       }
 
       // Check allowance
@@ -129,9 +140,25 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         args: [address, ADDRESSES.marginPool],
       });
 
-      // Approve if needed
+      // Approve if needed — reset to 0 first (USDC requires this)
       if (currentAllowance < collateral) {
         setStep("approving");
+        if (currentAllowance > BigInt(0)) {
+          const resetHash = await walletClient.writeContract({
+            address: collateralAsset,
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [ADDRESSES.marginPool, BigInt(0)],
+            account: address,
+            chain: publicClient.chain,
+          });
+          const resetReceipt = await publicClient.waitForTransactionReceipt({ hash: resetHash as Hash });
+          if (resetReceipt.status === "reverted") {
+            setError("Approval reset reverted. Please try again.");
+            setStep("idle");
+            return;
+          }
+        }
         const approveHash = await walletClient.writeContract({
           address: collateralAsset,
           abi: ERC20_ABI,
@@ -140,7 +167,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           account: address,
           chain: publicClient.chain,
         });
-        await publicClient.waitForTransactionReceipt({ hash: approveHash as Hash });
+        const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash as Hash });
+        if (approveReceipt.status === "reverted") {
+          setError("Token approval reverted on-chain.");
+          setStep("idle");
+          return;
+        }
       }
 
       // Execute order
@@ -153,16 +185,27 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         account: address,
         chain: publicClient.chain,
       });
-      await publicClient.waitForTransactionReceipt({ hash: txHash as Hash });
+      const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: txHash as Hash });
+      if (executeReceipt.status === "reverted") {
+        setError("Order reverted on-chain. The option may no longer be available.");
+        setStep("idle");
+        return;
+      }
 
       setStep("confirmed");
       onAccepted(txHash as string);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Transaction failed";
-      if (message.includes("User rejected") || message.includes("denied")) {
+      console.error("[AcceptModal] Transaction failed:", err);
+      if (err instanceof UserRejectedRequestError) {
         setError("Transaction cancelled.");
+      } else if (step === "idle") {
+        setError("Could not prepare the transaction. Check your connection and try again.");
+      } else if (step === "approving") {
+        setError("Token approval failed. Please try again.");
+      } else if (step === "executing") {
+        setError("Order execution failed. Your approval succeeded — try accepting again.");
       } else {
-        setError(message.length > 120 ? message.slice(0, 120) + "..." : message);
+        setError("Transaction failed. Please try again.");
       }
       setStep("idle");
     }

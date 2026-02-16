@@ -27,6 +27,9 @@ export function useWallet() {
           transport: custom(provider),
         })
       );
+    }).catch((err) => {
+      console.error("[useWallet] Failed to get Ethereum provider:", err);
+      setWalletClient(null);
     });
     return () => { cancelled = true; };
   }, [activeWallet]);
