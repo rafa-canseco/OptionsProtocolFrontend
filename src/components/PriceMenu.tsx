@@ -79,18 +79,17 @@ export function PriceMenu() {
 
   const spot = prices[0]?.spot;
 
-  const filteredPrices = useMemo(
-    () =>
-      prices
-        .filter(
-          (p) =>
-            p.option_type === (side === "buy" ? "put" : "call") &&
-            p.expiry_days === activeExpiry &&
-            (side === "buy" ? p.strike < (spot ?? Infinity) : p.strike > (spot ?? 0))
-        )
-        .sort((a, b) => a.strike - b.strike),
-    [prices, side, activeExpiry, spot]
-  );
+  const filteredPrices = useMemo(() => {
+    const s = prices[0]?.spot;
+    return prices
+      .filter(
+        (p) =>
+          p.option_type === (side === "buy" ? "put" : "call") &&
+          p.expiry_days === activeExpiry &&
+          (side === "buy" ? p.strike < (s ?? Infinity) : p.strike > (s ?? -Infinity))
+      )
+      .sort((a, b) => a.strike - b.strike);
+  }, [prices, side, activeExpiry]);
 
   const explanationText =
     side === "buy"
