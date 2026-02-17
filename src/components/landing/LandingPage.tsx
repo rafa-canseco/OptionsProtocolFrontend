@@ -816,19 +816,28 @@ function CTASection() {
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setError(null);
     setLoading(true);
     try {
       await api.joinWaitlist(email);
       setSubmitted(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong. Try again.");
+      console.error("[waitlist]", err);
+      let msg = "Something went wrong. Please try again.";
+      if (err instanceof TypeError) {
+        msg = "Unable to reach our servers. Check your connection and try again.";
+      } else if (err instanceof Error) {
+        if (err.message.startsWith("API 409")) msg = "This email is already on the waitlist.";
+        else if (err.message.startsWith("API 422")) msg = "Please enter a valid email address.";
+      }
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6">
