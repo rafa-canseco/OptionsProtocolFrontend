@@ -77,19 +77,20 @@ export function PriceMenu() {
   const [selectedExpiry, setSelectedExpiry] = useState<number | null>(null);
   const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
 
+  const spot = prices[0]?.spot;
+
   const filteredPrices = useMemo(
     () =>
       prices
         .filter(
           (p) =>
             p.option_type === (side === "buy" ? "put" : "call") &&
-            p.expiry_days === activeExpiry
+            p.expiry_days === activeExpiry &&
+            (side === "buy" ? p.strike < (spot ?? Infinity) : p.strike > (spot ?? 0))
         )
         .sort((a, b) => a.strike - b.strike),
-    [prices, side, activeExpiry]
+    [prices, side, activeExpiry, spot]
   );
-
-  const spot = prices[0]?.spot;
 
   const explanationText =
     side === "buy"
