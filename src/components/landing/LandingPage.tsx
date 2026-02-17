@@ -320,6 +320,17 @@ function HeroSection({
           <SideToggle side={side} onSideChange={onSideChange} />
         </motion.div>
 
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, delay: 0.15 }}
+          className="text-[#71717A] text-[clamp(1rem,2.5vw,1.4rem)]"
+        >
+          {side === "buy"
+            ? "Set the price you'd buy ETH at. Earn while you wait."
+            : "Set the price you'd sell ETH at. Earn while you hold."}
+        </motion.p>
+
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -371,11 +382,7 @@ function HeroSection({
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 1.2 }}
-          className="space-y-2"
         >
-          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[#71717A]">
-            Commit to your price until Friday.
-          </p>
           <p className="text-[clamp(1.3rem,3vw,2rem)] font-light text-[#71717A]">
             Get{" "}
             <span className="font-bold" style={{ color: sideColor }}>
@@ -467,27 +474,15 @@ function OutcomesSection({ side, spot }: { side: "buy" | "sell"; spot: number })
   );
 }
 
-const HowItWorksSection = memo(function HowItWorksSection({ side }: { side: "buy" | "sell" }) {
+const HowItWorksSection = memo(function HowItWorksSection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
-  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
-  type Step = { text: string; accent: boolean; sub?: string[] };
-  const steps: Step[] = side === "buy"
-    ? [
-        { text: "Pick a price you'd buy ETH at.", accent: false },
-        { text: "Put up that amount in dollars.", accent: false },
-        { text: "Get paid upfront.", accent: true },
-        { text: "On Friday:", sub: ["Hit → you bought it @ your price.", "Not hit → your dollars come back."], accent: false },
-        { text: "Repeat.", accent: true },
-      ]
-    : [
-        { text: "Pick a price you'd sell ETH at.", accent: false },
-        { text: "Put up the ETH you'd sell.", accent: false },
-        { text: "Get paid upfront.", accent: true },
-        { text: "On Friday:", sub: ["Hit → you sold it @ your price.", "Not hit → your ETH comes back."], accent: false },
-        { text: "Repeat.", accent: true },
-      ];
+  const steps = [
+    { title: "Pick your price", desc: "Choose what you'd buy or sell ETH at." },
+    { title: "Get paid now", desc: "Earn a premium upfront, deposited immediately." },
+    { title: "Friday settles", desc: "Trade happens at your price, or your money comes back. Either way, you earned." },
+  ];
 
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
@@ -504,45 +499,23 @@ const HowItWorksSection = memo(function HowItWorksSection({ side }: { side: "buy
         <AaveLogo className="w-full h-full" />
       </FloatingToken>
 
-      <div className="max-w-3xl w-full space-y-10">
-        <AnimatePresence mode="wait">
+      <div className="max-w-3xl w-full space-y-12">
+        {steps.map((step, i) => (
           <motion.div
-            key={side}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.3 }}
-            className="space-y-10"
+            key={i}
+            initial={{ opacity: 0, y: 20 }}
+            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+            transition={{ duration: 0.5, delay: i * 0.3, ease: "easeOut" }}
           >
-            {steps.map((step, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 20 }}
-                animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-                transition={{ duration: 0.5, delay: i * 0.3, ease: "easeOut" }}
-              >
-                <p
-                  className={`text-[clamp(1.3rem,3vw,2rem)] font-light leading-relaxed ${
-                    step.accent ? "font-medium" : "text-[#FAFAFA]"
-                  }`}
-                  style={step.accent ? { color: sideColor } : undefined}
-                >
-                  <span className="text-[#52525B] mr-3">{i + 1}.</span>
-                  {step.text}
-                </p>
-                {step.sub && (
-                  <div className="ml-10 mt-2 space-y-1">
-                    {step.sub.map((line, j) => (
-                      <p key={j} className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[#71717A] font-light">
-                        {line}
-                      </p>
-                    ))}
-                  </div>
-                )}
-              </motion.div>
-            ))}
+            <p className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[#FAFAFA] leading-relaxed">
+              <span className="text-[#52525B] mr-3">{i + 1}.</span>
+              {step.title}
+            </p>
+            <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[#71717A] font-light mt-2 ml-10">
+              {step.desc}
+            </p>
           </motion.div>
-        </AnimatePresence>
+        ))}
       </div>
     </section>
   );
@@ -597,6 +570,58 @@ const RealYieldSection = memo(function RealYieldSection() {
             Paid upfront.
           </p>
         </motion.div>
+      </div>
+    </section>
+  );
+});
+
+const UseCasesSection = memo(function UseCasesSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "-20%" });
+
+  const cases = [
+    { title: "Want to buy ETH cheaper?", desc: "Set your price below market. Earn while you wait for the dip." },
+    { title: "Already holding ETH?", desc: "Set a sell target above market. Earn while you hold." },
+    { title: "Just want yield?", desc: "Repeat every week. No token, no lock-up." },
+  ];
+
+  return (
+    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
+      <FloatingToken x="5%" y="25%" size={60} duration={16} delay={2} drift={[-12, 14]}>
+        <EthLogo className="w-full h-full" />
+      </FloatingToken>
+      <FloatingToken x="88%" y="35%" size={56} duration={14} delay={5} drift={[-10, 16]}>
+        <UsdcLogo className="w-full h-full" />
+      </FloatingToken>
+
+      <div className="max-w-3xl w-full space-y-12">
+        <motion.p
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(2rem,6vw,4.5rem)] font-light text-[#FAFAFA] tracking-tight"
+        >
+          Who is this for?
+        </motion.p>
+
+        <div className="space-y-8">
+          {cases.map((c, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 20 }}
+              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+              transition={{ duration: 0.5, delay: 0.3 + i * 0.2, ease: "easeOut" }}
+              className="rounded-2xl border border-[#27272A] bg-[#18181B]/50 p-8"
+            >
+              <p className="text-[clamp(1.3rem,3vw,2rem)] font-light text-[#FAFAFA]">
+                {c.title}
+              </p>
+              <p className="text-[clamp(1rem,2.5vw,1.3rem)] text-[#71717A] font-light mt-2">
+                {c.desc}
+              </p>
+            </motion.div>
+          ))}
+        </div>
       </div>
     </section>
   );
@@ -851,8 +876,9 @@ export function LandingPage() {
 
       <HeroSection side={side} onSideChange={setSide} hasLoaded={hasLoaded} onLoaded={handleLoaded} spot={spot} onSpotChange={handleSpotChange} />
       <OutcomesSection side={side} spot={spot} />
-      <HowItWorksSection side={side} />
+      <HowItWorksSection />
       <RealYieldSection />
+      <UseCasesSection />
       <LoopSection side={side} />
       <PromiseSection />
       <CTASection />
