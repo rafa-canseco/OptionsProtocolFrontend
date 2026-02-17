@@ -39,7 +39,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
   const isBuy = side === "buy";
 
   // Buy: amount in USD (default = strike). Sell: amount in ETH (default = 1).
-  const [amount, setAmount] = useState(isBuy ? quote.strike : 1);
+  // String state avoids leading-zero bug with controlled number inputs.
+  const [amountStr, setAmountStr] = useState(String(isBuy ? quote.strike : 1));
+  const amount = Number(amountStr) || 0;
 
   const until = untilDate(quote.expiry_days);
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
@@ -258,15 +260,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
             <input
-              type="number"
-              value={amount}
-              step={isBuy ? 100 : 0.1}
+              type="text"
+              inputMode="decimal"
+              value={amountStr}
               disabled={loading}
               onChange={(e) => {
-                const val = Number(e.target.value);
-                if (val >= 0) setAmount(val);
+                const raw = e.target.value;
+                if (raw === "" || /^\d*\.?\d*$/.test(raw)) {
+                  setAmountStr(raw);
+                }
               }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
             />
             <span className="text-sm text-[var(--text-secondary)]">
               {isBuy ? equivalent : "ETH"}
