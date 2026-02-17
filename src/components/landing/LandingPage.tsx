@@ -212,6 +212,18 @@ const SELL_STRIKE = 2800;
 const BUY_PREMIUM_BASE = 61;
 const SELL_PREMIUM_BASE = 42;
 
+const HOW_IT_WORKS_STEPS = [
+  { title: "Pick your price", desc: "Choose what you'd buy or sell ETH at." },
+  { title: "Get paid now", desc: "Earn a premium upfront, deposited immediately." },
+  { title: "Friday settles", desc: "Trade happens at your price, or your money comes back. Either way, you earned." },
+];
+
+const USE_CASES = [
+  { title: "Want to buy ETH cheaper?", desc: "Set your price below market. Earn while you wait for the dip." },
+  { title: "Already holding ETH?", desc: "Set a sell target above market. Earn while you hold." },
+  { title: "Just want yield?", desc: "Repeat every week. No token, no lock-up." },
+];
+
 function derivePremium(spot: number, side: "buy" | "sell"): number {
   if (!Number.isFinite(spot)) return side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
 
@@ -320,16 +332,20 @@ function HeroSection({
           <SideToggle side={side} onSideChange={onSideChange} />
         </motion.div>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.15 }}
-          className="text-[#71717A] text-[clamp(1rem,2.5vw,1.4rem)]"
-        >
-          {side === "buy"
-            ? "Set the price you'd buy ETH at. Earn while you wait."
-            : "Set the price you'd sell ETH at. Earn while you hold."}
-        </motion.p>
+        <AnimatePresence mode="wait">
+          <motion.p
+            key={side}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.3 }}
+            className="text-[#71717A] text-[clamp(1rem,2.5vw,1.4rem)]"
+          >
+            {side === "buy"
+              ? "Set the price you'd buy ETH at. Earn while you wait."
+              : "Set the price you'd sell ETH at. Earn while you hold."}
+          </motion.p>
+        </AnimatePresence>
 
         <motion.div
           initial={{ opacity: 0 }}
@@ -478,12 +494,6 @@ const HowItWorksSection = memo(function HowItWorksSection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
 
-  const steps = [
-    { title: "Pick your price", desc: "Choose what you'd buy or sell ETH at." },
-    { title: "Get paid now", desc: "Earn a premium upfront, deposited immediately." },
-    { title: "Friday settles", desc: "Trade happens at your price, or your money comes back. Either way, you earned." },
-  ];
-
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
       <FloatingToken x="4%" y="20%" size={58} duration={14} delay={3} drift={[-12, 14]}>
@@ -500,7 +510,7 @@ const HowItWorksSection = memo(function HowItWorksSection() {
       </FloatingToken>
 
       <div className="max-w-3xl w-full space-y-12">
-        {steps.map((step, i) => (
+        {HOW_IT_WORKS_STEPS.map((step, i) => (
           <motion.div
             key={i}
             initial={{ opacity: 0, y: 20 }}
@@ -579,12 +589,6 @@ const UseCasesSection = memo(function UseCasesSection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
 
-  const cases = [
-    { title: "Want to buy ETH cheaper?", desc: "Set your price below market. Earn while you wait for the dip." },
-    { title: "Already holding ETH?", desc: "Set a sell target above market. Earn while you hold." },
-    { title: "Just want yield?", desc: "Repeat every week. No token, no lock-up." },
-  ];
-
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
       <FloatingToken x="5%" y="25%" size={60} duration={16} delay={2} drift={[-12, 14]}>
@@ -605,7 +609,7 @@ const UseCasesSection = memo(function UseCasesSection() {
         </motion.p>
 
         <div className="space-y-8">
-          {cases.map((c, i) => (
+          {USE_CASES.map((useCase, i) => (
             <motion.div
               key={i}
               initial={{ opacity: 0, y: 20 }}
@@ -614,10 +618,10 @@ const UseCasesSection = memo(function UseCasesSection() {
               className="rounded-2xl border border-[#27272A] bg-[#18181B]/50 p-8"
             >
               <p className="text-[clamp(1.3rem,3vw,2rem)] font-light text-[#FAFAFA]">
-                {c.title}
+                {useCase.title}
               </p>
               <p className="text-[clamp(1rem,2.5vw,1.3rem)] text-[#71717A] font-light mt-2">
-                {c.desc}
+                {useCase.desc}
               </p>
             </motion.div>
           ))}
