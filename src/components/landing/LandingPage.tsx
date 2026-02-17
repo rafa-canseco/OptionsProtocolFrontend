@@ -7,6 +7,7 @@ import { TickingPrice } from "./TickingPrice";
 import { CountUp } from "./CountUp";
 import { StrikethroughLine } from "./StrikethroughLine";
 import { CursorGlow } from "./CursorGlow";
+import { api } from "@/lib/api";
 
 const ACCENT = "#3B82F6";
 const BUY_COLOR = "#22C55E";
@@ -807,9 +808,36 @@ const PromiseSection = memo(function PromiseSection() {
   );
 });
 
-const CTASection = memo(function CTASection() {
+function CTASection() {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
+  const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (loading) return;
+    setError(null);
+    setLoading(true);
+    try {
+      await api.joinWaitlist(email);
+      setSubmitted(true);
+    } catch (err) {
+      console.error("[waitlist]", err);
+      let msg = "Something went wrong. Please try again.";
+      if (err instanceof TypeError) {
+        msg = "Unable to reach our servers. Check your connection and try again.";
+      } else if (err instanceof Error) {
+        if (err.message.startsWith("API 409")) msg = "This email is already on the waitlist.";
+        else if (err.message.startsWith("API 422")) msg = "Please enter a valid email address.";
+      }
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6">
@@ -834,25 +862,40 @@ const CTASection = memo(function CTASection() {
             Launch app
           </Link>
 
-          <div className="flex max-w-md mx-auto gap-3">
-            <input
-              type="email"
-              placeholder="Enter your email"
-              className="flex-1 rounded-xl bg-[#18181B] border border-[#27272A] px-4 py-3 text-sm text-[#FAFAFA] placeholder:text-[#52525B] focus:outline-none focus:border-[#3B82F6] transition-colors"
-            />
-            <button
-              type="submit"
-              className="rounded-xl px-6 py-3 text-sm font-semibold text-[#71717A] border border-[#27272A] hover:text-[#FAFAFA] hover:border-[#52525B] transition-colors whitespace-nowrap"
-            >
-              Join waitlist
-            </button>
-          </div>
-          <p className="text-xs text-[#52525B]">or join the waitlist for early access</p>
+          {submitted ? (
+            <p className="text-base font-semibold" style={{ color: ACCENT }}>
+              You&apos;re on the list.
+            </p>
+          ) : (
+            <>
+              <form onSubmit={handleSubmit} className="flex max-w-md mx-auto gap-3">
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Enter your email"
+                  className="flex-1 rounded-xl bg-[#18181B] border border-[#27272A] px-4 py-3 text-sm text-[#FAFAFA] placeholder:text-[#52525B] focus:outline-none focus:border-[#3B82F6] transition-colors"
+                />
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="rounded-xl px-6 py-3 text-sm font-semibold text-[#71717A] border border-[#27272A] hover:text-[#FAFAFA] hover:border-[#52525B] transition-colors whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {loading ? "Joining..." : "Join waitlist"}
+                </button>
+              </form>
+              {error && (
+                <p className="text-sm text-[#EF4444]">{error}</p>
+              )}
+              <p className="text-xs text-[#52525B]">or join the waitlist for early access</p>
+            </>
+          )}
         </div>
       </motion.div>
     </section>
   );
-});
+}
 
 export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
