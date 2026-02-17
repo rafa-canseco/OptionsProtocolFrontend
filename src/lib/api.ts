@@ -51,4 +51,10 @@ export const api = {
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
+
+  joinWaitlist: (email: string) =>
+    fetchAPI<{ ok: boolean }>("/waitlist", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
 };
