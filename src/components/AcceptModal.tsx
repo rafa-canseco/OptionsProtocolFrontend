@@ -129,9 +129,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         collateral = parseUnits(amount.toFixed(6), 6);
         collateralAsset = ADDRESSES.usdc;
       } else {
-        const amountStr = amount.toFixed(8);
-        oTokenAmount = parseUnits(amountStr, 8);
-        collateral = parseUnits(amountStr, 18);
+        const formattedAmount = amount.toFixed(8);
+        oTokenAmount = parseUnits(formattedAmount, 8);
+        collateral = parseUnits(formattedAmount, 18);
         collateralAsset = ADDRESSES.weth;
       }
 
@@ -266,7 +266,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
               disabled={loading}
               onChange={(e) => {
                 const raw = e.target.value;
-                if (raw === "" || /^\d*\.?\d*$/.test(raw)) {
+                if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
                   setAmountStr(raw);
                 }
               }}
