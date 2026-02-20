@@ -46,11 +46,11 @@ function StrikeChart({
   const xRange = xMax - xMin;
 
   const W = 360;
-  const H = 100;
+  const H = 110;
   const PAD_L = 8;
   const PAD_R = 8;
   const plotW = W - PAD_L - PAD_R;
-  const AXIS_Y = 50;
+  const AXIS_Y = 55;
 
   const toX = (price: number) => PAD_L + ((price - xMin) / xRange) * plotW;
   const spotX = toX(spot);
@@ -59,6 +59,9 @@ function StrikeChart({
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 animate-fade-in-up">
+      <p className="text-xs text-[var(--text-secondary)] mb-2">
+        Choose a strike price — {isBuy ? "further below" : "further above"} spot = safer, less premium
+      </p>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
@@ -116,24 +119,18 @@ function StrikeChart({
           );
         })}
 
-        {/* Spot marker — triangle + label */}
-        <polygon
-          points={`${spotX},${AXIS_Y - 4} ${spotX - 5},${AXIS_Y - 14} ${spotX + 5},${AXIS_Y - 14}`}
-          fill="var(--text)"
+        {/* Spot marker — vertical line + labels above axis */}
+        <line
+          x1={spotX} y1={AXIS_Y - 28} x2={spotX} y2={AXIS_Y + 4}
+          stroke="var(--text)" strokeWidth={1.5} strokeDasharray="3 2"
         />
+        <circle cx={spotX} cy={AXIS_Y} r={3} fill="var(--text)" />
         <text
-          x={spotX} y={AXIS_Y + 24}
+          x={spotX} y={AXIS_Y - 33}
           textAnchor="middle" fill="var(--text)"
           fontSize={10} fontWeight={600}
         >
-          ${spot.toLocaleString()}
-        </text>
-        <text
-          x={spotX} y={AXIS_Y + 36}
-          textAnchor="middle" fill="var(--text-secondary)"
-          fontSize={8}
-        >
-          now
+          ${spot.toLocaleString()} now
         </text>
       </svg>
     </div>
@@ -269,7 +266,7 @@ export function PriceMenuV2() {
           <p>{abuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
         </div>
         <a
-          href="/positions/v2"
+          href="/positions"
           className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
         >
           View my positions
