@@ -21,7 +21,7 @@ function untilDate(expiryDays: number): string {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 
-/** Step indicator dots */
+/** Step indicator dots — uses --side color for completed steps */
 function StepIndicator({ current }: { current: number }) {
   const steps = ["Side", "Duration", "Amount", "Strike"];
   return (
@@ -37,7 +37,7 @@ function StepIndicator({ current }: { current: number }) {
           }`}>
             <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
               i < current
-                ? "bg-[var(--accent)]"
+                ? "bg-[var(--side)]"
                 : i === current
                   ? "bg-[var(--text)] scale-125"
                   : "bg-[var(--border)]"
@@ -50,7 +50,7 @@ function StepIndicator({ current }: { current: number }) {
           </div>
           {i < steps.length - 1 && (
             <div className={`w-4 h-px transition-colors duration-300 ${
-              i < current ? "bg-[var(--accent)]" : "bg-[var(--border)]"
+              i < current ? "bg-[var(--side)]" : "bg-[var(--border)]"
             }`} />
           )}
         </div>
@@ -59,7 +59,7 @@ function StepIndicator({ current }: { current: number }) {
   );
 }
 
-/** Horizontal price axis with color zones — spot vs strikes */
+/** Horizontal price axis with color zones — uses --side for UI, --accent for earnings */
 function StrikeChart({
   filteredPrices,
   spot,
@@ -111,8 +111,8 @@ function StrikeChart({
     >
       <defs>
         <linearGradient id="safeZone" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.08} />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+          <stop offset="0%" stopColor="var(--side)" stopOpacity={0.08} />
+          <stop offset="100%" stopColor="var(--side)" stopOpacity={0.02} />
         </linearGradient>
         <radialGradient id="selectedGlow" cx="50%" cy="50%" r="50%">
           <stop offset="0%" stopColor="var(--text)" stopOpacity={0.06} />
@@ -156,20 +156,20 @@ function StrikeChart({
 
         return (
           <g key={q.strike} opacity={unavailable ? 0.25 : 1}>
-            {/* Strike tick */}
+            {/* Strike tick — side color */}
             <line
               x1={x} y1={AXIS_Y - 14} x2={x} y2={AXIS_Y + 14}
-              stroke={isSelected ? "var(--accent)" : "var(--text-secondary)"}
+              stroke={isSelected ? "var(--side)" : "var(--text-secondary)"}
               strokeWidth={isSelected ? 2.5 : 1.5}
               strokeLinecap="round"
             />
-            {/* Selected indicator */}
+            {/* Selected indicator — side color */}
             {isSelected && (
-              <circle cx={x} cy={AXIS_Y} r={5} fill="var(--accent)" opacity={0.9}>
+              <circle cx={x} cy={AXIS_Y} r={5} fill="var(--side)" opacity={0.9}>
                 <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
               </circle>
             )}
-            {/* Earnings label above */}
+            {/* Earnings label above — stays green (accent = money) */}
             {earnings > 0 && (
               <text
                 x={x} y={AXIS_Y - 24}
@@ -180,11 +180,11 @@ function StrikeChart({
                 ${Math.round(earnings).toLocaleString()}
               </text>
             )}
-            {/* Strike price below */}
+            {/* Strike price below — side color when selected */}
             <text
               x={x} y={AXIS_Y + 30}
               textAnchor="middle"
-              fill={isSelected ? "var(--accent)" : "var(--text-secondary)"}
+              fill={isSelected ? "var(--side)" : "var(--text-secondary)"}
               fontSize={10}
               fontWeight={isSelected ? 600 : 400}
             >
@@ -208,11 +208,11 @@ function StrikeChart({
         ${spot.toLocaleString()} now
       </text>
 
-      {/* "Safe zone" label */}
+      {/* "Safe zone" label — side color */}
       {!isNaN(nearestStrike) && safeRight - safeLeft > 40 && (
         <text
           x={(safeLeft + safeRight) / 2} y={AXIS_Y + 52}
-          textAnchor="middle" fill="var(--accent)"
+          textAnchor="middle" fill="var(--side)"
           fontSize={9} fontWeight={500} opacity={0.6}
         >
           safe zone
@@ -253,14 +253,16 @@ function StrikeCard({
         disabled
           ? "opacity-40 cursor-not-allowed"
           : isSelected
-            ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)]"
+            ? "bg-[var(--side)]/8 border-l-2 border-l-[var(--side)]"
             : "hover:bg-[var(--surface)] hover:pl-6"
       }`}
     >
-      <span className={`text-base font-semibold ${isSelected ? "text-[var(--accent)]" : "text-[var(--text)]"} transition-all duration-200 inline-block`}>
+      {/* Strike label — side color when selected */}
+      <span className={`text-base font-semibold ${isSelected ? "text-[var(--side)]" : "text-[var(--text)]"} transition-all duration-200 inline-block`}>
         ${quote.strike.toLocaleString()}/ETH
       </span>
       <div className="text-right">
+        {/* Earnings always green (accent = money) */}
         {earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)] font-display">
             ${Math.round(earnings).toLocaleString()}
@@ -396,7 +398,8 @@ export function PriceMenuV2() {
   }
 
   return (
-    <div className="space-y-6">
+    // data-side drives CSS variables for --side, --side-hover, --side-glow
+    <div className="space-y-6" data-side={side}>
       <LivePrice spot={spot} className="animate-fade-in-up" />
 
       {/* Two-column: config left, preview right */}
@@ -406,13 +409,13 @@ export function PriceMenuV2() {
           {/* Progress indicator */}
           <StepIndicator current={currentStep} />
 
-          {/* 1. Buy / Sell toggle */}
+          {/* 1. Buy / Sell toggle — side-colored active indicator */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
               onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 side === "buy"
-                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  ? "bg-[var(--bg)] text-[#3B82F6] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
@@ -422,7 +425,7 @@ export function PriceMenuV2() {
               onClick={() => { setSide("sell"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 side === "sell"
-                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  ? "bg-[var(--bg)] text-[#F59E0B] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
@@ -430,7 +433,7 @@ export function PriceMenuV2() {
             </button>
           </div>
 
-          {/* 2. Duration — button group */}
+          {/* 2. Duration — side-colored active button */}
           {expiries.length > 0 && (
             <div className="animate-fade-in-up">
               <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
@@ -441,8 +444,8 @@ export function PriceMenuV2() {
                     onClick={() => { setSelectedExpiry(days); setSelectedQuote(null); }}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                       activeExpiry === days
-                        ? "bg-[var(--accent)] text-white shadow-sm"
-                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
+                        ? "bg-[var(--side)] text-white shadow-sm"
+                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--side)] hover:shadow-sm"
                     }`}
                   >
                     {untilDate(days)} ({days}d)
@@ -452,12 +455,12 @@ export function PriceMenuV2() {
             </div>
           )}
 
-          {/* 3. Amount input + % shortcuts */}
+          {/* 3. Amount input + % shortcuts — side-colored focus ring */}
           <div className="animate-fade-in-up">
             <p className="text-sm text-[var(--text-secondary)] mb-2">
               How much do you want to commit?
             </p>
-            <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--accent)] transition-colors duration-200">
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--side)] transition-colors duration-200">
               {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
               <input
                 type="text"
@@ -486,7 +489,7 @@ export function PriceMenuV2() {
                     <button
                       key={pct}
                       onClick={() => handlePercentShortcut(pct)}
-                      className="text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] hover:bg-[var(--accent)]/10"
+                      className="text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--side)] transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] hover:bg-[var(--side)]/10"
                     >
                       {pct}%
                     </button>
@@ -523,7 +526,7 @@ export function PriceMenuV2() {
             )}
           </div>
 
-          {/* 5. Accept button — glows when ready */}
+          {/* 5. Accept button — side-colored, glows when ready */}
           <button
             onClick={() => {
               if (!isConnected) { login(); return; }
@@ -532,8 +535,8 @@ export function PriceMenuV2() {
             disabled={!canAccept && isConnected}
             className={`w-full rounded-xl py-3.5 text-sm font-semibold text-white transition-all duration-300 animate-fade-in-up ${
               canAccept
-                ? "bg-[var(--accent)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
-                : "bg-[var(--accent)] disabled:opacity-40"
+                ? "bg-[var(--side)] hover:bg-[var(--side-hover)] animate-glow scale-[1.02]"
+                : "bg-[var(--side)] disabled:opacity-40"
             }`}
           >
             {!isConnected
@@ -571,7 +574,7 @@ export function PriceMenuV2() {
           {/* Outcome preview — builds up as user configures */}
           {selectedQuote && amount > 0 ? (
             <div className="space-y-4 animate-fade-in-up">
-              {/* Earnings hero */}
+              {/* Earnings hero — always green */}
               <div className="text-center py-2">
                 <p className="text-3xl font-bold text-[var(--accent)] font-display">
                   ${Math.round(selectedEarnings).toLocaleString()}

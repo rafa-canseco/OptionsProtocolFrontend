@@ -12,6 +12,22 @@
   --accent-glow: rgba(13, 159, 110, 0.25);
   --danger: #DC2626;
   --font-display: 'Fraunces', Georgia, serif;
+  /* Side-specific colors — set dynamically via data-side attribute */
+  --side: #3B82F6;
+  --side-hover: #2563EB;
+  --side-glow: rgba(59, 130, 246, 0.25);
+}
+
+[data-side="buy"] {
+  --side: #3B82F6;
+  --side-hover: #2563EB;
+  --side-glow: rgba(59, 130, 246, 0.25);
+}
+
+[data-side="sell"] {
+  --side: #F59E0B;
+  --side-hover: #D97706;
+  --side-glow: rgba(245, 158, 11, 0.25);
 }
 
 body {
@@ -48,8 +64,8 @@ body {
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
-  50% { box-shadow: 0 0 20px 4px var(--accent-glow); }
+  0%, 100% { box-shadow: 0 0 0 0 var(--side-glow); }
+  50% { box-shadow: 0 0 20px 4px var(--side-glow); }
 }
 
 .animate-fade-in-up {
