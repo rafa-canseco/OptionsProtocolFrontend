@@ -31,8 +31,14 @@ export function PositionCard({ position, onSettled }: Props) {
   // oToken amount (8 decimals)
   const ethAmount = (position.amount / 1e8).toFixed(2);
 
-  // Expiry
-  const expiryDays = Math.max(0, Math.ceil((position.expiry * 1000 - Date.now()) / 86_400_000));
+  // Expiry: total duration from indexed_at to expiry
+  const indexedTime = new Date(position.indexed_at).getTime();
+  const expiryTime = position.expiry * 1000;
+  const totalDays = Math.max(1, Math.round((expiryTime - indexedTime) / 86_400_000));
+  const expiryDays = Math.max(0, Math.ceil((expiryTime - Date.now()) / 86_400_000));
+
+  // APR: annualize the return over the position duration
+  const apr = committedUsd > 0 ? (premiumUsd / committedUsd) * (365 / totalDays) * 100 : 0;
 
   const canSettle = isActive && position.vault_id != null && position.otoken_address != null;
 
@@ -40,7 +46,7 @@ export function PositionCard({ position, onSettled }: Props) {
   const [settleResult, setSettleResult] = useState<SettleResult | null>(null);
   const [settleError, setSettleError] = useState<string | null>(null);
 
-  async function handleSettle() {
+  async function handleSettle(forceItm: boolean) {
     if (!canSettle) return;
     setSettling(true);
     setSettleError(null);
@@ -49,6 +55,7 @@ export function PositionCard({ position, onSettled }: Props) {
         position.user_address,
         position.vault_id!,
         position.otoken_address!,
+        forceItm,
       );
       setSettleResult(result);
       onSettled?.();
@@ -63,6 +70,10 @@ export function PositionCard({ position, onSettled }: Props) {
   // Settled state (from backend or from just-settled result)
   const isSettled = position.is_settled || settleResult?.settled;
   const isItm = position.is_itm ?? settleResult?.is_itm ?? false;
+  const expiryPrice = position.expiry_price ?? settleResult?.expiry_price ?? null;
+  const expiryPriceDisplay = expiryPrice != null
+    ? `$${(expiryPrice / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : null;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
@@ -71,9 +82,14 @@ export function PositionCard({ position, onSettled }: Props) {
         <p className="text-base font-semibold text-[var(--text)]">
           {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
         </p>
-        {isSettled && (
+        {isSettled && !isItm && (
           <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
-            ✓ Completed
+            Earned
+          </span>
+        )}
+        {isSettled && isItm && (
+          <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
+            Order filled
           </span>
         )}
       </div>
@@ -86,7 +102,7 @@ export function PositionCard({ position, onSettled }: Props) {
             <span className="text-[var(--accent)] font-semibold">
               Earned ${premiumUsd.toFixed(0)}
             </span>{" "}
-            ({returnPct.toFixed(1)}%)
+            ({Math.round(apr)}% APR)
           </p>
           <p className="text-xs text-[var(--text-secondary)]">
             {expiryDays > 0 ? `${expiryDays}d left` : "Expired"}
@@ -94,29 +110,35 @@ export function PositionCard({ position, onSettled }: Props) {
         </>
       )}
 
-      {/* Settled — OTM */}
+      {/* No trade — price didn't reach strike */}
       {isSettled && !isItm && (
         <div className="space-y-1">
+          <p className="text-sm text-[var(--text)]">
+            Price didn&apos;t reach ${strike.toLocaleString()} — no trade
+          </p>
           <p className="text-sm text-[var(--text-secondary)]">
             {committedDisplay} returned +{" "}
             <span className="text-[var(--accent)] font-semibold">${premiumUsd.toFixed(0)} earned</span>
           </p>
           <p className="text-xs text-[var(--text-secondary)]">
-            Return: {returnPct.toFixed(1)}%
+            {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/ETH · </>}
+            {returnPct.toFixed(1)}% in {totalDays}d · {Math.round(apr)}% APR
           </p>
         </div>
       )}
 
-      {/* Settled — ITM */}
+      {/* Trade filled — price reached strike */}
       {isSettled && isItm && (
         <div className="space-y-1">
-          <p className="text-sm text-[var(--text-secondary)]">
+          <p className="text-sm text-[var(--text)]">
+            {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/ETH — </>}
             {isBuy
-              ? `Bought ${ethAmount} ETH @ $${strike.toLocaleString()} + kept $${premiumUsd.toFixed(0)}`
-              : `Sold ${ethAmount} ETH @ $${strike.toLocaleString()} + kept $${premiumUsd.toFixed(0)}`}
+              ? `you bought ${ethAmount} ETH`
+              : `you sold ${ethAmount} ETH`}
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            {isBuy ? `Cost basis: $${strike.toLocaleString()}/ETH` : `Sale price: $${strike.toLocaleString()}/ETH`}
+          <p className="text-sm text-[var(--text-secondary)]">
+            at ${strike.toLocaleString()}/ETH + kept{" "}
+            <span className="text-[var(--accent)] font-semibold">${premiumUsd.toFixed(0)} in earnings</span>
           </p>
         </div>
       )}
@@ -126,13 +148,22 @@ export function PositionCard({ position, onSettled }: Props) {
       )}
 
       {canSettle && !settleResult && (
-        <button
-          onClick={handleSettle}
-          disabled={settling}
-          className="w-full rounded-xl bg-[var(--surface)] border border-[var(--border)] py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors"
-        >
-          {settling ? "Settling..." : "Settle Now"}
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            onClick={() => handleSettle(false)}
+            disabled={settling}
+            className="rounded-xl bg-[var(--surface)] border border-[var(--border)] py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors"
+          >
+            {settling ? "Settling..." : "Demo: No trade"}
+          </button>
+          <button
+            onClick={() => handleSettle(true)}
+            disabled={settling}
+            className="rounded-xl bg-[var(--surface)] border border-[var(--border)] py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors"
+          >
+            {settling ? "Settling..." : isBuy ? "Demo: Buy ETH" : "Demo: Sell ETH"}
+          </button>
+        </div>
       )}
     </div>
   );

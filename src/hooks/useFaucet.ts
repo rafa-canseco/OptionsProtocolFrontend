@@ -7,7 +7,7 @@ import { ADDRESSES, ERC20_ABI } from "@/lib/contracts";
 const MINT_USD = parseUnits("100000", 6);   // 100,000 LUSD
 const MINT_ETH = parseUnits("50", 18);      // 50 LETH
 
-type SendSponsoredTx = (tx: { to: Address; data: `0x${string}` }) => Promise<unknown>;
+type SendSponsoredTx = (tx: { to: Address; data: `0x${string}` }) => void;
 
 export function useFaucet(
   address: Address | undefined,
@@ -29,14 +29,14 @@ export function useFaucet(
         functionName: "mint",
         args: [address, MINT_USD],
       });
-      await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData });
+      sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData });
 
       const ethData = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "mint",
         args: [address, MINT_ETH],
       });
-      await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData });
+      sendSponsoredTx({ to: ADDRESSES.weth, data: ethData });
 
       setMinting(false);
       setShowNotification(true);

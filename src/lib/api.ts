@@ -79,7 +79,7 @@ export const api = {
       body: JSON.stringify({ email }),
     }),
 
-  demoSettle: (userAddress: string, vaultId: number, otokenAddress: string) =>
+  demoSettle: (userAddress: string, vaultId: number, otokenAddress: string, forceItm?: boolean) =>
     fetchAPI<SettleResult>("/demo/settle", {
       method: "POST",
       headers: {
@@ -90,6 +90,7 @@ export const api = {
         user_address: userAddress,
         vault_id: vaultId,
         otoken_address: otokenAddress,
+        ...(forceItm !== undefined ? { force_itm: forceItm } : {}),
       }),
     }),
 };

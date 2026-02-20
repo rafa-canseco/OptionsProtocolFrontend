@@ -24,7 +24,16 @@ export default function PositionsPage() {
     return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
   }, 0);
 
-  const totalReturn = totalCapital > 0 ? (totalEarned / totalCapital) * 100 : 0;
+  // Weighted average APR across all positions
+  const totalWeightedApr = positions.reduce((sum, p) => {
+    const capital = p.is_put ? p.collateral / 1e6 : (p.collateral / 1e18) * (p.strike_price / 1e8);
+    const premium = Number(p.net_premium) / 1e6;
+    const indexedTime = new Date(p.indexed_at).getTime();
+    const days = Math.max(1, Math.round((p.expiry * 1000 - indexedTime) / 86_400_000));
+    const apr = capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
+    return sum + apr * capital;
+  }, 0);
+  const avgApr = totalCapital > 0 ? totalWeightedApr / totalCapital : 0;
 
   if (!isConnected) {
     return (
@@ -77,8 +86,8 @@ export default function PositionsPage() {
           </p>
         </div>
         <div>
-          <p className="text-xs text-[var(--text-secondary)]">Return</p>
-          <p className="text-xl font-bold text-[var(--text)]">{totalReturn.toFixed(1)}%</p>
+          <p className="text-xs text-[var(--text-secondary)]">Avg APR</p>
+          <p className="text-xl font-bold text-[var(--text)]">{Math.round(avgApr)}%</p>
         </div>
       </div>
 
