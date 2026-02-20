@@ -30,7 +30,7 @@ export function useAutoFaucet(
           args: [address],
         });
 
-        if (usdBalance > 0n) return;
+        if (usdBalance > BigInt(0)) return;
 
         setMinting(true);
 

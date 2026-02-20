@@ -14,8 +14,8 @@ interface Balances {
 }
 
 const ZERO: Balances = {
-  usdRaw: 0n,
-  ethRaw: 0n,
+  usdRaw: BigInt(0),
+  ethRaw: BigInt(0),
   usd: 0,
   eth: 0,
   usdFormatted: "0",
