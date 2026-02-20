@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { usePrices } from "@/hooks/usePrices";
 import { AcceptModal } from "./AcceptModal";
 import { LivePrice } from "./LivePrice";
-import { StrikeLadder } from "./v2/StrikeLadder";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
@@ -19,13 +18,16 @@ function untilDate(expiryDays: number): string {
 
 function PriceRow({
   quote,
+  spot,
   onSelect,
 }: {
   quote: PriceQuote;
+  spot?: number;
   onSelect: () => void;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
+  const distance = spot ? Math.abs(quote.strike - spot) / spot * 100 : null;
 
   return (
     <button
@@ -37,15 +39,17 @@ function PriceRow({
           : "hover:bg-[var(--surface)]"
       }`}
     >
-      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
-        ${quote.strike.toLocaleString()}/ETH
-      </span>
-      <div className="text-right">
-        <span className="text-base font-bold text-[var(--accent)]">
-          Earn ${Math.round(quote.premium * quote.available_amount).toLocaleString()}
+      <div>
+        <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+          ${quote.strike.toLocaleString()}/ETH
         </span>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+        {distance != null && (
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{distance.toFixed(0)}% away</p>
+        )}
       </div>
+      <span className="text-base font-bold text-[var(--accent)]">
+        {Math.round(apr)}% APR
+      </span>
     </button>
   );
 }
@@ -199,16 +203,6 @@ export function PriceMenu() {
         </div>
       )}
 
-      {/* Strike ladder visualization */}
-      {spot && filteredPrices.length > 0 && (
-        <StrikeLadder
-          filteredPrices={filteredPrices}
-          spot={spot}
-          side={side}
-          onSelect={(q) => setSelected({ quote: q, side })}
-        />
-      )}
-
       {/* Price rows */}
       {filteredPrices.length > 0 ? (
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] stagger-children animate-fade-in-up">
@@ -216,6 +210,7 @@ export function PriceMenu() {
             <PriceRow
               key={`${q.strike}-${q.expiry_days}-${i}`}
               quote={q}
+              spot={spot}
               onSelect={() => setSelected({ quote: q, side })}
             />
           ))}

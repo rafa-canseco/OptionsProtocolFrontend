@@ -17,7 +17,8 @@ interface Props {
   side: "buy" | "sell";
   onClose: () => void;
   onAccepted: (info: { amount: number }) => void;
-  renderExtra?: React.ReactNode;
+  renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
+  initialAmount?: string;
 }
 
 type TxStep = "idle" | "approving" | "executing" | "confirmed";
@@ -28,7 +29,7 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount }: Props) {
   const { address, sendSponsoredTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -44,7 +45,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra }: P
     : quote.available_amount;
 
   // String state avoids leading-zero bug with controlled number inputs.
-  const [amountStr, setAmountStr] = useState("");
+  const [amountStr, setAmountStr] = useState(initialAmount ?? "");
   const amount = Number(amountStr) || 0;
 
 
@@ -423,7 +424,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra }: P
           </p>
         )}
 
-        {renderExtra}
+        {typeof renderExtra === "function" ? renderExtra(amount) : renderExtra}
 
         <button
           onClick={handleAccept}
