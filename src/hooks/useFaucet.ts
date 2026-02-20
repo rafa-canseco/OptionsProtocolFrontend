@@ -41,10 +41,13 @@ export function useFaucet(
       });
 
       // Serialize mints — Privy's relayer drops txs on concurrent nonces
-      await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData })
-        .catch((e) => console.warn("[useFaucet] USD mint tx failed:", e));
-      await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData })
-        .catch((e) => console.warn("[useFaucet] ETH mint tx failed:", e));
+      let usdOk = false;
+      let ethOk = false;
+      try { await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData }); usdOk = true; }
+      catch (e) { console.warn("[useFaucet] USD mint tx failed:", e); }
+      try { await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData }); ethOk = true; }
+      catch (e) { console.warn("[useFaucet] ETH mint tx failed:", e); }
+      if (!usdOk && !ethOk) throw new Error("Both mint transactions failed. Check your connection and try again.");
 
       // Poll until USD balance increases (proves at least one mint landed)
       let confirmed = false;

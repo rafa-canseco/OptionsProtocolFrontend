@@ -209,7 +209,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
                 : `You sold ETH at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
             </p>
             <p className="text-xs text-[var(--text-secondary)]">
-              {isBuy ? "Strike" : "Strike"} ${strike.toLocaleString()} {isBuy ? "−" : "+"} premium ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH = cost basis ${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH
+              Strike ${strike.toLocaleString()} {isBuy ? "−" : "+"} premium ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH = cost basis ${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH
             </p>
           </div>
 
@@ -221,16 +221,18 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
                   {isBuy ? "Unrealized gain" : "Realized gain"}
                 </span>
                 <span className={`text-base font-bold font-mono ${unrealizedPerEth >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-                  {unrealizedPerEth >= 0 ? "+" : ""}${unrealizedTotal!.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {unrealizedPerEth >= 0 ? "+" : ""}${(unrealizedTotal ?? 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
               </div>
               <div className="flex items-center justify-between mt-0.5">
                 <span className="text-xs text-[var(--text-secondary)]">
                   ETH now: ${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
+                {unrealizedPct != null && (
                 <span className={`text-xs font-mono ${unrealizedPerEth >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-                  {unrealizedPerEth >= 0 ? "+" : ""}{unrealizedPct!.toFixed(1)}%/ETH
+                  {unrealizedPerEth >= 0 ? "+" : ""}{unrealizedPct.toFixed(1)}%/ETH
                 </span>
+                )}
               </div>
             </div>
           )}

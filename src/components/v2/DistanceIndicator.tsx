@@ -30,7 +30,7 @@ export function DistanceIndicator({
     color = "var(--danger)";
     label = isSettled ? "Crossed" : "At risk";
   } else if (distPct < 3) {
-    color = "#F97316";
+    color = "var(--danger)";
     label = `${distPct.toFixed(1)}% away`;
   } else if (distPct < 10) {
     color = "#F97316";

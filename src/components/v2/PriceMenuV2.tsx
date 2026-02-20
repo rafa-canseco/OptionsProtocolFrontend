@@ -11,6 +11,7 @@ import { OutcomeCards } from "./OutcomeCards";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
+  if (strike <= 0 || expiryDays <= 0) return 0;
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
@@ -98,9 +99,11 @@ function StrikeChart({
   const isBuy = side === "buy";
 
   // Color zone: the "safe zone" between spot and nearest strike
+  const belowSpot = strikes.filter(s => s < spot);
+  const aboveSpot = strikes.filter(s => s > spot);
   const nearestStrike = isBuy
-    ? Math.max(...strikes.filter(s => s < spot))
-    : Math.min(...strikes.filter(s => s > spot));
+    ? (belowSpot.length > 0 ? Math.max(...belowSpot) : NaN)
+    : (aboveSpot.length > 0 ? Math.min(...aboveSpot) : NaN);
   const safeLeft = isBuy ? toX(nearestStrike) : spotX;
   const safeRight = isBuy ? spotX : toX(nearestStrike);
 
@@ -385,7 +388,7 @@ export function PriceMenuV2() {
           <p>{abuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
         </div>
         <a
-          href="/positions"
+          href="/positions/v2"
           className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
           View my positions
