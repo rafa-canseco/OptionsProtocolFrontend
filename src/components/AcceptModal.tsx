@@ -79,14 +79,18 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
     ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${maxAmount.toFixed(2)} ETH`;
 
+  const [cappedByMax, setCappedByMax] = useState(false);
+
   function handlePercent(pct: number) {
-    setActivePercent(pct);
     const raw = walletBalance * (pct / 100);
-    const capped = Math.min(raw, maxAmount);
+    const wasCapped = raw > maxAmount;
+    const value = wasCapped ? maxAmount : raw;
+    setActivePercent(pct);
+    setCappedByMax(wasCapped);
     if (isBuy) {
-      setAmountStr(Math.floor(capped).toString());
+      setAmountStr(Math.floor(value).toString());
     } else {
-      setAmountStr(Number(capped.toFixed(4)).toString());
+      setAmountStr(Number(value.toFixed(4)).toString());
     }
   }
 
@@ -264,6 +268,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
               Balance: {isBuy
                 ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                 : `${walletBalance.toFixed(2)} ETH`}
+              {cappedByMax && (
+                <span className="text-[var(--accent)]"> · Capped at max available</span>
+              )}
             </p>
           )}
         </div>
@@ -283,6 +290,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
                 if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
                   setAmountStr(raw);
                   setActivePercent(null);
+                  setCappedByMax(false);
                 }
               }}
               className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none placeholder:text-[var(--text-secondary)]/40 placeholder:font-normal"
