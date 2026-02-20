@@ -43,7 +43,7 @@ function PriceRow({
         <p className="text-xs text-[var(--text-secondary)] mt-0.5">per ETH</p>
       </div>
       <div className="text-right">
-        <span className="text-base font-bold text-[var(--accent)]">${quote.premium.toFixed(0)}</span>
+        <span className="text-base font-bold text-[var(--accent)]">${quote.premium.toFixed(0)}<span className="text-xs font-normal opacity-60">/ETH</span></span>
         <p className="text-xs text-[var(--text-secondary)] mt-0.5">
           {Math.round(apr)}% APR
           {!disabled && (

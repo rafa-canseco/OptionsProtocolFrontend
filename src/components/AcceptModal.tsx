@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   parseUnits,
   encodeFunctionData,
@@ -37,24 +37,39 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [activePercent, setActivePercent] = useState<number | null>(null);
+  const [activePercent, setActivePercent] = useState<number>(100);
 
   const isBuy = side === "buy";
-
-  // Wallet balance in the relevant collateral token
   const walletBalance = isBuy ? usd : eth;
 
-  // String state avoids leading-zero bug with controlled number inputs.
-  const [amountStr, setAmountStr] = useState("");
-  const amount = Number(amountStr) || 0;
+  // Max capped by available capacity
+  const maxAmount = isBuy
+    ? quote.available_amount * quote.strike
+    : quote.available_amount;
+
+  // Compute amount from percentage
+  function computeAmount(pct: number): number {
+    const raw = walletBalance * (pct / 100);
+    const value = Math.min(raw, maxAmount);
+    return isBuy ? Math.floor(value) : Number(value.toFixed(4));
+  }
+
+  const [amount, setAmount] = useState(() => computeAmount(100));
+
+  // Recalculate when balance loads (it's 0 initially, then populates)
+  useEffect(() => {
+    setAmount(computeAmount(activePercent));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [walletBalance]);
+
+  function handlePercent(pct: number) {
+    setActivePercent(pct);
+    setAmount(computeAmount(pct));
+  }
 
   const until = untilDate(quote.expiry_days);
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
-
-  // Buy: show ETH equivalent. Sell: show USD value.
-  const equivalent = isBuy
-    ? `${(amount / quote.strike).toFixed(2)} ETH`
-    : `$${(amount * quote.spot).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const returnPct = (quote.premium / quote.strike) * 100;
 
   const ethEquiv = isBuy ? (amount / quote.strike).toFixed(2) : String(amount);
 
@@ -69,36 +84,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
     ? `$${amount.toLocaleString()}`
     : `${amount} ETH`;
 
-  // Min / Max — max capped by available capacity
-  const minAmount = isBuy ? 100 : 0.01;
-  const maxAmount = isBuy
-    ? quote.available_amount * quote.strike
-    : quote.available_amount;
-  const minLabel = isBuy ? `$${minAmount.toLocaleString()}` : `${minAmount} ETH`;
-  const maxLabel = isBuy
-    ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${maxAmount.toFixed(2)} ETH`;
-
-  const [cappedByMax, setCappedByMax] = useState(false);
-
-  function handlePercent(pct: number) {
-    const raw = walletBalance * (pct / 100);
-    const wasCapped = raw > maxAmount;
-    const value = wasCapped ? maxAmount : raw;
-    setActivePercent(pct);
-    setCappedByMax(wasCapped);
-    if (isBuy) {
-      setAmountStr(Math.floor(value).toString());
-    } else {
-      setAmountStr(Number(value.toFixed(4)).toString());
-    }
-  }
+  const cappedByMax = walletBalance * (activePercent / 100) > maxAmount;
 
   const contextText = useMemo(() => {
     if (isBuy) {
-      return `Choose the price you're happy to buy ETH at. If the price reaches $${quote.strike.toLocaleString()} by ${until}, you buy it. If it doesn't, your dollars come back. Either way, you keep the earnings.`;
+      return `If the price reaches $${quote.strike.toLocaleString()} by ${until}, you buy it. If it doesn't, your dollars come back. Either way, you keep the earnings.`;
     }
-    return `Choose the price you're happy to sell ETH at. If the price reaches $${quote.strike.toLocaleString()} by ${until}, you sell it at that price. If it doesn't, you keep your ETH. Either way, you keep the earnings.`;
+    return `If the price reaches $${quote.strike.toLocaleString()} by ${until}, you sell it at that price. If it doesn't, you keep your ETH. Either way, you keep the earnings.`;
   }, [isBuy, quote.strike, until]);
 
   const loading = step !== "idle";
@@ -113,18 +105,19 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
             ? "Connect wallet"
             : "Accept";
 
+  const minAmount = isBuy ? 100 : 0.01;
+
   async function handleAccept() {
     if (!isConnected || !address) {
       login();
       return;
     }
     if (!quote.otoken_address) {
-      console.warn("[AcceptModal] otoken_address is null but row was not disabled");
       setError("This option is not available on-chain yet.");
       return;
     }
     if (amount <= 0 || amount < minAmount || amount > maxAmount) {
-      setError(`Amount must be between ${minLabel} and ${maxLabel}.`);
+      setError("Invalid amount.");
       return;
     }
 
@@ -232,21 +225,28 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           ← Back
         </button>
 
-        {/* Title */}
-        <p className="text-lg font-semibold text-[var(--text)]">
-          {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}
-        </p>
+        {/* Title + earnings hero */}
+        <div>
+          <p className="text-lg font-semibold text-[var(--text)]">
+            {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}
+          </p>
+          {amount > 0 && (
+            <div className="mt-1">
+              <span className="text-2xl font-bold text-[var(--accent)]">Earn {premiumDisplay}</span>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+                {returnPct.toFixed(1)}% in {quote.expiry_days}d · {Math.round(apr)}% APR
+              </p>
+            </div>
+          )}
+        </div>
 
         {/* Contextual explanation */}
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
           {contextText}
         </p>
 
-        {/* Percentage buttons */}
+        {/* Percentage buttons — only control */}
         <div>
-          <label className="text-sm font-medium text-[var(--text)] mb-2 block">
-            How much of your {isBuy ? "USD" : "ETH"}?
-          </label>
           <div className="grid grid-cols-4 gap-2">
             {PERCENTAGES.map((pct) => (
               <button
@@ -263,100 +263,52 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
               </button>
             ))}
           </div>
-          {walletBalance > 0 && (
-            <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-              Balance: {isBuy
-                ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : `${walletBalance.toFixed(2)} ETH`}
-              {cappedByMax && (
-                <span className="text-[var(--accent)]"> · Capped at max available</span>
-              )}
-            </p>
-          )}
-        </div>
-
-        {/* Fine-tune input */}
-        <div>
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder={isBuy ? "or enter amount" : "or enter ETH"}
-              value={amountStr}
-              disabled={loading}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                  setAmountStr(raw);
-                  setActivePercent(null);
-                  setCappedByMax(false);
-                }
-              }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none placeholder:text-[var(--text-secondary)]/40 placeholder:font-normal"
-            />
-            <span className="text-sm text-[var(--text-secondary)]">
-              {isBuy ? equivalent : "ETH"}
-            </span>
-          </div>
-          {!isBuy && amount > 0 && (
-            <p className="text-xs text-[var(--text-secondary)] mt-1">
-              ≈ {equivalent}
-            </p>
-          )}
           <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-            Min {minLabel} · Max {maxLabel}
+            {isBuy
+              ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })} available`
+              : `${walletBalance.toFixed(2)} ETH available`}
+            {cappedByMax && (
+              <span className="text-[var(--accent)]"> · Max {isBuy
+                ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : `${maxAmount.toFixed(2)} ETH`}
+              </span>
+            )}
           </p>
         </div>
 
-        <div className="h-px bg-[var(--border)]" />
+        {amount > 0 && <div className="h-px bg-[var(--border)]" />}
 
-        {/* Summary */}
+        {/* Commit + outcomes */}
         {amount > 0 && (
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <div className="flex justify-between items-center">
-              <span className="text-sm text-[var(--text-secondary)]">You earn</span>
-              <div className="text-right">
-                <span className="text-xl font-bold text-[var(--accent)]">{premiumDisplay}</span>
-                <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
-              </div>
+              <span className="text-sm text-[var(--text-secondary)]">You commit</span>
+              <span className="text-sm font-medium text-[var(--text)]">{commitDisplay}</span>
             </div>
             <div className="flex justify-between items-center">
               <span className="text-sm text-[var(--text-secondary)]">Until</span>
               <span className="text-sm font-medium text-[var(--text)]">{until}</span>
-            </div>
-            <div className="flex justify-between items-center">
-              <span className="text-sm text-[var(--text-secondary)]">You commit</span>
-              <span className="text-sm font-medium text-[var(--text)]">{commitDisplay}</span>
             </div>
           </div>
         )}
 
         {amount > 0 && <div className="h-px bg-[var(--border)]" />}
 
-        {/* Explicit outcomes */}
+        {/* Outcomes — compact */}
         {amount > 0 && (
-          <div className="space-y-3">
-            <div>
-              <p className="text-sm text-[var(--text)]">
-                If price hits ${quote.strike.toLocaleString()}:
-              </p>
-              <p className="text-sm text-[var(--text-secondary)]">
-                {isBuy
-                  ? `You buy ${ethEquiv} ETH @ $${quote.strike.toLocaleString()} + keep ${premiumDisplay}`
-                  : `You sell ${amount} ETH @ $${quote.strike.toLocaleString()} + keep ${premiumDisplay}`}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-[var(--text)]">
-                If price doesn&apos;t hit:
-              </p>
-              <p className="text-sm text-[var(--text-secondary)]">
-                {isBuy
-                  ? `$${amount.toLocaleString()} back + keep ${premiumDisplay}`
-                  : `${amount} ETH back + keep ${premiumDisplay}`}
-              </p>
-            </div>
+          <div className="space-y-1.5 text-sm">
+            <p className="text-[var(--text-secondary)]">
+              <span className="text-[var(--text)]">If price hits:</span>{" "}
+              {isBuy
+                ? `You buy ${ethEquiv} ETH + keep ${premiumDisplay}`
+                : `You sell ${amount} ETH + keep ${premiumDisplay}`}
+            </p>
+            <p className="text-[var(--text-secondary)]">
+              <span className="text-[var(--text)]">If not:</span>{" "}
+              {isBuy
+                ? `$${amount.toLocaleString()} back + keep ${premiumDisplay}`
+                : `${amount} ETH back + keep ${premiumDisplay}`}
+            </p>
           </div>
         )}
 
