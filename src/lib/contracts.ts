@@ -4,16 +4,16 @@ import { baseSepolia } from "viem/chains";
 export const CHAIN = baseSepolia;
 
 export const ADDRESSES = {
-  addressBook: "0x485d560DC8f985215E6E2d4e97F1151769E0802d" as Address,
-  controller: "0xa310adf4F16097d36404840bb9008e05C93B8255" as Address,
-  marginPool: "0x152a8C67c012272B405814e4b7A6B31204f55Ed5" as Address,
-  oTokenFactory: "0xb4c1Dc56b7A241a06E601882B688c8c358DFB8B3" as Address,
-  oracle: "0x71CB8C75F3F197716c94eBd786C13304bC3974a9" as Address,
-  whitelist: "0x34e762Dc0d32892FB1237fcFC7A1caDd02703584" as Address,
-  batchSettler: "0x2C49E77E6E97E15f2Df31cF5E404702589eD2cA3" as Address,
-  priceSheet: "0x92E3072bc36DAe82203fa1fA94E26d13a404D50E" as Address,
-  usdc: "0x036CbD53842c5426634e7929541eC2318f3dCF7e" as Address,
-  weth: "0x4200000000000000000000000000000000000006" as Address,
+  addressBook: "0x2530248C7F5fD76edCA8706225747cD914bD5Bc7" as Address,
+  controller: "0x54Dd9eBF1eC5D1a9DFd66bF84e23bA7b097C4cfe" as Address,
+  marginPool: "0xDBF9BD7b51287DF4C04375e6299F4A1713FD2155" as Address,
+  oTokenFactory: "0x235B51B00Ea8C989D10537CBd4A27E315d4aA0F2" as Address,
+  oracle: "0xA4d4D2ac1b14E1031F8ae16553Df95C20C9cAfe0" as Address,
+  whitelist: "0x510A4CC3d9BFf05d6BcBc05c26cBcE8Ab6ee7d20" as Address,
+  batchSettler: "0x409f4C0c8b91FeaE64F54617481668e9d8cFb658" as Address,
+  priceSheet: "0xE26ECA2365E0eb56099ef04984B22c1049434C43" as Address,
+  usdc: "0xDa97d8aec7aAD92F9Cba114Abd97a259FdCBC0e3" as Address, // MockUSD (LUSD)
+  weth: "0x931927a1B911D72862518e0Ea3815D335df87919" as Address, // MockETH (LETH)
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
@@ -62,6 +62,16 @@ export const ERC20_ABI = [
     inputs: [],
     outputs: [{ type: "uint8" }],
     stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "mint",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [],
+    stateMutability: "nonpayable",
   },
 ] as const;
 
