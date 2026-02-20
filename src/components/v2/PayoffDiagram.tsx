@@ -118,7 +118,7 @@ export function PayoffDiagram({
           fontSize={9}
           fontWeight={500}
         >
-          Ganas ${Math.round(premium)}
+          Earn ${Math.round(premium)}
         </text>
         <text
           x={(Math.min(greenLeft, greenRight) + Math.max(greenLeft, greenRight)) / 2}
@@ -127,7 +127,7 @@ export function PayoffDiagram({
           fill="var(--text-secondary)"
           fontSize={8}
         >
-          tu dinero regresa
+          your money comes back
         </text>
 
         <text
@@ -138,7 +138,7 @@ export function PayoffDiagram({
           fontSize={9}
           fontWeight={500}
         >
-          {side === "buy" ? "Compras ETH" : "Vendes ETH"}
+          {side === "buy" ? "Buy ETH" : "Sell ETH"}
         </text>
         <text
           x={(Math.min(redLeft, redRight) + Math.max(redLeft, redRight)) / 2}
@@ -147,7 +147,7 @@ export function PayoffDiagram({
           fill="var(--text-secondary)"
           fontSize={8}
         >
-          + te quedas con ${Math.round(premium)}
+          + keep ${Math.round(premium)}
         </text>
 
         {/* X axis */}

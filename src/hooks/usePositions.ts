@@ -31,16 +31,14 @@ export function usePositions(address: string | undefined, pollInterval = 15_000)
     if (!address) return;
 
     // Poll faster for the first 30s after mount (new position may still be indexing)
-    const fastPoll = setInterval(() => {
-      if (Date.now() - mountTime.current < 30_000) {
-        refresh();
-      }
-    }, 3_000);
+    const fastPoll = setInterval(refresh, 3_000);
+    const stopFastPoll = setTimeout(() => clearInterval(fastPoll), 30_000);
 
     const slowPoll = setInterval(refresh, pollInterval);
 
     return () => {
       clearInterval(fastPoll);
+      clearTimeout(stopFastPoll);
       clearInterval(slowPoll);
     };
   }, [refresh, address, pollInterval]);

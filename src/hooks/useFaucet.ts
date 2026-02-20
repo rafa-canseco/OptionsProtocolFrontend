@@ -82,7 +82,7 @@ export function useFaucet(
       await onComplete?.();
     } catch (err) {
       console.error("[useFaucet] Mint failed:", err);
-      setError("Failed to mint test tokens. Try again.");
+      setError(err instanceof Error ? err.message : "Failed to mint test tokens. Try again.");
     } finally {
       setMinting(false);
     }

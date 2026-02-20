@@ -3,6 +3,7 @@
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
+  if (strike <= 0 || expiryDays <= 0) return 0;
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { TickingPrice } from "./TickingPrice";
-import { CountUp } from "./CountUp";
 import { CursorGlow } from "./CursorGlow";
 
 const SPOT_BASE = 2621;
