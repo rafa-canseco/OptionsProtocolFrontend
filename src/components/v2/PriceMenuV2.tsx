@@ -19,19 +19,21 @@ function untilDate(expiryDays: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-/** Horizontal price axis showing spot vs all available strikes */
+const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
+
+/** Horizontal price axis — spot vs strikes, highlights selected */
 function StrikeChart({
   filteredPrices,
   spot,
   side,
   amount,
-  onSelect,
+  selectedStrike,
 }: {
   filteredPrices: PriceQuote[];
   spot: number;
   side: "buy" | "sell";
   amount: number;
-  onSelect: (q: PriceQuote) => void;
+  selectedStrike: number | null;
 }) {
   if (filteredPrices.length === 0) return null;
 
@@ -45,94 +47,87 @@ function StrikeChart({
   const xMax = max + padded;
   const xRange = xMax - xMin;
 
-  const W = 360;
-  const H = 110;
-  const PAD_L = 8;
-  const PAD_R = 8;
+  const W = 400;
+  const H = 160;
+  const PAD_L = 10;
+  const PAD_R = 10;
   const plotW = W - PAD_L - PAD_R;
-  const AXIS_Y = 55;
+  const AXIS_Y = 80;
 
   const toX = (price: number) => PAD_L + ((price - xMin) / xRange) * plotW;
   const spotX = toX(spot);
-
   const isBuy = side === "buy";
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 animate-fade-in-up">
-      <p className="text-xs text-[var(--text-secondary)] mb-2">
-        Choose a strike price — {isBuy ? "further below" : "further above"} spot = safer, less premium
-      </p>
-      <svg
-        viewBox={`0 0 ${W} ${H}`}
-        className="w-full"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        {/* Price axis */}
-        <line
-          x1={PAD_L} y1={AXIS_Y} x2={W - PAD_R} y2={AXIS_Y}
-          stroke="var(--border)" strokeWidth={1}
-        />
+    <svg
+      viewBox={`0 0 ${W} ${H}`}
+      className="w-full"
+      preserveAspectRatio="xMidYMid meet"
+    >
+      {/* Price axis */}
+      <line
+        x1={PAD_L} y1={AXIS_Y} x2={W - PAD_R} y2={AXIS_Y}
+        stroke="var(--border)" strokeWidth={1}
+      />
 
-        {/* Strike markers */}
-        {filteredPrices.map((q) => {
-          const x = toX(q.strike);
-          const apr = Math.round(computeAPR(q.premium, q.strike, q.expiry_days));
-          const disabled = !q.otoken_address || q.available_amount <= 0;
-          const earnings = amount > 0
-            ? isBuy ? (q.premium * amount) / q.strike : q.premium * amount
-            : 0;
+      {/* Strike markers */}
+      {filteredPrices.map((q) => {
+        const x = toX(q.strike);
+        const isSelected = q.strike === selectedStrike;
+        const earnings = amount > 0
+          ? isBuy ? (q.premium * amount) / q.strike : q.premium * amount
+          : 0;
 
-          return (
-            <g
-              key={q.strike}
-              onClick={() => !disabled && onSelect(q)}
-              style={{ cursor: disabled ? "not-allowed" : "pointer" }}
-              opacity={disabled ? 0.3 : 1}
-            >
-              {/* Clickable hit area */}
-              <rect x={x - 20} y={8} width={40} height={80} fill="transparent" />
-              {/* Strike tick */}
-              <line
-                x1={x} y1={AXIS_Y - 10} x2={x} y2={AXIS_Y + 10}
-                stroke="var(--accent)" strokeWidth={2}
-              />
-              {/* Earnings label above (only when amount entered) */}
-              {earnings > 0 && (
-                <text
-                  x={x} y={AXIS_Y - 16}
-                  textAnchor="middle" fill="var(--accent)"
-                  fontSize={11} fontWeight={600}
-                >
-                  ${Math.round(earnings).toLocaleString()}
-                </text>
-              )}
-              {/* Strike price below */}
+        return (
+          <g key={q.strike} opacity={!q.otoken_address || q.available_amount <= 0 ? 0.3 : 1}>
+            {/* Selected highlight */}
+            {isSelected && (
+              <circle cx={x} cy={AXIS_Y} r={14} fill="var(--accent)" opacity={0.15} />
+            )}
+            {/* Strike tick */}
+            <line
+              x1={x} y1={AXIS_Y - 12} x2={x} y2={AXIS_Y + 12}
+              stroke={isSelected ? "var(--accent)" : "var(--accent)"}
+              strokeWidth={isSelected ? 3 : 2}
+            />
+            {/* Earnings label above */}
+            {earnings > 0 && (
               <text
-                x={x} y={AXIS_Y + 24}
-                textAnchor="middle" fill="var(--text-secondary)"
-                fontSize={9}
+                x={x} y={AXIS_Y - 20}
+                textAnchor="middle" fill="var(--accent)"
+                fontSize={isSelected ? 13 : 11} fontWeight={600}
               >
-                ${q.strike.toLocaleString()}
+                ${Math.round(earnings).toLocaleString()}
               </text>
-            </g>
-          );
-        })}
+            )}
+            {/* Strike price below */}
+            <text
+              x={x} y={AXIS_Y + 28}
+              textAnchor="middle"
+              fill={isSelected ? "var(--accent)" : "var(--text-secondary)"}
+              fontSize={10}
+              fontWeight={isSelected ? 600 : 400}
+            >
+              ${q.strike.toLocaleString()}
+            </text>
+          </g>
+        );
+      })}
 
-        {/* Spot marker — vertical line + labels above axis */}
-        <line
-          x1={spotX} y1={AXIS_Y - 28} x2={spotX} y2={AXIS_Y + 4}
-          stroke="var(--text)" strokeWidth={1.5} strokeDasharray="3 2"
-        />
-        <circle cx={spotX} cy={AXIS_Y} r={3} fill="var(--text)" />
-        <text
-          x={spotX} y={AXIS_Y - 33}
-          textAnchor="middle" fill="var(--text)"
-          fontSize={10} fontWeight={600}
-        >
-          ${spot.toLocaleString()} now
-        </text>
-      </svg>
-    </div>
+      {/* Spot marker */}
+      <line
+        x1={spotX} y1={AXIS_Y - 36} x2={spotX} y2={AXIS_Y + 4}
+        stroke="var(--text)" strokeWidth={1.5} strokeDasharray="3 2"
+      />
+      <circle cx={spotX} cy={AXIS_Y} r={3.5} fill="var(--text)" />
+      <text
+        x={spotX} y={AXIS_Y - 42}
+        textAnchor="middle" fill="var(--text)"
+        fontSize={11} fontWeight={600}
+      >
+        ${spot.toLocaleString()} now
+      </text>
+    </svg>
   );
 }
 
@@ -140,11 +135,13 @@ function StrikeCard({
   quote,
   side,
   amount,
+  isSelected,
   onSelect,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
   amount: number;
+  isSelected: boolean;
   onSelect: () => void;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
@@ -162,10 +159,14 @@ function StrikeCard({
       onClick={onSelect}
       disabled={disabled}
       className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group ${
-        disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface)]"
+        disabled
+          ? "opacity-40 cursor-not-allowed"
+          : isSelected
+            ? "bg-[var(--accent)]/10 border-l-2 border-l-[var(--accent)]"
+            : "hover:bg-[var(--surface)]"
       }`}
     >
-      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+      <span className={`text-base font-semibold ${isSelected ? "text-[var(--accent)]" : "text-[var(--text)]"} ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
         ${quote.strike.toLocaleString()}/ETH
       </span>
       <div className="text-right">
@@ -188,10 +189,13 @@ function StrikeCard({
 
 export function PriceMenuV2() {
   const { prices, loading, error, refresh } = usePrices();
-  const { address } = useWallet();
+  const { address, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
+  // Selected strike — just highlights, no modal
+  const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
+  // Only open modal when clicking Accept
+  const [confirming, setConfirming] = useState(false);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);
 
   const [amountStr, setAmountStr] = useState("");
@@ -221,6 +225,29 @@ export function PriceMenuV2() {
       )
       .sort((a, b) => a.strike - b.strike);
   }, [prices, side, activeExpiry]);
+
+  // Compute preview earnings for the selected quote
+  const selectedEarnings = selectedQuote && amount > 0
+    ? isBuy
+      ? (selectedQuote.premium * amount) / selectedQuote.strike
+      : selectedQuote.premium * amount
+    : 0;
+
+  const selectedApr = selectedQuote
+    ? computeAPR(selectedQuote.premium, selectedQuote.strike, selectedQuote.expiry_days)
+    : 0;
+
+  // Ready to accept?
+  const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
+
+  function handlePercentShortcut(pct: number) {
+    const raw = walletBalance * (pct / 100);
+    if (isBuy) {
+      setAmountStr(Math.floor(raw).toString());
+    } else {
+      setAmountStr(Number(raw.toFixed(4)).toString());
+    }
+  }
 
   if (loading) {
     return (
@@ -271,7 +298,7 @@ export function PriceMenuV2() {
           View my positions
         </a>
         <button
-          onClick={() => { setAccepted(null); refresh(); }}
+          onClick={() => { setAccepted(null); setSelectedQuote(null); setAmountStr(""); refresh(); }}
           className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
         >
           Accept another price
@@ -284,14 +311,14 @@ export function PriceMenuV2() {
     <div className="space-y-6">
       <LivePrice spot={spot} className="animate-fade-in-up" />
 
-      {/* Two-column: config flow left, chart right */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-6">
-        {/* Left column: full configuration flow */}
+      {/* Two-column: config left, preview right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
+        {/* LEFT: Configuration flow */}
         <div className="space-y-5">
           {/* 1. Buy / Sell toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
-              onClick={() => { setSide("buy"); setAmountStr(""); }}
+              onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
                 side === "buy"
                   ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
@@ -301,7 +328,7 @@ export function PriceMenuV2() {
               I&apos;d buy
             </button>
             <button
-              onClick={() => { setSide("sell"); setAmountStr(""); }}
+              onClick={() => { setSide("sell"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
                 side === "sell"
                   ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
@@ -312,7 +339,29 @@ export function PriceMenuV2() {
             </button>
           </div>
 
-          {/* 2. Amount input */}
+          {/* 2. Duration — button group */}
+          {expiries.length > 0 && (
+            <div className="animate-fade-in-up">
+              <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
+              <div className="flex flex-wrap gap-2">
+                {expiries.map((days) => (
+                  <button
+                    key={days}
+                    onClick={() => { setSelectedExpiry(days); setSelectedQuote(null); }}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      activeExpiry === days
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)]"
+                    }`}
+                  >
+                    {untilDate(days)} ({days}d)
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 3. Amount input + % shortcuts */}
           <div className="animate-fade-in-up">
             <p className="text-sm text-[var(--text-secondary)] mb-2">
               How much do you want to commit?
@@ -333,49 +382,28 @@ export function PriceMenuV2() {
                 className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
               />
               {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
+            </div>
+            <div className="flex items-center justify-between mt-1.5">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Balance: {isBuy
+                  ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                  : `${walletBalance.toFixed(2)} ETH`}
+              </p>
               {walletBalance > 0 && (
-                <button
-                  onClick={() => {
-                    if (isBuy) {
-                      setAmountStr(Math.floor(walletBalance).toString());
-                    } else {
-                      setAmountStr(Number(walletBalance.toFixed(4)).toString());
-                    }
-                  }}
-                  className="text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
-                >
-                  MAX
-                </button>
+                <div className="flex gap-1.5">
+                  {PERCENT_SHORTCUTS.map((pct) => (
+                    <button
+                      key={pct}
+                      onClick={() => handlePercentShortcut(pct)}
+                      className="text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors px-1.5 py-0.5 rounded bg-[var(--surface)]"
+                    >
+                      {pct}%
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
-            <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-              Balance: {isBuy
-                ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : `${walletBalance.toFixed(2)} ETH`}
-            </p>
           </div>
-
-          {/* 3. Date selector — button group */}
-          {expiries.length > 0 && (
-            <div className="animate-fade-in-up">
-              <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
-              <div className="flex flex-wrap gap-2">
-                {expiries.map((days) => (
-                  <button
-                    key={days}
-                    onClick={() => setSelectedExpiry(days)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      activeExpiry === days
-                        ? "bg-[var(--accent)] text-white"
-                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)]"
-                    }`}
-                  >
-                    {untilDate(days)} ({days}d)
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
 
           {/* 4. Strike price cards */}
           <div className="animate-fade-in-up">
@@ -392,7 +420,8 @@ export function PriceMenuV2() {
                     quote={q}
                     side={side}
                     amount={amount}
-                    onSelect={() => setSelected({ quote: q, side })}
+                    isSelected={selectedQuote?.strike === q.strike}
+                    onSelect={() => setSelectedQuote(q)}
                   />
                 ))}
               </div>
@@ -402,51 +431,81 @@ export function PriceMenuV2() {
               </div>
             )}
           </div>
+
+          {/* 5. Accept button */}
+          <button
+            onClick={() => {
+              if (!isConnected) { login(); return; }
+              setConfirming(true);
+            }}
+            disabled={!canAccept && isConnected}
+            className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors animate-fade-in-up"
+          >
+            {!isConnected
+              ? "Connect wallet"
+              : !amount
+                ? "Enter an amount"
+                : !selectedQuote
+                  ? "Select a strike price"
+                  : `Accept — Earn $${Math.round(selectedEarnings).toLocaleString()}`}
+          </button>
         </div>
 
-        {/* Right column: chart (updates as parameters change) */}
-        <div className="lg:sticky lg:top-24 lg:self-start">
-          {spot && filteredPrices.length > 0 ? (
-            <StrikeChart
-              filteredPrices={filteredPrices}
-              spot={spot}
-              side={side}
-              amount={amount}
-              onSelect={(q) => setSelected({ quote: q, side })}
-            />
-          ) : (
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-8 text-center text-sm text-[var(--text-secondary)]">
-              Chart will appear once prices load
+        {/* RIGHT: Live preview — chart + outcome cards */}
+        <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
+          {/* Chart */}
+          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4">
+            <p className="text-xs text-[var(--text-secondary)] mb-2">
+              {isBuy ? "Buy" : "Sell"} strikes vs current price
+            </p>
+            {spot && filteredPrices.length > 0 ? (
+              <StrikeChart
+                filteredPrices={filteredPrices}
+                spot={spot}
+                side={side}
+                amount={amount}
+                selectedStrike={selectedQuote?.strike ?? null}
+              />
+            ) : (
+              <div className="h-32 flex items-center justify-center text-sm text-[var(--text-secondary)]">
+                Loading prices...
+              </div>
+            )}
+          </div>
+
+          {/* Outcome cards — appear when strike is selected + amount entered */}
+          {selectedQuote && amount > 0 && (
+            <div className="space-y-3 animate-fade-in-up">
+              <div className="text-center">
+                <p className="text-2xl font-bold text-[var(--accent)]">
+                  ${Math.round(selectedEarnings).toLocaleString()}
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  {Math.round(selectedApr)}% APR · {activeExpiry}d
+                </p>
+              </div>
+              <OutcomeCards
+                strike={selectedQuote.strike}
+                premium={selectedEarnings}
+                side={side}
+                amount={amount}
+              />
             </div>
           )}
         </div>
       </div>
 
-      {selected && (
+      {/* AcceptModal — only opens on Accept click, confirmation-only */}
+      {confirming && selectedQuote && (
         <AcceptModal
-          quote={selected.quote}
-          side={selected.side}
+          quote={selectedQuote}
+          side={side}
           initialAmount={amountStr}
-          confirmOnly={amount > 0}
-          onClose={() => setSelected(null)}
+          confirmOnly
+          onClose={() => setConfirming(false)}
           onAccepted={({ amount: amt }) => {
-            const info = { quote: selected.quote, side: selected.side, amount: amt };
-            setSelected(null);
-            setAccepted(info);
-          }}
-          renderExtra={(modalAmount: number) => {
-            const q = selected.quote;
-            const prem = isBuy
-              ? (q.premium * modalAmount) / q.strike
-              : q.premium * modalAmount;
-            return modalAmount > 0 ? (
-              <OutcomeCards
-                strike={q.strike}
-                premium={prem}
-                side={selected.side}
-                amount={modalAmount}
-              />
-            ) : null;
+            setConfirming(false);
+            setAccepted({ quote: selectedQuote, side, amount: amt });
           }}
         />
       )}
