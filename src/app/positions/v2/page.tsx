@@ -26,12 +26,15 @@ export default function PositionsV2Page() {
       removeMatching(positions);
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positions]);
+  }, [positions, optimistic.length]);
 
   // Merge: optimistic first, then real — filter out already-matched optimistic
   const allPositions = [
     ...optimistic.filter(
-      (o) => !positions.some((p) => p.otoken_address === o.otoken_address && p.user_address === o.user_address),
+      (o) => !positions.some(
+        (p) => p.otoken_address.toLowerCase() === o.otoken_address.toLowerCase()
+            && p.user_address.toLowerCase() === o.user_address.toLowerCase(),
+      ),
     ),
     ...positions,
   ];

@@ -27,8 +27,8 @@ export function removeMatchingOptimistic(realPositions: Position[]): void {
   const all = getAllOptimistic().filter((opt) => {
     return !realPositions.some(
       (real) =>
-        real.otoken_address === opt.otoken_address &&
-        real.user_address === opt.user_address &&
+        real.otoken_address.toLowerCase() === opt.otoken_address.toLowerCase() &&
+        real.user_address.toLowerCase() === opt.user_address.toLowerCase() &&
         Math.abs(real.amount - opt.amount) / Math.max(opt.amount, 1) < 0.01,
     );
   });
