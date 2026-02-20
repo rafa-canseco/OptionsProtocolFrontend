@@ -288,126 +288,135 @@ export function PriceMenuV2() {
     <div className="space-y-6">
       <LivePrice spot={spot} className="animate-fade-in-up" />
 
-      {/* Buy / Sell toggle */}
-      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
-        <button
-          onClick={() => { setSide("buy"); setAmountStr(""); }}
-          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
-            side === "buy"
-              ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
-              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-          }`}
-        >
-          I&apos;d buy
-        </button>
-        <button
-          onClick={() => { setSide("sell"); setAmountStr(""); }}
-          className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
-            side === "sell"
-              ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
-              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-          }`}
-        >
-          I&apos;d sell
-        </button>
-      </div>
-
-      {/* Amount input */}
-      <div className="animate-fade-in-up">
-        <p className="text-sm text-[var(--text-secondary)] mb-2">
-          How much do you want to commit?
-        </p>
-        <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-          {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
-          <input
-            type="text"
-            inputMode="decimal"
-            placeholder={isBuy ? "1,000" : "0.5"}
-            value={amountStr}
-            onChange={(e) => {
-              const raw = e.target.value;
-              if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                setAmountStr(raw);
-              }
-            }}
-            className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
-          />
-          {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
-          {walletBalance > 0 && (
+      {/* Two-column layout on desktop: controls left, chart+rows right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
+        {/* Left column: controls */}
+        <div className="space-y-5">
+          {/* Buy / Sell toggle */}
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
-              onClick={() => {
-                if (isBuy) {
-                  setAmountStr(Math.floor(walletBalance).toString());
-                } else {
-                  setAmountStr(Number(walletBalance.toFixed(4)).toString());
-                }
-              }}
-              className="text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+              onClick={() => { setSide("buy"); setAmountStr(""); }}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                side === "buy"
+                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              }`}
             >
-              MAX
+              I&apos;d buy
             </button>
+            <button
+              onClick={() => { setSide("sell"); setAmountStr(""); }}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
+                side === "sell"
+                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              }`}
+            >
+              I&apos;d sell
+            </button>
+          </div>
+
+          {/* Amount input */}
+          <div className="animate-fade-in-up">
+            <p className="text-sm text-[var(--text-secondary)] mb-2">
+              How much do you want to commit?
+            </p>
+            <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+              {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
+              <input
+                type="text"
+                inputMode="decimal"
+                placeholder={isBuy ? "1,000" : "0.5"}
+                value={amountStr}
+                onChange={(e) => {
+                  const raw = e.target.value;
+                  if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
+                    setAmountStr(raw);
+                  }
+                }}
+                className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+              />
+              {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
+              {walletBalance > 0 && (
+                <button
+                  onClick={() => {
+                    if (isBuy) {
+                      setAmountStr(Math.floor(walletBalance).toString());
+                    } else {
+                      setAmountStr(Number(walletBalance.toFixed(4)).toString());
+                    }
+                  }}
+                  className="text-xs font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+                >
+                  MAX
+                </button>
+              )}
+            </div>
+            <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+              Balance: {isBuy
+                ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : `${walletBalance.toFixed(2)} ETH`}
+            </p>
+          </div>
+
+          {/* Date selector */}
+          {expiries.length > 0 && (
+            <div className="animate-fade-in-up">
+              <select
+                value={activeExpiry ?? ""}
+                onChange={(e) => setSelectedExpiry(Number(e.target.value))}
+                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:border-[var(--accent)] transition-colors"
+              >
+                {expiries.map((days) => (
+                  <option key={days} value={days}>
+                    Until {untilDate(days)} ({days}d)
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Prompt to enter amount */}
+          {amount === 0 && (
+            <p className="text-sm text-[var(--text-secondary)] px-1 animate-fade-in-up">
+              Enter an amount to see what you&apos;d earn at each price.
+            </p>
           )}
         </div>
-        <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-          Balance: {isBuy
-            ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-            : `${walletBalance.toFixed(2)} ETH`}
-        </p>
-      </div>
 
-      {/* Date selector */}
-      {expiries.length > 0 && (
-        <div className="animate-fade-in-up">
-          <select
-            value={activeExpiry ?? ""}
-            onChange={(e) => setSelectedExpiry(Number(e.target.value))}
-            className="rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-          >
-            {expiries.map((days) => (
-              <option key={days} value={days}>
-                Until {untilDate(days)} ({days}d)
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
-
-      {/* Strike chart — visual overview of all strikes vs spot */}
-      {spot && filteredPrices.length > 0 && (
-        <StrikeChart
-          filteredPrices={filteredPrices}
-          spot={spot}
-          side={side}
-          amount={amount}
-          onSelect={(q) => setSelected({ quote: q, side })}
-        />
-      )}
-
-      {/* Prompt to enter amount */}
-      {amount === 0 && (
-        <p className="text-sm text-[var(--text-secondary)] px-1 animate-fade-in-up">
-          Enter an amount to see what you&apos;d earn at each price.
-        </p>
-      )}
-
-      {/* Strike rows */}
-      {filteredPrices.length > 0 ? (
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] stagger-children animate-fade-in-up">
-          {filteredPrices.map((q, i) => (
-            <StrikeRow
-              key={`${q.strike}-${q.expiry_days}-${i}`}
-              quote={q}
+        {/* Right column: chart + strike rows */}
+        <div className="space-y-4">
+          {/* Strike chart */}
+          {spot && filteredPrices.length > 0 && (
+            <StrikeChart
+              filteredPrices={filteredPrices}
+              spot={spot}
               side={side}
               amount={amount}
-              onSelect={() => setSelected({ quote: q, side })}
+              onSelect={(q) => setSelected({ quote: q, side })}
             />
-          ))}
+          )}
+
+          {/* Strike rows */}
+          {filteredPrices.length > 0 ? (
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] stagger-children animate-fade-in-up">
+              {filteredPrices.map((q, i) => (
+                <StrikeRow
+                  key={`${q.strike}-${q.expiry_days}-${i}`}
+                  quote={q}
+                  side={side}
+                  amount={amount}
+                  onSelect={() => setSelected({ quote: q, side })}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
+              No prices available for this date.
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
-          No prices available for this date.
-        </div>
-      )}
+      </div>
 
       {selected && (
         <AcceptModal

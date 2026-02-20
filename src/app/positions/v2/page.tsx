@@ -53,7 +53,7 @@ export default function PositionsV2Page() {
 
   if (!isConnected) {
     return (
-      <main className="mx-auto max-w-2xl px-6 py-10 space-y-8">
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -66,7 +66,7 @@ export default function PositionsV2Page() {
 
   if (!loading && positions.length === 0) {
     return (
-      <main className="mx-auto max-w-2xl px-6 py-10 space-y-6">
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -79,7 +79,7 @@ export default function PositionsV2Page() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-2xl px-6 py-10 space-y-3">
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-3">
         {[1, 2].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface)]" />
         ))}
@@ -88,7 +88,7 @@ export default function PositionsV2Page() {
   }
 
   return (
-    <main className="mx-auto max-w-2xl px-6 py-10 space-y-6">
+    <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
       {/* Portfolio summary */}
       <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
         <div>
@@ -108,7 +108,7 @@ export default function PositionsV2Page() {
       </div>
 
       {/* Position cards with sparklines */}
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {positions.map((pos) => (
           <PositionCard
             key={pos.id}
