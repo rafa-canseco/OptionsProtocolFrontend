@@ -9,6 +9,7 @@ import {
   type Hash,
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
+import { useBalances } from "@/hooks/useBalances";
 import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
 import type { PriceQuote } from "@/lib/api";
 
@@ -20,6 +21,8 @@ interface Props {
 }
 
 type TxStep = "idle" | "approving" | "executing" | "confirmed";
+
+const PERCENTAGES = [25, 50, 75, 100] as const;
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
   return (premium / strike) * (365 / expiryDays) * 100;
@@ -33,14 +36,18 @@ function untilDate(expiryDays: number): string {
 
 export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
   const { address, walletClient, isConnected, login } = useWallet();
+  const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
+  const [activePercent, setActivePercent] = useState<number | null>(null);
 
   const isBuy = side === "buy";
 
-  // Buy: amount in USD (default = strike). Sell: amount in ETH (default = 1).
+  // Wallet balance in the relevant collateral token
+  const walletBalance = isBuy ? usd : eth;
+
   // String state avoids leading-zero bug with controlled number inputs.
-  const [amountStr, setAmountStr] = useState(String(isBuy ? quote.strike : 1));
+  const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
 
   const until = untilDate(quote.expiry_days);
@@ -73,6 +80,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
   const maxLabel = isBuy
     ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${maxAmount.toFixed(2)} ETH`;
+
+  function handlePercent(pct: number) {
+    setActivePercent(pct);
+    const raw = walletBalance * (pct / 100);
+    const capped = Math.min(raw, maxAmount);
+    if (isBuy) {
+      setAmountStr(Math.floor(capped).toString());
+    } else {
+      setAmountStr(Number(capped.toFixed(4)).toString());
+    }
+  }
 
   const contextText = useMemo(() => {
     if (isBuy) {
@@ -254,29 +272,60 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           {contextText}
         </p>
 
-        {/* Amount input */}
+        {/* Percentage buttons */}
         <div>
-          <label className="text-sm font-medium text-[var(--text)] mb-2 block">Amount</label>
+          <label className="text-sm font-medium text-[var(--text)] mb-2 block">
+            How much of your {isBuy ? "USD" : "ETH"}?
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {PERCENTAGES.map((pct) => (
+              <button
+                key={pct}
+                onClick={() => handlePercent(pct)}
+                disabled={loading || walletBalance <= 0}
+                className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                  activePercent === pct
+                    ? "bg-[var(--accent)] text-white"
+                    : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
+                } disabled:opacity-40`}
+              >
+                {pct}%
+              </button>
+            ))}
+          </div>
+          {walletBalance > 0 && (
+            <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+              Balance: {isBuy
+                ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : `${walletBalance.toFixed(2)} ETH`}
+            </p>
+          )}
+        </div>
+
+        {/* Fine-tune input */}
+        <div>
           <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
             <input
               type="text"
               inputMode="decimal"
+              placeholder={isBuy ? "or enter amount" : "or enter ETH"}
               value={amountStr}
               disabled={loading}
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
                   setAmountStr(raw);
+                  setActivePercent(null);
                 }
               }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none placeholder:text-[var(--text-secondary)]/40 placeholder:font-normal"
             />
             <span className="text-sm text-[var(--text-secondary)]">
               {isBuy ? equivalent : "ETH"}
             </span>
           </div>
-          {!isBuy && (
+          {!isBuy && amount > 0 && (
             <p className="text-xs text-[var(--text-secondary)] mt-1">
               ≈ {equivalent}
             </p>
@@ -289,49 +338,53 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         <div className="h-px bg-[var(--border)]" />
 
         {/* Summary */}
-        <div className="space-y-3">
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-[var(--text-secondary)]">You earn</span>
-            <div className="text-right">
-              <span className="text-xl font-bold text-[var(--accent)]">{premiumDisplay}</span>
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+        {amount > 0 && (
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-[var(--text-secondary)]">You earn</span>
+              <div className="text-right">
+                <span className="text-xl font-bold text-[var(--accent)]">{premiumDisplay}</span>
+                <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+              </div>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-[var(--text-secondary)]">Until</span>
+              <span className="text-sm font-medium text-[var(--text)]">{until}</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-sm text-[var(--text-secondary)]">You commit</span>
+              <span className="text-sm font-medium text-[var(--text)]">{commitDisplay}</span>
             </div>
           </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-[var(--text-secondary)]">Until</span>
-            <span className="text-sm font-medium text-[var(--text)]">{until}</span>
-          </div>
-          <div className="flex justify-between items-center">
-            <span className="text-sm text-[var(--text-secondary)]">You commit</span>
-            <span className="text-sm font-medium text-[var(--text)]">{commitDisplay}</span>
-          </div>
-        </div>
+        )}
 
-        <div className="h-px bg-[var(--border)]" />
+        {amount > 0 && <div className="h-px bg-[var(--border)]" />}
 
         {/* Explicit outcomes */}
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm text-[var(--text)]">
-              If price hits ${quote.strike.toLocaleString()}:
-            </p>
-            <p className="text-sm text-[var(--text-secondary)]">
-              {isBuy
-                ? `You buy ${ethEquiv} ETH @ $${quote.strike.toLocaleString()} + keep ${premiumDisplay}`
-                : `You sell ${amount} ETH @ $${quote.strike.toLocaleString()} + keep ${premiumDisplay}`}
-            </p>
+        {amount > 0 && (
+          <div className="space-y-3">
+            <div>
+              <p className="text-sm text-[var(--text)]">
+                If price hits ${quote.strike.toLocaleString()}:
+              </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {isBuy
+                  ? `You buy ${ethEquiv} ETH @ $${quote.strike.toLocaleString()} + keep ${premiumDisplay}`
+                  : `You sell ${amount} ETH @ $${quote.strike.toLocaleString()} + keep ${premiumDisplay}`}
+              </p>
+            </div>
+            <div>
+              <p className="text-sm text-[var(--text)]">
+                If price doesn&apos;t hit:
+              </p>
+              <p className="text-sm text-[var(--text-secondary)]">
+                {isBuy
+                  ? `$${amount.toLocaleString()} back + keep ${premiumDisplay}`
+                  : `${amount} ETH back + keep ${premiumDisplay}`}
+              </p>
+            </div>
           </div>
-          <div>
-            <p className="text-sm text-[var(--text)]">
-              If price doesn&apos;t hit:
-            </p>
-            <p className="text-sm text-[var(--text-secondary)]">
-              {isBuy
-                ? `$${amount.toLocaleString()} back + keep ${premiumDisplay}`
-                : `${amount} ETH back + keep ${premiumDisplay}`}
-            </p>
-          </div>
-        </div>
+        )}
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
