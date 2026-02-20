@@ -179,6 +179,15 @@ function HeroSection() {
             See how it works &darr;
           </a>
         </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.5, delay: 1.2 }}
+          className="text-sm text-[#52525B]"
+        >
+          Test tokens only · $0 to start · No wallet needed
+        </motion.p>
       </div>
 
       <motion.div
@@ -296,7 +305,7 @@ function MechanismSection({
             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
-              <p className="text-[#71717A] text-sm uppercase tracking-wider">At expiry, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
+              <p className="text-[#71717A] text-sm uppercase tracking-wider">When time&apos;s up, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
               <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
                 {side === "buy"
                   ? `You buy ETH at $${strike.toLocaleString()}.`
@@ -310,7 +319,7 @@ function MechanismSection({
             <div className="border-t border-[var(--border)]" />
 
             <div className="space-y-1">
-              <p className="text-[#71717A] text-sm uppercase tracking-wider">At expiry, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
+              <p className="text-[#71717A] text-sm uppercase tracking-wider">When time&apos;s up, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
               <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
                 {side === "buy"
                   ? `Your $${strike.toLocaleString()} comes back.`
@@ -335,7 +344,57 @@ function MechanismSection({
           transition={{ duration: 0.5, delay: 0.6 }}
           className="text-[#52525B] text-base"
         >
-          Your collateral is locked until expiry. Only the closing price matters — not what happens in between.
+          Your money is locked until the end. Only the closing price matters — not what happens in between.
+        </motion.p>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 2b: Yield Source ── */
+
+function YieldSourceSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "-20%" });
+
+  return (
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative">
+      <div className="max-w-3xl w-full space-y-10">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight"
+        >
+          Where does the money come from?
+        </motion.h2>
+
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="space-y-6"
+        >
+          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
+            From the market. You set a price, someone pays to lock it in.
+          </p>
+          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
+            Price not reached — you collect and your money comes back untouched.
+            <br />
+            Price reached — you buy or sell at the price you chose. And you still collect.
+          </p>
+          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text)]">
+            You pick the price. You pick the amount. And you get paid upfront, every time.
+          </p>
+        </motion.div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.5, delay: 0.5 }}
+          className="text-[clamp(1.1rem,2.5vw,1.4rem)] font-medium text-[var(--accent)]"
+        >
+          Not token rewards. Not incentives. It&apos;s what the market pays for a guaranteed price.
         </motion.p>
       </div>
     </section>
@@ -431,9 +490,6 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
           <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight">
             Every outcome earns.
           </h2>
-          <p className="text-[#71717A] text-lg mt-2 italic">
-            There&apos;s no exit that isn&apos;t earning.
-          </p>
         </FadeBlock>
 
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/50 p-10 min-h-[160px] flex items-center justify-center">
@@ -477,7 +533,7 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
 
         <FadeBlock delay={0.2}>
           <p className="text-center text-[var(--text-secondary)] text-lg">
-            Real premium. Paid upfront. Every cycle.
+            Real earnings. Paid upfront. Every cycle.
           </p>
         </FadeBlock>
       </div>
@@ -542,7 +598,7 @@ const ComparisonSection = memo(function ComparisonSection() {
           >
             <span className="text-[var(--text)] text-base sm:text-lg font-medium font-mono">b1nary</span>
             <div className="flex items-center gap-4">
-              <span className="text-lg sm:text-xl font-semibold text-[var(--accent)]">Variable</span>
+              <span className="text-lg sm:text-xl font-semibold text-[var(--accent)]">15–60%</span>
               <div className="hidden sm:flex items-center gap-2 text-sm text-[var(--accent)]">
                 <span>{"✓"} Passive</span>
                 <span>{"✓"} Paid upfront</span>
@@ -560,7 +616,7 @@ const ComparisonSection = memo(function ComparisonSection() {
 
 const STATS = [
   { label: "Built on", value: "Base" },
-  { label: "Collateral", value: "100%" },
+  { label: "Backed", value: "100%" },
   { label: "Margin calls", value: "None" },
   { label: "Contracts", value: "Verified" },
 ];
@@ -665,6 +721,7 @@ export function LandingPage() {
 
       <HeroSection />
       <MechanismSection side={side} onSideChange={setSide} spot={spot} onSpotChange={handleSpotChange} />
+      <YieldSourceSection />
       <LoopSection side={side} />
       <ComparisonSection />
       <SocialProofSection />

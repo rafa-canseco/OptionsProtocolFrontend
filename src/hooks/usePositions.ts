@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { api, type Position } from "@/lib/api";
 
 export function usePositions(address: string | undefined, pollInterval = 15_000) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const mountTime = useRef(Date.now());
 
   const refresh = useCallback(async () => {
     if (!address) {
@@ -28,9 +29,28 @@ export function usePositions(address: string | undefined, pollInterval = 15_000)
   useEffect(() => {
     refresh();
     if (!address) return;
-    const id = setInterval(refresh, pollInterval);
-    return () => clearInterval(id);
+
+    // Poll faster for the first 30s after mount (new position may still be indexing)
+    const fastPoll = setInterval(() => {
+      if (Date.now() - mountTime.current < 30_000) {
+        refresh();
+      }
+    }, 3_000);
+
+    const slowPoll = setInterval(refresh, pollInterval);
+
+    return () => {
+      clearInterval(fastPoll);
+      clearInterval(slowPoll);
+    };
   }, [refresh, address, pollInterval]);
+
+  // Re-fetch when a transaction completes (AcceptModal dispatches this)
+  useEffect(() => {
+    const handler = () => refresh();
+    window.addEventListener("balance:refetch", handler);
+    return () => window.removeEventListener("balance:refetch", handler);
+  }, [refresh]);
 
   return { positions, loading, error, refresh };
 }

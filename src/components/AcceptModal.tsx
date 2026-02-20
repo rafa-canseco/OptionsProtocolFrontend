@@ -232,41 +232,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         );
       }
 
-      // Approve oToken to BatchSettler (needed for safeTransferFrom in executeOrder)
-      console.log("[AcceptModal] Checking oToken allowance...", { oTokenAddress, user: address, spender: ADDRESSES.batchSettler });
-      const oTokenAllowance = await publicClient.readContract({
-        address: oTokenAddress,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [address, ADDRESSES.batchSettler],
-      });
-      console.log("[AcceptModal] oToken allowance:", oTokenAllowance.toString(), "needed:", oTokenAmount.toString());
-
-      if (oTokenAllowance < oTokenAmount) {
-        console.log("[AcceptModal] Approving oToken to BatchSettler...");
-        updateStep("approving");
-        const oTokenApproveData = encodeFunctionData({
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [ADDRESSES.batchSettler, maxUint256],
-        });
-        await sendAndPoll(
-          { to: oTokenAddress, data: oTokenApproveData },
-          async () => {
-            const a = await publicClient.readContract({
-              address: oTokenAddress, abi: ERC20_ABI, functionName: "allowance",
-              args: [address, ADDRESSES.batchSettler],
-            });
-            return a >= oTokenAmount;
-          },
-          "oToken-approve",
-        );
-      } else {
-        console.log("[AcceptModal] oToken already approved, skipping");
-      }
-
-      // Execute order
-      console.log("[AcceptModal] All approvals confirmed, executing order...");
+      // Execute order (v3: only collateral approve needed, no oToken approve)
+      console.log("[AcceptModal] Collateral approved, executing order...");
       updateStep("executing");
 
       // Snapshot balance before executeOrder to detect when collateral is deducted
