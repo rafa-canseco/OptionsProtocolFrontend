@@ -18,7 +18,7 @@ export function NavBar() {
   const { usd, usdFormatted, ethFormatted, loading: balLoading, refetch } = useBalances(address);
   const { mint, minting, showNotification, error: faucetError } = useFaucet(address, sendSponsoredTx, refetch);
 
-  const showFaucetButton = isConnected && !balLoading && usd === 0;
+  const showFaucetButton = isConnected && !balLoading;
 
   return (
     <>
