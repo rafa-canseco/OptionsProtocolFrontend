@@ -7,7 +7,7 @@ import { usePositions } from "@/hooks/usePositions";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
-  const { positions, loading } = usePositions(address);
+  const { positions, loading, refresh } = usePositions(address);
 
   const totalEarned = positions
     .filter((p) => p.status === "settled")
@@ -43,7 +43,7 @@ export default function PositionsPage() {
 
       <div className="space-y-3">
         {positions.map((pos) => (
-          <PositionCard key={pos.id} position={pos} />
+          <PositionCard key={pos.id} position={pos} onSettled={refresh} />
         ))}
       </div>
     </main>
