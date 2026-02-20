@@ -136,7 +136,7 @@ function StrikeChart({
   );
 }
 
-function StrikeListItem({
+function StrikeCard({
   quote,
   side,
   amount,
@@ -161,22 +161,27 @@ function StrikeListItem({
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`w-full flex items-center justify-between py-2 text-sm transition-colors text-left ${
-        disabled ? "opacity-40 cursor-not-allowed" : "hover:text-[var(--accent)]"
+      className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group ${
+        disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface)]"
       }`}
     >
-      <span className="text-[var(--text)]">
-        ${quote.strike.toLocaleString()}
+      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+        ${quote.strike.toLocaleString()}/ETH
       </span>
-      <span className="text-[var(--text-secondary)]">
-        {earnings > 0 && (
-          <span className="text-[var(--accent)] font-medium">
+      <div className="text-right">
+        {earnings > 0 ? (
+          <span className="text-base font-bold text-[var(--accent)]">
             Earn ${Math.round(earnings).toLocaleString()}
-            {" · "}
+          </span>
+        ) : (
+          <span className="text-base font-bold text-[var(--accent)]">
+            {Math.round(apr)}% APR
           </span>
         )}
-        {Math.round(apr)}% APR
-      </span>
+        {earnings > 0 && (
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+        )}
+      </div>
     </button>
   );
 }
@@ -279,11 +284,11 @@ export function PriceMenuV2() {
     <div className="space-y-6">
       <LivePrice spot={spot} className="animate-fade-in-up" />
 
-      {/* Two-column layout on desktop: controls left, chart+rows right */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr] gap-6">
-        {/* Left column: controls */}
+      {/* Two-column: config flow left, chart right */}
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-6">
+        {/* Left column: full configuration flow */}
         <div className="space-y-5">
-          {/* Buy / Sell toggle */}
+          {/* 1. Buy / Sell toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
               onClick={() => { setSide("buy"); setAmountStr(""); }}
@@ -307,7 +312,7 @@ export function PriceMenuV2() {
             </button>
           </div>
 
-          {/* Amount input */}
+          {/* 2. Amount input */}
           <div className="animate-fade-in-up">
             <p className="text-sm text-[var(--text-secondary)] mb-2">
               How much do you want to commit?
@@ -350,35 +355,58 @@ export function PriceMenuV2() {
             </p>
           </div>
 
-          {/* Date selector */}
+          {/* 3. Date selector — button group */}
           {expiries.length > 0 && (
             <div className="animate-fade-in-up">
-              <select
-                value={activeExpiry ?? ""}
-                onChange={(e) => setSelectedExpiry(Number(e.target.value))}
-                className="w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm text-[var(--text)] focus:outline-none focus:border-[var(--accent)] transition-colors"
-              >
+              <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
+              <div className="flex flex-wrap gap-2">
                 {expiries.map((days) => (
-                  <option key={days} value={days}>
-                    Until {untilDate(days)} ({days}d)
-                  </option>
+                  <button
+                    key={days}
+                    onClick={() => setSelectedExpiry(days)}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
+                      activeExpiry === days
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)]"
+                    }`}
+                  >
+                    {untilDate(days)} ({days}d)
+                  </button>
                 ))}
-              </select>
+              </div>
             </div>
           )}
 
-          {/* Prompt to enter amount */}
-          {amount === 0 && (
-            <p className="text-sm text-[var(--text-secondary)] px-1 animate-fade-in-up">
-              Enter an amount to see what you&apos;d earn at each price.
+          {/* 4. Strike price cards */}
+          <div className="animate-fade-in-up">
+            <p className="text-sm text-[var(--text-secondary)] mb-2">
+              {amount > 0
+                ? "Choose your strike price"
+                : "Enter an amount to see earnings per strike"}
             </p>
-          )}
+            {filteredPrices.length > 0 ? (
+              <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)]">
+                {filteredPrices.map((q, i) => (
+                  <StrikeCard
+                    key={`${q.strike}-${q.expiry_days}-${i}`}
+                    quote={q}
+                    side={side}
+                    amount={amount}
+                    onSelect={() => setSelected({ quote: q, side })}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
+                No prices available for this date.
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Right column: chart + strike rows */}
-        <div className="space-y-4">
-          {/* Strike chart */}
-          {spot && filteredPrices.length > 0 && (
+        {/* Right column: chart (updates as parameters change) */}
+        <div className="lg:sticky lg:top-24 lg:self-start">
+          {spot && filteredPrices.length > 0 ? (
             <StrikeChart
               filteredPrices={filteredPrices}
               spot={spot}
@@ -386,24 +414,9 @@ export function PriceMenuV2() {
               amount={amount}
               onSelect={(q) => setSelected({ quote: q, side })}
             />
-          )}
-
-          {/* Strike list */}
-          {filteredPrices.length > 0 ? (
-            <div className="px-1 space-y-0.5 animate-fade-in-up">
-              {filteredPrices.map((q, i) => (
-                <StrikeListItem
-                  key={`${q.strike}-${q.expiry_days}-${i}`}
-                  quote={q}
-                  side={side}
-                  amount={amount}
-                  onSelect={() => setSelected({ quote: q, side })}
-                />
-              ))}
-            </div>
           ) : (
-            <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
-              No prices available for this date.
+            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-8 text-center text-sm text-[var(--text-secondary)]">
+              Chart will appear once prices load
             </div>
           )}
         </div>
