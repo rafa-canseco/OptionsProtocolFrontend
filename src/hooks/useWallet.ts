@@ -1,49 +1,46 @@
 "use client";
 
-import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { createWalletClient, custom, type WalletClient, type Address } from "viem";
+import { usePrivy, useWallets, useSendTransaction } from "@privy-io/react-auth";
+import { type Address } from "viem";
 import { baseSepolia } from "viem/chains";
-import { useState, useEffect } from "react";
+import { useEffect, useCallback } from "react";
 
 export function useWallet() {
   const { login, logout, authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
-  const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
+  const { sendTransaction } = useSendTransaction();
 
   const activeWallet = wallets[0];
   const address = activeWallet?.address as Address | undefined;
 
+  // Ensure wallet is on Base Sepolia
   useEffect(() => {
-    if (!activeWallet) {
-      setWalletClient(null);
-      return;
-    }
-    let cancelled = false;
-
-    (async () => {
-      try {
-        // Ensure wallet is on Base Sepolia before creating client
-        await activeWallet.switchChain(baseSepolia.id);
-        const provider = await activeWallet.getEthereumProvider();
-        if (cancelled) return;
-        setWalletClient(
-          createWalletClient({
-            chain: baseSepolia,
-            transport: custom(provider),
-          })
-        );
-      } catch (err) {
-        console.error("[useWallet] Failed to initialize wallet:", err);
-        setWalletClient(null);
-      }
-    })();
-
-    return () => { cancelled = true; };
+    if (!activeWallet) return;
+    activeWallet.switchChain(baseSepolia.id).catch((err) => {
+      console.error("[useWallet] Failed to switch chain:", err);
+    });
   }, [activeWallet]);
+
+  // Sponsored transaction sender — wraps Privy's sendTransaction with sponsor: true
+  const sendSponsoredTx = useCallback(
+    async (tx: { to: Address; data: `0x${string}`; value?: bigint }) => {
+      const receipt = await sendTransaction(
+        {
+          to: tx.to,
+          data: tx.data,
+          value: tx.value ? `0x${tx.value.toString(16)}` : undefined,
+          chainId: baseSepolia.id,
+        },
+        { sponsor: true },
+      );
+      return receipt;
+    },
+    [sendTransaction],
+  );
 
   return {
     address,
-    walletClient,
+    sendSponsoredTx,
     isConnected: authenticated && !!address,
     isReady: ready,
     login,

@@ -1,16 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { parseUnits, type Address, type Hash } from "viem";
-import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
-import type { WalletClient } from "viem";
+import { parseUnits, encodeFunctionData, type Address } from "viem";
+import { ADDRESSES, ERC20_ABI } from "@/lib/contracts";
 
 const MINT_USD = parseUnits("100000", 6);   // 100,000 LUSD
 const MINT_ETH = parseUnits("50", 18);      // 50 LETH
 
+type SendSponsoredTx = (tx: { to: Address; data: `0x${string}` }) => Promise<unknown>;
+
 export function useFaucet(
   address: Address | undefined,
-  walletClient: WalletClient | null,
+  sendSponsoredTx: SendSponsoredTx | undefined,
   onComplete?: () => void,
 ) {
   const [minting, setMinting] = useState(false);
@@ -18,30 +19,24 @@ export function useFaucet(
   const [error, setError] = useState<string | null>(null);
 
   async function mint() {
-    if (!address || !walletClient) return;
+    if (!address || !sendSponsoredTx) return;
     setMinting(true);
     setError(null);
 
     try {
-      const usdHash = await walletClient.writeContract({
-        address: ADDRESSES.usdc,
+      const usdData = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "mint",
         args: [address, MINT_USD],
-        account: address,
-        chain: publicClient.chain,
       });
-      await publicClient.waitForTransactionReceipt({ hash: usdHash as Hash });
+      await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData });
 
-      const ethHash = await walletClient.writeContract({
-        address: ADDRESSES.weth,
+      const ethData = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "mint",
         args: [address, MINT_ETH],
-        account: address,
-        chain: publicClient.chain,
       });
-      await publicClient.waitForTransactionReceipt({ hash: ethHash as Hash });
+      await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData });
 
       setMinting(false);
       setShowNotification(true);

@@ -3,10 +3,8 @@
 import { useState, useMemo } from "react";
 import {
   parseUnits,
-  UserRejectedRequestError,
-  WaitForTransactionReceiptTimeoutError,
+  encodeFunctionData,
   type Address,
-  type Hash,
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
@@ -35,7 +33,7 @@ function untilDate(expiryDays: number): string {
 }
 
 export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
-  const { address, walletClient, isConnected, login } = useWallet();
+  const { address, sendSponsoredTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -116,11 +114,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       login();
       return;
     }
-    if (!walletClient) {
-      console.warn("[AcceptModal] walletClient is null despite isConnected=true");
-      setError("Wallet provider failed to initialize. Try disconnecting and reconnecting.");
-      return;
-    }
     if (!quote.otoken_address) {
       console.warn("[AcceptModal] otoken_address is null but row was not disabled");
       setError("This option is not available on-chain yet.");
@@ -153,7 +146,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         collateralAsset = ADDRESSES.weth;
       }
 
-      // Check balance before spending gas
+      // Check balance before sending tx
       const balance = await publicClient.readContract({
         address: collateralAsset,
         abi: ERC20_ABI,
@@ -178,65 +171,38 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       if (currentAllowance < collateral) {
         updateStep("approving");
         if (currentAllowance > BigInt(0)) {
-          const resetHash = await walletClient.writeContract({
-            address: collateralAsset,
+          const resetData = encodeFunctionData({
             abi: ERC20_ABI,
             functionName: "approve",
             args: [ADDRESSES.marginPool, BigInt(0)],
-            account: address,
-            chain: publicClient.chain,
           });
-          const resetReceipt = await publicClient.waitForTransactionReceipt({ hash: resetHash as Hash });
-          if (resetReceipt.status === "reverted") {
-            setError("Approval reset reverted. Please try again.");
-            setStep("idle");
-            return;
-          }
+          await sendSponsoredTx({ to: collateralAsset, data: resetData });
         }
-        const approveHash = await walletClient.writeContract({
-          address: collateralAsset,
+        const approveData = encodeFunctionData({
           abi: ERC20_ABI,
           functionName: "approve",
           args: [ADDRESSES.marginPool, collateral],
-          account: address,
-          chain: publicClient.chain,
         });
-        const approveReceipt = await publicClient.waitForTransactionReceipt({ hash: approveHash as Hash });
-        if (approveReceipt.status === "reverted") {
-          setError("Token approval reverted on-chain.");
-          setStep("idle");
-          return;
-        }
+        await sendSponsoredTx({ to: collateralAsset, data: approveData });
       }
 
       // Execute order
       updateStep("executing");
-      const txHash = await walletClient.writeContract({
-        address: ADDRESSES.batchSettler,
+      const executeData = encodeFunctionData({
         abi: BATCH_SETTLER_ABI,
         functionName: "executeOrder",
         args: [oTokenAddress, oTokenAmount, collateral],
-        account: address,
-        chain: publicClient.chain,
       });
-      const executeReceipt = await publicClient.waitForTransactionReceipt({ hash: txHash as Hash });
-      if (executeReceipt.status === "reverted") {
-        setError("Order reverted on-chain. The option may no longer be available.");
-        setStep("idle");
-        return;
-      }
+      const receipt = await sendSponsoredTx({ to: ADDRESSES.batchSettler, data: executeData });
 
       updateStep("confirmed");
-      onAccepted(txHash as string);
+      const txHash = typeof receipt === "object" && receipt !== null && "transactionHash" in receipt
+        ? (receipt as { transactionHash: string }).transactionHash
+        : String(receipt);
+      onAccepted(txHash);
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
-      if (err instanceof UserRejectedRequestError) {
-        setError("Transaction cancelled.");
-      } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "approving") {
-        setError("Approval submitted but confirmation is taking longer than expected. Check your wallet before retrying.");
-      } else if (err instanceof WaitForTransactionReceiptTimeoutError && currentStep === "executing") {
-        setError("Transaction submitted but confirmation is taking longer than expected. Check your wallet or block explorer before retrying.");
-      } else if (currentStep === "idle") {
+      if (currentStep === "idle") {
         setError("Could not read on-chain data. Check your network connection and try again.");
       } else if (currentStep === "approving") {
         setError("Token approval failed. Please try again.");
