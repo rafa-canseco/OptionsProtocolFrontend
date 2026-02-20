@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
 import { AcceptModal } from "./AcceptModal";
 import { LivePrice } from "./LivePrice";
@@ -48,7 +49,9 @@ function PriceRow({
 
 export function PriceMenu() {
   const { prices, loading, error, refresh } = usePrices();
-  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const searchParams = useSearchParams();
+  const initialSide = searchParams.get("side") === "sell" ? "sell" : "buy";
+  const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);
 

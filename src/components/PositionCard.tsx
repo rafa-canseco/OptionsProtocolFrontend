@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type ReactNode } from "react";
+import Link from "next/link";
 import type { Position, SettleResult } from "@/lib/api";
 import { api } from "@/lib/api";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
@@ -10,9 +11,11 @@ interface Props {
   onSettled?: () => void;
   spot?: number;
   renderExtra?: (position: Position, strike: number) => ReactNode;
+  /** Base path for Earn links, e.g. "/earn" or "/earn/v2" */
+  earnBase?: string;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -32,7 +35,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra }: Props) 
   const returnPct = committedUsd > 0 ? (premiumUsd / committedUsd) * 100 : 0;
 
   // oToken amount (8 decimals)
-  const ethAmount = (position.amount / 1e8).toFixed(2);
+  const ethAmount = position.amount / 1e8;
+  const ethAmountDisplay = ethAmount.toFixed(2);
 
   // Expiry: total duration from indexed_at to expiry
   const indexedTime = new Date(position.indexed_at).getTime();
@@ -79,79 +83,173 @@ export function PositionCard({ position, onSettled, spot, renderExtra }: Props) 
     ? `$${(expiryPrice / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : null;
 
+  // Cost basis for ITM assigned positions
+  // Put assigned: user bought ETH → cost basis = strike - premium per ETH
+  // Call assigned: user sold ETH → effective sale price = strike + premium per ETH
+  const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
+  const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
+
+  // Unrealized gain for ITM: compare current spot to cost basis
+  const unrealizedPerEth = spot != null
+    ? isBuy
+      ? spot - costBasis   // bought ETH: gain if spot > cost basis
+      : costBasis - spot   // sold ETH: gain if cost basis > spot (already realized)
+    : null;
+  const unrealizedPct = unrealizedPerEth != null && costBasis > 0
+    ? (unrealizedPerEth / costBasis) * 100
+    : null;
+  const unrealizedTotal = unrealizedPerEth != null ? unrealizedPerEth * ethAmount : null;
+
+  // CTA link helpers
+  const nextSide = isBuy ? "sell" : "buy";
+  const sameSide = isBuy ? "buy" : "sell";
+  const ctaEarnHref = (side: string) => `${earnBase}?side=${side}`;
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
-      {/* Header row */}
-      <div className="flex items-center justify-between">
-        <p className="text-base font-semibold text-[var(--text)]">
-          {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
-        </p>
-        {isSettled && !isItm && (
-          <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
-            Earned
-          </span>
-        )}
-        {isSettled && isItm && (
-          <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
-            Order filled
-          </span>
-        )}
-      </div>
-
-      {/* Active position */}
+      {/* ── ACTIVE POSITION ── */}
       {isActive && !settleResult && (
         <>
-          <p className="text-sm text-[var(--text-secondary)]">
-            Committed {committedDisplay} ·{" "}
-            <span className="text-[var(--accent)] font-semibold">
-              Earned ${premiumUsd.toFixed(0)}
-            </span>{" "}
-            ({Math.round(apr)}% APR)
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <p className="text-base font-semibold text-[var(--text)]">
+              {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+            </p>
+          </div>
+
+          {/* Countdown — prominent */}
+          <p className="text-lg font-bold text-[var(--text)]">
+            {expiryDays > 1
+              ? `${expiryDays}d left`
+              : expiryDays === 1
+                ? "Expires tomorrow"
+                : "Expires today"}
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            {expiryDays > 0 ? `${expiryDays}d left` : "Expired"}
+
+          {/* Premium earned — accent + mono */}
+          <p className="text-base font-bold font-mono text-[var(--accent)]">
+            ${premiumUsd.toFixed(0)} earned
+            <span className="text-sm font-normal text-[var(--text-secondary)] ml-2">
+              {Math.round(apr)}% APR
+            </span>
           </p>
+
+          {/* Full-width distance bar */}
           {spot && (
             <DistanceIndicator
               strike={strike}
               spot={spot}
               isPut={isBuy}
               isSettled={false}
+              size="full"
             />
           )}
+
+          <p className="text-xs text-[var(--text-secondary)]">
+            Committed {committedDisplay}
+          </p>
         </>
       )}
 
-      {/* No trade — price didn't reach strike */}
+      {/* ── SETTLED: OTM — No trade ── */}
       {isSettled && !isItm && (
-        <div className="space-y-1">
+        <div className="space-y-3">
+          {/* Badge */}
+          <div className="flex items-center justify-between">
+            <p className="text-base font-semibold text-[var(--text)]">
+              {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+            </p>
+            <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
+              Earned
+            </span>
+          </div>
+
+          {/* Two clear lines */}
           <p className="text-sm text-[var(--text)]">
-            Price didn&apos;t reach ${strike.toLocaleString()} — no trade
+            Your price wasn&apos;t reached — no trade
           </p>
           <p className="text-sm text-[var(--text-secondary)]">
-            {committedDisplay} returned +{" "}
-            <span className="text-[var(--accent)] font-semibold">${premiumUsd.toFixed(0)} earned</span>
+            Committed {committedDisplay} → Returned {committedDisplay} +{" "}
+            <span className="text-[var(--accent)] font-semibold font-mono">${premiumUsd.toFixed(0)} earned</span>
           </p>
+
           <p className="text-xs text-[var(--text-secondary)]">
             {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/ETH · </>}
             {returnPct.toFixed(1)}% in {totalDays}d · {Math.round(apr)}% APR
           </p>
+
+          {/* CTA: Earn again */}
+          <Link
+            href={ctaEarnHref(sameSide)}
+            className="block w-full text-center rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 py-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
+          >
+            Earn again
+          </Link>
         </div>
       )}
 
-      {/* Trade filled — price reached strike */}
+      {/* ── SETTLED: ITM — Assigned ── */}
       {isSettled && isItm && (
-        <div className="space-y-1">
-          <p className="text-sm text-[var(--text)]">
-            {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/ETH — </>}
-            {isBuy
-              ? `you bought ${ethAmount} ETH`
-              : `you sold ${ethAmount} ETH`}
-          </p>
+        <div className="space-y-3">
+          {/* Badge — positive framing */}
+          <div className="flex items-center justify-between">
+            <p className="text-base font-semibold text-[var(--text)]">
+              {isBuy ? "Bought" : "Sold"} {ethAmountDisplay} ETH
+            </p>
+            <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
+              Assigned
+            </span>
+          </div>
+
+          {/* Cost basis */}
+          <div className="space-y-1">
+            <p className="text-sm text-[var(--text)]">
+              {isBuy
+                ? `You bought ETH at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : `You sold ETH at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+            </p>
+            <p className="text-xs text-[var(--text-secondary)]">
+              {isBuy ? "Strike" : "Strike"} ${strike.toLocaleString()} {isBuy ? "−" : "+"} premium ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH = cost basis ${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH
+            </p>
+          </div>
+
+          {/* Unrealized gain/loss — live with spot */}
+          {unrealizedPerEth != null && spot != null && (
+            <div className={`rounded-xl px-4 py-3 ${unrealizedPerEth >= 0 ? "bg-[var(--accent)]/10" : "bg-[var(--danger)]/10"}`}>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-[var(--text-secondary)]">
+                  {isBuy ? "Unrealized gain" : "Realized gain"}
+                </span>
+                <span className={`text-base font-bold font-mono ${unrealizedPerEth >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
+                  {unrealizedPerEth >= 0 ? "+" : ""}${unrealizedTotal!.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+              </div>
+              <div className="flex items-center justify-between mt-0.5">
+                <span className="text-xs text-[var(--text-secondary)]">
+                  ETH now: ${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </span>
+                <span className={`text-xs font-mono ${unrealizedPerEth >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
+                  {unrealizedPerEth >= 0 ? "+" : ""}{unrealizedPct!.toFixed(1)}%/ETH
+                </span>
+              </div>
+            </div>
+          )}
+
+          {/* Premium kept */}
           <p className="text-sm text-[var(--text-secondary)]">
-            at ${strike.toLocaleString()}/ETH + kept{" "}
-            <span className="text-[var(--accent)] font-semibold">${premiumUsd.toFixed(0)} in earnings</span>
+            + kept{" "}
+            <span className="text-[var(--accent)] font-semibold font-mono">${premiumUsd.toFixed(0)} in premium</span>
           </p>
+
+          {/* CTA: Next step */}
+          <Link
+            href={ctaEarnHref(nextSide)}
+            className="block w-full text-center rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+          >
+            {isBuy
+              ? "Earn more: sell ETH at a higher price"
+              : "Earn more: buy ETH at a lower price"}
+          </Link>
         </div>
       )}
 

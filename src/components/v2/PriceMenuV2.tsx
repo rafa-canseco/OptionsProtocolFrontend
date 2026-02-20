@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
@@ -284,7 +285,9 @@ export function PriceMenuV2() {
   const { prices, loading, error, refresh } = usePrices();
   const { address, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
-  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const searchParams = useSearchParams();
+  const initialSide = searchParams.get("side") === "sell" ? "sell" : "buy";
+  const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);

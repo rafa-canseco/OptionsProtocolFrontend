@@ -11,23 +11,29 @@ export default function PositionsPage() {
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
 
+  // Split into active vs history
+  const active = positions.filter((p) => !p.is_settled);
+  const history = positions
+    .filter((p) => p.is_settled)
+    .sort((a, b) => {
+      const tA = a.settled_at ? new Date(a.settled_at).getTime() : 0;
+      const tB = b.settled_at ? new Date(b.settled_at).getTime() : 0;
+      return tB - tA;
+    });
+
   // Portfolio summary
   const totalEarned = positions.reduce((sum, p) => sum + Number(p.net_premium) / 1e6, 0);
 
-  const activeCapital = positions
-    .filter((p) => !p.is_settled)
-    .reduce((sum, p) => {
-      // Puts: LUSD (6 dec), Calls: LETH (18 dec) converted to USD
-      if (p.is_put) return sum + p.collateral / 1e6;
-      return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
-    }, 0);
+  const activeCapital = active.reduce((sum, p) => {
+    if (p.is_put) return sum + p.collateral / 1e6;
+    return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
+  }, 0);
 
   const totalCapital = positions.reduce((sum, p) => {
     if (p.is_put) return sum + p.collateral / 1e6;
     return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
   }, 0);
 
-  // Weighted average APR across all positions
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = p.is_put ? p.collateral / 1e6 : (p.collateral / 1e18) * (p.strike_price / 1e8);
     const premium = Number(p.net_premium) / 1e6;
@@ -75,7 +81,7 @@ export default function PositionsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10 space-y-6">
+    <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
       <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
         <div>
@@ -94,12 +100,40 @@ export default function PositionsPage() {
         </div>
       </div>
 
-      {/* Position cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {positions.map((pos) => (
-          <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} />
-        ))}
-      </div>
+      {/* Active positions */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+          Active positions
+        </h2>
+        {active.length > 0 ? (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {active.map((pos) => (
+              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
+            <p className="text-sm text-[var(--text-secondary)]">
+              No active positions.{" "}
+              <a href="/earn" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* History */}
+      {history.length > 0 && (
+        <section className="space-y-4">
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+            History
+          </h2>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {history.map((pos) => (
+              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" />
+            ))}
+          </div>
+        </section>
+      )}
     </main>
   );
 }
