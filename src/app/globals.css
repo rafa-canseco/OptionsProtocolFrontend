@@ -1,33 +1,17 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;0,9..144,800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 @import "tailwindcss";
 
 :root {
-  --bg: #FFFFFF;
-  --surface: #F8F9FA;
-  --border: #E5E7EB;
-  --text: #111111;
-  --text-secondary: #6B7280;
-  --accent: #0D9F6E;
-  --accent-hover: #057A55;
-  --accent-glow: rgba(13, 159, 110, 0.25);
-  --danger: #DC2626;
-  --font-display: 'Fraunces', Georgia, serif;
-  /* Side-specific colors — set dynamically via data-side attribute */
-  --side: #3B82F6;
-  --side-hover: #2563EB;
-  --side-glow: rgba(59, 130, 246, 0.25);
-}
-
-[data-side="buy"] {
-  --side: #3B82F6;
-  --side-hover: #2563EB;
-  --side-glow: rgba(59, 130, 246, 0.25);
-}
-
-[data-side="sell"] {
-  --side: #F59E0B;
-  --side-hover: #D97706;
-  --side-glow: rgba(245, 158, 11, 0.25);
+  --bg: #0A0A0A;
+  --surface: #18181B;
+  --border: #27272A;
+  --text: #FAFAFA;
+  --text-secondary: #A1A1AA;
+  --accent: #10B981;
+  --accent-hover: #059669;
+  --accent-glow: rgba(16, 185, 129, 0.25);
+  --danger: #EF4444;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 body {
@@ -37,9 +21,9 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Display font for big numbers and hero text */
-.font-display {
-  font-family: var(--font-display);
+/* Monospace font for wordmark, prices, numbers, data */
+.font-mono {
+  font-family: var(--font-mono);
 }
 
 /* Animated number transitions */
@@ -64,8 +48,8 @@ body {
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 var(--side-glow); }
-  50% { box-shadow: 0 0 20px 4px var(--side-glow); }
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 20px 4px var(--accent-glow); }
 }
 
 .animate-fade-in-up {

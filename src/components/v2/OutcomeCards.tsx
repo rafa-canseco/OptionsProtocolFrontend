@@ -39,7 +39,7 @@ export function OutcomeCards({
           <p className="text-sm font-semibold text-[var(--text)] mt-1.5">
             {commitDisplay} back
           </p>
-          <p className="text-sm font-bold text-[var(--accent)] font-display">
+          <p className="text-sm font-bold text-[var(--accent)] font-mono">
             + keep {earnings}
           </p>
         </div>
@@ -64,7 +64,7 @@ export function OutcomeCards({
         <p className="text-sm font-semibold text-[var(--text)] mt-1.5">
           {isBuy ? `Buy ${ethEquiv} ETH` : `Sell ${amount} ETH`} at ${strike.toLocaleString()}
         </p>
-        <p className="text-sm font-bold text-[var(--accent)] font-display">
+        <p className="text-sm font-bold text-[var(--accent)] font-mono">
           + keep {earnings}
         </p>
       </div>

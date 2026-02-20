@@ -7,10 +7,6 @@ import { TickingPrice } from "./TickingPrice";
 import { CountUp } from "./CountUp";
 import { CursorGlow } from "./CursorGlow";
 
-const ACCENT = "#D4A847";
-const BUY_COLOR = "#22C55E";
-const SELL_COLOR = "#EF4444";
-
 const SPOT_BASE = 2621;
 const BUY_STRIKE = 2400;
 const SELL_STRIKE = 2800;
@@ -31,7 +27,7 @@ function FloatingOrbs() {
         transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
         className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(212,168,71,0.06) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)",
         }}
       />
       <motion.div
@@ -43,7 +39,7 @@ function FloatingOrbs() {
         transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
         className="absolute top-1/3 -left-48 w-[600px] h-[600px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(13,159,110,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(16,185,129,0.04) 0%, transparent 70%)",
         }}
       />
       <motion.div
@@ -55,7 +51,7 @@ function FloatingOrbs() {
         transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(212,168,71,0.03) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(16,185,129,0.03) 0%, transparent 70%)",
         }}
       />
     </div>
@@ -144,12 +140,11 @@ function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-[clamp(2.8rem,8vw,6rem)] leading-[1.05] tracking-tight text-[#FAFAFA]"
-          style={{ fontFamily: "'Instrument Serif', serif" }}
+          className="text-[clamp(2.8rem,8vw,6rem)] leading-[1.05] tracking-tight text-[var(--text)] font-light"
         >
           Your crypto is sitting there.
           <br />
-          <span style={{ color: ACCENT }}>Make it pay you.</span>
+          <span className="text-[var(--accent)]">Make it pay you.</span>
         </motion.h1>
 
         <motion.div
@@ -158,10 +153,10 @@ function HeroSection() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="space-y-2"
         >
-          <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[#A1A1AA] font-light leading-relaxed">
+          <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text-secondary)] font-light leading-relaxed">
             Pick a price you&apos;d buy or sell ETH at.
             <br />
-            Get paid <span className="font-semibold" style={{ color: ACCENT }}>upfront</span> — no matter what happens.
+            Get paid <span className="font-semibold text-[var(--accent)]">upfront</span> — no matter what happens.
           </p>
         </motion.div>
 
@@ -173,14 +168,13 @@ function HeroSection() {
         >
           <Link
             href="/earn"
-            className="rounded-xl px-8 py-3.5 text-base font-semibold text-[#0A0A0A] hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: ACCENT }}
+            className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
             Try the beta
           </Link>
           <a
             href="#mechanism"
-            className="rounded-xl px-8 py-3.5 text-base font-medium text-[#71717A] border border-[#27272A] hover:text-[#FAFAFA] hover:border-[#52525B] transition-colors"
+            className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[#52525B] transition-colors"
           >
             See how it works &darr;
           </a>
@@ -209,15 +203,14 @@ function HeroSection() {
 
 function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange: (s: "buy" | "sell") => void }) {
   return (
-    <div className="rounded-xl border border-[#27272A] bg-[#18181B] p-1 flex w-fit">
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit">
       <button
         onClick={() => onSideChange("buy")}
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "buy"
-            ? "shadow-sm"
-            : "text-[#71717A] hover:text-[#FAFAFA]"
+            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
+            : "text-[#71717A] hover:text-[var(--text)]"
         }`}
-        style={side === "buy" ? { backgroundColor: "#27272A", color: BUY_COLOR } : undefined}
       >
         I&apos;d buy
       </button>
@@ -225,10 +218,9 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
         onClick={() => onSideChange("sell")}
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "sell"
-            ? "shadow-sm"
-            : "text-[#71717A] hover:text-[#FAFAFA]"
+            ? "bg-[var(--border)] text-[var(--danger)] shadow-sm"
+            : "text-[#71717A] hover:text-[var(--text)]"
         }`}
-        style={side === "sell" ? { backgroundColor: "#27272A", color: SELL_COLOR } : undefined}
       >
         I&apos;d sell
       </button>
@@ -251,7 +243,6 @@ function MechanismSection({
   const inView = useInView(ref, { margin: "-20%" });
   const strike = side === "buy" ? BUY_STRIKE : SELL_STRIKE;
   const premium = derivePremium(spot, side);
-  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
   return (
     <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
@@ -260,8 +251,7 @@ function MechanismSection({
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[#FAFAFA] tracking-tight"
-          style={{ fontFamily: "'Instrument Serif', serif" }}
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight"
         >
           Here&apos;s how it works.
         </motion.h2>
@@ -274,7 +264,7 @@ function MechanismSection({
         >
           <div className="flex items-center gap-6 flex-wrap">
             <p className="text-[#71717A] text-lg">
-              ETH is <TickingPrice base={SPOT_BASE} className="text-[#FAFAFA] font-bold" onPriceChange={onSpotChange} />
+              ETH is <TickingPrice base={SPOT_BASE} className="text-[var(--text)] font-bold font-mono" onPriceChange={onSpotChange} />
             </p>
             <SideToggle side={side} onSideChange={onSideChange} />
           </div>
@@ -286,11 +276,11 @@ function MechanismSection({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[#A1A1AA]"
+              className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]"
             >
-              You set: <span className="text-[#FAFAFA]">{side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}</span>
+              You set: <span className="text-[var(--text)]">{side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}</span>
               <br />
-              You receive: <span className="font-semibold" style={{ color: sideColor }}><AnimatedPremium value={premium} /></span> upfront
+              You receive: <span className="font-semibold text-[var(--accent)]"><AnimatedPremium value={premium} /></span> upfront
             </motion.p>
           </AnimatePresence>
         </motion.div>
@@ -303,37 +293,37 @@ function MechanismSection({
             animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="rounded-2xl border border-[#27272A] bg-[#18181B]/60 p-8 space-y-6"
+            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
               <p className="text-[#71717A] text-sm uppercase tracking-wider">At expiry, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
-              <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[#FAFAFA] font-light">
+              <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
                 {side === "buy"
                   ? `You buy ETH at $${strike.toLocaleString()}.`
                   : `You sell ETH at $${strike.toLocaleString()}.`}
               </p>
-              <p className="text-[#A1A1AA]">
-                + keep the <span className="font-semibold" style={{ color: sideColor }}>${premium}</span>.
+              <p className="text-[var(--text-secondary)]">
+                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>.
               </p>
             </div>
 
-            <div className="border-t border-[#27272A]" />
+            <div className="border-t border-[var(--border)]" />
 
             <div className="space-y-1">
               <p className="text-[#71717A] text-sm uppercase tracking-wider">At expiry, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
-              <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[#FAFAFA] font-light">
+              <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
                 {side === "buy"
                   ? `Your $${strike.toLocaleString()} comes back.`
                   : "Your ETH comes back."}
               </p>
-              <p className="text-[#A1A1AA]">
-                + keep the <span className="font-semibold" style={{ color: sideColor }}>${premium}</span>.
+              <p className="text-[var(--text-secondary)]">
+                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>.
               </p>
             </div>
 
-            <div className="border-t border-[#27272A]" />
+            <div className="border-t border-[var(--border)]" />
 
-            <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] font-medium" style={{ color: sideColor }}>
+            <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] font-medium text-[var(--accent)]">
               Either way: +${premium} earned.
             </p>
           </motion.div>
@@ -418,7 +408,6 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
   const inView = useInView(ref, { margin: "-20%" });
   const [frameIndex, setFrameIndex] = useState(0);
   const frames = side === "buy" ? BUY_LOOP : SELL_LOOP;
-  const sideColor = side === "buy" ? BUY_COLOR : SELL_COLOR;
 
   useEffect(() => {
     setFrameIndex(0);
@@ -439,18 +428,15 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
       <div className="max-w-3xl w-full space-y-12">
         <FadeBlock>
-          <h2
-            className="text-[clamp(2rem,6vw,4rem)] font-light text-[#FAFAFA] tracking-tight"
-            style={{ fontFamily: "'Instrument Serif', serif" }}
-          >
+          <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight">
             Every outcome earns.
           </h2>
-          <p className="text-[#71717A] text-lg mt-2" style={{ fontFamily: "'Instrument Serif', serif", fontStyle: "italic" }}>
+          <p className="text-[#71717A] text-lg mt-2 italic">
             There&apos;s no exit that isn&apos;t earning.
           </p>
         </FadeBlock>
 
-        <div className="rounded-2xl border border-[#27272A] bg-[#18181B]/50 p-10 min-h-[160px] flex items-center justify-center">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/50 p-10 min-h-[160px] flex items-center justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${side}-${frameIndex}`}
@@ -465,12 +451,11 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
                   key={i}
                   className={`text-[clamp(1.3rem,3.5vw,2.2rem)] leading-relaxed ${
                     frame.accent
-                      ? "font-semibold"
+                      ? "font-semibold text-[var(--accent)]"
                       : frame.secondary
                         ? "text-[#71717A] font-light"
-                        : "text-[#FAFAFA] font-light"
+                        : "text-[var(--text)] font-light"
                   }`}
-                  style={frame.accent ? { color: sideColor } : undefined}
                 >
                   {frame.counter && i === 0 ? (
                     <>Earn <LoopCounter target={frame.counter} /> {"✓"}</>
@@ -491,7 +476,7 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
         </div>
 
         <FadeBlock delay={0.2}>
-          <p className="text-center text-[#A1A1AA] text-lg">
+          <p className="text-center text-[var(--text-secondary)] text-lg">
             Real premium. Paid upfront. Every cycle.
           </p>
         </FadeBlock>
@@ -519,8 +504,7 @@ const ComparisonSection = memo(function ComparisonSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[#FAFAFA] tracking-tight"
-          style={{ fontFamily: "'Instrument Serif', serif" }}
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight"
         >
           How does this compare?
         </motion.h2>
@@ -532,11 +516,11 @@ const ComparisonSection = memo(function ComparisonSection() {
               initial={{ opacity: 0, y: 15 }}
               animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
               transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
-              className="flex items-center justify-between py-4 border-b border-[#1E1E22]"
+              className="flex items-center justify-between py-4 border-b border-[var(--border)]"
             >
               <span className="text-[#71717A] text-base sm:text-lg">{item.name}</span>
               <div className="flex items-center gap-4">
-                <span className="text-[#A1A1AA] text-base sm:text-lg font-light">{item.apr}</span>
+                <span className="text-[var(--text-secondary)] text-base sm:text-lg font-light">{item.apr}</span>
                 <div className="hidden sm:flex items-center gap-2 text-sm">
                   {item.pros.map((p) => (
                     <span key={p} className="text-[#52525B]">{"✓"} {p}</span>
@@ -549,18 +533,17 @@ const ComparisonSection = memo(function ComparisonSection() {
             </motion.div>
           ))}
 
-          {/* Loot row — highlighted */}
+          {/* b1nary row — highlighted */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
             transition={{ duration: 0.5, delay: 0.6 }}
-            className="flex items-center justify-between py-5 rounded-xl px-4 -mx-4"
-            style={{ backgroundColor: "rgba(212,168,71,0.06)", borderBottom: "1px solid rgba(212,168,71,0.15)" }}
+            className="flex items-center justify-between py-5 rounded-xl px-4 -mx-4 bg-[var(--accent)]/6 border-b border-[var(--accent)]/15"
           >
-            <span className="text-[#FAFAFA] text-base sm:text-lg font-medium">Loot</span>
+            <span className="text-[var(--text)] text-base sm:text-lg font-medium font-mono">b1nary</span>
             <div className="flex items-center gap-4">
-              <span className="text-lg sm:text-xl font-semibold" style={{ color: ACCENT }}>Variable</span>
-              <div className="hidden sm:flex items-center gap-2 text-sm" style={{ color: ACCENT }}>
+              <span className="text-lg sm:text-xl font-semibold text-[var(--accent)]">Variable</span>
+              <div className="hidden sm:flex items-center gap-2 text-sm text-[var(--accent)]">
                 <span>{"✓"} Passive</span>
                 <span>{"✓"} Paid upfront</span>
                 <span>{"✓"} Keep your crypto</span>
@@ -593,8 +576,7 @@ const SocialProofSection = memo(function SocialProofSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[#FAFAFA] tracking-tight text-center"
-          style={{ fontFamily: "'Instrument Serif', serif" }}
+          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--text)] tracking-tight text-center"
         >
           Fully collateralized. No margin. No liquidations.
         </motion.h2>
@@ -608,7 +590,7 @@ const SocialProofSection = memo(function SocialProofSection() {
               transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
               className="text-center"
             >
-              <p className="text-2xl sm:text-3xl font-semibold text-[#FAFAFA]">{stat.value}</p>
+              <p className="text-2xl sm:text-3xl font-semibold text-[var(--text)] font-mono">{stat.value}</p>
               <p className="text-sm text-[#52525B] mt-1">{stat.label}</p>
             </motion.div>
           ))}
@@ -641,10 +623,7 @@ function CTASection() {
         transition={{ duration: 0.8 }}
         className="max-w-3xl w-full text-center space-y-10"
       >
-        <h2
-          className="text-[clamp(2.5rem,8vw,6rem)] text-[#FAFAFA] leading-[0.95] tracking-tight"
-          style={{ fontFamily: "'Instrument Serif', serif" }}
-        >
+        <h2 className="text-[clamp(2.5rem,8vw,6rem)] text-[var(--text)] leading-[0.95] tracking-tight font-light">
           Set your price.
           <br />
           Get paid.
@@ -652,8 +631,7 @@ function CTASection() {
 
         <Link
           href="/earn"
-          className="inline-block rounded-xl px-10 py-4 text-base font-semibold text-[#0A0A0A] hover:opacity-90 transition-opacity"
-          style={{ backgroundColor: ACCENT }}
+          className="inline-block rounded-xl px-10 py-4 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
           Start earning &rarr;
         </Link>
@@ -671,16 +649,15 @@ export function LandingPage() {
   const handleSpotChange = useCallback((p: number) => setSpot(p), []);
 
   return (
-    <div className="bg-[#0A0A0A] relative overflow-hidden">
+    <div className="bg-[var(--bg)] relative overflow-hidden">
       <FloatingOrbs />
       <CursorGlow />
 
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5 flex items-center justify-between">
-        <span className="text-[#FAFAFA] text-lg font-bold tracking-tight">loot</span>
+        <span className="text-[var(--text)] text-lg font-bold tracking-tight font-mono">b1nary</span>
         <Link
           href="/earn"
-          className="rounded-lg px-4 py-2 text-sm font-medium border transition-all"
-          style={{ color: ACCENT, borderColor: "rgba(212,168,71,0.3)" }}
+          className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
         >
           Try the beta &rarr;
         </Link>

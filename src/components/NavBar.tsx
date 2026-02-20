@@ -30,8 +30,8 @@ export function NavBar() {
     <>
       <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-6">
-          <Link href="/" className="text-lg font-bold tracking-tight text-[var(--text)]">
-            loot
+          <Link href="/" className="text-lg font-bold tracking-tight text-[var(--text)] font-mono">
+            b1nary
           </Link>
           <nav className="flex gap-4 text-sm">
             {links.map(({ href, label }) => (
