@@ -390,20 +390,25 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               You commit {commitDisplay} for {quote.expiry_days} days
             </p>
 
-            <div className="space-y-1.5 text-sm">
-              <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--text)]">If price hits ${quote.strike.toLocaleString()}:</span>{" "}
-                {isBuy
-                  ? `You buy ${ethEquiv} ETH + keep ${premiumDisplay}`
-                  : `You sell ${amount} ETH + keep ${premiumDisplay}`}
-              </p>
-              <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--text)]">If not:</span>{" "}
-                {isBuy
-                  ? `${commitDisplay} back + keep ${premiumDisplay}`
-                  : `${amount} ETH back + keep ${premiumDisplay}`}
-              </p>
-            </div>
+            {/* Outcome cards (renderExtra) replace text outcomes when provided */}
+            {renderExtra ? (
+              typeof renderExtra === "function" ? renderExtra(amount) : renderExtra
+            ) : (
+              <div className="space-y-1.5 text-sm">
+                <p className="text-[var(--text-secondary)]">
+                  <span className="text-[var(--text)]">If price hits ${quote.strike.toLocaleString()}:</span>{" "}
+                  {isBuy
+                    ? `You buy ${ethEquiv} ETH + keep ${premiumDisplay}`
+                    : `You sell ${amount} ETH + keep ${premiumDisplay}`}
+                </p>
+                <p className="text-[var(--text-secondary)]">
+                  <span className="text-[var(--text)]">If not:</span>{" "}
+                  {isBuy
+                    ? `${commitDisplay} back + keep ${premiumDisplay}`
+                    : `${amount} ETH back + keep ${premiumDisplay}`}
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -423,8 +428,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             {premiumDisplay}/month · ~${Math.round(scaledPremium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
           </p>
         )}
-
-        {typeof renderExtra === "function" ? renderExtra(amount) : renderExtra}
 
         <button
           onClick={handleAccept}

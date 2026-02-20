@@ -44,7 +44,15 @@ function PriceRow({
           ${quote.strike.toLocaleString()}/ETH
         </span>
         {distance != null && (
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{distance.toFixed(0)}% away</p>
+          <div className="mt-1 h-1 w-16 rounded-full bg-[var(--border)] overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min(100, (distance / 20) * 100)}%`,
+                backgroundColor: distance > 10 ? "var(--accent)" : distance > 3 ? "var(--warning, #E5A836)" : "var(--danger)",
+              }}
+            />
+          </div>
         )}
       </div>
       <span className="text-base font-bold text-[var(--accent)]">
