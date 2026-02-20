@@ -2,9 +2,9 @@
 
 import { useState, useMemo } from "react";
 import { usePrices } from "@/hooks/usePrices";
-import { AcceptModal } from "./AcceptModal";
-import { LivePrice } from "./LivePrice";
-import { StrikeLadder } from "./v2/StrikeLadder";
+import { AcceptModal } from "../AcceptModal";
+import { LivePrice } from "../LivePrice";
+import { PayoffDiagram } from "./PayoffDiagram";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
@@ -17,13 +17,7 @@ function untilDate(expiryDays: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
-function PriceRow({
-  quote,
-  onSelect,
-}: {
-  quote: PriceQuote;
-  onSelect: () => void;
-}) {
+function PriceRow({ quote, onSelect }: { quote: PriceQuote; onSelect: () => void }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
 
@@ -32,9 +26,7 @@ function PriceRow({
       onClick={onSelect}
       disabled={disabled}
       className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group ${
-        disabled
-          ? "opacity-40 cursor-not-allowed"
-          : "hover:bg-[var(--surface)]"
+        disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface)]"
       }`}
     >
       <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
@@ -50,7 +42,7 @@ function PriceRow({
   );
 }
 
-export function PriceMenu() {
+export function PriceMenuV2() {
   const { prices, loading, error, refresh } = usePrices();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
@@ -105,9 +97,7 @@ export function PriceMenu() {
   if (accepted) {
     const { quote: aq, side: as_, amount: aa } = accepted;
     const isBuy = as_ === "buy";
-    const premium = isBuy
-      ? (aq.premium * aa) / aq.strike
-      : aq.premium * aa;
+    const premium = isBuy ? (aq.premium * aa) / aq.strike : aq.premium * aa;
     const commitLabel = isBuy ? `$${aa.toLocaleString()}` : `${aa} ETH`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
 
@@ -119,9 +109,7 @@ export function PriceMenu() {
         <p className="text-base text-[var(--text)]">
           Yours to keep, no matter what happens.
         </p>
-
         <div className="h-px bg-[var(--border)]" />
-
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
           <p>{commitLabel} committed for {aq.expiry_days} days</p>
           <p>{isBuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
@@ -129,18 +117,14 @@ export function PriceMenu() {
             ${Math.round(premium).toLocaleString()}/month · ~${Math.round(premium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
           </p>
         </div>
-
         <a
-          href="/positions"
+          href="/positions/v2"
           className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
         >
           View my positions
         </a>
         <button
-          onClick={() => {
-            setAccepted(null);
-            refresh();
-          }}
+          onClick={() => { setAccepted(null); refresh(); }}
           className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
         >
           Accept another price
@@ -177,7 +161,6 @@ export function PriceMenu() {
         </button>
       </div>
 
-      {/* Explanation text */}
       <p className="text-sm text-[var(--text-secondary)] px-1 animate-fade-in-up">
         {explanationText}
       </p>
@@ -197,16 +180,6 @@ export function PriceMenu() {
             ))}
           </select>
         </div>
-      )}
-
-      {/* Strike ladder visualization */}
-      {spot && filteredPrices.length > 0 && (
-        <StrikeLadder
-          filteredPrices={filteredPrices}
-          spot={spot}
-          side={side}
-          onSelect={(q) => setSelected({ quote: q, side })}
-        />
       )}
 
       {/* Price rows */}
@@ -236,6 +209,16 @@ export function PriceMenu() {
             setSelected(null);
             setAccepted(info);
           }}
+          renderExtra={
+            spot ? (
+              <PayoffDiagram
+                strike={selected.quote.strike}
+                premium={selected.quote.premium}
+                side={selected.side}
+                spot={spot}
+              />
+            ) : undefined
+          }
         />
       )}
     </div>

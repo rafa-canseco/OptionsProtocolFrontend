@@ -17,6 +17,7 @@ interface Props {
   side: "buy" | "sell";
   onClose: () => void;
   onAccepted: (info: { amount: number }) => void;
+  renderExtra?: React.ReactNode;
 }
 
 type TxStep = "idle" | "approving" | "executing" | "confirmed";
@@ -27,7 +28,7 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra }: Props) {
   const { address, sendSponsoredTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -421,6 +422,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
             {premiumDisplay}/month · ~${Math.round(scaledPremium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
           </p>
         )}
+
+        {renderExtra}
 
         <button
           onClick={handleAccept}

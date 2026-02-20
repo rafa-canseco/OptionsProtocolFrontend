@@ -1,15 +1,19 @@
 "use client";
 
 import { PositionCard } from "@/components/PositionCard";
+import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
+import { usePriceHistory } from "@/hooks/usePriceHistory";
+import type { Position } from "@/lib/api";
 
-export default function PositionsPage() {
+export default function PositionsV2Page() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
+  const priceHistory = usePriceHistory(spot);
 
   // Portfolio summary
   const totalEarned = positions.reduce((sum, p) => sum + Number(p.net_premium) / 1e6, 0);
@@ -17,7 +21,6 @@ export default function PositionsPage() {
   const activeCapital = positions
     .filter((p) => !p.is_settled)
     .reduce((sum, p) => {
-      // Puts: LUSD (6 dec), Calls: LETH (18 dec) converted to USD
       if (p.is_put) return sum + p.collateral / 1e6;
       return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
     }, 0);
@@ -27,7 +30,6 @@ export default function PositionsPage() {
     return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
   }, 0);
 
-  // Weighted average APR across all positions
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = p.is_put ? p.collateral / 1e6 : (p.collateral / 1e18) * (p.strike_price / 1e8);
     const premium = Number(p.net_premium) / 1e6;
@@ -37,6 +39,17 @@ export default function PositionsPage() {
     return sum + apr * capital;
   }, 0);
   const avgApr = totalCapital > 0 ? totalWeightedApr / totalCapital : 0;
+
+  function renderSparkline(position: Position, strike: number) {
+    if (position.is_settled) return null;
+    return (
+      <PositionSparkline
+        priceHistory={priceHistory}
+        strike={strike}
+        isPut={position.is_put}
+      />
+    );
+  }
 
   if (!isConnected) {
     return (
@@ -57,7 +70,7 @@ export default function PositionsPage() {
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Accept a price on the <a href="/earn" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
+            Accept a price on the <a href="/earn/v2" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
           </p>
         </div>
       </main>
@@ -94,10 +107,16 @@ export default function PositionsPage() {
         </div>
       </div>
 
-      {/* Position cards */}
+      {/* Position cards with sparklines */}
       <div className="space-y-3">
         {positions.map((pos) => (
-          <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} />
+          <PositionCard
+            key={pos.id}
+            position={pos}
+            onSettled={refresh}
+            spot={spot}
+            renderExtra={renderSparkline}
+          />
         ))}
       </div>
     </main>

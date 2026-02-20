@@ -1,15 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { Position, SettleResult } from "@/lib/api";
 import { api } from "@/lib/api";
+import { DistanceIndicator } from "./v2/DistanceIndicator";
 
 interface Props {
   position: Position;
   onSettled?: () => void;
+  spot?: number;
+  renderExtra?: (position: Position, strike: number) => ReactNode;
 }
 
-export function PositionCard({ position, onSettled }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -108,6 +111,14 @@ export function PositionCard({ position, onSettled }: Props) {
           <p className="text-xs text-[var(--text-secondary)]">
             {expiryDays > 0 ? `${expiryDays}d left` : "Expired"}
           </p>
+          {spot && (
+            <DistanceIndicator
+              strike={strike}
+              spot={spot}
+              isPut={isBuy}
+              isSettled={false}
+            />
+          )}
         </>
       )}
 
@@ -143,6 +154,20 @@ export function PositionCard({ position, onSettled }: Props) {
           </p>
         </div>
       )}
+
+      {/* Settled distance indicator */}
+      {isSettled && spot && expiryPrice && (
+        <DistanceIndicator
+          strike={strike}
+          spot={spot}
+          isPut={isBuy}
+          isSettled={true}
+          expiryPrice={expiryPrice / 1e8}
+        />
+      )}
+
+      {/* Extra visual slot (V2 sparklines) */}
+      {renderExtra?.(position, strike)}
 
       {settleError && (
         <p className="text-sm text-[var(--danger)]">{settleError}</p>

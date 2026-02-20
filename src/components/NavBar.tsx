@@ -7,9 +7,13 @@ import { useBalances } from "@/hooks/useBalances";
 import { useFaucet } from "@/hooks/useFaucet";
 import { ConnectButton } from "./ConnectButton";
 
-const LINKS = [
+const LINKS_V1 = [
   { href: "/earn", label: "Earn" },
   { href: "/positions", label: "My earnings" },
+];
+const LINKS_V2 = [
+  { href: "/earn/v2", label: "Earn" },
+  { href: "/positions/v2", label: "My earnings" },
 ];
 
 export function NavBar() {
@@ -18,6 +22,8 @@ export function NavBar() {
   const { usd, usdFormatted, ethFormatted, loading: balLoading, refetch } = useBalances(address);
   const { mint, minting, showNotification, error: faucetError } = useFaucet(address, sendSponsoredTx, refetch);
 
+  const isV2 = pathname.includes("/v2");
+  const links = isV2 ? LINKS_V2 : LINKS_V1;
   const showFaucetButton = isConnected && !balLoading;
 
   return (
@@ -28,12 +34,12 @@ export function NavBar() {
             loot
           </Link>
           <nav className="flex gap-4 text-sm">
-            {LINKS.map(({ href, label }) => (
+            {links.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
                 className={`transition-colors ${
-                  pathname === href
+                  pathname.startsWith(href)
                     ? "text-[var(--text)] font-medium"
                     : "text-[var(--text-secondary)] hover:text-[var(--text)]"
                 }`}
