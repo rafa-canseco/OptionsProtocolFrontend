@@ -19,6 +19,8 @@ interface Props {
   onAccepted: (info: { amount: number }) => void;
   renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
   initialAmount?: string;
+  /** When true, hides amount input — modal becomes a confirmation screen. */
+  confirmOnly?: boolean;
 }
 
 type TxStep = "idle" | "approving" | "executing" | "confirmed";
@@ -29,7 +31,7 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly }: Props) {
   const { address, sendSponsoredTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -340,52 +342,57 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           )}
         </div>
 
-        {/* Percentage buttons */}
-        <div>
-          <div className="grid grid-cols-4 gap-2">
-            {PERCENTAGES.map((pct) => (
-              <button
-                key={pct}
-                onClick={() => handlePercent(pct)}
-                disabled={loading || walletBalance <= 0}
-                className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  activePercent === pct
-                    ? "bg-[var(--accent)] text-white"
-                    : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
-                } disabled:opacity-40`}
-              >
-                {pct}%
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Amount controls — hidden in confirmOnly mode */}
+        {!confirmOnly && (
+          <>
+            {/* Percentage buttons */}
+            <div>
+              <div className="grid grid-cols-4 gap-2">
+                {PERCENTAGES.map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => handlePercent(pct)}
+                    disabled={loading || walletBalance <= 0}
+                    className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                      activePercent === pct
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
+                    } disabled:opacity-40`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Amount input */}
-        <div>
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amountStr}
-              disabled={loading}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                  setAmountStr(raw);
-                  setActivePercent(null);
-                }
-              }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
-            />
-            {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
-          </div>
-          <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-            Balance {isBuy
-              ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : `${walletBalance.toFixed(2)} ETH`}
-          </p>
-        </div>
+            {/* Amount input */}
+            <div>
+              <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amountStr}
+                  disabled={loading}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
+                      setAmountStr(raw);
+                      setActivePercent(null);
+                    }
+                  }}
+                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+                />
+                {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+                Balance {isBuy
+                  ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                  : `${walletBalance.toFixed(2)} ETH`}
+              </p>
+            </div>
+          </>
+        )}
 
         {/* Commit + outcomes */}
         {amount > 0 && (

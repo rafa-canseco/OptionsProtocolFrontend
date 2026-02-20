@@ -81,9 +81,6 @@ function StrikeChart({
           const earnings = amount > 0
             ? isBuy ? (q.premium * amount) / q.strike : q.premium * amount
             : 0;
-          const label = earnings > 0
-            ? `$${Math.round(earnings).toLocaleString()}`
-            : `${apr}%`;
 
           return (
             <g
@@ -99,14 +96,16 @@ function StrikeChart({
                 x1={x} y1={AXIS_Y - 10} x2={x} y2={AXIS_Y + 10}
                 stroke="var(--accent)" strokeWidth={2}
               />
-              {/* Earnings / APR label above */}
-              <text
-                x={x} y={AXIS_Y - 16}
-                textAnchor="middle" fill="var(--accent)"
-                fontSize={11} fontWeight={600}
-              >
-                {label}
-              </text>
+              {/* Earnings label above (only when amount entered) */}
+              {earnings > 0 && (
+                <text
+                  x={x} y={AXIS_Y - 16}
+                  textAnchor="middle" fill="var(--accent)"
+                  fontSize={11} fontWeight={600}
+                >
+                  ${Math.round(earnings).toLocaleString()}
+                </text>
+              )}
               {/* Strike price below */}
               <text
                 x={x} y={AXIS_Y + 24}
@@ -137,7 +136,7 @@ function StrikeChart({
   );
 }
 
-function StrikeRow({
+function StrikeListItem({
   quote,
   side,
   amount,
@@ -156,33 +155,28 @@ function StrikeRow({
     ? isBuy
       ? (quote.premium * amount) / quote.strike
       : quote.premium * amount
-    : null;
+    : 0;
 
   return (
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group ${
-        disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface)]"
+      className={`w-full flex items-center justify-between py-2 text-sm transition-colors text-left ${
+        disabled ? "opacity-40 cursor-not-allowed" : "hover:text-[var(--accent)]"
       }`}
     >
-      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
-        ${quote.strike.toLocaleString()}/ETH
+      <span className="text-[var(--text)]">
+        ${quote.strike.toLocaleString()}
       </span>
-      <div className="text-right">
-        {earnings != null && earnings > 0 ? (
-          <span className="text-base font-bold text-[var(--accent)]">
+      <span className="text-[var(--text-secondary)]">
+        {earnings > 0 && (
+          <span className="text-[var(--accent)] font-medium">
             Earn ${Math.round(earnings).toLocaleString()}
-          </span>
-        ) : (
-          <span className="text-base font-bold text-[var(--accent)]">
-            {Math.round(apr)}% APR
+            {" · "}
           </span>
         )}
-        {earnings != null && earnings > 0 && (
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
-        )}
-      </div>
+        {Math.round(apr)}% APR
+      </span>
     </button>
   );
 }
@@ -394,11 +388,11 @@ export function PriceMenuV2() {
             />
           )}
 
-          {/* Strike rows */}
+          {/* Strike list */}
           {filteredPrices.length > 0 ? (
-            <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] stagger-children animate-fade-in-up">
+            <div className="px-1 space-y-0.5 animate-fade-in-up">
               {filteredPrices.map((q, i) => (
-                <StrikeRow
+                <StrikeListItem
                   key={`${q.strike}-${q.expiry_days}-${i}`}
                   quote={q}
                   side={side}
@@ -420,6 +414,7 @@ export function PriceMenuV2() {
           quote={selected.quote}
           side={selected.side}
           initialAmount={amountStr}
+          confirmOnly={amount > 0}
           onClose={() => setSelected(null)}
           onAccepted={({ amount: amt }) => {
             const info = { quote: selected.quote, side: selected.side, amount: amt };
