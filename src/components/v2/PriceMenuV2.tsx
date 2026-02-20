@@ -114,10 +114,10 @@ function StrikeChart({
           <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.08} />
           <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
         </linearGradient>
-        <linearGradient id="selectedGlow" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.2} />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-        </linearGradient>
+        <radialGradient id="selectedGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="var(--text)" stopOpacity={0.06} />
+          <stop offset="100%" stopColor="var(--text)" stopOpacity={0} />
+        </radialGradient>
       </defs>
 
       {/* Safe zone fill between nearest strike and spot */}
@@ -130,13 +130,12 @@ function StrikeChart({
         />
       )}
 
-      {/* Selected strike glow column */}
+      {/* Selected strike — soft neutral spotlight */}
       {selectedStrike && (
-        <rect
-          x={toX(selectedStrike) - 20} y={AXIS_Y - 50}
-          width={40} height={100}
+        <ellipse
+          cx={toX(selectedStrike)} cy={AXIS_Y}
+          rx={28} ry={45}
           fill="url(#selectedGlow)"
-          rx={4}
         />
       )}
 
