@@ -159,8 +159,7 @@ function HeroSection() {
           className="space-y-2"
         >
           <p className="text-[clamp(1.5rem,4vw,2.5rem)] text-[#FAFAFA] font-light">
-            <span className="font-semibold" style={{ color: ACCENT }}>$375/month</span>
-            {" "}on $50,000
+            Earn up to <span className="font-semibold" style={{ color: ACCENT }}>15% APR</span>
           </p>
           <p className="text-[clamp(1rem,2.5vw,1.3rem)] text-[#71717A]">
             Without selling your ETH.
@@ -336,7 +335,7 @@ function MechanismSection({
             <div className="border-t border-[#27272A]" />
 
             <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] font-medium" style={{ color: sideColor }}>
-              Either way: +${premium} earned. &check;
+              Either way: +${premium} earned.
             </p>
           </motion.div>
         </AnimatePresence>
@@ -347,7 +346,7 @@ function MechanismSection({
           transition={{ duration: 0.5, delay: 0.6 }}
           className="text-[#52525B] text-base"
         >
-          Settles every Friday at 8am UTC. No lock-ups. No tokens. No catch.
+          Settles automatically at expiry. Choose your timeline.
         </motion.p>
       </div>
     </section>
@@ -475,7 +474,7 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
                   style={frame.accent ? { color: sideColor } : undefined}
                 >
                   {frame.counter && i === 0 ? (
-                    <>Earn <LoopCounter target={frame.counter} /> &check;</>
+                    <>Earn <LoopCounter target={frame.counter} /> {"✓"}</>
                   ) : frame.pulse ? (
                     <motion.span
                       animate={{ opacity: [0.7, 1, 0.7] }}
@@ -494,8 +493,6 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
 
         <FadeBlock delay={0.2}>
           <p className="text-center text-[#A1A1AA] text-lg">
-            Over 12 months, this cycle earns <span className="font-semibold" style={{ color: ACCENT }}>~18% APR</span>.
-            <br />
             Real premium. Paid upfront. Every cycle.
           </p>
         </FadeBlock>
@@ -543,10 +540,10 @@ const ComparisonSection = memo(function ComparisonSection() {
                 <span className="text-[#A1A1AA] text-base sm:text-lg font-light">{item.apr}</span>
                 <div className="hidden sm:flex items-center gap-2 text-sm">
                   {item.pros.map((p) => (
-                    <span key={p} className="text-[#52525B]">&check; {p}</span>
+                    <span key={p} className="text-[#52525B]">{"✓"} {p}</span>
                   ))}
                   {item.cons.map((c) => (
-                    <span key={c} className="text-[#3F3F46]">&cross; {c}</span>
+                    <span key={c} className="text-[#3F3F46]">{"✗"} {c}</span>
                   ))}
                 </div>
               </div>
@@ -563,11 +560,11 @@ const ComparisonSection = memo(function ComparisonSection() {
           >
             <span className="text-[#FAFAFA] text-base sm:text-lg font-medium">Loot</span>
             <div className="flex items-center gap-4">
-              <span className="text-lg sm:text-xl font-semibold" style={{ color: ACCENT }}>~15-20%</span>
+              <span className="text-lg sm:text-xl font-semibold" style={{ color: ACCENT }}>Higher yield</span>
               <div className="hidden sm:flex items-center gap-2 text-sm" style={{ color: ACCENT }}>
-                <span>&check; Passive</span>
-                <span>&check; Upfront</span>
-                <span>&check; No lock-up</span>
+                <span>{"✓"} Passive</span>
+                <span>{"✓"} Paid upfront</span>
+                <span>{"✓"} Keep your crypto</span>
               </div>
             </div>
           </motion.div>
@@ -624,7 +621,7 @@ const SocialProofSection = memo(function SocialProofSection() {
           transition={{ duration: 0.5, delay: 0.7 }}
           className="text-center text-[#3F3F46] text-sm"
         >
-          Smart contracts verified on BaseScan &middot; Open source
+          Smart contracts verified on BaseScan · Open source
         </motion.p>
       </div>
     </section>
