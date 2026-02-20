@@ -19,18 +19,25 @@ export function useWallet() {
       return;
     }
     let cancelled = false;
-    activeWallet.getEthereumProvider().then((provider) => {
-      if (cancelled) return;
-      setWalletClient(
-        createWalletClient({
-          chain: baseSepolia,
-          transport: custom(provider),
-        })
-      );
-    }).catch((err) => {
-      console.error("[useWallet] Failed to get Ethereum provider:", err);
-      setWalletClient(null);
-    });
+
+    (async () => {
+      try {
+        // Ensure wallet is on Base Sepolia before creating client
+        await activeWallet.switchChain(baseSepolia.id);
+        const provider = await activeWallet.getEthereumProvider();
+        if (cancelled) return;
+        setWalletClient(
+          createWalletClient({
+            chain: baseSepolia,
+            transport: custom(provider),
+          })
+        );
+      } catch (err) {
+        console.error("[useWallet] Failed to initialize wallet:", err);
+        setWalletClient(null);
+      }
+    })();
+
     return () => { cancelled = true; };
   }, [activeWallet]);
 

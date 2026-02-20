@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { useAutoFaucet } from "@/hooks/useAutoFaucet";
+import { useFaucet } from "@/hooks/useFaucet";
 import { ConnectButton } from "./ConnectButton";
 
 const LINKS = [
@@ -15,8 +15,10 @@ const LINKS = [
 export function NavBar() {
   const pathname = usePathname();
   const { address, walletClient, isConnected } = useWallet();
-  const { usdFormatted, ethFormatted, loading: balLoading, refetch } = useBalances(address);
-  const { minting, showNotification } = useAutoFaucet(address, walletClient, refetch);
+  const { usd, usdFormatted, ethFormatted, loading: balLoading, refetch } = useBalances(address);
+  const { mint, minting, showNotification, error: faucetError } = useFaucet(address, walletClient, refetch);
+
+  const showFaucetButton = isConnected && !balLoading && usd === 0;
 
   return (
     <>
@@ -42,15 +44,21 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && !balLoading && (
+          {isConnected && !balLoading && usd > 0 && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
               <span>{usdFormatted} USD</span>
               <span className="opacity-40">·</span>
               <span>{ethFormatted} ETH</span>
             </div>
           )}
-          {minting && (
-            <span className="text-xs text-[var(--accent)] animate-pulse">Minting tokens...</span>
+          {showFaucetButton && (
+            <button
+              onClick={mint}
+              disabled={minting}
+              className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+            >
+              {minting ? "Minting..." : "Get Test Tokens"}
+            </button>
           )}
           <ConnectButton />
         </div>
@@ -59,6 +67,12 @@ export function NavBar() {
       {showNotification && (
         <div className="mx-6 mt-2 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-4 py-2.5 text-sm text-[var(--accent)] animate-fade-in-up">
           You received 100,000 USD and 50 ETH test tokens.
+        </div>
+      )}
+
+      {faucetError && (
+        <div className="mx-6 mt-2 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/20 px-4 py-2.5 text-sm text-[var(--danger)]">
+          {faucetError}
         </div>
       )}
     </>
