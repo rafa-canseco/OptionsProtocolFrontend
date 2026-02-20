@@ -13,9 +13,11 @@ interface Props {
   renderExtra?: (position: Position, strike: number) => ReactNode;
   /** Base path for Earn links, e.g. "/earn" or "/earn/v2" */
   earnBase?: string;
+  /** When true, shows a "Confirming..." badge for optimistic positions */
+  optimistic?: boolean;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn" }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn", optimistic }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -115,6 +117,12 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             <p className="text-base font-semibold text-[var(--text)]">
               {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
             </p>
+            {optimistic && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                Confirming...
+              </span>
+            )}
           </div>
 
           {/* Countdown — prominent */}

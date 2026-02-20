@@ -10,7 +10,8 @@ import {
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
-import type { PriceQuote } from "@/lib/api";
+import type { PriceQuote, Position } from "@/lib/api";
+import { saveOptimistic } from "@/lib/optimisticPositions";
 
 interface Props {
   quote: PriceQuote;
@@ -263,6 +264,44 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       );
 
       updateStep("confirmed");
+
+      // Save optimistic position so it shows instantly on positions page
+      const optOTokenAmount = isBuy ? (amount / quote.strike) * 1e8 : amount * 1e8;
+      const optCollateral = isBuy ? amount * 1e6 : amount * 1e18;
+      const optPremium = isBuy
+        ? String(((quote.premium * amount) / quote.strike) * 1e6)
+        : String(quote.premium * amount * 1e6);
+
+      const optimisticPos: Position = {
+        id: "opt-" + Date.now(),
+        tx_hash: "",
+        block_number: 0,
+        user_address: address!,
+        otoken_address: quote.otoken_address!,
+        amount: optOTokenAmount,
+        premium: optPremium,
+        collateral: optCollateral,
+        vault_id: null as unknown as number,
+        strike_price: quote.strike * 1e8,
+        expiry: quote.expires_at,
+        is_put: isBuy,
+        is_settled: false,
+        settled_at: null,
+        settlement_tx_hash: null,
+        indexed_at: new Date().toISOString(),
+        settlement_type: null,
+        delivered_asset: null,
+        delivered_amount: null,
+        delivery_tx_hash: null,
+        is_itm: null,
+        expiry_price: null,
+        gross_premium: optPremium,
+        net_premium: optPremium,
+        protocol_fee: "0",
+        outcome: null,
+      };
+      saveOptimistic(optimisticPos);
+
       onAccepted({ amount });
       window.dispatchEvent(new Event("balance:refetch"));
     } catch (err: unknown) {
