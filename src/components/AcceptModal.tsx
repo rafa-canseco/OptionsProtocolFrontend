@@ -84,7 +84,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
   const loading = step !== "idle";
   const buttonLabel =
     step === "approving"
-      ? isBuy ? "Approving USDC..." : "Approving WETH..."
+      ? isBuy ? "Approving USD..." : "Approving ETH..."
       : step === "executing"
         ? "Executing order..."
         : step === "confirmed"
@@ -143,7 +143,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         args: [address],
       });
       if (balance < collateral) {
-        const token = isBuy ? "USDC" : "WETH";
+        const token = isBuy ? "USD" : "ETH";
         setError(`Insufficient ${token} balance.`);
         return;
       }
@@ -156,7 +156,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         args: [address, ADDRESSES.marginPool],
       });
 
-      // Approve if needed — reset to 0 first (USDC requires this)
+      // Approve if needed — reset to 0 first (safe pattern for any ERC-20)
       if (currentAllowance < collateral) {
         updateStep("approving");
         if (currentAllowance > BigInt(0)) {
