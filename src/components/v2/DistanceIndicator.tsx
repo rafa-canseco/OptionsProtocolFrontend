@@ -53,10 +53,10 @@ export function DistanceIndicator({
 
   if (size === "full") {
     const W = 400;
-    const H = 44;
+    const H = 24;
     const PAD = 16;
     const plotW = W - PAD * 2;
-    const TRACK_Y = 22;
+    const TRACK_Y = 12;
     const TRACK_H = 8;
 
     return (
@@ -69,7 +69,7 @@ export function DistanceIndicator({
             {label}
           </span>
         </div>
-        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minHeight: 40 }}>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ minHeight: 24 }}>
           {/* Track */}
           <rect x={PAD} y={TRACK_Y - TRACK_H / 2} width={plotW} height={TRACK_H} rx={4} fill="var(--border)" />
 
@@ -87,23 +87,13 @@ export function DistanceIndicator({
           {/* Strike marker — vertical line */}
           <line
             x1={PAD + (strikeX / 100) * plotW}
-            y1={TRACK_Y - 14}
+            y1={2}
             x2={PAD + (strikeX / 100) * plotW}
-            y2={TRACK_Y + 14}
+            y2={H - 2}
             stroke="var(--text-secondary)"
             strokeWidth={2}
             strokeLinecap="round"
           />
-          <text
-            x={PAD + (strikeX / 100) * plotW}
-            y={TRACK_Y - 18}
-            textAnchor="middle"
-            fill="var(--text-secondary)"
-            fontSize={10}
-            fontWeight={500}
-          >
-            ${strike.toLocaleString()}
-          </text>
 
           {/* Spot marker — filled circle */}
           <circle
