@@ -111,17 +111,19 @@ function TradeRow({
   // Outcome
   const outcome = isItm ? "Assigned" : "Expired";
 
-  // P&L
-  let pnl = premiumUsd; // OTM: premium is the full gain
-  if (isItm) {
-    const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
-    const currentPrice = spot ?? 0;
+  // Cost basis (used in expanded detail and P&L)
+  const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
+
+  // P&L — only for assigned positions (ITM). OTM has no position P&L
+  // (their gain is the premium, already shown in its own column).
+  // P&L uses expiry_price (settlement price), not live spot — position is closed.
+  const expiryPriceUsd = p.expiry_price != null ? p.expiry_price / 1e8 : null;
+  let pnl: number | null = null;
+  if (isItm && expiryPriceUsd != null) {
     if (isBuy) {
-      // Bought ETH: unrealized = (spot - costBasis) * qty
-      pnl = (currentPrice - costBasis) * ethAmount;
+      pnl = (expiryPriceUsd - costBasis) * ethAmount;
     } else {
-      // Sold ETH: realized = (costBasis - spot) * qty (gain if sold above current)
-      pnl = (costBasis - currentPrice) * ethAmount;
+      pnl = (costBasis - expiryPriceUsd) * ethAmount;
     }
   }
 
@@ -140,8 +142,6 @@ function TradeRow({
   const committedDisplay = isBuy
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${(p.collateral / 1e18).toFixed(2)} ETH`;
-
-  const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
 
   // How many columns total (for colspan in expanded row)
   const totalCols = 9;
@@ -191,9 +191,11 @@ function TradeRow({
           +${premiumUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </td>
 
-        {/* P&L */}
-        <td className={`py-3 px-4 text-right font-mono font-semibold hidden sm:table-cell ${pnl >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-          {pnl >= 0 ? "+" : ""}${pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+        {/* P&L — only shown for assigned positions */}
+        <td className={`py-3 px-4 text-right font-mono font-semibold hidden sm:table-cell ${pnl == null ? "text-[var(--text-secondary)]" : pnl >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
+          {pnl == null
+            ? "—"
+            : `${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
         </td>
 
         {/* Next Step */}
@@ -221,9 +223,9 @@ function TradeRow({
                   </p>
                   <p>
                     {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} ETH ·{" "}
-                    {spot != null && (
+                    {pnl != null && expiryPriceUsd != null && (
                       <>
-                        Current: ${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH ·{" "}
+                        Settled at ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH ·{" "}
                         <span className={`font-mono font-semibold ${pnl >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
                           {pnl >= 0 ? "+" : ""}${pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })} P&L
                         </span>
