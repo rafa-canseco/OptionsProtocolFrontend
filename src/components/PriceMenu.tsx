@@ -53,7 +53,7 @@ export function PriceMenu() {
   const { prices, loading, error, refresh } = usePrices();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
-  const [accepted, setAccepted] = useState<{ txHash: string } | null>(null);
+  const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);
 
   const expiries = useMemo(() => {
     const unique = [...new Set(prices.map((p) => p.expiry_days))].sort((a, b) => a - b);
@@ -102,31 +102,48 @@ export function PriceMenu() {
   }
 
   if (accepted) {
+    const { quote: aq, side: as_, amount: aa } = accepted;
+    const isBuy = as_ === "buy";
+    const premium = isBuy
+      ? (aq.premium * aa) / aq.strike
+      : aq.premium * aa;
+    const commitLabel = isBuy ? `$${aa.toLocaleString()}` : `${aa} ETH`;
+    const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
+
     return (
-      <div className="text-center space-y-4 py-10 animate-fade-in-up">
-        <p className="text-3xl font-bold text-[var(--accent)]">You&apos;re in.</p>
-        <p className="text-sm text-[var(--text-secondary)]">
-          Your order has been settled on-chain.
+      <div className="text-center space-y-5 py-10 animate-fade-in-up">
+        <p className="text-3xl font-bold text-[var(--accent)]">
+          ${Math.round(premium).toLocaleString()} earned
         </p>
-        <a
-          href={`https://base-sepolia.blockscout.com/tx/${accepted.txHash}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors inline-block"
-        >
-          View transaction
-        </a>
-        <div>
-          <button
-            onClick={() => {
-              setAccepted(null);
-              refresh();
-            }}
-            className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
-          >
-            Accept another price
-          </button>
+        <p className="text-base text-[var(--text)]">
+          Yours to keep, no matter what happens.
+        </p>
+
+        <div className="h-px bg-[var(--border)]" />
+
+        <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+          <p>{commitLabel} committed for {aq.expiry_days} days</p>
+          <p>{isBuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
+          <p className="text-xs">
+            ${Math.round(premium).toLocaleString()}/month · ~${Math.round(premium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
+          </p>
         </div>
+
+        <a
+          href="/positions"
+          className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
+        >
+          View my positions
+        </a>
+        <button
+          onClick={() => {
+            setAccepted(null);
+            refresh();
+          }}
+          className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+        >
+          Accept another price
+        </button>
       </div>
     );
   }
@@ -203,9 +220,10 @@ export function PriceMenu() {
           quote={selected.quote}
           side={selected.side}
           onClose={() => setSelected(null)}
-          onAccepted={(txHash) => {
+          onAccepted={({ amount: amt }) => {
+            const info = { quote: selected.quote, side: selected.side, amount: amt };
             setSelected(null);
-            setAccepted({ txHash });
+            setAccepted(info);
           }}
         />
       )}

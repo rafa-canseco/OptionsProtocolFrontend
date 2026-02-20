@@ -59,6 +59,7 @@ export function PositionCard({ position, onSettled }: Props) {
       );
       setSettleResult(result);
       onSettled?.();
+      window.dispatchEvent(new Event("balance:refetch"));
     } catch (err) {
       console.error("[PositionCard] Settle failed:", err);
       setSettleError(err instanceof Error ? err.message : "Settlement failed");

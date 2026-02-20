@@ -73,5 +73,12 @@ export function useBalances(address: Address | undefined, pollInterval = 15_000)
     return () => clearInterval(id);
   }, [refetch, address, pollInterval]);
 
+  // Listen for balance:refetch events from other components
+  useEffect(() => {
+    const handler = () => refetch();
+    window.addEventListener("balance:refetch", handler);
+    return () => window.removeEventListener("balance:refetch", handler);
+  }, [refetch]);
+
   return { ...balances, loading, refetch };
 }

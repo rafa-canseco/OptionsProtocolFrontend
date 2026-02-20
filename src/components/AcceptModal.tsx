@@ -16,7 +16,7 @@ interface Props {
   quote: PriceQuote;
   side: "buy" | "sell";
   onClose: () => void;
-  onAccepted: (txHash: string) => void;
+  onAccepted: (info: { amount: number }) => void;
 }
 
 type TxStep = "idle" | "approving" | "executing" | "confirmed";
@@ -249,7 +249,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       }, "executeOrder");
 
       updateStep("confirmed");
-      onAccepted("poll-confirmed");
+      onAccepted({ amount });
+      window.dispatchEvent(new Event("balance:refetch"));
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
       if (currentStep === "idle") {
@@ -263,50 +264,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       }
       setStep("idle");
     }
-  }
-
-  // Success screen
-  if (step === "confirmed") {
-    return (
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-        <div className="fixed inset-0 bg-black/30" />
-        <div className="relative w-full max-w-md bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5 text-center">
-          <p className="text-3xl font-bold text-[var(--accent)]">
-            {premiumDisplay} earned
-          </p>
-          <p className="text-base text-[var(--text)]">
-            Yours to keep, no matter what happens.
-          </p>
-
-          <div className="h-px bg-[var(--border)]" />
-
-          <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-            <p>
-              {commitDisplay} committed for {quote.expiry_days} days
-            </p>
-            <p>
-              {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}/ETH
-            </p>
-            <p className="text-xs">
-              {premiumDisplay}/month · ~${Math.round(scaledPremium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
-            </p>
-          </div>
-
-          <a
-            href="/positions"
-            className="block w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
-          >
-            View my positions
-          </a>
-          <button
-            onClick={onClose}
-            className="w-full text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
-          >
-            Close
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
