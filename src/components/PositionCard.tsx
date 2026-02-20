@@ -253,17 +253,6 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         </div>
       )}
 
-      {/* Settled distance indicator */}
-      {isSettled && spot && expiryPrice && (
-        <DistanceIndicator
-          strike={strike}
-          spot={spot}
-          isPut={isBuy}
-          isSettled={true}
-          expiryPrice={expiryPrice / 1e8}
-        />
-      )}
-
       {/* Extra visual slot (V2 sparklines) */}
       {renderExtra?.(position, strike)}
 
