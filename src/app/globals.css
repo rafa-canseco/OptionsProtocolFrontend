@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,600;0,9..144,700;0,9..144,800&display=swap');
 @import "tailwindcss";
 
 :root {
@@ -9,14 +9,21 @@
   --text-secondary: #6B7280;
   --accent: #0D9F6E;
   --accent-hover: #057A55;
+  --accent-glow: rgba(13, 159, 110, 0.25);
   --danger: #DC2626;
+  --font-display: 'Fraunces', Georgia, serif;
 }
 
 body {
   background: var(--bg);
   color: var(--text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+}
+
+/* Display font for big numbers and hero text */
+.font-display {
+  font-family: var(--font-display);
 }
 
 /* Animated number transitions */
@@ -40,6 +47,11 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+  50% { box-shadow: 0 0 20px 4px var(--accent-glow); }
+}
+
 .animate-fade-in-up {
   animation: fade-in-up 0.5s ease-out both;
 }
@@ -50,6 +62,10 @@ body {
 
 .animate-slide-up {
   animation: slide-up 0.6s ease-out both;
+}
+
+.animate-glow {
+  animation: glow-pulse 2s ease-in-out infinite;
 }
 
 /* Staggered children */
