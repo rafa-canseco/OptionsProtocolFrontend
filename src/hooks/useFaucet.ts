@@ -75,7 +75,8 @@ export function useFaucet(
       } else {
         setError("Tokens are taking longer than expected. Check your balance in a moment.");
       }
-      onComplete?.();
+      window.dispatchEvent(new Event("balance:refetch"));
+      await onComplete?.();
     } catch (err) {
       console.error("[useFaucet] Mint failed:", err);
       setError("Failed to mint test tokens. Try again.");
