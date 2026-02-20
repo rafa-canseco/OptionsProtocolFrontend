@@ -4,16 +4,16 @@ import { baseSepolia } from "viem/chains";
 export const CHAIN = baseSepolia;
 
 export const ADDRESSES = {
-  addressBook: "0x2530248C7F5fD76edCA8706225747cD914bD5Bc7" as Address,
-  controller: "0x54Dd9eBF1eC5D1a9DFd66bF84e23bA7b097C4cfe" as Address,
-  marginPool: "0xDBF9BD7b51287DF4C04375e6299F4A1713FD2155" as Address,
-  oTokenFactory: "0x235B51B00Ea8C989D10537CBd4A27E315d4aA0F2" as Address,
-  oracle: "0xA4d4D2ac1b14E1031F8ae16553Df95C20C9cAfe0" as Address,
-  whitelist: "0x510A4CC3d9BFf05d6BcBc05c26cBcE8Ab6ee7d20" as Address,
-  batchSettler: "0x409f4C0c8b91FeaE64F54617481668e9d8cFb658" as Address,
-  priceSheet: "0xE26ECA2365E0eb56099ef04984B22c1049434C43" as Address,
-  usdc: "0xDa97d8aec7aAD92F9Cba114Abd97a259FdCBC0e3" as Address, // MockUSD (LUSD)
-  weth: "0x931927a1B911D72862518e0Ea3815D335df87919" as Address, // MockETH (LETH)
+  addressBook: "0xa183C0CBf142a2896Cb249F9305F3A6ACF3Abd79" as Address,
+  controller: "0xc8279f77D96a64AC3ebe4CB83BeA845d8869843B" as Address,
+  marginPool: "0x1f76058e5816BA21B9082b439e87F34402cA5792" as Address,
+  oTokenFactory: "0xAce19988105D495f95F5D57b06C48094ccCaBbAf" as Address,
+  oracle: "0x8dc0065c80342B5F6c830dB2f50896E15F10d022" as Address,
+  whitelist: "0x3719Dd9004d8D9d303C589eC8Fd9540f30775D05" as Address,
+  batchSettler: "0x7824ba774e0C45e31D3c75867be1566073bfF7A7" as Address,
+  priceSheet: "0xb68C684337abC77e5C67836A1B5E4560270163CB" as Address,
+  usdc: "0x96bD1505c91A162AD2b6b26faB0F2fe60b8FCFcb" as Address, // MockUSD (LUSD)
+  weth: "0x94f1c230777891a669a0820b8ad125473a61AA7E" as Address, // MockETH (LETH)
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;

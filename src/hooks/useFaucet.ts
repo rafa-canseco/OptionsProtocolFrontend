@@ -34,17 +34,20 @@ export function useFaucet(
         functionName: "mint",
         args: [address, MINT_USD],
       });
-      // Fire both mints — don't await (timing is unpredictable), but catch rejections
-      sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData })
-        .catch((e) => console.warn("[useFaucet] USD mint tx failed:", e));
-
       const ethData = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "mint",
         args: [address, MINT_ETH],
       });
-      sendSponsoredTx({ to: ADDRESSES.weth, data: ethData })
-        .catch((e) => console.warn("[useFaucet] ETH mint tx failed:", e));
+
+      // Serialize mints — Privy's relayer drops txs on concurrent nonces
+      let usdOk = false;
+      let ethOk = false;
+      try { await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData }); usdOk = true; }
+      catch (e) { console.warn("[useFaucet] USD mint tx failed:", e); }
+      try { await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData }); ethOk = true; }
+      catch (e) { console.warn("[useFaucet] ETH mint tx failed:", e); }
+      if (!usdOk && !ethOk) throw new Error("Both mint transactions failed. Check your connection and try again.");
 
       // Poll until USD balance increases (proves at least one mint landed)
       let confirmed = false;
@@ -75,10 +78,11 @@ export function useFaucet(
       } else {
         setError("Tokens are taking longer than expected. Check your balance in a moment.");
       }
-      onComplete?.();
+      window.dispatchEvent(new Event("balance:refetch"));
+      await onComplete?.();
     } catch (err) {
       console.error("[useFaucet] Mint failed:", err);
-      setError("Failed to mint test tokens. Try again.");
+      setError(err instanceof Error ? err.message : "Failed to mint test tokens. Try again.");
     } finally {
       setMinting(false);
     }

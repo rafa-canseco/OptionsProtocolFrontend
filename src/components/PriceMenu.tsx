@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
 import { AcceptModal } from "./AcceptModal";
 import { LivePrice } from "./LivePrice";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
+  if (strike <= 0 || expiryDays <= 0) return 0;
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
@@ -39,19 +41,18 @@ function PriceRow({
       <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
         ${quote.strike.toLocaleString()}/ETH
       </span>
-      <div className="text-right">
-        <span className="text-base font-bold text-[var(--accent)]">
-          Earn ${Math.round(quote.premium * quote.available_amount).toLocaleString()}
-        </span>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
-      </div>
+      <span className="text-base font-bold text-[var(--accent)]">
+        {Math.round(apr)}% APR
+      </span>
     </button>
   );
 }
 
 export function PriceMenu() {
   const { prices, loading, error, refresh } = usePrices();
-  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const searchParams = useSearchParams();
+  const initialSide = searchParams.get("side") === "sell" ? "sell" : "buy";
+  const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);
 

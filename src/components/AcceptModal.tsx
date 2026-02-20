@@ -17,6 +17,10 @@ interface Props {
   side: "buy" | "sell";
   onClose: () => void;
   onAccepted: (info: { amount: number }) => void;
+  renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
+  initialAmount?: string;
+  /** When true, hides amount input — modal becomes a confirmation screen. */
+  confirmOnly?: boolean;
 }
 
 type TxStep = "idle" | "approving" | "executing" | "confirmed";
@@ -24,10 +28,11 @@ type TxStep = "idle" | "approving" | "executing" | "confirmed";
 const PERCENTAGES = [25, 50, 75, 100] as const;
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
+  if (strike <= 0 || expiryDays <= 0) return 0;
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly }: Props) {
   const { address, sendSponsoredTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -43,7 +48,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
     : quote.available_amount;
 
   // String state avoids leading-zero bug with controlled number inputs.
-  const [amountStr, setAmountStr] = useState("");
+  const [amountStr, setAmountStr] = useState(initialAmount ?? "");
   const amount = Number(amountStr) || 0;
 
 
@@ -227,41 +232,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         );
       }
 
-      // Approve oToken to BatchSettler (needed for safeTransferFrom in executeOrder)
-      console.log("[AcceptModal] Checking oToken allowance...", { oTokenAddress, user: address, spender: ADDRESSES.batchSettler });
-      const oTokenAllowance = await publicClient.readContract({
-        address: oTokenAddress,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [address, ADDRESSES.batchSettler],
-      });
-      console.log("[AcceptModal] oToken allowance:", oTokenAllowance.toString(), "needed:", oTokenAmount.toString());
-
-      if (oTokenAllowance < oTokenAmount) {
-        console.log("[AcceptModal] Approving oToken to BatchSettler...");
-        updateStep("approving");
-        const oTokenApproveData = encodeFunctionData({
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [ADDRESSES.batchSettler, maxUint256],
-        });
-        await sendAndPoll(
-          { to: oTokenAddress, data: oTokenApproveData },
-          async () => {
-            const a = await publicClient.readContract({
-              address: oTokenAddress, abi: ERC20_ABI, functionName: "allowance",
-              args: [address, ADDRESSES.batchSettler],
-            });
-            return a >= oTokenAmount;
-          },
-          "oToken-approve",
-        );
-      } else {
-        console.log("[AcceptModal] oToken already approved, skipping");
-      }
-
-      // Execute order
-      console.log("[AcceptModal] All approvals confirmed, executing order...");
+      // Execute order (v3: only collateral approve needed, no oToken approve)
+      console.log("[AcceptModal] Collateral approved, executing order...");
       updateStep("executing");
 
       // Snapshot balance before executeOrder to detect when collateral is deducted
@@ -327,58 +299,68 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
             {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}/ETH
           </p>
           {amount > 0 && (
-            <p className="text-2xl font-bold text-[var(--accent)] mt-1">
-              {premiumDisplay} this month — yours to keep
-            </p>
+            <div className="mt-1 flex items-baseline gap-3">
+              <p className="text-2xl font-bold text-[var(--accent)]">
+                {premiumDisplay}
+              </p>
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">
+                {Math.round(apr)}% APR
+              </p>
+            </div>
           )}
         </div>
 
-        {/* Percentage buttons */}
-        <div>
-          <div className="grid grid-cols-4 gap-2">
-            {PERCENTAGES.map((pct) => (
-              <button
-                key={pct}
-                onClick={() => handlePercent(pct)}
-                disabled={loading || walletBalance <= 0}
-                className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  activePercent === pct
-                    ? "bg-[var(--accent)] text-white"
-                    : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
-                } disabled:opacity-40`}
-              >
-                {pct}%
-              </button>
-            ))}
-          </div>
-        </div>
+        {/* Amount controls — hidden in confirmOnly mode */}
+        {!confirmOnly && (
+          <>
+            {/* Percentage buttons */}
+            <div>
+              <div className="grid grid-cols-4 gap-2">
+                {PERCENTAGES.map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => handlePercent(pct)}
+                    disabled={loading || walletBalance <= 0}
+                    className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                      activePercent === pct
+                        ? "bg-[var(--accent)] text-white"
+                        : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
+                    } disabled:opacity-40`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
+            </div>
 
-        {/* Amount input */}
-        <div>
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
-            <input
-              type="text"
-              inputMode="decimal"
-              value={amountStr}
-              disabled={loading}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                  setAmountStr(raw);
-                  setActivePercent(null);
-                }
-              }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
-            />
-            {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
-          </div>
-          <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-            Balance {isBuy
-              ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : `${walletBalance.toFixed(2)} ETH`}
-          </p>
-        </div>
+            {/* Amount input */}
+            <div>
+              <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  value={amountStr}
+                  disabled={loading}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
+                      setAmountStr(raw);
+                      setActivePercent(null);
+                    }
+                  }}
+                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+                />
+                {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
+              </div>
+              <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+                Balance {isBuy
+                  ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                  : `${walletBalance.toFixed(2)} ETH`}
+              </p>
+            </div>
+          </>
+        )}
 
         {/* Commit + outcomes */}
         {amount > 0 && (
@@ -388,20 +370,25 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
               You commit {commitDisplay} for {quote.expiry_days} days
             </p>
 
-            <div className="space-y-1.5 text-sm">
-              <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--text)]">If price hits ${quote.strike.toLocaleString()}:</span>{" "}
-                {isBuy
-                  ? `You buy ${ethEquiv} ETH + keep ${premiumDisplay}`
-                  : `You sell ${amount} ETH + keep ${premiumDisplay}`}
-              </p>
-              <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--text)]">If not:</span>{" "}
-                {isBuy
-                  ? `${commitDisplay} back + keep ${premiumDisplay}`
-                  : `${amount} ETH back + keep ${premiumDisplay}`}
-              </p>
-            </div>
+            {/* Outcome cards (renderExtra) replace text outcomes when provided */}
+            {renderExtra ? (
+              typeof renderExtra === "function" ? renderExtra(amount) : renderExtra
+            ) : (
+              <div className="space-y-1.5 text-sm">
+                <p className="text-[var(--text-secondary)]">
+                  <span className="text-[var(--text)]">If price hits ${quote.strike.toLocaleString()}:</span>{" "}
+                  {isBuy
+                    ? `You buy ${ethEquiv} ETH + keep ${premiumDisplay}`
+                    : `You sell ${amount} ETH + keep ${premiumDisplay}`}
+                </p>
+                <p className="text-[var(--text-secondary)]">
+                  <span className="text-[var(--text)]">If not:</span>{" "}
+                  {isBuy
+                    ? `${commitDisplay} back + keep ${premiumDisplay}`
+                    : `${amount} ETH back + keep ${premiumDisplay}`}
+                </p>
+              </div>
+            )}
           </>
         )}
 
@@ -414,13 +401,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         )}
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-
-        {/* Annual projection + APR */}
-        {amount > 0 && (
-          <p className="text-xs text-[var(--text-secondary)] text-center">
-            {premiumDisplay}/month · ~${Math.round(scaledPremium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
-          </p>
-        )}
 
         <button
           onClick={handleAccept}
