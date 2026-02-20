@@ -95,8 +95,16 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       setError("This option is not available on-chain yet.");
       return;
     }
-    if (amount <= 0 || amount < minAmount || amount > maxAmount) {
-      setError("Invalid amount.");
+    if (amount < minAmount) {
+      const minLabel = isBuy ? `$${minAmount}` : `${minAmount} ETH`;
+      setError(`Minimum amount is ${minLabel}.`);
+      return;
+    }
+    if (amount > maxAmount) {
+      const maxLabel = isBuy
+        ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        : `${maxAmount.toFixed(2)} ETH`;
+      setError(`Maximum available is ${maxLabel}.`);
       return;
     }
 
@@ -112,7 +120,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
 
       if (isBuy) {
         // Put: user commits USD. oTokenAmount in 8 dec, collateral in LUSD 6 dec.
-        // Contract formula: requiredCollateral = (amount * strikePrice) / 1e10
+        // Contract formula: collateral_6dec = (oTokenAmount_8dec * strikePrice_8dec) / 1e10
         const ethUnits = amount / quote.strike;
         oTokenAmount = parseUnits(ethUnits.toFixed(8), 8);
         const strikePrice8 = BigInt(Math.round(quote.strike * 1e8));
@@ -120,7 +128,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         collateralAsset = ADDRESSES.usdc;
       } else {
         // Call: user commits ETH. oTokenAmount in 8 dec, collateral in LETH 18 dec.
-        // Contract formula: requiredCollateral = amount * 1e10
+        // Contract formula: collateral_18dec = oTokenAmount_8dec * 1e10
         const formattedAmount = amount.toFixed(8);
         oTokenAmount = parseUnits(formattedAmount, 8);
         collateral = oTokenAmount * BigInt(1e10);
@@ -140,22 +148,53 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         return;
       }
 
-      // Helper: poll on-chain until a condition is met
+      // Poll on-chain until a condition is met (default: 2s interval, 60 attempts = ~120s timeout).
+      // Tolerates transient RPC errors; aborts only after 5 consecutive failures.
       const pollUntil = async (
         check: () => Promise<boolean>,
         label: string,
         intervalMs = 2000,
         maxAttempts = 60,
       ) => {
+        let consecutiveErrors = 0;
         for (let i = 0; i < maxAttempts; i++) {
-          const done = await check();
-          if (done) {
-            console.log(`[AcceptModal] ${label} confirmed on-chain`);
-            return;
+          try {
+            const done = await check();
+            consecutiveErrors = 0;
+            if (done) {
+              console.log(`[AcceptModal] ${label} confirmed on-chain`);
+              return;
+            }
+          } catch (err) {
+            consecutiveErrors++;
+            console.warn(`[AcceptModal] Poll check failed for ${label} (attempt ${i + 1}):`, err);
+            if (consecutiveErrors >= 5) {
+              throw new Error(`Lost connection while waiting for ${label}. Your transaction may still be processing — check your wallet before retrying.`);
+            }
           }
           await new Promise((r) => setTimeout(r, intervalMs));
         }
         throw new Error(`Timed out waiting for ${label}`);
+      };
+
+      // Fire a tx and poll for on-chain confirmation simultaneously.
+      // If the tx rejects immediately (user cancel, sponsorship fail), we catch it fast.
+      // If polling confirms first, we ignore the tx promise resolution.
+      const sendAndPoll = async (
+        tx: { to: Address; data: `0x${string}` },
+        check: () => Promise<boolean>,
+        label: string,
+      ) => {
+        const txPromise = sendSponsoredTx(tx).then(() => "tx-resolved" as const);
+        const pollPromise = pollUntil(check, label).then(() => "poll-confirmed" as const);
+        const result = await Promise.race([txPromise, pollPromise]);
+        if (result === "tx-resolved") {
+          // Tx resolved but poll hasn't confirmed yet — keep waiting
+          await pollPromise;
+        } else {
+          // Poll confirmed first — suppress any late tx rejection
+          txPromise.catch(() => {});
+        }
       };
 
       // Check allowance
@@ -175,16 +214,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           functionName: "approve",
           args: [ADDRESSES.marginPool, maxUint256],
         });
-        sendSponsoredTx({ to: collateralAsset, data: approveData });
-
-        // Poll until allowance >= collateral
-        await pollUntil(async () => {
-          const a = await publicClient.readContract({
-            address: collateralAsset, abi: ERC20_ABI, functionName: "allowance",
-            args: [address, ADDRESSES.marginPool],
-          });
-          return a >= collateral;
-        }, "approve");
+        await sendAndPoll(
+          { to: collateralAsset, data: approveData },
+          async () => {
+            const a = await publicClient.readContract({
+              address: collateralAsset, abi: ERC20_ABI, functionName: "allowance",
+              args: [address, ADDRESSES.marginPool],
+            });
+            return a >= collateral;
+          },
+          "approve",
+        );
       }
 
       // Approve oToken to BatchSettler (needed for safeTransferFrom in executeOrder)
@@ -205,17 +245,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
           functionName: "approve",
           args: [ADDRESSES.batchSettler, maxUint256],
         });
-        sendSponsoredTx({ to: oTokenAddress, data: oTokenApproveData });
-
-        await pollUntil(async () => {
-          const a = await publicClient.readContract({
-            address: oTokenAddress, abi: ERC20_ABI, functionName: "allowance",
-            args: [address, ADDRESSES.batchSettler],
-          });
-          console.log("[AcceptModal] Polling oToken allowance:", a.toString());
-          return a >= oTokenAmount;
-        }, "oToken-approve");
-        console.log("[AcceptModal] oToken approve confirmed on-chain");
+        await sendAndPoll(
+          { to: oTokenAddress, data: oTokenApproveData },
+          async () => {
+            const a = await publicClient.readContract({
+              address: oTokenAddress, abi: ERC20_ABI, functionName: "allowance",
+              args: [address, ADDRESSES.batchSettler],
+            });
+            return a >= oTokenAmount;
+          },
+          "oToken-approve",
+        );
       } else {
         console.log("[AcceptModal] oToken already approved, skipping");
       }
@@ -224,7 +264,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
       console.log("[AcceptModal] All approvals confirmed, executing order...");
       updateStep("executing");
 
-      // Snapshot balance before to detect settlement
+      // Snapshot balance before executeOrder to detect when collateral is deducted
       const balanceBefore = await publicClient.readContract({
         address: collateralAsset,
         abi: ERC20_ABI,
@@ -237,16 +277,18 @@ export function AcceptModal({ quote, side, onClose, onAccepted }: Props) {
         functionName: "executeOrder",
         args: [oTokenAddress, oTokenAmount, collateral],
       });
-      sendSponsoredTx({ to: ADDRESSES.batchSettler, data: executeData });
-
-      // Poll until balance changes (collateral deducted)
-      await pollUntil(async () => {
-        const bal = await publicClient.readContract({
-          address: collateralAsset, abi: ERC20_ABI, functionName: "balanceOf",
-          args: [address],
-        });
-        return bal < balanceBefore;
-      }, "executeOrder");
+      // Poll until balance decreases (collateral deducted)
+      await sendAndPoll(
+        { to: ADDRESSES.batchSettler, data: executeData },
+        async () => {
+          const bal = await publicClient.readContract({
+            address: collateralAsset, abi: ERC20_ABI, functionName: "balanceOf",
+            args: [address],
+          });
+          return bal < balanceBefore;
+        },
+        "executeOrder",
+      );
 
       updateStep("confirmed");
       onAccepted({ amount });
