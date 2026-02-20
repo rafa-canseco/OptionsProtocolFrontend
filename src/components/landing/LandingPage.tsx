@@ -158,11 +158,10 @@ function HeroSection() {
           transition={{ duration: 0.6, delay: 0.4 }}
           className="space-y-2"
         >
-          <p className="text-[clamp(1.5rem,4vw,2.5rem)] text-[#FAFAFA] font-light">
-            Earn up to <span className="font-semibold" style={{ color: ACCENT }}>15% APR</span>
-          </p>
-          <p className="text-[clamp(1rem,2.5vw,1.3rem)] text-[#71717A]">
-            Without selling your ETH.
+          <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[#A1A1AA] font-light leading-relaxed">
+            Pick a price you&apos;d buy or sell ETH at.
+            <br />
+            Get paid <span className="font-semibold" style={{ color: ACCENT }}>upfront</span> — no matter what happens.
           </p>
         </motion.div>
 
@@ -307,7 +306,7 @@ function MechanismSection({
             className="rounded-2xl border border-[#27272A] bg-[#18181B]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
-              <p className="text-[#71717A] text-sm uppercase tracking-wider">If ETH {side === "buy" ? "drops" : "rises"} to ${strike.toLocaleString()}</p>
+              <p className="text-[#71717A] text-sm uppercase tracking-wider">At expiry, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
               <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[#FAFAFA] font-light">
                 {side === "buy"
                   ? `You buy ETH at $${strike.toLocaleString()}.`
@@ -321,7 +320,7 @@ function MechanismSection({
             <div className="border-t border-[#27272A]" />
 
             <div className="space-y-1">
-              <p className="text-[#71717A] text-sm uppercase tracking-wider">If it doesn&apos;t</p>
+              <p className="text-[#71717A] text-sm uppercase tracking-wider">At expiry, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
               <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[#FAFAFA] font-light">
                 {side === "buy"
                   ? `Your $${strike.toLocaleString()} comes back.`
@@ -346,7 +345,7 @@ function MechanismSection({
           transition={{ duration: 0.5, delay: 0.6 }}
           className="text-[#52525B] text-base"
         >
-          Settles automatically at expiry. Choose your timeline.
+          Your collateral is locked until expiry. Only the closing price matters — not what happens in between.
         </motion.p>
       </div>
     </section>
@@ -560,7 +559,7 @@ const ComparisonSection = memo(function ComparisonSection() {
           >
             <span className="text-[#FAFAFA] text-base sm:text-lg font-medium">Loot</span>
             <div className="flex items-center gap-4">
-              <span className="text-lg sm:text-xl font-semibold" style={{ color: ACCENT }}>Higher yield</span>
+              <span className="text-lg sm:text-xl font-semibold" style={{ color: ACCENT }}>Variable</span>
               <div className="hidden sm:flex items-center gap-2 text-sm" style={{ color: ACCENT }}>
                 <span>{"✓"} Passive</span>
                 <span>{"✓"} Paid upfront</span>
