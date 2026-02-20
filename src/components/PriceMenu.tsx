@@ -36,28 +36,14 @@ function PriceRow({
           : "hover:bg-[var(--surface)]"
       }`}
     >
-      <div>
-        <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
-          ${quote.strike.toLocaleString()}
-        </span>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5">per ETH</p>
-      </div>
+      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+        ${quote.strike.toLocaleString()}/ETH
+      </span>
       <div className="text-right">
-        <span className="text-base font-bold text-[var(--accent)]">${quote.premium.toFixed(0)}<span className="text-xs font-normal opacity-60">/ETH</span></span>
-        <p className="text-xs text-[var(--text-secondary)] mt-0.5">
-          {Math.round(apr)}% APR
-          {!disabled && (
-            <span className="ml-1.5 opacity-60">
-              · {quote.available_amount.toFixed(1)} avail
-            </span>
-          )}
-          {disabled && !quote.otoken_address && (
-            <span className="ml-1.5">· unavailable</span>
-          )}
-          {disabled && quote.otoken_address && quote.available_amount <= 0 && (
-            <span className="ml-1.5">· filled</span>
-          )}
-        </p>
+        <span className="text-base font-bold text-[var(--accent)]">
+          Earn ${Math.round(quote.premium * quote.available_amount).toLocaleString()}
+        </span>
+        <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
       </div>
     </button>
   );
@@ -188,7 +174,7 @@ export function PriceMenu() {
           >
             {expiries.map((days) => (
               <option key={days} value={days}>
-                Until {untilDate(days)}
+                Until {untilDate(days)} ({days}d)
               </option>
             ))}
           </select>

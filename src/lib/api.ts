@@ -17,24 +17,33 @@ export interface PriceQuote {
   otoken_address: string | null;
 }
 
-export type OrderStatus = "pending" | "batched" | "settled" | "expired" | "failed";
-
 export interface Position {
   id: string;
+  tx_hash: string;
+  block_number: number;
   user_address: string;
-  option_type: OptionType;
-  strike: number;
-  expiry_days: number;
-  premium: number;
-  spot_at_lock: number;
-  iv_at_lock: number;
-  status: OrderStatus;
-  batch_id: string | null;
-  created_at: string;
+  otoken_address: string;
+  amount: number;
+  premium: string;
+  collateral: number;
+  vault_id: number;
+  strike_price: number;
+  expiry: number;
+  is_put: boolean;
+  is_settled: boolean;
   settled_at: string | null;
-  tx_hash: string | null;
-  vault_id: number | null;
-  otoken_address: string | null;
+  settlement_tx_hash: string | null;
+  indexed_at: string;
+  settlement_type: string | null;
+  delivered_asset: string | null;
+  delivered_amount: number | null;
+  delivery_tx_hash: string | null;
+  is_itm: boolean | null;
+  expiry_price: number | null;
+  gross_premium: string;
+  net_premium: string;
+  protocol_fee: string;
+  outcome: string | null;
 }
 
 export interface SettleResult {
@@ -75,7 +84,7 @@ export const api = {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        ...(DEMO_API_KEY ? { "X-API-Key": DEMO_API_KEY } : {}),
+        ...(DEMO_API_KEY ? { "X-Demo-Key": DEMO_API_KEY } : {}),
       },
       body: JSON.stringify({
         user_address: userAddress,

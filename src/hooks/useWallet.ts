@@ -22,9 +22,12 @@ export function useWallet() {
   }, [activeWallet]);
 
   // Sponsored transaction sender — wraps Privy's sendTransaction with sponsor: true
+  // Fire-and-forget: Privy's sendTransaction never resolves its promise,
+  // so we don't await it. Callers must poll on-chain state instead.
   const sendSponsoredTx = useCallback(
-    async (tx: { to: Address; data: `0x${string}`; value?: bigint }) => {
-      const receipt = await sendTransaction(
+    (tx: { to: Address; data: `0x${string}`; value?: bigint }) => {
+      console.log("[sendSponsoredTx] Firing tx:", { to: tx.to, data: tx.data.slice(0, 10) });
+      sendTransaction(
         {
           to: tx.to,
           data: tx.data,
@@ -32,8 +35,8 @@ export function useWallet() {
           chainId: baseSepolia.id,
         },
         { sponsor: true },
-      );
-      return receipt;
+      ).then((r) => console.log("[sendSponsoredTx] Resolved:", r))
+       .catch((e) => console.error("[sendSponsoredTx] Error:", e));
     },
     [sendTransaction],
   );

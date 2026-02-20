@@ -3,48 +3,6 @@
 import { useState } from "react";
 import type { Position, SettleResult } from "@/lib/api";
 import { api } from "@/lib/api";
-import { ExpiryCountdown } from "./ExpiryCountdown";
-
-function ProgressBar({ createdAt, expiryDays }: { createdAt: string; expiryDays: number }) {
-  const start = new Date(createdAt).getTime();
-  const end = start + expiryDays * 86_400_000;
-  const now = Date.now();
-  const progress = Math.min(1, Math.max(0, (now - start) / (end - start)));
-
-  return (
-    <div className="h-1.5 w-full rounded-full bg-[var(--border)]">
-      <div
-        className="h-full rounded-full bg-[var(--accent)] transition-all"
-        style={{ width: `${progress * 100}%` }}
-      />
-    </div>
-  );
-}
-
-function SettleResultDisplay({ result, isPut }: { result: SettleResult; isPut: boolean }) {
-  if (!result.settled) {
-    return <p className="text-sm text-[var(--danger)]">Settlement failed.</p>;
-  }
-
-  if (result.is_itm) {
-    const asset = result.delivered_asset === "ETH" || !isPut ? "ETH" : "USD";
-    const amount = result.delivered_amount ?? 0;
-    const formatted = asset === "USD"
-      ? `$${amount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-      : `${amount.toFixed(4)} ETH`;
-    return (
-      <p className="text-sm text-[var(--accent)]">
-        In the money — received {formatted}
-      </p>
-    );
-  }
-
-  return (
-    <p className="text-sm text-[var(--accent)]">
-      Out of the money — collateral returned
-    </p>
-  );
-}
 
 interface Props {
   position: Position;
@@ -52,8 +10,30 @@ interface Props {
 }
 
 export function PositionCard({ position, onSettled }: Props) {
-  const isBuy = position.option_type === "put";
-  const isActive = position.status === "pending" || position.status === "batched";
+  const isBuy = position.is_put;
+  const isActive = !position.is_settled;
+
+  // strike_price is 8 decimals on-chain
+  const strike = position.strike_price / 1e8;
+
+  // Collateral: puts = LUSD (6 dec), calls = LETH (18 dec)
+  const committedUsd = isBuy
+    ? position.collateral / 1e6
+    : (position.collateral / 1e18) * strike;
+  const committedDisplay = isBuy
+    ? `$${(position.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+    : `${(position.collateral / 1e18).toFixed(2)} ETH`;
+
+  // Premium in LUSD base units (6 decimals)
+  const premiumUsd = Number(position.net_premium) / 1e6;
+  const returnPct = committedUsd > 0 ? (premiumUsd / committedUsd) * 100 : 0;
+
+  // oToken amount (8 decimals)
+  const ethAmount = (position.amount / 1e8).toFixed(2);
+
+  // Expiry
+  const expiryDays = Math.max(0, Math.ceil((position.expiry * 1000 - Date.now()) / 86_400_000));
+
   const canSettle = isActive && position.vault_id != null && position.otoken_address != null;
 
   const [settling, setSettling] = useState(false);
@@ -80,27 +60,65 @@ export function PositionCard({ position, onSettled }: Props) {
     }
   }
 
+  // Settled state (from backend or from just-settled result)
+  const isSettled = position.is_settled || settleResult?.settled;
+  const isItm = position.is_itm ?? settleResult?.is_itm ?? false;
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
-      <p className="text-base font-semibold text-[var(--text)]">
-        {isBuy ? "Buy" : "Sell"} ETH at ${position.strike.toLocaleString()}
-      </p>
-
-      <p className="text-sm text-[var(--text-secondary)]">
-        <span className="text-[var(--accent)] font-semibold">Earned ${position.premium.toFixed(0)}</span>
-        {isActive && (
-          <>
-            {" · "}
-            <ExpiryCountdown createdAt={position.created_at} expiryDays={position.expiry_days} />
-            {" left"}
-          </>
+      {/* Header row */}
+      <div className="flex items-center justify-between">
+        <p className="text-base font-semibold text-[var(--text)]">
+          {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+        </p>
+        {isSettled && (
+          <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
+            ✓ Completed
+          </span>
         )}
-      </p>
+      </div>
 
-      {isActive && <ProgressBar createdAt={position.created_at} expiryDays={position.expiry_days} />}
+      {/* Active position */}
+      {isActive && !settleResult && (
+        <>
+          <p className="text-sm text-[var(--text-secondary)]">
+            Committed {committedDisplay} ·{" "}
+            <span className="text-[var(--accent)] font-semibold">
+              Earned ${premiumUsd.toFixed(0)}
+            </span>{" "}
+            ({returnPct.toFixed(1)}%)
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            {expiryDays > 0 ? `${expiryDays}d left` : "Expired"}
+          </p>
+        </>
+      )}
 
-      {settleResult && (
-        <SettleResultDisplay result={settleResult} isPut={position.option_type === "put"} />
+      {/* Settled — OTM */}
+      {isSettled && !isItm && (
+        <div className="space-y-1">
+          <p className="text-sm text-[var(--text-secondary)]">
+            {committedDisplay} returned +{" "}
+            <span className="text-[var(--accent)] font-semibold">${premiumUsd.toFixed(0)} earned</span>
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Return: {returnPct.toFixed(1)}%
+          </p>
+        </div>
+      )}
+
+      {/* Settled — ITM */}
+      {isSettled && isItm && (
+        <div className="space-y-1">
+          <p className="text-sm text-[var(--text-secondary)]">
+            {isBuy
+              ? `Bought ${ethAmount} ETH @ $${strike.toLocaleString()} + kept $${premiumUsd.toFixed(0)}`
+              : `Sold ${ethAmount} ETH @ $${strike.toLocaleString()} + kept $${premiumUsd.toFixed(0)}`}
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            {isBuy ? `Cost basis: $${strike.toLocaleString()}/ETH` : `Sale price: $${strike.toLocaleString()}/ETH`}
+          </p>
+        </div>
       )}
 
       {settleError && (
