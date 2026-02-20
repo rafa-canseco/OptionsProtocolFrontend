@@ -34,16 +34,16 @@ export function useFaucet(
         functionName: "mint",
         args: [address, MINT_USD],
       });
-      // Fire both mints — don't await (timing is unpredictable), but catch rejections
-      sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData })
-        .catch((e) => console.warn("[useFaucet] USD mint tx failed:", e));
-
       const ethData = encodeFunctionData({
         abi: ERC20_ABI,
         functionName: "mint",
         args: [address, MINT_ETH],
       });
-      sendSponsoredTx({ to: ADDRESSES.weth, data: ethData })
+
+      // Serialize mints — Privy's relayer drops txs on concurrent nonces
+      await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData })
+        .catch((e) => console.warn("[useFaucet] USD mint tx failed:", e));
+      await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData })
         .catch((e) => console.warn("[useFaucet] ETH mint tx failed:", e));
 
       // Poll until USD balance increases (proves at least one mint landed)
