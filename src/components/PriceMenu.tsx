@@ -18,16 +18,13 @@ function untilDate(expiryDays: number): string {
 
 function PriceRow({
   quote,
-  spot,
   onSelect,
 }: {
   quote: PriceQuote;
-  spot?: number;
   onSelect: () => void;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
-  const distance = spot ? Math.abs(quote.strike - spot) / spot * 100 : null;
 
   return (
     <button
@@ -39,22 +36,9 @@ function PriceRow({
           : "hover:bg-[var(--surface)]"
       }`}
     >
-      <div>
-        <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
-          ${quote.strike.toLocaleString()}/ETH
-        </span>
-        {distance != null && (
-          <div className="mt-1 h-1 w-16 rounded-full bg-[var(--border)] overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min(100, (distance / 20) * 100)}%`,
-                backgroundColor: distance > 10 ? "var(--accent)" : distance > 3 ? "var(--warning, #E5A836)" : "var(--danger)",
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+        ${quote.strike.toLocaleString()}/ETH
+      </span>
       <span className="text-base font-bold text-[var(--accent)]">
         {Math.round(apr)}% APR
       </span>
@@ -218,7 +202,6 @@ export function PriceMenu() {
             <PriceRow
               key={`${q.strike}-${q.expiry_days}-${i}`}
               quote={q}
-              spot={spot}
               onSelect={() => setSelected({ quote: q, side })}
             />
           ))}

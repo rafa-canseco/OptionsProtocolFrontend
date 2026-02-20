@@ -329,9 +329,14 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}/ETH
           </p>
           {amount > 0 && (
-            <p className="text-2xl font-bold text-[var(--accent)] mt-1">
-              {premiumDisplay} this month — yours to keep
-            </p>
+            <div className="mt-1 flex items-baseline gap-3">
+              <p className="text-2xl font-bold text-[var(--accent)]">
+                {premiumDisplay}
+              </p>
+              <p className="text-sm font-semibold text-[var(--text-secondary)]">
+                {Math.round(apr)}% APR
+              </p>
+            </div>
           )}
         </div>
 
@@ -421,13 +426,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         )}
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
-
-        {/* Annual projection + APR */}
-        {amount > 0 && (
-          <p className="text-xs text-[var(--text-secondary)] text-center">
-            {premiumDisplay}/month · ~${Math.round(scaledPremium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
-          </p>
-        )}
 
         <button
           onClick={handleAccept}

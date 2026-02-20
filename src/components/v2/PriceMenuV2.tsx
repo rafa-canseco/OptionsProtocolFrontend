@@ -19,24 +19,141 @@ function untilDate(expiryDays: number): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
+/** Horizontal price axis showing spot vs all available strikes */
+function StrikeChart({
+  filteredPrices,
+  spot,
+  side,
+  amount,
+  onSelect,
+}: {
+  filteredPrices: PriceQuote[];
+  spot: number;
+  side: "buy" | "sell";
+  amount: number;
+  onSelect: (q: PriceQuote) => void;
+}) {
+  if (filteredPrices.length === 0) return null;
+
+  const strikes = filteredPrices.map((p) => p.strike);
+  const all = [...strikes, spot];
+  const min = Math.min(...all);
+  const max = Math.max(...all);
+  const range = max - min || 1;
+  const padded = range * 0.12;
+  const xMin = min - padded;
+  const xMax = max + padded;
+  const xRange = xMax - xMin;
+
+  const W = 360;
+  const H = 100;
+  const PAD_L = 8;
+  const PAD_R = 8;
+  const plotW = W - PAD_L - PAD_R;
+  const AXIS_Y = 50;
+
+  const toX = (price: number) => PAD_L + ((price - xMin) / xRange) * plotW;
+  const spotX = toX(spot);
+
+  const isBuy = side === "buy";
+
+  return (
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 animate-fade-in-up">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        preserveAspectRatio="xMidYMid meet"
+      >
+        {/* Price axis */}
+        <line
+          x1={PAD_L} y1={AXIS_Y} x2={W - PAD_R} y2={AXIS_Y}
+          stroke="var(--border)" strokeWidth={1}
+        />
+
+        {/* Strike markers */}
+        {filteredPrices.map((q) => {
+          const x = toX(q.strike);
+          const apr = Math.round(computeAPR(q.premium, q.strike, q.expiry_days));
+          const disabled = !q.otoken_address || q.available_amount <= 0;
+          const earnings = amount > 0
+            ? isBuy ? (q.premium * amount) / q.strike : q.premium * amount
+            : 0;
+          const label = earnings > 0
+            ? `$${Math.round(earnings).toLocaleString()}`
+            : `${apr}%`;
+
+          return (
+            <g
+              key={q.strike}
+              onClick={() => !disabled && onSelect(q)}
+              style={{ cursor: disabled ? "not-allowed" : "pointer" }}
+              opacity={disabled ? 0.3 : 1}
+            >
+              {/* Clickable hit area */}
+              <rect x={x - 20} y={8} width={40} height={80} fill="transparent" />
+              {/* Strike tick */}
+              <line
+                x1={x} y1={AXIS_Y - 10} x2={x} y2={AXIS_Y + 10}
+                stroke="var(--accent)" strokeWidth={2}
+              />
+              {/* Earnings / APR label above */}
+              <text
+                x={x} y={AXIS_Y - 16}
+                textAnchor="middle" fill="var(--accent)"
+                fontSize={11} fontWeight={600}
+              >
+                {label}
+              </text>
+              {/* Strike price below */}
+              <text
+                x={x} y={AXIS_Y + 24}
+                textAnchor="middle" fill="var(--text-secondary)"
+                fontSize={9}
+              >
+                ${q.strike.toLocaleString()}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Spot marker — triangle + label */}
+        <polygon
+          points={`${spotX},${AXIS_Y - 4} ${spotX - 5},${AXIS_Y - 14} ${spotX + 5},${AXIS_Y - 14}`}
+          fill="var(--text)"
+        />
+        <text
+          x={spotX} y={AXIS_Y + 24}
+          textAnchor="middle" fill="var(--text)"
+          fontSize={10} fontWeight={600}
+        >
+          ${spot.toLocaleString()}
+        </text>
+        <text
+          x={spotX} y={AXIS_Y + 36}
+          textAnchor="middle" fill="var(--text-secondary)"
+          fontSize={8}
+        >
+          now
+        </text>
+      </svg>
+    </div>
+  );
+}
+
 function StrikeRow({
   quote,
   side,
   amount,
-  spot,
   onSelect,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
   amount: number;
-  spot?: number;
   onSelect: () => void;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
-  const distance = spot ? Math.abs(quote.strike - spot) / spot * 100 : null;
 
-  // Earnings for the user's chosen amount
   const isBuy = side === "buy";
   const earnings = amount > 0
     ? isBuy
@@ -52,22 +169,9 @@ function StrikeRow({
         disabled ? "opacity-40 cursor-not-allowed" : "hover:bg-[var(--surface)]"
       }`}
     >
-      <div>
-        <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
-          ${quote.strike.toLocaleString()}/ETH
-        </span>
-        {distance != null && (
-          <div className="mt-1 h-1 w-16 rounded-full bg-[var(--border)] overflow-hidden">
-            <div
-              className="h-full rounded-full transition-all"
-              style={{
-                width: `${Math.min(100, (distance / 20) * 100)}%`,
-                backgroundColor: distance > 10 ? "var(--accent)" : distance > 3 ? "var(--warning, #E5A836)" : "var(--danger)",
-              }}
-            />
-          </div>
-        )}
-      </div>
+      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+        ${quote.strike.toLocaleString()}/ETH
+      </span>
       <div className="text-right">
         {earnings != null && earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)]">
@@ -94,7 +198,6 @@ export function PriceMenuV2() {
   const [selected, setSelected] = useState<{ quote: PriceQuote; side: "buy" | "sell" } | null>(null);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);
 
-  // Amount input — user enters how much they want to commit
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
 
@@ -151,9 +254,12 @@ export function PriceMenuV2() {
 
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
-        <p className="text-3xl font-bold text-[var(--accent)]">
-          ${Math.round(premium).toLocaleString()} earned
-        </p>
+        <div>
+          <p className="text-3xl font-bold text-[var(--accent)]">
+            ${Math.round(premium).toLocaleString()} earned
+          </p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">{Math.round(apr)}% APR</p>
+        </div>
         <p className="text-base text-[var(--text)]">
           Yours to keep, no matter what happens.
         </p>
@@ -161,9 +267,6 @@ export function PriceMenuV2() {
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
           <p>{commitLabel} committed for {aq.expiry_days} days</p>
           <p>{abuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
-          <p className="text-xs">
-            ${Math.round(premium).toLocaleString()}/month · ~${Math.round(premium * 12).toLocaleString()}/yr · {Math.round(apr)}% APR
-          </p>
         </div>
         <a
           href="/positions/v2"
@@ -209,7 +312,7 @@ export function PriceMenuV2() {
         </button>
       </div>
 
-      {/* Amount input — Rysk-style: amount first, then choose strike */}
+      {/* Amount input */}
       <div className="animate-fade-in-up">
         <p className="text-sm text-[var(--text-secondary)] mb-2">
           How much do you want to commit?
@@ -269,6 +372,17 @@ export function PriceMenuV2() {
         </div>
       )}
 
+      {/* Strike chart — visual overview of all strikes vs spot */}
+      {spot && filteredPrices.length > 0 && (
+        <StrikeChart
+          filteredPrices={filteredPrices}
+          spot={spot}
+          side={side}
+          amount={amount}
+          onSelect={(q) => setSelected({ quote: q, side })}
+        />
+      )}
+
       {/* Prompt to enter amount */}
       {amount === 0 && (
         <p className="text-sm text-[var(--text-secondary)] px-1 animate-fade-in-up">
@@ -276,7 +390,7 @@ export function PriceMenuV2() {
         </p>
       )}
 
-      {/* Strike rows — show earnings for YOUR amount */}
+      {/* Strike rows */}
       {filteredPrices.length > 0 ? (
         <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] stagger-children animate-fade-in-up">
           {filteredPrices.map((q, i) => (
@@ -285,7 +399,6 @@ export function PriceMenuV2() {
               quote={q}
               side={side}
               amount={amount}
-              spot={spot}
               onSelect={() => setSelected({ quote: q, side })}
             />
           ))}
