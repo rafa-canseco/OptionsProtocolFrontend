@@ -9,11 +9,10 @@ const DEFAULT_VISIBLE = 5;
 
 interface Props {
   positions: Position[];
-  spot?: number;
   earnBase?: string;
 }
 
-export function TradeLog({ positions, spot, earnBase = "/earn" }: Props) {
+export function TradeLog({ positions, earnBase = "/earn" }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 
@@ -47,7 +46,6 @@ export function TradeLog({ positions, spot, earnBase = "/earn" }: Props) {
             <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Expiry</th>
             <th className="text-left py-3 px-4 font-medium">Outcome</th>
             <th className="text-right py-3 px-4 font-medium">Premium</th>
-            <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">P&L</th>
             <th className="text-right py-3 px-4 font-medium">Next Step</th>
           </tr>
         </thead>
@@ -56,7 +54,6 @@ export function TradeLog({ positions, spot, earnBase = "/earn" }: Props) {
             <TradeRow
               key={p.id}
               position={p}
-              spot={spot}
               earnBase={earnBase}
               isExpanded={expanded.has(p.id)}
               onToggle={() => toggle(p.id)}
@@ -79,13 +76,11 @@ export function TradeLog({ positions, spot, earnBase = "/earn" }: Props) {
 
 function TradeRow({
   position: p,
-  spot,
   earnBase,
   isExpanded,
   onToggle,
 }: {
   position: Position;
-  spot?: number;
   earnBase: string;
   isExpanded: boolean;
   onToggle: () => void;
@@ -111,21 +106,9 @@ function TradeRow({
   // Outcome
   const outcome = isItm ? "Assigned" : "Expired";
 
-  // Cost basis (used in expanded detail and P&L)
+  // Cost basis + settlement price (for expanded detail)
   const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
-
-  // P&L — only for assigned positions (ITM). OTM has no position P&L
-  // (their gain is the premium, already shown in its own column).
-  // P&L uses expiry_price (settlement price), not live spot — position is closed.
   const expiryPriceUsd = p.expiry_price != null ? p.expiry_price / 1e8 : null;
-  let pnl: number | null = null;
-  if (isItm && expiryPriceUsd != null) {
-    if (isBuy) {
-      pnl = (expiryPriceUsd - costBasis) * ethAmount;
-    } else {
-      pnl = (costBasis - expiryPriceUsd) * ethAmount;
-    }
-  }
 
   // Next step link
   let nextLabel: string;
@@ -143,8 +126,7 @@ function TradeRow({
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${(p.collateral / 1e18).toFixed(2)} ETH`;
 
-  // How many columns total (for colspan in expanded row)
-  const totalCols = 9;
+  const totalCols = 8;
 
   return (
     <>
@@ -177,11 +159,7 @@ function TradeRow({
 
         {/* Outcome badge */}
         <td className="py-3 px-4">
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            isItm
-              ? "text-[var(--accent)] bg-[var(--accent)]/10"
-              : "text-[var(--accent)] bg-[var(--accent)]/10"
-          }`}>
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full text-[var(--accent)] bg-[var(--accent)]/10">
             {outcome}
           </span>
         </td>
@@ -189,13 +167,6 @@ function TradeRow({
         {/* Premium */}
         <td className="py-3 px-4 text-right font-mono text-[var(--accent)]">
           +${premiumUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-        </td>
-
-        {/* P&L — only shown for assigned positions */}
-        <td className={`py-3 px-4 text-right font-mono font-semibold hidden sm:table-cell ${pnl == null ? "text-[var(--text-secondary)]" : pnl >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-          {pnl == null
-            ? "—"
-            : `${pnl >= 0 ? "+" : ""}$${pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
         </td>
 
         {/* Next Step */}
@@ -222,14 +193,9 @@ function TradeRow({
                     <span className="font-mono font-medium text-[var(--text)]">${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH</span>
                   </p>
                   <p>
-                    {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} ETH ·{" "}
-                    {pnl != null && expiryPriceUsd != null && (
-                      <>
-                        Settled at ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH ·{" "}
-                        <span className={`font-mono font-semibold ${pnl >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-                          {pnl >= 0 ? "+" : ""}${pnl.toLocaleString(undefined, { maximumFractionDigits: 0 })} P&L
-                        </span>
-                      </>
+                    {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} ETH
+                    {expiryPriceUsd != null && (
+                      <> · Settled at ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH</>
                     )}
                   </p>
                 </>

@@ -53,7 +53,7 @@ export default function PositionsPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
-      <PortfolioSummary positions={positions} spot={spot} />
+      <PortfolioSummary positions={positions} />
 
       {/* Active positions — cards */}
       <section className="space-y-4">
@@ -82,7 +82,7 @@ export default function PositionsPage() {
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <TradeLog positions={history} spot={spot} earnBase="/earn" />
+          <TradeLog positions={history} earnBase="/earn" />
         </section>
       )}
     </main>

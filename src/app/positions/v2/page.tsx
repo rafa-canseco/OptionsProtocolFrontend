@@ -68,7 +68,7 @@ export default function PositionsV2Page() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
-      <PortfolioSummary positions={positions} spot={spot} />
+      <PortfolioSummary positions={positions} />
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">
@@ -104,7 +104,7 @@ export default function PositionsV2Page() {
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <TradeLog positions={history} spot={spot} earnBase="/earn/v2" />
+          <TradeLog positions={history} earnBase="/earn/v2" />
         </section>
       )}
     </main>
