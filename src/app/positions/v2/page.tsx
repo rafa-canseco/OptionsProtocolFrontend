@@ -2,6 +2,8 @@
 
 import { PositionCard } from "@/components/PositionCard";
 import { PositionSparkline } from "@/components/v2/PositionSparkline";
+import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
@@ -15,38 +17,8 @@ export default function PositionsV2Page() {
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
 
-  // Split into active vs history
   const active = positions.filter((p) => !p.is_settled);
-  const history = positions
-    .filter((p) => p.is_settled)
-    .sort((a, b) => {
-      const tA = a.settled_at ? new Date(a.settled_at).getTime() : 0;
-      const tB = b.settled_at ? new Date(b.settled_at).getTime() : 0;
-      return tB - tA;
-    });
-
-  // Portfolio summary
-  const totalEarned = positions.reduce((sum, p) => sum + Number(p.net_premium) / 1e6, 0);
-
-  const activeCapital = active.reduce((sum, p) => {
-    if (p.is_put) return sum + p.collateral / 1e6;
-    return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
-  }, 0);
-
-  const totalCapital = positions.reduce((sum, p) => {
-    if (p.is_put) return sum + p.collateral / 1e6;
-    return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
-  }, 0);
-
-  const totalWeightedApr = positions.reduce((sum, p) => {
-    const capital = p.is_put ? p.collateral / 1e6 : (p.collateral / 1e18) * (p.strike_price / 1e8);
-    const premium = Number(p.net_premium) / 1e6;
-    const indexedTime = new Date(p.indexed_at).getTime();
-    const days = Math.max(1, Math.round((p.expiry * 1000 - indexedTime) / 86_400_000));
-    const apr = capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
-    return sum + apr * capital;
-  }, 0);
-  const avgApr = totalCapital > 0 ? totalWeightedApr / totalCapital : 0;
+  const history = positions.filter((p) => p.is_settled);
 
   function renderSparkline(position: Position, strike: number) {
     if (position.is_settled) return null;
@@ -64,9 +36,7 @@ export default function PositionsV2Page() {
       <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">
-            to see your positions.
-          </p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">to see your positions.</p>
         </div>
       </main>
     );
@@ -98,24 +68,9 @@ export default function PositionsV2Page() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
-      <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
-        <div>
-          <p className="text-xs text-[var(--text-secondary)]">Total Earned</p>
-          <p className="text-xl font-bold text-[var(--accent)]">${totalEarned.toFixed(0)}</p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-secondary)]">Active Capital</p>
-          <p className="text-xl font-bold text-[var(--text)]">
-            ${activeCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-secondary)]">Avg APR</p>
-          <p className="text-xl font-bold text-[var(--text)]">{Math.round(avgApr)}%</p>
-        </div>
-      </div>
+      <PortfolioSummary positions={positions} spot={spot} />
 
-      {/* Active positions */}
+      {/* Active positions — cards with sparklines */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
           Active positions
@@ -143,24 +98,13 @@ export default function PositionsV2Page() {
         )}
       </section>
 
-      {/* History */}
+      {/* Trade log — table */}
       {history.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {history.map((pos) => (
-              <PositionCard
-                key={pos.id}
-                position={pos}
-                onSettled={refresh}
-                spot={spot}
-                renderExtra={renderSparkline}
-                earnBase="/earn/v2"
-              />
-            ))}
-          </div>
+          <TradeLog positions={history} spot={spot} earnBase="/earn/v2" />
         </section>
       )}
     </main>
