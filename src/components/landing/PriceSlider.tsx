@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect, memo } from "react";
+import { useState, useMemo, useCallback, useEffect, memo } from "react";
 import { motion } from "framer-motion";
 import { useSimulate, weekLabel } from "@/hooks/useSimulate";
 import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
@@ -8,10 +8,16 @@ import { SimulationResult } from "./SimulationResult";
 
 const STRIKE_INTERVAL = 100; // $100 increments
 
-/** Compute discrete strikes from spot: spot - 20% to spot - 2%, rounded to $100 */
-function generateStrikes(spot: number): number[] {
-  const low = Math.ceil((spot * 0.8) / STRIKE_INTERVAL) * STRIKE_INTERVAL;
-  const high = Math.floor((spot * 0.98) / STRIKE_INTERVAL) * STRIKE_INTERVAL;
+/** Compute strike range from spot: spot - 20% to spot - 2%, rounded to $100 */
+function strikeRange(spot: number): { low: number; high: number } {
+  return {
+    low: Math.ceil((spot * 0.8) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
+    high: Math.floor((spot * 0.98) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
+  };
+}
+
+/** Generate all discrete strikes for mobile pills */
+function generateStrikes(low: number, high: number): number[] {
   const strikes: number[] = [];
   for (let s = low; s <= high; s += STRIKE_INTERVAL) {
     strikes.push(s);
@@ -19,49 +25,44 @@ function generateStrikes(spot: number): number[] {
   return strikes;
 }
 
-/** Find the default strike (~10% OTM) */
-function defaultStrike(strikes: number[], spot: number): number {
-  const target = spot * 0.9;
-  return strikes.reduce((best, s) =>
-    Math.abs(s - target) < Math.abs(best - target) ? s : best,
-  );
-}
-
 const WEEK_LABEL = weekLabel();
 
 const MemoizedResult = memo(SimulationResult);
 
 export function PriceSlider({ spot }: { spot: number }) {
-  const strikes = useMemo(() => generateStrikes(spot), [spot]);
-  const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
+  const { low, high } = useMemo(() => strikeRange(spot), [spot]);
+  const strikes = useMemo(() => generateStrikes(low, high), [low, high]);
+  const defaultVal = useMemo(() => {
+    const target = spot * 0.9;
+    return Math.round(target / STRIKE_INTERVAL) * STRIKE_INTERVAL;
+  }, [spot]);
+
+  const [selectedStrike, setSelectedStrike] = useState<number>(defaultVal);
   const side: "buy" | "sell" = "buy";
   const { trackSliderUse } = useSliderAnalytics();
-  const sliderRef = useRef<HTMLInputElement>(null);
 
-  // Set default strike on mount / when strikes change
+  // Clamp selected strike when range changes
   useEffect(() => {
-    if (strikes.length === 0) return;
-    const def = defaultStrike(strikes, spot);
-    const idx = strikes.indexOf(def);
-    setSelectedIdx(idx >= 0 ? idx : Math.floor(strikes.length / 2));
-  }, [strikes, spot]);
+    setSelectedStrike((prev) => {
+      if (prev < low) return low;
+      if (prev > high) return high;
+      return prev;
+    });
+  }, [low, high]);
 
-  const selectedStrike = selectedIdx !== null ? strikes[selectedIdx] : null;
   const { result, loading } = useSimulate(selectedStrike, side, spot);
 
-  const handleChange = useCallback(
-    (idx: number) => {
-      setSelectedIdx(idx);
-      if (strikes[idx]) {
-        trackSliderUse(strikes[idx], side);
-      }
+  const handleSliderChange = useCallback(
+    (value: number) => {
+      setSelectedStrike(value);
+      trackSliderUse(value, side);
     },
-    [strikes, side, trackSliderUse],
+    [side, trackSliderUse],
   );
 
-  if (strikes.length === 0) return null;
+  if (low >= high) return null;
 
-  const discountPct = selectedStrike ? Math.round(((spot - selectedStrike) / spot) * 100) : 0;
+  const discountPct = Math.round(((spot - selectedStrike) / spot) * 100);
 
   return (
     <div className="space-y-8">
@@ -70,43 +71,41 @@ export function PriceSlider({ spot }: { spot: number }) {
         <h3 className="text-[clamp(1.3rem,3vw,2rem)] text-[var(--bone)] font-light">
           I&apos;d buy ETH at{" "}
           <span className="text-[var(--accent)] font-semibold font-mono transition-all duration-200">
-            ${selectedStrike?.toLocaleString() ?? "—"}
+            ${selectedStrike.toLocaleString()}
           </span>
-          {selectedStrike && (
-            <span className="text-[var(--text-secondary)] text-base font-normal ml-2 transition-all duration-200">
-              ({discountPct}% below spot)
-            </span>
-          )}
+          <span className="text-[var(--text-secondary)] text-base font-normal ml-2 transition-all duration-200">
+            ({discountPct}% below spot)
+          </span>
         </h3>
       </div>
 
-      {/* Desktop slider */}
+      {/* Desktop slider — dollar values as min/max, step=100 for smooth dragging */}
       <div className="hidden sm:block space-y-3">
         <input
-          ref={sliderRef}
           type="range"
-          min={0}
-          max={strikes.length - 1}
-          value={selectedIdx ?? 0}
-          onChange={(e) => handleChange(Number(e.target.value))}
+          min={low}
+          max={high}
+          step={STRIKE_INTERVAL}
+          value={selectedStrike}
+          onChange={(e) => handleSliderChange(Number(e.target.value))}
           className="w-full accent-[var(--accent)] cursor-pointer"
           style={{ height: "8px" }}
         />
         <div className="flex justify-between text-xs text-[var(--text-secondary)] font-mono">
-          <span>${strikes[0].toLocaleString()}</span>
-          <span>${strikes[strikes.length - 1].toLocaleString()}</span>
+          <span>${low.toLocaleString()}</span>
+          <span>${high.toLocaleString()}</span>
         </div>
       </div>
 
       {/* Mobile tappable pills */}
       <div className="sm:hidden">
         <div className="flex flex-wrap gap-2 justify-center">
-          {strikes.map((strike, idx) => {
-            const isSelected = idx === selectedIdx;
+          {strikes.map((strike) => {
+            const isSelected = strike === selectedStrike;
             return (
               <button
                 key={strike}
-                onClick={() => handleChange(idx)}
+                onClick={() => handleSliderChange(strike)}
                 className={`px-3 py-2 rounded-lg text-sm font-mono transition-all duration-150 min-w-[72px] ${
                   isSelected
                     ? "bg-[var(--accent)] text-[var(--bg)] font-semibold shadow-lg shadow-[var(--accent)]/20"
@@ -120,8 +119,8 @@ export function PriceSlider({ spot }: { spot: number }) {
         </div>
       </div>
 
-      {/* Results — no AnimatePresence, smooth crossfade via CSS */}
-      {result && selectedStrike && (
+      {/* Results */}
+      {result && (
         <motion.div
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}

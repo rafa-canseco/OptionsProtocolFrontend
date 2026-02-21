@@ -5,6 +5,7 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { TickingPrice } from "@/components/landing/TickingPrice";
 import { PriceSlider } from "@/components/landing/PriceSlider";
+import { BackgroundEffects } from "@/components/landing/BackgroundEffects";
 
 const SPOT_BASE = 2621;
 
@@ -13,9 +14,12 @@ export default function TryPage() {
   const handleSpotChange = useCallback((p: number) => setSpot(p), []);
 
   return (
-    <div className="bg-[var(--bg)] min-h-screen relative">
+    <div className="bg-[var(--bg)] min-h-screen relative overflow-hidden">
+      {/* Background — same as landing page */}
+      <BackgroundEffects />
+
       {/* Header */}
-      <header className="px-6 py-5 flex items-center justify-between border-b border-[var(--border)]">
+      <header className="relative z-[3] px-6 py-5 flex items-center justify-between">
         <Link href="/" className="text-xl font-bold tracking-tight font-mono">
           <span className="text-[var(--bone)]">b</span>
           <span className="text-[var(--accent)]">1</span>
@@ -30,7 +34,7 @@ export default function TryPage() {
       </header>
 
       {/* Main content */}
-      <main className="max-w-3xl mx-auto px-6 py-12 sm:py-20 space-y-10">
+      <main className="relative z-[3] max-w-3xl mx-auto px-6 py-12 sm:py-20 space-y-10">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
