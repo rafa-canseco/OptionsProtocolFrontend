@@ -12,7 +12,11 @@ function fetchWaitlistCount(): Promise<number> {
     _countPromise = import("@/lib/api")
       .then(({ api }) => api.getWaitlistCount())
       .then((res) => res.count)
-      .catch(() => 0);
+      .catch((err) => {
+        console.error("[SimulationResult] Failed to load waitlist count:", err);
+        _countPromise = null;
+        return 0;
+      });
   }
   return _countPromise;
 }
@@ -34,7 +38,10 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
           setStatus("done");
           if (res.new) onSignup?.();
         })
-        .catch(() => setStatus("error"));
+        .catch((err) => {
+          console.error("[EmailCapture] Waitlist signup failed:", err);
+          setStatus("error");
+        });
     },
     [email, status, onSignup],
   );

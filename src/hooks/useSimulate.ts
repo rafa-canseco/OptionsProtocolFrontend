@@ -78,8 +78,9 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
       .then((data) => {
         if (!cancelled) setApiResult(data);
       })
-      .catch(() => {
-        // API unreachable — mock fallback via ?? below
+      .catch((err) => {
+        console.error("[useSimulate] Simulation API failed:", err);
+        if (!cancelled) setApiResult(null);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
