@@ -38,30 +38,20 @@ function SocialProofBanner({ report }: { report: WeeklyReport }) {
     >
       {ethDown ? (
         <>
-          Last week ETH dropped{" "}
+          ETH dropped{" "}
           <span className="text-red-400 font-mono font-medium">
             {ethChange.toFixed(1)}%
           </span>
-          .{" "}
-          <span className="text-[var(--text)] font-medium">
-            {report.total_users} people
-          </span>{" "}
-          on b1nary{" "}
-          <span className="text-[var(--accent)] font-medium">still earned</span>.
+          {" "}last week.{" "}
+          <span className="text-[var(--text)] font-medium">{report.total_users} people</span> on
+          b1nary{" "}
+          <span className="text-[var(--accent)] font-medium">got paid</span>.
         </>
       ) : (
         <>
-          Last week{" "}
-          <span className="text-[var(--text)] font-medium">
-            {report.total_users} people
-          </span>{" "}
-          set a price on b1nary.{" "}
-          ETH went up{" "}
-          <span className="text-emerald-400 font-mono font-medium">
-            +{ethChange.toFixed(1)}%
-          </span>
-          .{" "}
-          <span className="text-[var(--accent)] font-medium">They earned too</span>.
+          <span className="text-[var(--text)] font-medium">{report.total_users} people</span> set
+          a price last week.{" "}
+          <span className="text-[var(--accent)] font-medium">They got paid</span>.
         </>
       )}
     </motion.div>

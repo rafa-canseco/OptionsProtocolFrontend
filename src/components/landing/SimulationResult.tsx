@@ -45,30 +45,39 @@ function EmailCapture() {
 
   if (status === "done") {
     return (
-      <p className="text-sm text-[var(--accent)] animate-fade-in">
-        You&apos;re in. First report drops Friday.
-      </p>
+      <div className="rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-4 py-3 animate-fade-in">
+        <p className="text-sm font-medium text-[var(--accent)]">
+          You&apos;re in. First report drops Friday.
+        </p>
+      </div>
     );
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex gap-2">
-      <input
-        type="email"
-        required
-        placeholder="you@email.com"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
-        className="flex-1 rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none focus:border-[var(--accent)] transition-colors"
-      />
-      <button
-        type="submit"
-        disabled={status === "submitting"}
-        className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
-      >
-        {status === "submitting" ? "..." : "Notify me"}
-      </button>
-    </form>
+    <div className="space-y-2">
+      <form onSubmit={handleSubmit} className="flex gap-2">
+        <input
+          type="email"
+          required
+          placeholder="you@email.com"
+          value={email}
+          onChange={(e) => { setEmail(e.target.value); if (status === "error") setStatus("idle"); }}
+          className="flex-1 rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none focus:border-[var(--accent)] transition-colors"
+        />
+        <button
+          type="submit"
+          disabled={status === "submitting"}
+          className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+        >
+          {status === "submitting" ? "..." : "Send me the recap"}
+        </button>
+      </form>
+      {status === "error" && (
+        <p className="text-xs text-[var(--danger)] animate-fade-in">
+          Something went wrong. Try again.
+        </p>
+      )}
+    </div>
   );
 }
 
@@ -160,7 +169,7 @@ export const SimulationResult = memo(function SimulationResult({
       {/* Email capture — right after aha-moment, before CTA */}
       <div className="rounded-xl bg-[var(--bg)]/60 border border-[var(--border)] p-4 space-y-2">
         <p className="text-sm text-[var(--text)]">
-          Want results like this every week?
+          See how this plays out every week?
         </p>
         <EmailCapture />
       </div>
