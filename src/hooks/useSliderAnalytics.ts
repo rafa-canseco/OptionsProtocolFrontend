@@ -4,6 +4,8 @@ import { useRef, useCallback } from "react";
 
 const DEBOUNCE_MS = 500;
 
+let fallbackSessionId: string | null = null;
+
 function getSessionId(): string {
   try {
     const key = "b1nary_session_id";
@@ -14,7 +16,8 @@ function getSessionId(): string {
     }
     return id;
   } catch {
-    return crypto.randomUUID();
+    if (!fallbackSessionId) fallbackSessionId = crypto.randomUUID();
+    return fallbackSessionId;
   }
 }
 
