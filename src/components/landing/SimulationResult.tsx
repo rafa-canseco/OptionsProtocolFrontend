@@ -92,10 +92,10 @@ export const SimulationResult = memo(function SimulationResult({
       {/* CTA */}
       <div className="pt-2">
         <Link
-          href="/earn"
+          href="/"
           className="inline-block rounded-xl px-8 py-3 text-sm font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
-          Try it this week — free simulator, 10 seconds
+          Learn how it works
         </Link>
       </div>
     </div>

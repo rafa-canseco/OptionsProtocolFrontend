@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, memo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef, memo } from "react";
 import { motion } from "framer-motion";
 import { useSimulate, weekLabel } from "@/hooks/useSimulate";
 import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
@@ -49,12 +49,16 @@ export function PriceSlider({ spot }: { spot: number }) {
   const { trackSliderUse } = useSliderAnalytics();
 
   const [selectedStrike, setSelectedStrike] = useState<number>(() => defaultStrikeFor(spot, "buy"));
+  const prevSideRef = useRef(side);
 
-  // Reset strike to default when side changes or range shifts
+  // Reset to default only when side changes; otherwise just clamp to range
   useEffect(() => {
-    const def = defaultStrikeFor(spot, side);
-    const clamped = Math.max(low, Math.min(high, def));
-    setSelectedStrike(clamped);
+    if (prevSideRef.current !== side) {
+      prevSideRef.current = side;
+      setSelectedStrike(Math.max(low, Math.min(high, defaultStrikeFor(spot, side))));
+    } else {
+      setSelectedStrike((prev) => Math.max(low, Math.min(high, prev)));
+    }
   }, [side, spot, low, high]);
 
   const { result, loading } = useSimulate(selectedStrike, side, spot);

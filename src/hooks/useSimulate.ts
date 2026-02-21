@@ -59,16 +59,13 @@ function mockSimulate(strike: number, side: "buy" | "sell", spot: number): Simul
 }
 
 export function useSimulate(strike: number | null, side: "buy" | "sell", spot: number) {
-  // Mock path: synchronous via useMemo — no loading flash, no re-renders
-  const mockResult = useMemo(() => {
-    if (!USE_MOCK || strike === null) return null;
+  const mock = useMemo(() => {
+    if (strike === null) return null;
     return mockSimulate(strike, side, spot);
   }, [strike, side, spot]);
 
-  // Real API path (when B1N-5 ships)
   const [apiResult, setApiResult] = useState<SimulateResult | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     if (USE_MOCK || strike === null) return;
@@ -79,13 +76,10 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
     import("@/lib/api").then(({ api }) =>
       api.simulate(strike, side)
         .then((data) => {
-          if (!cancelled) {
-            setApiResult(data);
-            setError(null);
-          }
+          if (!cancelled) setApiResult(data);
         })
-        .catch((e) => {
-          if (!cancelled) setError(e instanceof Error ? e.message : "Simulation failed");
+        .catch(() => {
+          // API unreachable — mock data will be used as fallback
         })
         .finally(() => {
           if (!cancelled) setLoading(false);
@@ -94,8 +88,6 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
     return () => { cancelled = true; };
   }, [strike, side, spot]);
 
-  if (USE_MOCK) {
-    return { result: mockResult, loading: false, error: null };
-  }
-  return { result: apiResult, loading, error };
+  // Real API result takes priority; mock is always the fallback
+  return { result: apiResult ?? mock, loading, error: null };
 }
