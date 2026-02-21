@@ -71,7 +71,6 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
     if (USE_MOCK || strike === null) return;
 
     let cancelled = false;
-    setApiResult(null);
     setLoading(true);
 
     import("@/lib/api")

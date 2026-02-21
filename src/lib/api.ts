@@ -73,20 +73,6 @@ export interface SettleResult {
   delivered_amount?: number;
 }
 
-export interface WeeklyReport {
-  week_start: string;
-  week_end: string;
-  total_users: number;
-  total_positions: number;
-  total_simulated_premium: number;
-  total_assignments: number;
-  eth_open: number;
-  eth_close: number;
-  eth_high: number;
-  eth_low: number;
-  narrative_data: Record<string, unknown>;
-}
-
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -106,7 +92,7 @@ export const api = {
     fetchAPI<Position[]>(`/positions/${address}`),
 
   joinWaitlist: (email: string) =>
-    fetchAPI<{ ok: boolean }>("/waitlist", {
+    fetchAPI<{ ok: boolean; new: boolean }>("/waitlist", {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
@@ -135,6 +121,7 @@ export const api = {
       body: JSON.stringify(event),
     }),
 
-  getWeeklyReport: () =>
-    fetchAPI<WeeklyReport | null>("/results/weekly"),
+  getWaitlistCount: () =>
+    fetchAPI<{ count: number }>("/waitlist/count"),
+
 };
