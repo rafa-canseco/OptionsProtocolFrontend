@@ -17,8 +17,8 @@ export function TradeLog({ positions, earnBase = "/earn" }: Props) {
   const [showAll, setShowAll] = useState(false);
 
   const sorted = [...positions].sort((a, b) => {
-    const tA = a.settled_at ? new Date(a.settled_at).getTime() : 0;
-    const tB = b.settled_at ? new Date(b.settled_at).getTime() : 0;
+    const tA = a.settled_at ? new Date(a.settled_at).getTime() : new Date(a.indexed_at).getTime();
+    const tB = b.settled_at ? new Date(b.settled_at).getTime() : new Date(b.indexed_at).getTime();
     return tB - tA;
   });
 
