@@ -5,7 +5,6 @@ import { useRef, useState, useCallback, useEffect, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { TickingPrice } from "./TickingPrice";
 import { CursorGlow } from "./CursorGlow";
-import { PriceSlider } from "./PriceSlider";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
@@ -353,7 +352,7 @@ function HeroSection() {
           className="flex flex-wrap gap-4 pt-2"
         >
           <Link
-            href="/earn"
+            href="/try"
             className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
             Try the beta
@@ -381,36 +380,6 @@ function HeroSection() {
           &darr;
         </motion.span>
       </motion.div>
-    </section>
-  );
-}
-
-/* ── Section 1b: Interactive Slider ── */
-
-function SliderSection({ spot }: { spot: number }) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-10%" });
-
-  return (
-    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-10">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6 }}
-          className="text-[clamp(1.8rem,5vw,3rem)] font-light text-[var(--bone)] tracking-tight"
-        >
-          Pick a price. See what you&apos;d earn.
-        </motion.h2>
-
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-        >
-          <PriceSlider spot={spot} />
-        </motion.div>
-      </div>
     </section>
   );
 }
@@ -930,7 +899,6 @@ export function LandingPage() {
       </header>
 
       <HeroSection />
-      <SliderSection spot={spot} />
       <MechanismSection side={side} onSideChange={setSide} spot={spot} onSpotChange={handleSpotChange} />
       <YieldSourceSection />
       <LoopSection side={side} />

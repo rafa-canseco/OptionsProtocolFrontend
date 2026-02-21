@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import type { SimulateResult } from "@/lib/api";
 
 const USE_MOCK = true; // flip to false when B1N-5 ships
@@ -59,40 +59,28 @@ function mockSimulate(strike: number, side: "buy" | "sell", spot: number): Simul
 }
 
 export function useSimulate(strike: number | null, side: "buy" | "sell", spot: number) {
-  const [result, setResult] = useState<SimulateResult | null>(null);
+  // Mock path: synchronous via useMemo — no loading flash, no re-renders
+  const mockResult = useMemo(() => {
+    if (!USE_MOCK || strike === null) return null;
+    return mockSimulate(strike, side, spot);
+  }, [strike, side, spot]);
+
+  // Real API path (when B1N-5 ships)
+  const [apiResult, setApiResult] = useState<SimulateResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (strike === null) {
-      setResult(null);
-      return;
-    }
+    if (USE_MOCK || strike === null) return;
 
     let cancelled = false;
     setLoading(true);
 
-    if (USE_MOCK) {
-      // Simulate a short delay for realism
-      const timer = setTimeout(() => {
-        if (!cancelled) {
-          setResult(mockSimulate(strike, side, spot));
-          setLoading(false);
-          setError(null);
-        }
-      }, 150);
-      return () => {
-        cancelled = true;
-        clearTimeout(timer);
-      };
-    }
-
-    // Real API call (when B1N-5 ships)
     import("@/lib/api").then(({ api }) =>
       api.simulate(strike, side)
         .then((data) => {
           if (!cancelled) {
-            setResult(data);
+            setApiResult(data);
             setError(null);
           }
         })
@@ -106,5 +94,8 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
     return () => { cancelled = true; };
   }, [strike, side, spot]);
 
-  return { result, loading, error };
+  if (USE_MOCK) {
+    return { result: mockResult, loading: false, error: null };
+  }
+  return { result: apiResult, loading, error };
 }

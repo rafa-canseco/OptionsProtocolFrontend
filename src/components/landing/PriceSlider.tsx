@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useCallback, useRef, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useMemo, useCallback, useRef, useEffect, memo } from "react";
+import { motion } from "framer-motion";
 import { useSimulate, weekLabel } from "@/hooks/useSimulate";
 import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
 import { SimulationResult } from "./SimulationResult";
@@ -27,10 +27,14 @@ function defaultStrike(strikes: number[], spot: number): number {
   );
 }
 
+const WEEK_LABEL = weekLabel();
+
+const MemoizedResult = memo(SimulationResult);
+
 export function PriceSlider({ spot }: { spot: number }) {
   const strikes = useMemo(() => generateStrikes(spot), [spot]);
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null);
-  const side: "buy" | "sell" = "buy"; // slider is buy-side only for landing page
+  const side: "buy" | "sell" = "buy";
   const { trackSliderUse } = useSliderAnalytics();
   const sliderRef = useRef<HTMLInputElement>(null);
 
@@ -63,29 +67,14 @@ export function PriceSlider({ spot }: { spot: number }) {
     <div className="space-y-8">
       {/* Header */}
       <div className="space-y-2">
-        <p className="text-[var(--text-secondary)] text-lg">
-          ETH is{" "}
-          <span className="text-[var(--text)] font-bold font-mono">
-            ${spot.toLocaleString()}
-          </span>
-        </p>
         <h3 className="text-[clamp(1.3rem,3vw,2rem)] text-[var(--bone)] font-light">
           I&apos;d buy ETH at{" "}
-          <AnimatePresence mode="wait">
-            <motion.span
-              key={selectedStrike}
-              initial={{ opacity: 0, y: -8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 8 }}
-              transition={{ duration: 0.15 }}
-              className="text-[var(--accent)] font-semibold font-mono"
-            >
-              ${selectedStrike?.toLocaleString() ?? "—"}
-            </motion.span>
-          </AnimatePresence>
+          <span className="text-[var(--accent)] font-semibold font-mono transition-all duration-200">
+            ${selectedStrike?.toLocaleString() ?? "—"}
+          </span>
           {selectedStrike && (
-            <span className="text-[var(--text-secondary)] text-base font-normal ml-2">
-              ({discountPct}% below)
+            <span className="text-[var(--text-secondary)] text-base font-normal ml-2 transition-all duration-200">
+              ({discountPct}% below spot)
             </span>
           )}
         </h3>
@@ -118,7 +107,7 @@ export function PriceSlider({ spot }: { spot: number }) {
               <button
                 key={strike}
                 onClick={() => handleChange(idx)}
-                className={`px-3 py-2 rounded-lg text-sm font-mono transition-all min-w-[72px] ${
+                className={`px-3 py-2 rounded-lg text-sm font-mono transition-all duration-150 min-w-[72px] ${
                   isSelected
                     ? "bg-[var(--accent)] text-[var(--bg)] font-semibold shadow-lg shadow-[var(--accent)]/20"
                     : "bg-[var(--surface)] text-[var(--text-secondary)] border border-[var(--border)] hover:border-[var(--accent)]/40"
@@ -131,26 +120,22 @@ export function PriceSlider({ spot }: { spot: number }) {
         </div>
       </div>
 
-      {/* Results */}
-      <AnimatePresence mode="wait">
-        {result && selectedStrike && (
-          <motion.div
-            key={selectedStrike}
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -8 }}
-            transition={{ duration: 0.3 }}
-          >
-            <SimulationResult
-              result={result}
-              strike={selectedStrike}
-              side={side}
-              loading={loading}
-              weekLabel={weekLabel()}
-            />
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* Results — no AnimatePresence, smooth crossfade via CSS */}
+      {result && selectedStrike && (
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <MemoizedResult
+            result={result}
+            strike={selectedStrike}
+            side={side}
+            loading={loading}
+            weekLabel={WEEK_LABEL}
+          />
+        </motion.div>
+      )}
     </div>
   );
 }
