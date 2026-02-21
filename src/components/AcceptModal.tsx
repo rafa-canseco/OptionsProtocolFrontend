@@ -300,10 +300,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         protocol_fee: "0",
         outcome: null,
       };
-      saveOptimistic(optimisticPos);
-
       onAccepted({ amount });
       window.dispatchEvent(new Event("balance:refetch"));
+
+      try { saveOptimistic(optimisticPos); } catch { /* best-effort; backend will index it */ }
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
       if (currentStep === "idle") {

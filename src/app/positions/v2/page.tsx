@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
@@ -18,26 +17,7 @@ export default function PositionsV2Page() {
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
-  const { optimistic, removeMatching } = useOptimisticPositions();
-
-  // Remove optimistic entries that the backend has now indexed
-  useEffect(() => {
-    if (positions.length > 0 && optimistic.length > 0) {
-      removeMatching(positions);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [positions, optimistic.length]);
-
-  // Merge: optimistic first, then real — filter out already-matched optimistic
-  const allPositions = [
-    ...optimistic.filter(
-      (o) => !positions.some(
-        (p) => p.otoken_address.toLowerCase() === o.otoken_address.toLowerCase()
-            && p.user_address.toLowerCase() === o.user_address.toLowerCase(),
-      ),
-    ),
-    ...positions,
-  ];
+  const allPositions = useOptimisticPositions(positions);
 
   const active = allPositions.filter((p) => !p.is_settled);
   const history = allPositions.filter((p) => p.is_settled);
