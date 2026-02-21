@@ -1,14 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import { PositionCard } from "@/components/PositionCard";
 import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { TradeLog } from "@/components/TradeLog";
+import { ShareButton } from "@/components/results/ShareButton";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
+import { useUserResults } from "@/hooks/useUserResults";
 import type { Position } from "@/lib/api";
 
 export default function PositionsV2Page() {
@@ -18,6 +21,7 @@ export default function PositionsV2Page() {
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
+  const { stats, weeklyResult } = useUserResults(address);
 
   const active = allPositions
     .filter((p) => !p.is_settled)
@@ -73,6 +77,58 @@ export default function PositionsV2Page() {
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} />
+
+      {/* Simulated track record */}
+      {stats && (
+        <section className="rounded-2xl border border-[var(--accent)]/20 bg-[var(--accent)]/5 p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-[var(--accent)] uppercase tracking-wider">
+              Simulator track record
+            </h2>
+            <div className="flex items-center gap-2">
+              <ShareButton
+                premiumEarned={weeklyResult?.total_simulated_premium}
+                className="text-xs px-3 py-1.5"
+              />
+              <Link
+                href={`/results/${address}`}
+                className="text-xs text-[var(--accent)] hover:underline"
+              >
+                View card →
+              </Link>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Cumulative P&L</p>
+              <p className={`text-xl font-bold font-mono ${stats.cumulative_pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                {stats.cumulative_pnl >= 0 ? "+" : ""}${stats.cumulative_pnl.toFixed(0)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Total premium</p>
+              <p className="text-xl font-bold font-mono text-[var(--accent)]">
+                ${stats.total_premium_earned.toFixed(0)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Weeks active</p>
+              <p className="text-xl font-bold font-mono text-[var(--text)]">
+                {stats.weeks_active}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Best week</p>
+              <p className="text-xl font-bold font-mono text-emerald-400">
+                +${stats.best_week_pnl.toFixed(0)}
+              </p>
+            </div>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] italic">
+            If this were real money, you&apos;d have earned ${stats.total_premium_earned.toFixed(0)} in premium.
+          </p>
+        </section>
+      )}
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">

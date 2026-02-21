@@ -73,6 +73,41 @@ export interface SettleResult {
   delivered_amount?: number;
 }
 
+export interface WeeklyReport {
+  week_start: string;
+  week_end: string;
+  total_users: number;
+  total_positions: number;
+  total_simulated_premium: number;
+  total_assignments: number;
+  eth_open: number;
+  eth_close: number;
+  eth_high: number;
+  eth_low: number;
+  narrative_data: Record<string, unknown>;
+}
+
+export interface UserWeeklyResult {
+  user_address: string;
+  week_start: string;
+  week_end: string;
+  positions_opened: number;
+  total_simulated_premium: number;
+  assignments: number;
+  simulated_pnl: number;
+  cumulative_pnl: number;
+}
+
+export interface UserStats {
+  user_address: string;
+  weeks_active: number;
+  cumulative_pnl: number;
+  best_week_pnl: number;
+  total_premium_earned: number;
+  total_assignments: number;
+  total_positions: number;
+}
+
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -120,4 +155,13 @@ export const api = {
       method: "POST",
       body: JSON.stringify(event),
     }),
+
+  getWeeklyReport: () =>
+    fetchAPI<WeeklyReport | null>("/results/weekly"),
+
+  getUserWeeklyResult: (address: string) =>
+    fetchAPI<UserWeeklyResult | null>(`/results/weekly/${address}`),
+
+  getUserStats: (address: string) =>
+    fetchAPI<UserStats | null>(`/results/stats/${address}`),
 };

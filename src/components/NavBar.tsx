@@ -10,10 +10,12 @@ import { ConnectButton } from "./ConnectButton";
 const LINKS_V1 = [
   { href: "/earn", label: "Earn" },
   { href: "/positions", label: "My earnings" },
+  { href: "/results", label: "Results" },
 ];
 const LINKS_V2 = [
   { href: "/earn/v2", label: "Earn" },
   { href: "/positions/v2", label: "My earnings" },
+  { href: "/results", label: "Results" },
 ];
 
 export function NavBar() {
