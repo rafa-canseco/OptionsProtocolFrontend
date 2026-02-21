@@ -33,7 +33,7 @@ export function DistanceIndicator({
     color = "var(--danger)";
     label = `${distPct.toFixed(1)}% away`;
   } else if (distPct < 10) {
-    color = "#F97316";
+    color = "#FB923C";
     label = `${distPct.toFixed(1)}% away`;
   } else {
     color = "var(--accent)";

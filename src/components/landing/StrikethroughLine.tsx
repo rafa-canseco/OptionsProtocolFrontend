@@ -19,7 +19,7 @@ export function StrikethroughLine({
         initial={{ opacity: 0, y: 10 }}
         animate={inView ? { opacity: 0.5, y: 0 } : { opacity: 0, y: 10 }}
         transition={{ duration: 0.5, delay, ease: "easeOut" }}
-        className="text-[#71717A]"
+        className="text-[var(--text-secondary)]"
       >
         {children}
       </motion.span>
@@ -27,7 +27,7 @@ export function StrikethroughLine({
         initial={{ scaleX: 0 }}
         animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
         transition={{ duration: 0.4, delay: delay + 0.3, ease: "easeOut" }}
-        className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#DC2626] origin-left"
+        className="absolute left-0 right-0 top-1/2 h-[2px] bg-[var(--danger)] origin-left"
       />
     </div>
   );

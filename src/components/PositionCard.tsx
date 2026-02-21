@@ -114,8 +114,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         <>
           {/* Header */}
           <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-[var(--text)]">
-              {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+            <p className="text-base font-semibold text-[var(--bone)]">
+              {isBuy ? "Buy" : "Sell"} ETH at <span className="font-mono">${strike.toLocaleString()}</span>/ETH
             </p>
             {optimistic && (
               <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
@@ -126,7 +126,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           </div>
 
           {/* Countdown — prominent */}
-          <p className="text-lg font-bold text-[var(--text)]">
+          <p className="text-lg font-bold text-[var(--bone)]">
             {expiryDays > 1
               ? `${expiryDays}d left`
               : expiryDays === 1
@@ -164,8 +164,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         <div className="space-y-3">
           {/* Badge */}
           <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-[var(--text)]">
-              {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+            <p className="text-base font-semibold text-[var(--bone)]">
+              {isBuy ? "Buy" : "Sell"} ETH at <span className="font-mono">${strike.toLocaleString()}</span>/ETH
             </p>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
               Earned
@@ -201,8 +201,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         <div className="space-y-3">
           {/* Badge — positive framing */}
           <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-[var(--text)]">
-              {isBuy ? "Bought" : "Sold"} {ethAmountDisplay} ETH
+            <p className="text-base font-semibold text-[var(--bone)]">
+              {isBuy ? "Bought" : "Sold"} <span className="font-mono">{ethAmountDisplay}</span> ETH
             </p>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
               Assigned

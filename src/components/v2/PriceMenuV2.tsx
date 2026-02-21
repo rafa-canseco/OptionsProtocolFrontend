@@ -263,7 +263,7 @@ function StrikeCard({
             : "hover:bg-[var(--surface)] hover:pl-6"
       }`}
     >
-      <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--text)]"} transition-all duration-200 inline-block`}>
+      <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
         ${quote.strike.toLocaleString()}/ETH
       </span>
       <div className="text-right">
@@ -420,7 +420,7 @@ export function PriceMenuV2() {
               onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 side === "buy"
-                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
@@ -430,7 +430,7 @@ export function PriceMenuV2() {
               onClick={() => { setSide("sell"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 side === "sell"
-                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  ? "bg-[var(--bg)] text-[var(--danger)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >

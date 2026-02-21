@@ -37,17 +37,17 @@ export function PortfolioSummary({ positions }: Props) {
     <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
       <div>
         <p className="text-xs text-[var(--text-secondary)]">Total Earned</p>
-        <p className="text-xl font-bold text-[var(--accent)]">${premiumEarned.toFixed(0)}</p>
+        <p className="text-xl font-bold text-[var(--accent)] font-mono">${premiumEarned.toFixed(0)}</p>
       </div>
       <div>
         <p className="text-xs text-[var(--text-secondary)]">Active Capital</p>
-        <p className="text-xl font-bold text-[var(--text)]">
+        <p className="text-xl font-bold text-[var(--bone)] font-mono">
           ${activeCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}
         </p>
       </div>
       <div>
         <p className="text-xs text-[var(--text-secondary)]">Avg APR</p>
-        <p className="text-xl font-bold text-[var(--text)]">{Math.round(avgApr)}%</p>
+        <p className="text-xl font-bold text-[var(--accent)] font-mono">{Math.round(avgApr)}%</p>
       </div>
     </div>
   );

@@ -334,15 +334,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         {/* Title + earnings hero */}
         <div>
-          <p className="text-lg font-semibold text-[var(--text)]">
+          <p className="text-lg font-semibold text-[var(--bone)]">
             {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}/ETH
           </p>
           {amount > 0 && (
             <div className="mt-1 flex items-baseline gap-3">
-              <p className="text-2xl font-bold text-[var(--accent)]">
+              <p className="text-2xl font-bold text-[var(--accent)] font-mono">
                 {premiumDisplay}
               </p>
-              <p className="text-sm font-semibold text-[var(--text-secondary)]">
+              <p className="text-sm font-semibold text-[var(--accent)] font-mono">
                 {Math.round(apr)}% APR
               </p>
             </div>
@@ -362,7 +362,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                     disabled={loading || walletBalance <= 0}
                     className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
                       activePercent === pct
-                        ? "bg-[var(--accent)] text-white"
+                        ? "bg-[var(--accent)] text-[var(--bg)]"
                         : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
                     } disabled:opacity-40`}
                   >
@@ -444,7 +444,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         <button
           onClick={handleAccept}
           disabled={loading || amount < minAmount || amount > maxAmount}
-          className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+          className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
         >
           {buttonLabel}
         </button>
