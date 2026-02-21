@@ -97,14 +97,16 @@ export const SimulationResult = memo(function SimulationResult({
           </span>
           {!result.was_assigned && (
             <span className="text-xs text-[var(--text-secondary)] opacity-60 ml-2">
-              (never dropped below ${result.eth_low_of_week.toLocaleString()})
+              ({side === "buy"
+                ? `never dropped below $${result.eth_low_of_week.toLocaleString()}`
+                : `never rose above $${result.eth_low_of_week.toLocaleString()}`})
             </span>
           )}
         </p>
 
         <p className="text-[clamp(1.3rem,3vw,1.8rem)] font-semibold text-[var(--accent)]">
           {result.was_assigned ? (
-            <>You bought ETH at ${strike.toLocaleString()} + earned ${result.premium_earned}</>
+            <>You {side === "buy" ? "bought" : "sold"} ETH at ${strike.toLocaleString()} + earned ${result.premium_earned}</>
           ) : (
             <>You would have earned ${result.premium_earned}</>
           )}

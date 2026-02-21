@@ -8,12 +8,25 @@ import { SimulationResult } from "./SimulationResult";
 
 const STRIKE_INTERVAL = 100; // $100 increments
 
-/** Compute strike range from spot: spot - 20% to spot - 2%, rounded to $100 */
-function strikeRange(spot: number): { low: number; high: number } {
+/** Compute strike range based on side */
+function strikeRange(spot: number, side: "buy" | "sell"): { low: number; high: number } {
+  if (side === "buy") {
+    return {
+      low: Math.ceil((spot * 0.8) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
+      high: Math.floor((spot * 0.98) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
+    };
+  }
+  // sell: spot + 2% to spot + 20%
   return {
-    low: Math.ceil((spot * 0.8) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
-    high: Math.floor((spot * 0.98) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
+    low: Math.ceil((spot * 1.02) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
+    high: Math.floor((spot * 1.2) / STRIKE_INTERVAL) * STRIKE_INTERVAL,
   };
+}
+
+/** Default strike: ~10% OTM */
+function defaultStrikeFor(spot: number, side: "buy" | "sell"): number {
+  const target = side === "buy" ? spot * 0.9 : spot * 1.1;
+  return Math.round(target / STRIKE_INTERVAL) * STRIKE_INTERVAL;
 }
 
 /** Generate all discrete strikes for mobile pills */
@@ -30,25 +43,19 @@ const WEEK_LABEL = weekLabel();
 const MemoizedResult = memo(SimulationResult);
 
 export function PriceSlider({ spot }: { spot: number }) {
-  const { low, high } = useMemo(() => strikeRange(spot), [spot]);
+  const [side, setSide] = useState<"buy" | "sell">("buy");
+  const { low, high } = useMemo(() => strikeRange(spot, side), [spot, side]);
   const strikes = useMemo(() => generateStrikes(low, high), [low, high]);
-  const defaultVal = useMemo(() => {
-    const target = spot * 0.9;
-    return Math.round(target / STRIKE_INTERVAL) * STRIKE_INTERVAL;
-  }, [spot]);
-
-  const [selectedStrike, setSelectedStrike] = useState<number>(defaultVal);
-  const side: "buy" | "sell" = "buy";
   const { trackSliderUse } = useSliderAnalytics();
 
-  // Clamp selected strike when range changes
+  const [selectedStrike, setSelectedStrike] = useState<number>(() => defaultStrikeFor(spot, "buy"));
+
+  // Reset strike to default when side changes or range shifts
   useEffect(() => {
-    setSelectedStrike((prev) => {
-      if (prev < low) return low;
-      if (prev > high) return high;
-      return prev;
-    });
-  }, [low, high]);
+    const def = defaultStrikeFor(spot, side);
+    const clamped = Math.max(low, Math.min(high, def));
+    setSelectedStrike(clamped);
+  }, [side, spot, low, high]);
 
   const { result, loading } = useSimulate(selectedStrike, side, spot);
 
@@ -60,26 +67,56 @@ export function PriceSlider({ spot }: { spot: number }) {
     [side, trackSliderUse],
   );
 
+  const handleSideChange = useCallback((newSide: "buy" | "sell") => {
+    setSide(newSide);
+  }, []);
+
   if (low >= high) return null;
 
-  const discountPct = Math.round(((spot - selectedStrike) / spot) * 100);
+  const distancePct = side === "buy"
+    ? Math.round(((spot - selectedStrike) / spot) * 100)
+    : Math.round(((selectedStrike - spot) / spot) * 100);
 
   return (
     <div className="space-y-8">
+      {/* Side toggle */}
+      <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit">
+        <button
+          onClick={() => handleSideChange("buy")}
+          className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+            side === "buy"
+              ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+          }`}
+        >
+          I&apos;d buy
+        </button>
+        <button
+          onClick={() => handleSideChange("sell")}
+          className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+            side === "sell"
+              ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+          }`}
+        >
+          I&apos;d sell
+        </button>
+      </div>
+
       {/* Header */}
       <div className="space-y-2">
         <h3 className="text-[clamp(1.3rem,3vw,2rem)] text-[var(--bone)] font-light">
-          I&apos;d buy ETH at{" "}
+          I&apos;d {side} ETH at{" "}
           <span className="text-[var(--accent)] font-semibold font-mono transition-all duration-200">
             ${selectedStrike.toLocaleString()}
           </span>
           <span className="text-[var(--text-secondary)] text-base font-normal ml-2 transition-all duration-200">
-            ({discountPct}% below spot)
+            ({distancePct}% {side === "buy" ? "below" : "above"} spot)
           </span>
         </h3>
       </div>
 
-      {/* Desktop slider — dollar values as min/max, step=100 for smooth dragging */}
+      {/* Desktop slider */}
       <div className="hidden sm:block space-y-3">
         <input
           type="range"
