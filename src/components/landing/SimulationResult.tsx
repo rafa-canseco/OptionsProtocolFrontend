@@ -1,8 +1,76 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useState, useCallback, type FormEvent } from "react";
 import Link from "next/link";
 import type { SimulateResult } from "@/lib/api";
+
+function getSessionId(): string {
+  try {
+    const key = "b1nary_session_id";
+    let id = sessionStorage.getItem(key);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return crypto.randomUUID();
+  }
+}
+
+function EmailCapture() {
+  const [email, setEmail] = useState("");
+  const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
+
+  const handleSubmit = useCallback(
+    (e: FormEvent) => {
+      e.preventDefault();
+      if (!email || status === "submitting" || status === "done") return;
+
+      setStatus("submitting");
+
+      import("@/lib/api")
+        .then(({ api }) =>
+          api.trackEvent({
+            session_id: getSessionId(),
+            event_type: "email_signup",
+            data: { email },
+          }),
+        )
+        .then(() => setStatus("done"))
+        .catch(() => setStatus("error"));
+    },
+    [email, status],
+  );
+
+  if (status === "done") {
+    return (
+      <p className="text-sm text-[var(--accent)] animate-fade-in">
+        You&apos;re in. First report drops Friday.
+      </p>
+    );
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="flex gap-2">
+      <input
+        type="email"
+        required
+        placeholder="you@email.com"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+        className="flex-1 rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none focus:border-[var(--accent)] transition-colors"
+      />
+      <button
+        type="submit"
+        disabled={status === "submitting"}
+        className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
+      >
+        {status === "submitting" ? "..." : "Notify me"}
+      </button>
+    </form>
+  );
+}
 
 function outcomeNarrative(
   result: SimulateResult,
@@ -97,6 +165,14 @@ export const SimulationResult = memo(function SimulationResult({
         >
           Learn how it works
         </Link>
+      </div>
+
+      {/* Email capture */}
+      <div className="border-t border-[var(--border)] pt-4 space-y-2">
+        <p className="text-sm text-[var(--text-secondary)]">
+          Get weekly results in your inbox
+        </p>
+        <EmailCapture />
       </div>
     </div>
   );
