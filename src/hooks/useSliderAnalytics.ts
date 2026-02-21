@@ -24,14 +24,14 @@ export function useSliderAnalytics() {
       const event = {
         session_id: getSessionId(),
         event_type: eventType,
-        timestamp: new Date().toISOString(),
-        ...data,
+        data,
       };
 
-      // TODO: replace with api.trackEvent() when B1N-5 ships
-      if (process.env.NODE_ENV === "development") {
-        console.log("[analytics]", event);
-      }
+      import("@/lib/api").then(({ api }) =>
+        api.trackEvent(event).catch(() => {
+          // analytics is best-effort — never block UX
+        }),
+      );
     }, DEBOUNCE_MS);
   }, []);
 

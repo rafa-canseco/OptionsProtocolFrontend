@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import type { SimulateResult } from "@/lib/api";
 
-const USE_MOCK = true; // flip to false when B1N-5 ships
+const USE_MOCK = false;
 
 /** Get the most recent Friday 08:00 UTC before now */
 function lastFriday(): Date {
