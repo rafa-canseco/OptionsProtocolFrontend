@@ -46,6 +46,24 @@ export interface Position {
   outcome: string | null;
 }
 
+export interface SimulateResult {
+  premium_earned: number;
+  was_assigned: boolean;
+  eth_low_of_week: number;
+  eth_close: number;
+  comparison: {
+    hold_return: number;
+    stake_return: number;
+    dca_return: number;
+  };
+}
+
+export interface AnalyticsEvent {
+  session_id: string;
+  event_type: string;
+  data?: Record<string, unknown>;
+}
+
 export interface SettleResult {
   settled: boolean;
   is_itm: boolean;
@@ -92,5 +110,14 @@ export const api = {
         otoken_address: otokenAddress,
         ...(forceItm !== undefined ? { force_itm: forceItm } : {}),
       }),
+    }),
+
+  simulate: (strike: number, side: "buy" | "sell") =>
+    fetchAPI<SimulateResult>(`/prices/simulate?strike=${strike}&side=${side}`),
+
+  trackEvent: (event: AnalyticsEvent) =>
+    fetchAPI<{ ok: boolean }>("/analytics/event", {
+      method: "POST",
+      body: JSON.stringify(event),
     }),
 };
