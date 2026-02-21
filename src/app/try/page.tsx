@@ -27,10 +27,7 @@ const MOCK_REPORT: WeeklyReport = {
 
 function SocialProofBanner({ report }: { report: WeeklyReport }) {
   const ethChange = ((report.eth_close - report.eth_open) / report.eth_open) * 100;
-  const avgReturn =
-    report.total_positions > 0
-      ? report.total_simulated_premium / report.total_positions
-      : 0;
+  const ethDown = ethChange < 0;
 
   return (
     <motion.div
@@ -39,33 +36,34 @@ function SocialProofBanner({ report }: { report: WeeklyReport }) {
       transition={{ duration: 0.5, delay: 0.4 }}
       className="rounded-xl border border-[var(--border)] bg-[var(--surface)]/60 backdrop-blur-sm px-4 py-2.5 text-sm text-[var(--text-secondary)]"
     >
-      <span className="hidden sm:inline">
-        Last week:{" "}
-        <span className="text-[var(--text)] font-medium">{report.total_users} users</span> set
-        a price. Avg premium:{" "}
-        <span className="text-[var(--accent)] font-mono font-medium">
-          ${avgReturn.toFixed(0)}
-        </span>
-        /position. ETH:{" "}
-        <span
-          className={`font-mono font-medium ${ethChange >= 0 ? "text-emerald-400" : "text-red-400"}`}
-        >
-          {ethChange >= 0 ? "+" : ""}
-          {ethChange.toFixed(1)}%
-        </span>
-        .
-      </span>
-      <span className="sm:hidden">
-        Last week: {report.total_users} users, avg{" "}
-        <span className="text-[var(--accent)] font-mono">${avgReturn.toFixed(0)}</span>
-        /pos, ETH{" "}
-        <span
-          className={`font-mono ${ethChange >= 0 ? "text-emerald-400" : "text-red-400"}`}
-        >
-          {ethChange >= 0 ? "+" : ""}
-          {ethChange.toFixed(1)}%
-        </span>
-      </span>
+      {ethDown ? (
+        <>
+          Last week ETH dropped{" "}
+          <span className="text-red-400 font-mono font-medium">
+            {ethChange.toFixed(1)}%
+          </span>
+          .{" "}
+          <span className="text-[var(--text)] font-medium">
+            {report.total_users} people
+          </span>{" "}
+          on b1nary{" "}
+          <span className="text-[var(--accent)] font-medium">still earned</span>.
+        </>
+      ) : (
+        <>
+          Last week{" "}
+          <span className="text-[var(--text)] font-medium">
+            {report.total_users} people
+          </span>{" "}
+          set a price on b1nary.{" "}
+          ETH went up{" "}
+          <span className="text-emerald-400 font-mono font-medium">
+            +{ethChange.toFixed(1)}%
+          </span>
+          .{" "}
+          <span className="text-[var(--accent)] font-medium">They earned too</span>.
+        </>
+      )}
     </motion.div>
   );
 }

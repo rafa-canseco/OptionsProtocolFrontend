@@ -157,6 +157,14 @@ export const SimulationResult = memo(function SimulationResult({
         </p>
       </div>
 
+      {/* Email capture — right after aha-moment, before CTA */}
+      <div className="rounded-xl bg-[var(--bg)]/60 border border-[var(--border)] p-4 space-y-2">
+        <p className="text-sm text-[var(--text)]">
+          Want results like this every week?
+        </p>
+        <EmailCapture />
+      </div>
+
       {/* CTA */}
       <div className="pt-2">
         <Link
@@ -165,14 +173,6 @@ export const SimulationResult = memo(function SimulationResult({
         >
           Learn how it works
         </Link>
-      </div>
-
-      {/* Email capture */}
-      <div className="border-t border-[var(--border)] pt-4 space-y-2">
-        <p className="text-sm text-[var(--text-secondary)]">
-          Get weekly results in your inbox
-        </p>
-        <EmailCapture />
       </div>
     </div>
   );
