@@ -11,7 +11,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         loginMethods: ["email"],
         appearance: {
           theme: "dark",
-          accentColor: "#22c55e",
+          accentColor: "#22D3EE",
         },
         defaultChain: baseSepolia,
         supportedChains: [baseSepolia],

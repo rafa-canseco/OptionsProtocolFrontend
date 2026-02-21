@@ -6,15 +6,17 @@ import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
+import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
+  const allPositions = useOptimisticPositions(positions);
 
-  const active = positions.filter((p) => !p.is_settled);
-  const history = positions.filter((p) => p.is_settled);
+  const active = allPositions.filter((p) => !p.is_settled);
+  const history = allPositions.filter((p) => p.is_settled);
 
   if (!isConnected) {
     return (
@@ -27,7 +29,7 @@ export default function PositionsPage() {
     );
   }
 
-  if (!loading && positions.length === 0) {
+  if (!loading && allPositions.length === 0) {
     return (
       <main className="mx-auto max-w-4xl px-6 py-10 space-y-6">
         <div className="text-center py-12">
@@ -53,7 +55,7 @@ export default function PositionsPage() {
   return (
     <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
-      <PortfolioSummary positions={positions} />
+      <PortfolioSummary positions={allPositions} />
 
       {/* Active positions — cards */}
       <section className="space-y-4">
@@ -63,7 +65,7 @@ export default function PositionsPage() {
         {active.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {active.map((pos) => (
-              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" />
+              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" optimistic={pos.id.startsWith("opt-")} />
             ))}
           </div>
         ) : (

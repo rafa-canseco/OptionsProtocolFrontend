@@ -38,7 +38,7 @@ function PriceRow({
           : "hover:bg-[var(--surface)]"
       }`}
     >
-      <span className={`text-base font-semibold text-[var(--text)] ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
+      <span className={`text-base font-semibold text-[var(--bone)] font-mono ${!disabled ? "group-hover:translate-x-0.5 transition-transform duration-200" : ""} inline-block`}>
         ${quote.strike.toLocaleString()}/ETH
       </span>
       <span className="text-base font-bold text-[var(--accent)]">
@@ -113,7 +113,7 @@ export function PriceMenu() {
 
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
-        <p className="text-3xl font-bold text-[var(--accent)]">
+        <p className="text-3xl font-bold text-[var(--accent)] font-mono">
           ${Math.round(premium).toLocaleString()} earned
         </p>
         <p className="text-base text-[var(--text)]">
@@ -132,7 +132,7 @@ export function PriceMenu() {
 
         <a
           href="/positions"
-          className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
+          className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
           View my positions
         </a>
@@ -159,7 +159,7 @@ export function PriceMenu() {
           onClick={() => setSide("buy")}
           className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
             side === "buy"
-              ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+              ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
               : "text-[var(--text-secondary)] hover:text-[var(--text)]"
           }`}
         >
@@ -169,7 +169,7 @@ export function PriceMenu() {
           onClick={() => setSide("sell")}
           className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all ${
             side === "sell"
-              ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+              ? "bg-[var(--bg)] text-[var(--danger)] shadow-sm"
               : "text-[var(--text-secondary)] hover:text-[var(--text)]"
           }`}
         >

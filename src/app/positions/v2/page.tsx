@@ -8,6 +8,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
+import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import type { Position } from "@/lib/api";
 
 export default function PositionsV2Page() {
@@ -16,9 +17,10 @@ export default function PositionsV2Page() {
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
+  const allPositions = useOptimisticPositions(positions);
 
-  const active = positions.filter((p) => !p.is_settled);
-  const history = positions.filter((p) => p.is_settled);
+  const active = allPositions.filter((p) => !p.is_settled);
+  const history = allPositions.filter((p) => p.is_settled);
 
   function renderSparkline(position: Position, strike: number) {
     if (position.is_settled) return null;
@@ -42,7 +44,7 @@ export default function PositionsV2Page() {
     );
   }
 
-  if (!loading && positions.length === 0) {
+  if (!loading && allPositions.length === 0) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
         <div className="text-center py-12">
@@ -68,7 +70,7 @@ export default function PositionsV2Page() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
-      <PortfolioSummary positions={positions} />
+      <PortfolioSummary positions={allPositions} />
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">
@@ -85,6 +87,7 @@ export default function PositionsV2Page() {
                 spot={spot}
                 renderExtra={renderSparkline}
                 earnBase="/earn/v2"
+                optimistic={pos.id.startsWith("opt-")}
               />
             ))}
           </div>

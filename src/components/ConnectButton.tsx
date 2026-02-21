@@ -63,7 +63,7 @@ export function ConnectButton() {
   return (
     <button
       onClick={login}
-      className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-white hover:bg-[var(--accent-hover)] transition-colors"
+      className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
     >
       Connect
     </button>

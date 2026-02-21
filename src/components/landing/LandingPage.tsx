@@ -26,7 +26,7 @@ function FloatingOrbs() {
         transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
         className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 70%)",
         }}
       />
       <motion.div
@@ -38,7 +38,7 @@ function FloatingOrbs() {
         transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
         className="absolute top-1/3 -left-48 w-[600px] h-[600px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(16,185,129,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(34,211,238,0.04) 0%, transparent 70%)",
         }}
       />
       <motion.div
@@ -50,7 +50,7 @@ function FloatingOrbs() {
         transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(16,185,129,0.03) 0%, transparent 70%)",
+          background: "radial-gradient(circle, rgba(34,211,238,0.03) 0%, transparent 70%)",
         }}
       />
     </div>
@@ -139,7 +139,7 @@ function HeroSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8 }}
-          className="text-[clamp(2.8rem,8vw,6rem)] leading-[1.05] tracking-tight text-[var(--text)] font-light"
+          className="text-[clamp(2.8rem,8vw,6rem)] leading-[1.05] tracking-tight text-[var(--bone)] font-light"
         >
           Your crypto is sitting there.
           <br />
@@ -173,20 +173,12 @@ function HeroSection() {
           </Link>
           <a
             href="#mechanism"
-            className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[#52525B] transition-colors"
+            className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
           >
             See how it works &darr;
           </a>
         </motion.div>
 
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.5, delay: 1.2 }}
-          className="text-sm text-[#52525B]"
-        >
-          Test tokens only · $0 to start · No wallet needed
-        </motion.p>
       </div>
 
       <motion.div
@@ -198,7 +190,7 @@ function HeroSection() {
         <motion.span
           animate={{ y: [-6, 6, -6] }}
           transition={{ duration: 2.5, repeat: Infinity, ease: "easeInOut" }}
-          className="text-[#71717A] text-2xl block"
+          className="text-[var(--text-secondary)] text-2xl block"
         >
           &darr;
         </motion.span>
@@ -217,7 +209,7 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "buy"
             ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
-            : "text-[#71717A] hover:text-[var(--text)]"
+            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
         I&apos;d buy
@@ -227,7 +219,7 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "sell"
             ? "bg-[var(--border)] text-[var(--danger)] shadow-sm"
-            : "text-[#71717A] hover:text-[var(--text)]"
+            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
         I&apos;d sell
@@ -259,7 +251,7 @@ function MechanismSection({
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight"
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
         >
           Here&apos;s how it works.
         </motion.h2>
@@ -271,7 +263,7 @@ function MechanismSection({
           className="space-y-6"
         >
           <div className="flex items-center gap-6 flex-wrap">
-            <p className="text-[#71717A] text-lg">
+            <p className="text-[var(--text-secondary)] text-lg">
               ETH is <TickingPrice base={SPOT_BASE} className="text-[var(--text)] font-bold font-mono" onPriceChange={onSpotChange} />
             </p>
             <SideToggle side={side} onSideChange={onSideChange} />
@@ -304,7 +296,7 @@ function MechanismSection({
             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
-              <p className="text-[#71717A] text-sm uppercase tracking-wider">When time&apos;s up, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
+              <p className="text-[var(--text-secondary)] text-sm uppercase tracking-wider">When time&apos;s up, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
               <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
                 {side === "buy"
                   ? `You buy ETH at $${strike.toLocaleString()}.`
@@ -318,7 +310,7 @@ function MechanismSection({
             <div className="border-t border-[var(--border)]" />
 
             <div className="space-y-1">
-              <p className="text-[#71717A] text-sm uppercase tracking-wider">When time&apos;s up, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
+              <p className="text-[var(--text-secondary)] text-sm uppercase tracking-wider">When time&apos;s up, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
               <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
                 {side === "buy"
                   ? `Your $${strike.toLocaleString()} comes back.`
@@ -341,7 +333,7 @@ function MechanismSection({
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: 0.5, delay: 0.6 }}
-          className="text-[#52525B] text-base"
+          className="text-[var(--text-secondary)] opacity-60 text-base"
         >
           Your money is locked until the end. Only the closing price matters — not what happens in between.
         </motion.p>
@@ -363,7 +355,7 @@ function YieldSourceSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight"
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
         >
           Where does the money come from?
         </motion.h2>
@@ -486,7 +478,7 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
       <div className="max-w-3xl w-full space-y-12">
         <FadeBlock>
-          <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight">
+          <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight">
             Every outcome earns.
           </h2>
         </FadeBlock>
@@ -508,7 +500,7 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
                     frame.accent
                       ? "font-semibold text-[var(--accent)]"
                       : frame.secondary
-                        ? "text-[#71717A] font-light"
+                        ? "text-[var(--text-secondary)] font-light"
                         : "text-[var(--text)] font-light"
                   }`}
                 >
@@ -559,7 +551,7 @@ const ComparisonSection = memo(function ComparisonSection() {
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--text)] tracking-tight"
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
         >
           How does this compare?
         </motion.h2>
@@ -573,15 +565,15 @@ const ComparisonSection = memo(function ComparisonSection() {
               transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
               className="flex items-center justify-between py-4 border-b border-[var(--border)]"
             >
-              <span className="text-[#71717A] text-base sm:text-lg">{item.name}</span>
+              <span className="text-[var(--text-secondary)] text-base sm:text-lg">{item.name}</span>
               <div className="flex items-center gap-4">
                 <span className="text-[var(--text-secondary)] text-base sm:text-lg font-light">{item.apr}</span>
                 <div className="hidden sm:flex items-center gap-2 text-sm">
                   {item.pros.map((p) => (
-                    <span key={p} className="text-[#52525B]">{"✓"} {p}</span>
+                    <span key={p} className="text-[var(--text-secondary)] opacity-60">{"✓"} {p}</span>
                   ))}
                   {item.cons.map((c) => (
-                    <span key={c} className="text-[#3F3F46]">{"✗"} {c}</span>
+                    <span key={c} className="text-[var(--text-secondary)] opacity-50">{"✗"} {c}</span>
                   ))}
                 </div>
               </div>
@@ -595,7 +587,7 @@ const ComparisonSection = memo(function ComparisonSection() {
             transition={{ duration: 0.5, delay: 0.6 }}
             className="flex items-center justify-between py-5 rounded-xl px-4 -mx-4 bg-[var(--accent)]/6 border-b border-[var(--accent)]/15"
           >
-            <span className="text-[var(--text)] text-base sm:text-lg font-medium font-mono">b1nary</span>
+            <span className="text-[var(--bone)] text-base sm:text-lg font-medium font-mono">b<span className="text-[var(--accent)]">1</span>nary</span>
             <div className="flex items-center gap-4">
               <span className="text-lg sm:text-xl font-semibold text-[var(--accent)]">15–60%</span>
               <div className="hidden sm:flex items-center gap-2 text-sm text-[var(--accent)]">
@@ -645,8 +637,8 @@ const SocialProofSection = memo(function SocialProofSection() {
               transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
               className="text-center"
             >
-              <p className="text-2xl sm:text-3xl font-semibold text-[var(--text)] font-mono">{stat.value}</p>
-              <p className="text-sm text-[#52525B] mt-1">{stat.label}</p>
+              <p className="text-2xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
+              <p className="text-sm text-[var(--text-secondary)] opacity-60 mt-1">{stat.label}</p>
             </motion.div>
           ))}
         </div>
@@ -655,7 +647,7 @@ const SocialProofSection = memo(function SocialProofSection() {
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: 0.5, delay: 0.7 }}
-          className="text-center text-[#3F3F46] text-sm"
+          className="text-center text-[var(--text-secondary)] opacity-50 text-sm"
         >
           Smart contracts verified on BaseScan · Open source
         </motion.p>
@@ -678,7 +670,7 @@ function CTASection() {
         transition={{ duration: 0.8 }}
         className="max-w-3xl w-full text-center space-y-10"
       >
-        <h2 className="text-[clamp(2.5rem,8vw,6rem)] text-[var(--text)] leading-[0.95] tracking-tight font-light">
+        <h2 className="text-[clamp(2.5rem,8vw,6rem)] text-[var(--bone)] leading-[0.95] tracking-tight font-light">
           Set your price.
           <br />
           Get paid.
@@ -709,7 +701,7 @@ export function LandingPage() {
       <CursorGlow />
 
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5 flex items-center justify-between">
-        <span className="text-[var(--text)] text-lg font-bold tracking-tight font-mono">b1nary</span>
+        <span className="text-[var(--bone)] text-lg font-bold tracking-tight font-mono">b<span className="text-[var(--accent)]">1</span>nary</span>
         <Link
           href="/earn"
           className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"

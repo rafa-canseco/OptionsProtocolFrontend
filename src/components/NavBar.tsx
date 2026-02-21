@@ -30,8 +30,8 @@ export function NavBar() {
     <>
       <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-6">
-          <Link href="/" className="text-lg font-bold tracking-tight text-[var(--text)] font-mono">
-            b1nary
+          <Link href="/" className="text-lg font-bold tracking-tight text-[var(--bone)] font-mono">
+            b<span className="text-[var(--accent)]">1</span>nary
           </Link>
           <nav className="flex gap-4 text-sm">
             {links.map(({ href, label }) => (
@@ -61,7 +61,7 @@ export function NavBar() {
             <button
               onClick={mint}
               disabled={minting}
-              className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-white hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+              className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
             >
               {minting ? "Minting..." : "Get Test Tokens"}
             </button>

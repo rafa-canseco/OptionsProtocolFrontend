@@ -39,7 +39,7 @@ export function StrikeLadder({
     PADDING_Y + (1 - (price - paddedMin) / paddedRange) * (H - PADDING_Y * 2);
 
   const spotY = priceToY(spot);
-  const accentColor = side === "buy" ? "#22C55E" : "#EF4444";
+  const accentColor = side === "buy" ? "var(--accent)" : "var(--danger)";
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 animate-fade-in-up">

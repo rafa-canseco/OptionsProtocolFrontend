@@ -13,9 +13,11 @@ interface Props {
   renderExtra?: (position: Position, strike: number) => ReactNode;
   /** Base path for Earn links, e.g. "/earn" or "/earn/v2" */
   earnBase?: string;
+  /** When true, shows a "Confirming..." badge for optimistic positions */
+  optimistic?: boolean;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn" }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn", optimistic }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -112,13 +114,19 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         <>
           {/* Header */}
           <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-[var(--text)]">
-              {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+            <p className="text-base font-semibold text-[var(--bone)]">
+              {isBuy ? "Buy" : "Sell"} ETH at <span className="font-mono">${strike.toLocaleString()}</span>/ETH
             </p>
+            {optimistic && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
+                <span className="h-2 w-2 rounded-full bg-[var(--accent)] animate-pulse" />
+                Confirming...
+              </span>
+            )}
           </div>
 
           {/* Countdown — prominent */}
-          <p className="text-lg font-bold text-[var(--text)]">
+          <p className="text-lg font-bold text-[var(--bone)]">
             {expiryDays > 1
               ? `${expiryDays}d left`
               : expiryDays === 1
@@ -156,8 +164,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         <div className="space-y-3">
           {/* Badge */}
           <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-[var(--text)]">
-              {isBuy ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}/ETH
+            <p className="text-base font-semibold text-[var(--bone)]">
+              {isBuy ? "Buy" : "Sell"} ETH at <span className="font-mono">${strike.toLocaleString()}</span>/ETH
             </p>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
               Earned
@@ -193,8 +201,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         <div className="space-y-3">
           {/* Badge — positive framing */}
           <div className="flex items-center justify-between">
-            <p className="text-base font-semibold text-[var(--text)]">
-              {isBuy ? "Bought" : "Sold"} {ethAmountDisplay} ETH
+            <p className="text-base font-semibold text-[var(--bone)]">
+              {isBuy ? "Bought" : "Sold"} <span className="font-mono">{ethAmountDisplay}</span> ETH
             </p>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
               Assigned

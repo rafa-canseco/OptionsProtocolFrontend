@@ -7,9 +7,11 @@
   --border: #27272A;
   --text: #FAFAFA;
   --text-secondary: #A1A1AA;
-  --accent: #10B981;
-  --accent-hover: #059669;
-  --accent-glow: rgba(16, 185, 129, 0.25);
+  --accent: #22D3EE;
+  --accent-hover: #06B6D4;
+  --accent-glow: rgba(34, 211, 238, 0.25);
+  --bone: #F0EBE3;
+  --bone-secondary: rgba(240, 235, 227, 0.7);
   --danger: #EF4444;
   --font-mono: 'JetBrains Mono', monospace;
 }
