@@ -19,7 +19,9 @@ export default function PositionsV2Page() {
   const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
 
-  const active = allPositions.filter((p) => !p.is_settled);
+  const active = allPositions
+    .filter((p) => !p.is_settled)
+    .sort((a, b) => new Date(b.indexed_at).getTime() - new Date(a.indexed_at).getTime());
   const history = allPositions.filter((p) => p.is_settled);
 
   function renderSparkline(position: Position, strike: number) {

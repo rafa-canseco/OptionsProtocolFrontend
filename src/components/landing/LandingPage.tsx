@@ -6,11 +6,157 @@ import { motion, useInView, AnimatePresence } from "framer-motion";
 import { TickingPrice } from "./TickingPrice";
 import { CursorGlow } from "./CursorGlow";
 
+const WORDMARK_FONT = "'Fira Code', monospace";
+const TARGET = "b1nary";
+const BINARY_CHARS = "01";
+
+const DEFI_SYMBOLS = [
+  "0", "1", "$", "ETH", "%", "0", "1",
+  "$2,400", "$2,800", "0", "1", "+$42", "+$61",
+  "0", "1", "7d", "38%", "0", "1", "$", "ETH",
+  "BTC", "SOL", "AAPL", "TSLA", "GOLD", "SPY",
+  "$68,200", "$142", "$185", "$2,650", "NVDA",
+  "EUR/USD", "GBP", "JPY", "OIL", "AMZN",
+  "+12%", "-3.2%", "+$180", "+$24", "$420",
+  "14d", "30d", "7d", "1d", "90d",
+  "GOOG", "MSFT", "ARB", "OP", "LINK",
+  "$3,200", "$95,400", "$310", "AVAX", "UNI",
+];
+
 const SPOT_BASE = 2621;
 const BUY_STRIKE = 2400;
 const SELL_STRIKE = 2800;
 const BUY_PREMIUM_BASE = 61;
 const SELL_PREMIUM_BASE = 42;
+
+/* ── Binary scramble hook ── */
+function useBinaryReveal(trigger: boolean, duration = 2000) {
+  const [display, setDisplay] = useState("      ");
+  const frameRef = useRef<number>(0);
+  const startRef = useRef<number>(0);
+
+  const animate = useCallback(() => {
+    const elapsed = performance.now() - startRef.current;
+    const progress = Math.min(elapsed / duration, 1);
+    const result = TARGET.split("").map((char, i) => {
+      const charProgress = (progress - i * 0.1) / 0.4;
+      if (charProgress >= 1) return char;
+      return BINARY_CHARS[Math.floor(Math.random() * 2)];
+    });
+    setDisplay(result.join(""));
+    if (progress < 1) frameRef.current = requestAnimationFrame(animate);
+    else setDisplay(TARGET);
+  }, [duration]);
+
+  useEffect(() => {
+    if (!trigger) {
+      setDisplay(TARGET.split("").map(() => BINARY_CHARS[Math.floor(Math.random() * 2)]).join(""));
+      return;
+    }
+    startRef.current = performance.now();
+    frameRef.current = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameRef.current);
+  }, [trigger, animate]);
+
+  return display;
+}
+
+/* ── Mouse spotlight ── */
+function MouseSpotlight({ radius = 280 }: { radius?: number }) {
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = overlayRef.current;
+    if (!el) return;
+
+    let mouseX = -1000;
+    let mouseY = -1000;
+    let currentX = -1000;
+    let currentY = -1000;
+    let frame: number;
+
+    const onMove = (e: MouseEvent) => {
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+    };
+
+    const onLeave = () => { mouseX = -1000; mouseY = -1000; };
+
+    const lerp = () => {
+      currentX += (mouseX - currentX) * 0.1;
+      currentY += (mouseY - currentY) * 0.1;
+      el.style.background = `radial-gradient(circle ${radius}px at ${currentX}px ${currentY}px, transparent 0%, rgba(10,10,10,0.92) 100%)`;
+      frame = requestAnimationFrame(lerp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseleave", onLeave);
+    frame = requestAnimationFrame(lerp);
+
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseleave", onLeave);
+      cancelAnimationFrame(frame);
+    };
+  }, [radius]);
+
+  return (
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-[2] pointer-events-none"
+      style={{ background: "rgba(10,10,10,0.92)" }}
+    />
+  );
+}
+
+/* ── DeFi rain ── */
+function DefiRain() {
+  const [columns, setColumns] = useState<
+    { x: number; chars: string[]; speed: number; isDefi: boolean[] }[]
+  >([]);
+
+  useEffect(() => {
+    setColumns(
+      Array.from({ length: 30 }, (_, i) => {
+        const chars = Array.from(
+          { length: 12 + Math.floor(Math.random() * 16) },
+          () => DEFI_SYMBOLS[Math.floor(Math.random() * DEFI_SYMBOLS.length)]
+        );
+        return {
+          x: (i / 30) * 100 + Math.random() * 2,
+          chars,
+          speed: 10 + Math.random() * 18,
+          isDefi: chars.map((c) => c.length > 1 || c === "$" || c === "%"),
+        };
+      })
+    );
+  }, []);
+
+  return (
+    <div className="fixed inset-0 overflow-hidden pointer-events-none select-none z-[1]">
+      {columns.map((col, i) => (
+        <motion.div
+          key={i}
+          className="absolute font-mono text-sm leading-relaxed"
+          style={{ left: `${col.x}%`, opacity: 0.5 }}
+          initial={{ y: "-100%" }}
+          animate={{ y: "120vh" }}
+          transition={{ duration: col.speed, repeat: Infinity, ease: "linear", delay: Math.random() * 6 }}
+        >
+          {col.chars.map((c, j) => (
+            <div
+              key={j}
+              className={col.isDefi[j] ? "text-[var(--accent)] font-semibold text-base" : "text-[var(--accent)]"}
+              style={{ opacity: col.isDefi[j] ? 0.9 : 0.4 }}
+            >
+              {c}
+            </div>
+          ))}
+        </motion.div>
+      ))}
+    </div>
+  );
+}
 
 /* ── Shared helpers ── */
 
@@ -129,27 +275,67 @@ function AnimatedPremium({ value }: { value: number }) {
   return <>${display}</>;
 }
 
+/* ── Header logo with binary scramble ── */
+
+function HeaderLogo() {
+  const [trigger, setTrigger] = useState(false);
+  const display = useBinaryReveal(trigger, 1500);
+
+  useEffect(() => {
+    // Start scramble after a short delay on mount
+    const timer = setTimeout(() => setTrigger(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const renderChars = display.split("").map((char, i) => {
+    const isResolved = char === TARGET[i];
+    const isCyanOne = isResolved && char === "1";
+    return (
+      <span
+        key={i}
+        style={{
+          color: isCyanOne ? "var(--accent)" : isResolved ? "var(--bone)" : "var(--accent)",
+          opacity: isResolved ? 1 : 0.5,
+          filter: isCyanOne ? "drop-shadow(0 0 8px rgba(34,211,238,0.4))" : "none",
+          transition: isResolved ? "opacity 0.3s" : undefined,
+        }}
+      >
+        {char}
+      </span>
+    );
+  });
+
+  return (
+    <span
+      className="text-2xl font-bold tracking-tight select-none"
+      style={{ fontFamily: WORDMARK_FONT }}
+    >
+      {renderChars}
+    </span>
+  );
+}
+
 /* ── Section 1: Income Hero ── */
 
 function HeroSection() {
   return (
-    <section className="min-h-screen flex flex-col justify-center px-6 relative">
-      <div className="max-w-3xl mx-auto w-full space-y-8 relative z-10">
-        <motion.h1
+    <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
+      <div className="max-w-4xl mx-auto w-full space-y-8">
+        <motion.h2
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8 }}
-          className="text-[clamp(2.8rem,8vw,6rem)] leading-[1.05] tracking-tight text-[var(--bone)] font-light"
+          transition={{ duration: 0.8, delay: 0.3 }}
+          className="text-[clamp(1.8rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-[var(--bone)] font-light"
         >
           Your crypto is sitting there.
           <br />
           <span className="text-[var(--accent)]">Make it pay you.</span>
-        </motion.h1>
+        </motion.h2>
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.4 }}
+          transition={{ duration: 0.6, delay: 0.7 }}
           className="space-y-2"
         >
           <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text-secondary)] font-light leading-relaxed">
@@ -162,7 +348,7 @@ function HeroSection() {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.8 }}
+          transition={{ duration: 0.6, delay: 1.1 }}
           className="flex flex-wrap gap-4 pt-2"
         >
           <Link
@@ -178,7 +364,6 @@ function HeroSection() {
             See how it works &darr;
           </a>
         </motion.div>
-
       </div>
 
       <motion.div
@@ -245,7 +430,7 @@ function MechanismSection({
   const premium = derivePremium(spot, side);
 
   return (
-    <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
+    <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
       <div className="max-w-3xl w-full space-y-10">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -349,7 +534,7 @@ function YieldSourceSection() {
   const inView = useInView(ref, { margin: "-20%" });
 
   return (
-    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative">
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
       <div className="max-w-3xl w-full space-y-10">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -475,7 +660,7 @@ const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }
   const frame = frames[frameIndex];
 
   return (
-    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
+    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
       <div className="max-w-3xl w-full space-y-12">
         <FadeBlock>
           <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight">
@@ -545,7 +730,7 @@ const ComparisonSection = memo(function ComparisonSection() {
   const inView = useInView(ref, { margin: "-20%" });
 
   return (
-    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative">
+    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
       <div className="max-w-3xl w-full space-y-12">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -617,7 +802,7 @@ const SocialProofSection = memo(function SocialProofSection() {
   const inView = useInView(ref, { margin: "-20%" });
 
   return (
-    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative">
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
       <div className="max-w-3xl w-full space-y-12">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
@@ -663,7 +848,7 @@ function CTASection() {
   const inView = useInView(ref, { margin: "-20%" });
 
   return (
-    <section ref={ref} className="min-h-[70vh] flex items-center justify-center px-6">
+    <section ref={ref} className="min-h-[70vh] flex items-center justify-center px-6 relative z-[3]">
       <motion.div
         initial={{ opacity: 0, y: 30 }}
         animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
@@ -697,11 +882,14 @@ export function LandingPage() {
 
   return (
     <div className="bg-[var(--bg)] relative overflow-hidden">
+      {/* Global background layers */}
+      <DefiRain />
+      <MouseSpotlight />
       <FloatingOrbs />
       <CursorGlow />
 
       <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5 flex items-center justify-between">
-        <span className="text-[var(--bone)] text-lg font-bold tracking-tight font-mono">b<span className="text-[var(--accent)]">1</span>nary</span>
+        <HeaderLogo />
         <Link
           href="/earn"
           className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
