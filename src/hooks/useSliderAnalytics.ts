@@ -5,13 +5,17 @@ import { useRef, useCallback } from "react";
 const DEBOUNCE_MS = 500;
 
 function getSessionId(): string {
-  const key = "b1nary_session_id";
-  let id = sessionStorage.getItem(key);
-  if (!id) {
-    id = crypto.randomUUID();
-    sessionStorage.setItem(key, id);
+  try {
+    const key = "b1nary_session_id";
+    let id = sessionStorage.getItem(key);
+    if (!id) {
+      id = crypto.randomUUID();
+      sessionStorage.setItem(key, id);
+    }
+    return id;
+  } catch {
+    return crypto.randomUUID();
   }
-  return id;
 }
 
 export function useSliderAnalytics() {
@@ -27,11 +31,11 @@ export function useSliderAnalytics() {
         data,
       };
 
-      import("@/lib/api").then(({ api }) =>
-        api.trackEvent(event).catch(() => {
+      import("@/lib/api")
+        .then(({ api }) => api.trackEvent(event))
+        .catch(() => {
           // analytics is best-effort — never block UX
-        }),
-      );
+        });
     }, DEBOUNCE_MS);
   }, []);
 

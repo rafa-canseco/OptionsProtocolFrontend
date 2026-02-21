@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect, useRef, memo } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useSimulate, weekLabel } from "@/hooks/useSimulate";
 import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
@@ -40,7 +40,7 @@ function generateStrikes(low: number, high: number): number[] {
 
 const WEEK_LABEL = weekLabel();
 
-const MemoizedResult = memo(SimulationResult);
+// SimulationResult is already memo'd at export
 
 export function PriceSlider({ spot }: { spot: number }) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -167,7 +167,7 @@ export function PriceSlider({ spot }: { spot: number }) {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.3 }}
         >
-          <MemoizedResult
+          <SimulationResult
             result={result}
             strike={selectedStrike}
             side={side}

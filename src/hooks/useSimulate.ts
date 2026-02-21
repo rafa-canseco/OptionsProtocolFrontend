@@ -71,20 +71,20 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
     if (USE_MOCK || strike === null) return;
 
     let cancelled = false;
+    setApiResult(null);
     setLoading(true);
 
-    import("@/lib/api").then(({ api }) =>
-      api.simulate(strike, side)
-        .then((data) => {
-          if (!cancelled) setApiResult(data);
-        })
-        .catch(() => {
-          // API unreachable — mock data will be used as fallback
-        })
-        .finally(() => {
-          if (!cancelled) setLoading(false);
-        }),
-    );
+    import("@/lib/api")
+      .then(({ api }) => api.simulate(strike, side))
+      .then((data) => {
+        if (!cancelled) setApiResult(data);
+      })
+      .catch(() => {
+        // API unreachable — mock fallback via ?? below
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
     return () => { cancelled = true; };
   }, [strike, side, spot]);
 

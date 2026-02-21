@@ -9,7 +9,7 @@ function outcomeNarrative(
   strike: number,
   side: "buy" | "sell",
 ): { headline: string; detail: string } {
-  const premium = `$${result.premium_earned}`;
+  const premium = `$${result.premium_earned.toLocaleString()}`;
 
   if (side === "buy") {
     if (result.was_assigned) {
