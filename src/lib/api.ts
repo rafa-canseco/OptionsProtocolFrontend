@@ -92,7 +92,7 @@ export const api = {
     fetchAPI<Position[]>(`/positions/${address}`),
 
   joinWaitlist: (email: string) =>
-    fetchAPI<{ ok: boolean }>("/waitlist", {
+    fetchAPI<{ ok: boolean; new: boolean }>("/waitlist", {
       method: "POST",
       body: JSON.stringify({ email }),
     }),
@@ -120,4 +120,8 @@ export const api = {
       method: "POST",
       body: JSON.stringify(event),
     }),
+
+  getWaitlistCount: () =>
+    fetchAPI<{ count: number }>("/waitlist/count"),
+
 };
