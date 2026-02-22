@@ -1,4 +1,16 @@
+import type { Metadata } from "next";
 import { NavBar } from "@/components/NavBar";
+
+export const metadata: Metadata = {
+  title: "Your Positions",
+  description:
+    "Track your active options positions, premiums earned, and settlement history on b1nary.",
+  openGraph: {
+    title: "Your Positions | b1nary",
+    description:
+      "Track your active options positions, premiums earned, and settlement history on b1nary.",
+  },
+};
 
 export default function PositionsLayout({ children }: { children: React.ReactNode }) {
   return (

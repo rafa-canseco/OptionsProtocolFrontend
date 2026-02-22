@@ -166,7 +166,7 @@ function HeroSection() {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
       <div className="max-w-4xl mx-auto w-full space-y-8">
-        <motion.h2
+        <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
@@ -175,7 +175,7 @@ function HeroSection() {
           Your crypto is sitting there.
           <br />
           <span className="text-[var(--accent)]">Make it pay you.</span>
-        </motion.h2>
+        </motion.h1>
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -740,13 +740,15 @@ export function LandingPage() {
         </Link>
       </header>
 
-      <HeroSection />
-      <MechanismSection side={side} onSideChange={setSide} spot={spot} onSpotChange={handleSpotChange} />
-      <YieldSourceSection />
-      <LoopSection side={side} />
-      <ComparisonSection />
-      <SocialProofSection />
-      <CTASection />
+      <main>
+        <HeroSection />
+        <MechanismSection side={side} onSideChange={setSide} spot={spot} onSpotChange={handleSpotChange} />
+        <YieldSourceSection />
+        <LoopSection side={side} />
+        <ComparisonSection />
+        <SocialProofSection />
+        <CTASection />
+      </main>
     </div>
   );
 }
