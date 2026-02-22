@@ -85,6 +85,11 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
   );
 }
 
+function computeAPR(premium: number, strike: number, expiryDays: number): number {
+  if (strike <= 0 || expiryDays <= 0) return 0;
+  return (premium / strike) * (365 / expiryDays) * 100;
+}
+
 function outcomeNarrative(
   result: SimulateResult,
   strike: number,
@@ -140,6 +145,7 @@ export const SimulationResult = memo(function SimulationResult({
   weekLabel: string;
 }) {
   const { headline, detail, collateral } = outcomeNarrative(result, strike, side);
+  const apr = Math.round(computeAPR(result.premium_earned, strike, 7));
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -192,8 +198,18 @@ export const SimulationResult = memo(function SimulationResult({
           <p className="text-[clamp(1.2rem,3vw,1.6rem)] font-semibold text-[var(--accent)]">
             {detail}
           </p>
+          {apr > 0 && (
+            <span className="inline-block mt-2 text-sm font-mono font-semibold text-[var(--accent)] bg-[var(--accent)]/10 rounded-full px-3 py-1">
+              {apr}% APR
+            </span>
+          )}
         </div>
       </div>
+
+      {/* Trust line */}
+      <p className="text-sm text-[var(--accent)]">
+        Real money. Not tokens. Not points. Paid upfront, every week.
+      </p>
 
       {/* Email capture — right after aha-moment, before CTA */}
       <div className="rounded-xl bg-[var(--bg)]/60 border border-[var(--border)] p-4 space-y-2">
