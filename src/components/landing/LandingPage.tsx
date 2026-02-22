@@ -197,7 +197,7 @@ function HeroSection() {
           className="flex flex-wrap gap-4 pt-2"
         >
           <Link
-            href="/try"
+            href="/earn"
             className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
             Try the beta
