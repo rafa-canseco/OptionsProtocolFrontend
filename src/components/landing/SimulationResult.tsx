@@ -84,23 +84,26 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
   );
 }
 
-function computeAPR(premium: number, strike: number, expiryDays: number): number {
-  if (strike <= 0 || expiryDays <= 0) return 0;
-  return (premium / strike) * (365 / expiryDays) * 100;
+function computeAPR(premium: number, collateral: number, expiryDays: number): number {
+  if (collateral <= 0 || expiryDays <= 0) return 0;
+  return (premium / collateral) * (365 / expiryDays) * 100;
 }
 
 export const SimulationResult = memo(function SimulationResult({
   premium,
   strike,
+  spot,
   side,
   loading,
 }: {
   premium: number;
   strike: number;
+  spot: number;
   side: "buy" | "sell";
   loading: boolean;
 }) {
-  const apr = Math.round(computeAPR(premium, strike, 7));
+  const collateralValue = side === "buy" ? strike : spot;
+  const apr = Math.round(computeAPR(premium, collateralValue, 7));
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
 
   useEffect(() => {

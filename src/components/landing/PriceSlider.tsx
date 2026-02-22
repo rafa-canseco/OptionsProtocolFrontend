@@ -61,6 +61,7 @@ function findMatchingQuote(
 
 /** Realistic fallback premium (~0.5-2% of strike/week) */
 function estimatePremium(strike: number, side: "buy" | "sell", spot: number): number {
+  if (spot <= 0 || strike <= 0) return 0;
   const distance = side === "buy"
     ? (spot - strike) / spot
     : (strike - spot) / spot;
@@ -205,6 +206,7 @@ export function PriceSlider({ spot }: { spot: number }) {
         <SimulationResult
           premium={premium}
           strike={selectedStrike}
+          spot={spot}
           side={side}
           loading={loading}
         />
