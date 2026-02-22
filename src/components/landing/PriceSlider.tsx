@@ -109,7 +109,7 @@ export function PriceSlider({ spot }: { spot: number }) {
 
       {/* Header */}
       <div className="space-y-2">
-        <h3 className="text-[clamp(1.3rem,3vw,2rem)] text-[var(--bone)] font-light">
+        <h2 className="text-[clamp(1.3rem,3vw,2rem)] text-[var(--bone)] font-light">
           I&apos;d {side} ETH at{" "}
           <span className="text-[var(--accent)] font-semibold font-mono transition-all duration-200">
             ${selectedStrike.toLocaleString()}
@@ -117,7 +117,7 @@ export function PriceSlider({ spot }: { spot: number }) {
           <span className="text-[var(--text-secondary)] text-base font-normal ml-2 transition-all duration-200">
             ({distancePct}% {side === "buy" ? "below" : "above"} spot)
           </span>
-        </h3>
+        </h2>
       </div>
 
       {/* Desktop slider */}
@@ -129,6 +129,7 @@ export function PriceSlider({ spot }: { spot: number }) {
           step={STRIKE_INTERVAL}
           value={selectedStrike}
           onChange={(e) => handleSliderChange(Number(e.target.value))}
+          aria-label={`Strike price: $${selectedStrike.toLocaleString()}`}
           className="w-full accent-[var(--accent)] cursor-pointer"
           style={{ height: "8px" }}
         />

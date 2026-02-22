@@ -63,6 +63,7 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
           type="email"
           required
           placeholder="you@email.com"
+          aria-label="Email address for waitlist"
           value={email}
           onChange={(e) => { setEmail(e.target.value); if (status === "error") setStatus("idle"); }}
           className="flex-1 rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none focus:border-[var(--accent)] transition-colors"
