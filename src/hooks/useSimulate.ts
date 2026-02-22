@@ -69,7 +69,11 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (USE_MOCK || strike === null) return;
+    // Backend simulate endpoint only supports buy side
+    if (USE_MOCK || strike === null || side !== "buy") {
+      setApiResult(null);
+      return;
+    }
 
     let cancelled = false;
     setLoading(true);
@@ -79,8 +83,7 @@ export function useSimulate(strike: number | null, side: "buy" | "sell", spot: n
       .then((data) => {
         if (!cancelled) setApiResult(data);
       })
-      .catch((err) => {
-        console.error("[useSimulate] Simulation API failed:", err);
+      .catch(() => {
         if (!cancelled) setApiResult(null);
       })
       .finally(() => {

@@ -2,9 +2,8 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
-import { useSimulate, weekLabel } from "@/hooks/useSimulate";
-import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
 import { usePrices } from "@/hooks/usePrices";
+import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
 import type { PriceQuote } from "@/lib/api";
 import { SimulationResult } from "./SimulationResult";
 
@@ -40,8 +39,6 @@ function generateStrikes(low: number, high: number): number[] {
   return strikes;
 }
 
-const WEEK_LABEL = weekLabel();
-
 /** Find the closest 7-day quote matching the user's strike and side */
 function findMatchingQuote(
   prices: PriceQuote[],
@@ -53,7 +50,6 @@ function findMatchingQuote(
     (q) => q.option_type === optionType && q.expiry_days <= 8,
   );
   if (candidates.length === 0) return null;
-  // Find closest strike
   let best = candidates[0];
   for (const q of candidates) {
     if (Math.abs(q.strike - strike) < Math.abs(best.strike - strike)) {
@@ -63,7 +59,16 @@ function findMatchingQuote(
   return best;
 }
 
-// SimulationResult is already memo'd at export
+/** Realistic fallback premium (~0.5-2% of strike/week) */
+function estimatePremium(strike: number, side: "buy" | "sell", spot: number): number {
+  const distance = side === "buy"
+    ? (spot - strike) / spot
+    : (strike - spot) / spot;
+  const distPct = Math.max(0, Math.min(distance, 0.25));
+  const weeklyPct = 0.005 + (0.15 - distPct) * 0.1;
+  const clampedPct = Math.max(0.003, Math.min(weeklyPct, 0.02));
+  return Math.round(strike * clampedPct);
+}
 
 export function PriceSlider({ spot }: { spot: number }) {
   const [side, setSide] = useState<"buy" | "sell">("buy");
@@ -84,27 +89,14 @@ export function PriceSlider({ spot }: { spot: number }) {
     }
   }, [side, spot, low, high]);
 
-  const { result: simResult, loading } = useSimulate(selectedStrike, side, spot);
-  const { prices } = usePrices(60_000); // poll every 60s (not critical on /try)
+  const { prices, loading } = usePrices(60_000);
 
-  // Always override premium: real quote from MM if available, otherwise realistic estimate.
-  // The simulate endpoint's premium is unreliable (inflated historical values).
-  const result = useMemo(() => {
-    if (!simResult) return null;
+  // Get premium: real MM quote if available, realistic estimate otherwise
+  const premium = useMemo(() => {
     const quote = findMatchingQuote(prices, selectedStrike, side);
-    if (quote) {
-      return { ...simResult, premium_earned: Math.round(quote.premium) };
-    }
-    // No real quote available — compute realistic fallback (~0.5-2% of strike/week)
-    const distance = side === "buy"
-      ? (spot - selectedStrike) / spot
-      : (selectedStrike - spot) / spot;
-    const distPct = Math.max(0, Math.min(distance, 0.25));
-    const weeklyPct = 0.005 + (0.15 - distPct) * 0.1;
-    const clampedPct = Math.max(0.003, Math.min(weeklyPct, 0.02));
-    const realisticPremium = Math.round(selectedStrike * clampedPct);
-    return { ...simResult, premium_earned: realisticPremium };
-  }, [simResult, prices, selectedStrike, side, spot]);
+    if (quote) return Math.round(quote.premium);
+    return estimatePremium(selectedStrike, side, spot);
+  }, [prices, selectedStrike, side, spot]);
 
   const handleSliderChange = useCallback(
     (value: number) => {
@@ -205,21 +197,18 @@ export function PriceSlider({ spot }: { spot: number }) {
       </div>
 
       {/* Results */}
-      {result && (
-        <motion.div
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.3 }}
-        >
-          <SimulationResult
-            result={result}
-            strike={selectedStrike}
-            side={side}
-            loading={loading}
-            weekLabel={WEEK_LABEL}
-          />
-        </motion.div>
-      )}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3 }}
+      >
+        <SimulationResult
+          premium={premium}
+          strike={selectedStrike}
+          side={side}
+          loading={loading}
+        />
+      </motion.div>
     </div>
   );
 }

@@ -2,7 +2,6 @@
 
 import { memo, useState, useCallback, useEffect, type FormEvent } from "react";
 import Link from "next/link";
-import type { SimulateResult } from "@/lib/api";
 
 // Module-level promise so every mount reuses the same in-flight request
 let _countPromise: Promise<number> | null = null;
@@ -90,62 +89,18 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-function outcomeNarrative(
-  result: SimulateResult,
-  strike: number,
-  side: "buy" | "sell",
-): { headline: string; detail: string; collateral: string } {
-  const premium = `$${result.premium_earned.toLocaleString()}`;
-  const collateral =
-    side === "buy"
-      ? `$${strike.toLocaleString()} collateral`
-      : `1 ETH collateral`;
-
-  if (side === "buy") {
-    if (result.was_assigned) {
-      return {
-        headline: `ETH dropped below $${strike.toLocaleString()}.`,
-        detail: `You bought at your price + already earned ${premium}.`,
-        collateral,
-      };
-    }
-    return {
-      headline: `ETH never dropped to $${strike.toLocaleString()}.`,
-      detail: `You kept your $${strike.toLocaleString()} + earned ${premium}.`,
-      collateral,
-    };
-  }
-
-  // sell
-  if (result.was_assigned) {
-    return {
-      headline: `ETH passed $${strike.toLocaleString()}.`,
-      detail: `You sold at your price + earned ${premium}.`,
-      collateral,
-    };
-  }
-  return {
-    headline: `ETH never reached $${strike.toLocaleString()}.`,
-    detail: `You kept your ETH + earned ${premium}.`,
-    collateral,
-  };
-}
-
 export const SimulationResult = memo(function SimulationResult({
-  result,
+  premium,
   strike,
   side,
   loading,
-  weekLabel,
 }: {
-  result: SimulateResult;
+  premium: number;
   strike: number;
   side: "buy" | "sell";
   loading: boolean;
-  weekLabel: string;
 }) {
-  const { headline, detail, collateral } = outcomeNarrative(result, strike, side);
-  const apr = Math.round(computeAPR(result.premium_earned, strike, 7));
+  const apr = Math.round(computeAPR(premium, strike, 7));
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -160,46 +115,23 @@ export const SimulationResult = memo(function SimulationResult({
     setWaitlistCount((prev) => (prev !== null ? prev + 1 : 1));
   }, []);
 
+  const collateral = side === "buy"
+    ? `$${strike.toLocaleString()}`
+    : "1 ETH";
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-6 sm:p-8 space-y-6">
-      {/* Week label */}
-      <p className="text-xs text-[var(--text-secondary)] uppercase tracking-wider font-mono">
-        Week of {weekLabel}
-      </p>
-
-      {/* Context + Outcome — only this section fades on loading */}
-      <div className={`space-y-6 transition-opacity duration-200 ${loading ? "opacity-50" : ""}`}>
-        <div className="space-y-1">
-          <p className="text-[var(--text-secondary)]">
-            You chose:{" "}
-            <span className="text-[var(--text)] font-medium">
-              {side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}
-            </span>
+      {/* Earnings card */}
+      <div className={`transition-opacity duration-200 ${loading ? "opacity-50" : ""}`}>
+        <div className="rounded-xl border border-[var(--accent)]/15 bg-[var(--accent)]/5 p-5 space-y-3">
+          <p className="text-[clamp(1.3rem,3.5vw,1.8rem)] font-semibold text-[var(--accent)]">
+            You&apos;d earn ${premium.toLocaleString()} this week
           </p>
           <p className="text-[var(--text-secondary)]">
-            ETH closed at:{" "}
-            <span className="text-[var(--text)] font-mono">
-              ${result.eth_close.toLocaleString()}
-            </span>
-          </p>
-          <p className="text-[var(--text-secondary)]">
-            Your commitment:{" "}
-            <span className="text-[var(--text)] font-medium">
-              {collateral}
-            </span>
-          </p>
-        </div>
-
-        {/* Outcome card */}
-        <div className="rounded-xl border border-[var(--accent)]/15 bg-[var(--accent)]/5 p-5 space-y-2">
-          <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text)] font-medium">
-            {headline}
-          </p>
-          <p className="text-[clamp(1.2rem,3vw,1.6rem)] font-semibold text-[var(--accent)]">
-            {detail}
+            On {collateral} committed
           </p>
           {apr > 0 && (
-            <span className="inline-block mt-2 text-sm font-mono font-semibold text-[var(--accent)] bg-[var(--accent)]/10 rounded-full px-3 py-1">
+            <span className="inline-block text-sm font-mono font-semibold text-[var(--accent)] bg-[var(--accent)]/10 rounded-full px-3 py-1">
               {apr > 200 ? ">200" : apr}% APR
             </span>
           )}
@@ -211,7 +143,7 @@ export const SimulationResult = memo(function SimulationResult({
         Real yield. Not tokens. Not points. Paid upfront, every week.
       </p>
 
-      {/* Email capture — right after aha-moment, before CTA */}
+      {/* Email capture */}
       <div className="rounded-xl bg-[var(--bg)]/60 border border-[var(--border)] p-4 space-y-2">
         {waitlistCount !== null && waitlistCount > 0 && (
           <p className="text-sm text-[var(--text)]">
