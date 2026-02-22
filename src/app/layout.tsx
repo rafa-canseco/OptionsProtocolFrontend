@@ -12,7 +12,11 @@ export const metadata: Metadata = {
   description:
     "Pick a price you'd buy or sell ETH at. Earn premium upfront — no matter what happens. Fully collateralized options on Base.",
   icons: {
-    icon: "/favicon.svg",
+    icon: [
+      { url: "/favicon.ico", sizes: "48x48" },
+      { url: "/favicon.svg", type: "image/svg+xml" },
+    ],
+    apple: "/apple-touch-icon.png",
   },
   openGraph: {
     type: "website",
