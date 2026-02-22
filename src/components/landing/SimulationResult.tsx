@@ -200,7 +200,7 @@ export const SimulationResult = memo(function SimulationResult({
           </p>
           {apr > 0 && (
             <span className="inline-block mt-2 text-sm font-mono font-semibold text-[var(--accent)] bg-[var(--accent)]/10 rounded-full px-3 py-1">
-              {apr}% APR
+              {apr > 200 ? ">200" : apr}% APR
             </span>
           )}
         </div>
@@ -208,7 +208,7 @@ export const SimulationResult = memo(function SimulationResult({
 
       {/* Trust line */}
       <p className="text-sm text-[var(--accent)]">
-        Real money. Not tokens. Not points. Paid upfront, every week.
+        Real yield. Not tokens. Not points. Paid upfront, every week.
       </p>
 
       {/* Email capture — right after aha-moment, before CTA */}

@@ -4,6 +4,8 @@ import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useSimulate, weekLabel } from "@/hooks/useSimulate";
 import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
+import { usePrices } from "@/hooks/usePrices";
+import type { PriceQuote } from "@/lib/api";
 import { SimulationResult } from "./SimulationResult";
 
 const STRIKE_INTERVAL = 100; // $100 increments
@@ -40,6 +42,27 @@ function generateStrikes(low: number, high: number): number[] {
 
 const WEEK_LABEL = weekLabel();
 
+/** Find the closest 7-day quote matching the user's strike and side */
+function findMatchingQuote(
+  prices: PriceQuote[],
+  strike: number,
+  side: "buy" | "sell",
+): PriceQuote | null {
+  const optionType = side === "buy" ? "put" : "call";
+  const candidates = prices.filter(
+    (q) => q.option_type === optionType && q.expiry_days <= 8,
+  );
+  if (candidates.length === 0) return null;
+  // Find closest strike
+  let best = candidates[0];
+  for (const q of candidates) {
+    if (Math.abs(q.strike - strike) < Math.abs(best.strike - strike)) {
+      best = q;
+    }
+  }
+  return best;
+}
+
 // SimulationResult is already memo'd at export
 
 export function PriceSlider({ spot }: { spot: number }) {
@@ -61,7 +84,16 @@ export function PriceSlider({ spot }: { spot: number }) {
     }
   }, [side, spot, low, high]);
 
-  const { result, loading } = useSimulate(selectedStrike, side, spot);
+  const { result: simResult, loading } = useSimulate(selectedStrike, side, spot);
+  const { prices } = usePrices(60_000); // poll every 60s (not critical on /try)
+
+  // Override premium with real quote from MM when available
+  const result = useMemo(() => {
+    if (!simResult) return null;
+    const quote = findMatchingQuote(prices, selectedStrike, side);
+    if (!quote) return simResult;
+    return { ...simResult, premium_earned: Math.round(quote.premium) };
+  }, [simResult, prices, selectedStrike, side]);
 
   const handleSliderChange = useCallback(
     (value: number) => {

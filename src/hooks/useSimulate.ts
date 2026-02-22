@@ -27,15 +27,16 @@ export function weekLabel(): string {
   return `${fmt(start)}–${fmt(end)}`;
 }
 
-/** Generate mock simulate result that varies by strike distance from spot */
+/** Generate mock simulate result that varies by strike distance from spot.
+ *  Premiums target ~0.5-2% of strike per week (realistic for weekly OTM options). */
 function mockSimulate(strike: number, side: "buy" | "sell", spot: number): SimulateResult {
   const distance = side === "buy" ? (spot - strike) / spot : (strike - spot) / spot;
   const distPct = Math.max(0, Math.min(distance, 0.25));
 
-  // Premium scales with how close the strike is to spot (higher = closer)
-  const basePremium = side === "buy" ? 48 : 35;
-  const premiumMultiplier = 1 + (0.15 - distPct) * 8; // closer to spot = higher premium
-  const premium = Math.round(basePremium * Math.max(0.3, Math.min(premiumMultiplier, 2.5)));
+  // Realistic weekly premium: 0.5% at 15% OTM → 2% near ATM
+  const basePct = 0.005 + (0.15 - distPct) * 0.1;
+  const clampedPct = Math.max(0.003, Math.min(basePct, 0.02));
+  const premium = Math.round(strike * clampedPct);
 
   // Assignment: only if strike is very close to spot (mock: never assigned for >5% OTM)
   const wasAssigned = distPct < 0.03;
