@@ -87,13 +87,24 @@ export function PriceSlider({ spot }: { spot: number }) {
   const { result: simResult, loading } = useSimulate(selectedStrike, side, spot);
   const { prices } = usePrices(60_000); // poll every 60s (not critical on /try)
 
-  // Override premium with real quote from MM when available
+  // Always override premium: real quote from MM if available, otherwise realistic estimate.
+  // The simulate endpoint's premium is unreliable (inflated historical values).
   const result = useMemo(() => {
     if (!simResult) return null;
     const quote = findMatchingQuote(prices, selectedStrike, side);
-    if (!quote) return simResult;
-    return { ...simResult, premium_earned: Math.round(quote.premium) };
-  }, [simResult, prices, selectedStrike, side]);
+    if (quote) {
+      return { ...simResult, premium_earned: Math.round(quote.premium) };
+    }
+    // No real quote available — compute realistic fallback (~0.5-2% of strike/week)
+    const distance = side === "buy"
+      ? (spot - selectedStrike) / spot
+      : (selectedStrike - spot) / spot;
+    const distPct = Math.max(0, Math.min(distance, 0.25));
+    const weeklyPct = 0.005 + (0.15 - distPct) * 0.1;
+    const clampedPct = Math.max(0.003, Math.min(weeklyPct, 0.02));
+    const realisticPremium = Math.round(selectedStrike * clampedPct);
+    return { ...simResult, premium_earned: realisticPremium };
+  }, [simResult, prices, selectedStrike, side, spot]);
 
   const handleSliderChange = useCallback(
     (value: number) => {
