@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
 import { useWallet } from "@/hooks/useWallet";
@@ -22,44 +22,6 @@ function untilDate(expiryDays: number): string {
 }
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
-
-/** Step indicator dots */
-function StepIndicator({ current }: { current: number }) {
-  const steps = ["Side", "Duration", "Amount", "Strike"];
-  return (
-    <div className="flex items-center gap-2">
-      {steps.map((label, i) => (
-        <div key={label} className="flex items-center gap-2">
-          <div className={`flex items-center gap-1.5 transition-all duration-300 ${
-            i < current
-              ? "opacity-100"
-              : i === current
-                ? "opacity-100"
-                : "opacity-30"
-          }`}>
-            <div className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-              i < current
-                ? "bg-[var(--accent)]"
-                : i === current
-                  ? "bg-[var(--text)] scale-125"
-                  : "bg-[var(--border)]"
-            }`} />
-            <span className={`text-[10px] font-medium transition-colors duration-300 ${
-              i <= current ? "text-[var(--text-secondary)]" : "text-[var(--border)]"
-            }`}>
-              {label}
-            </span>
-          </div>
-          {i < steps.length - 1 && (
-            <div className={`w-4 h-px transition-colors duration-300 ${
-              i < current ? "bg-[var(--accent)]" : "bg-[var(--border)]"
-            }`} />
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 /** Horizontal price axis with color zones — spot vs strikes */
 function StrikeChart({
@@ -323,6 +285,17 @@ export function PriceMenuV2() {
       .sort((a, b) => a.strike - b.strike);
   }, [prices, side, activeExpiry]);
 
+  // When filters change, try to keep the same strike selected
+  useEffect(() => {
+    setSelectedQuote((prev) => {
+      if (!prev) return prev;
+      const match = filteredPrices.find((q) => q.strike === prev.strike);
+      if (!match) return null;
+      if (match.premium !== prev.premium || match.expiry_days !== prev.expiry_days) return match;
+      return prev;
+    });
+  }, [filteredPrices]);
+
   const selectedEarnings = selectedQuote && amount > 0
     ? isBuy
       ? (selectedQuote.premium * amount) / selectedQuote.strike
@@ -335,8 +308,6 @@ export function PriceMenuV2() {
 
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
 
-  // Progress step: 0=side (always done), 1=duration, 2=amount, 3=strike
-  const currentStep = !activeExpiry ? 1 : amount <= 0 ? 2 : !selectedQuote ? 3 : 4;
 
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
@@ -379,7 +350,7 @@ export function PriceMenuV2() {
           <p className="text-4xl font-bold text-[var(--accent)] font-mono">
             ${Math.round(premium).toLocaleString()}
           </p>
-          <p className="text-base text-[var(--text-secondary)] mt-2">earned — yours to keep</p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">{Math.round(apr)}% APR</p>
         <div className="h-px bg-[var(--border)]" />
@@ -411,9 +382,6 @@ export function PriceMenuV2() {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
         {/* LEFT: Configuration flow */}
         <div className="space-y-5">
-          {/* Progress indicator */}
-          <StepIndicator current={currentStep} />
-
           {/* 1. Buy / Sell toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
@@ -446,7 +414,7 @@ export function PriceMenuV2() {
                 {expiries.map((days) => (
                   <button
                     key={days}
-                    onClick={() => { setSelectedExpiry(days); setSelectedQuote(null); }}
+                    onClick={() => { setSelectedExpiry(days); }}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
                       activeExpiry === days
                         ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
@@ -550,7 +518,7 @@ export function PriceMenuV2() {
                 ? "Enter an amount"
                 : !selectedQuote
                   ? "Select a strike price"
-                  : `Accept — Earn $${Math.round(selectedEarnings).toLocaleString()}`}
+                  : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
           </button>
         </div>
 

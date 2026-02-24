@@ -1,20 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback, useEffect, memo } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
-import { TickingPrice } from "./TickingPrice";
 import { BackgroundEffects } from "./BackgroundEffects";
+import { useWallet } from "@/hooks/useWallet";
+import { usePrices } from "@/hooks/usePrices";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
 const BINARY_CHARS = "01";
 
-const SPOT_BASE = 2621;
-const BUY_STRIKE = 2400;
-const SELL_STRIKE = 2800;
-const BUY_PREMIUM_BASE = 61;
-const SELL_PREMIUM_BASE = 42;
+const FALLBACK_SPOT = 2621;
+
+function deriveStrikes(spot: number) {
+  const buy = Math.round((spot * 0.92) / 100) * 100;
+  const sell = Math.round((spot * 1.08) / 100) * 100;
+  return { buyStrike: buy, sellStrike: sell };
+}
 
 /* ── Binary scramble hook ── */
 function useBinaryReveal(trigger: boolean, duration = 2000) {
@@ -73,23 +76,19 @@ function FadeBlock({
   );
 }
 
-function derivePremium(spot: number, side: "buy" | "sell"): number {
-  if (!Number.isFinite(spot)) return side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
+function derivePremium(spot: number, side: "buy" | "sell", buyStrike: number, sellStrike: number): number {
+  const basePremiumBuy = Math.round(buyStrike * 0.025);
+  const basePremiumSell = Math.round(sellStrike * 0.015);
 
-  let raw: number;
+  if (!Number.isFinite(spot)) return side === "buy" ? basePremiumBuy : basePremiumSell;
+
   if (side === "buy") {
-    const denom = SPOT_BASE - BUY_STRIKE;
-    if (denom === 0) return BUY_PREMIUM_BASE;
-    const dist = (spot - BUY_STRIKE) / denom;
-    raw = BUY_PREMIUM_BASE * (2 - dist);
+    const dist = Math.max(0, (spot - buyStrike) / spot);
+    return Math.round(Math.max(1, basePremiumBuy * (1 + dist)));
   } else {
-    const denom = SELL_STRIKE - SPOT_BASE;
-    if (denom === 0) return SELL_PREMIUM_BASE;
-    const dist = (SELL_STRIKE - spot) / denom;
-    raw = SELL_PREMIUM_BASE * (2 - dist);
+    const dist = Math.max(0, (sellStrike - spot) / spot);
+    return Math.round(Math.max(1, basePremiumSell * (1 + dist)));
   }
-  const base = side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
-  return Math.round(Math.max(1, Math.min(raw, base * 3)));
 }
 
 function AnimatedPremium({ value }: { value: number }) {
@@ -165,36 +164,47 @@ function HeaderLogo() {
 function HeroSection() {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
-      <div className="max-w-4xl mx-auto w-full space-y-8">
+      <div className="max-w-4xl mx-auto w-full">
+        {/* Line 1: short, punchy, large */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-[clamp(1.8rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-[var(--bone)] font-light"
+          className="text-[clamp(2.2rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-[var(--bone)] font-light"
         >
-          Your crypto is sitting there.
-          <br />
-          <span className="text-[var(--accent)]">Make it pay you.</span>
+          Pick a price you&apos;d buy or sell ETH at.
         </motion.h1>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
+        {/* Line 2: supporting, slightly smaller */}
+        <motion.p
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.7 }}
-          className="space-y-2"
+          transition={{ duration: 0.7, delay: 0.6 }}
+          className="mt-4 text-[clamp(1.3rem,3.5vw,2rem)] leading-[1.2] text-[var(--text-secondary)] font-light"
         >
-          <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text-secondary)] font-light leading-relaxed">
-            Pick a price you&apos;d buy or sell ETH at.
-            <br />
-            Get paid <span className="font-semibold text-[var(--accent)]">upfront</span> — no matter what happens.
-          </p>
-        </motion.div>
+          Get paid <span className="font-normal text-[var(--accent)]">upfront</span>, no matter what happens.
+        </motion.p>
 
+        {/* Agent tagline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 1.0 }}
+          className="mt-8 font-mono text-[clamp(0.7rem,1.2vw,0.85rem)] text-[var(--accent)] tracking-[0.15em] uppercase"
+        >
+          humans use the app{" "}
+          <span className="text-[var(--text-secondary)] opacity-40 mx-1">/</span>{" "}
+          agents use the API{" "}
+          <span className="text-[var(--text-secondary)] opacity-40 mx-1">/</span>{" "}
+          one protocol
+        </motion.p>
+
+        {/* CTAs */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 1.1 }}
-          className="flex flex-wrap gap-4 pt-2"
+          transition={{ duration: 0.6, delay: 1.3 }}
+          className="flex flex-wrap gap-4 mt-12"
         >
           <Link
             href="/earn"
@@ -262,17 +272,21 @@ function MechanismSection({
   side,
   onSideChange,
   spot,
-  onSpotChange,
+  buyStrike,
+  sellStrike,
+  priceReady,
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
   spot: number;
-  onSpotChange: (p: number) => void;
+  buyStrike: number;
+  sellStrike: number;
+  priceReady: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-20%" });
-  const strike = side === "buy" ? BUY_STRIKE : SELL_STRIKE;
-  const premium = derivePremium(spot, side);
+  const inView = useInView(ref, { once: true, margin: "-10%" });
+  const strike = side === "buy" ? buyStrike : sellStrike;
+  const premium = derivePremium(spot, side, buyStrike, sellStrike);
 
   return (
     <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
@@ -289,12 +303,17 @@ function MechanismSection({
         <motion.div
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
           className="space-y-6"
         >
           <div className="flex items-center gap-6 flex-wrap">
             <p className="text-[var(--text-secondary)] text-lg">
-              ETH is <TickingPrice base={SPOT_BASE} className="text-[var(--text)] font-bold font-mono" onPriceChange={onSpotChange} />
+              ETH is{" "}
+              {priceReady ? (
+                <span className="text-[var(--text)] font-bold font-mono">${spot.toLocaleString()}</span>
+              ) : (
+                <span className="inline-block w-20 h-6 rounded bg-[var(--border)] animate-pulse align-middle" />
+              )}
             </p>
             <SideToggle side={side} onSideChange={onSideChange} />
           </div>
@@ -320,9 +339,9 @@ function MechanismSection({
           <motion.div
             key={side}
             initial={{ opacity: 0, y: 15 }}
-            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ duration: 0.4 }}
             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
@@ -359,16 +378,44 @@ function MechanismSection({
           </motion.div>
         </AnimatePresence>
 
+        <WalletCTA />
+
         <motion.p
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
           className="text-[var(--text-secondary)] opacity-60 text-base"
         >
-          Your money is locked until the end. Only the closing price matters — not what happens in between.
+          Your money is locked until the end. Only the closing price matters, not what happens in between.
         </motion.p>
       </div>
     </section>
+  );
+}
+
+/* ── Wallet CTA ── */
+
+function WalletCTA() {
+  const { isConnected, login } = useWallet();
+
+  if (isConnected) {
+    return (
+      <Link
+        href="/earn"
+        className="inline-block rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+      >
+        Start earning &rarr;
+      </Link>
+    );
+  }
+
+  return (
+    <button
+      onClick={login}
+      className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+    >
+      Connect wallet to start
+    </button>
   );
 }
 
@@ -400,9 +447,9 @@ function YieldSourceSection() {
             From the market. You set a price, someone pays to lock it in.
           </p>
           <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
-            Price not reached — you collect and your money comes back untouched.
+            Price not reached? You collect and your money comes back untouched.
             <br />
-            Price reached — you buy or sell at the price you chose. And you still collect.
+            Price reached? You buy or sell at the price you chose. And you still collect.
           </p>
           <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text)]">
             You pick the price. You pick the amount. And you get paid upfront, every time.
@@ -433,33 +480,46 @@ type LoopFrame = {
   slow?: boolean;
 };
 
-const BUY_LOOP: LoopFrame[] = [
-  { text: "Buy ETH @ $2,400" },
-  { text: "Earn $61 ✓", accent: true, counter: 61 },
-  { text: "Price didn't hit.\n$2,400 back.", secondary: true },
-  { text: "Earn again →", accent: true, pulse: true },
-  { text: "Buy ETH @ $2,400" },
-  { text: "Earn $61 ✓", accent: true, counter: 61 },
-  { text: "Price hit.\nYou bought ETH @ $2,400.", secondary: true },
-  { text: "You now have ETH.\nSet a sell price.", slow: true },
-  { text: "Sell ETH @ $2,800" },
-  { text: "Earn $42 ✓", accent: true, counter: 42 },
-  { text: "Earn again →", accent: true, pulse: true },
-];
+function buildLoopFrames(
+  side: "buy" | "sell",
+  buyStrike: number,
+  sellStrike: number,
+  buyPremium: number,
+  sellPremium: number,
+): LoopFrame[] {
+  const bs = `$${buyStrike.toLocaleString()}`;
+  const ss = `$${sellStrike.toLocaleString()}`;
+  const bp = buyPremium;
+  const sp = sellPremium;
 
-const SELL_LOOP: LoopFrame[] = [
-  { text: "Sell ETH @ $2,800" },
-  { text: "Earn $42 ✓", accent: true, counter: 42 },
-  { text: "Price didn't hit.\nYour ETH comes back.", secondary: true },
-  { text: "Earn again →", accent: true, pulse: true },
-  { text: "Sell ETH @ $2,800" },
-  { text: "Earn $42 ✓", accent: true, counter: 42 },
-  { text: "Price hit.\nYou sold ETH @ $2,800.", secondary: true },
-  { text: "You now have dollars.\nSet a buy price.", slow: true },
-  { text: "Buy ETH @ $2,400" },
-  { text: "Earn $61 ✓", accent: true, counter: 61 },
-  { text: "Earn again →", accent: true, pulse: true },
-];
+  if (side === "buy") return [
+    { text: `Buy ETH @ ${bs}` },
+    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
+    { text: `Price didn't hit.\n${bs} back.`, secondary: true },
+    { text: "Earn again →", accent: true, pulse: true },
+    { text: `Buy ETH @ ${bs}` },
+    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
+    { text: `Price hit.\nYou bought ETH @ ${bs}.`, secondary: true },
+    { text: "You now have ETH.\nSet a sell price.", slow: true },
+    { text: `Sell ETH @ ${ss}` },
+    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
+    { text: "Earn again →", accent: true, pulse: true },
+  ];
+
+  return [
+    { text: `Sell ETH @ ${ss}` },
+    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
+    { text: "Price didn't hit.\nYour ETH comes back.", secondary: true },
+    { text: "Earn again →", accent: true, pulse: true },
+    { text: `Sell ETH @ ${ss}` },
+    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
+    { text: `Price hit.\nYou sold ETH @ ${ss}.`, secondary: true },
+    { text: "You now have dollars.\nSet a buy price.", slow: true },
+    { text: `Buy ETH @ ${bs}` },
+    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
+    { text: "Earn again →", accent: true, pulse: true },
+  ];
+}
 
 function LoopCounter({ target }: { target: number }) {
   const [val, setVal] = useState(0);
@@ -483,11 +543,26 @@ function LoopCounter({ target }: { target: number }) {
   return <>${val}</>;
 }
 
-const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }) {
+const LoopSection = memo(function LoopSection({
+  side,
+  buyStrike,
+  sellStrike,
+  spotBase,
+}: {
+  side: "buy" | "sell";
+  buyStrike: number;
+  sellStrike: number;
+  spotBase: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
   const [frameIndex, setFrameIndex] = useState(0);
-  const frames = side === "buy" ? BUY_LOOP : SELL_LOOP;
+  const buyPremium = derivePremium(spotBase, "buy", buyStrike, sellStrike);
+  const sellPremium = derivePremium(spotBase, "sell", buyStrike, sellStrike);
+  const frames = useMemo(
+    () => buildLoopFrames(side, buyStrike, sellStrike, buyPremium, sellPremium),
+    [side, buyStrike, sellStrike, buyPremium, sellPremium],
+  );
 
   useEffect(() => {
     setFrameIndex(0);
@@ -686,7 +761,86 @@ const SocialProofSection = memo(function SocialProofSection() {
   );
 });
 
-/* ── Section 6: CTA ── */
+/* ── Section 6: Agent-Native ── */
+
+function AgentNativeSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-10%" });
+
+  return (
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-2xl w-full space-y-10">
+        {/* Terminal window */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
+        >
+          {/* Title bar */}
+          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-[var(--border)]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
+          </div>
+
+          {/* Terminal body */}
+          <div className="px-5 sm:px-6 py-6 font-mono text-[clamp(0.8rem,1.5vw,0.95rem)] leading-relaxed space-y-4">
+            {/* Human session */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={inView ? { opacity: 1 } : { opacity: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell ETH at $2,800&quot;
+              </p>
+              <p className="text-[var(--accent)] mt-1">
+                &gt; +$62 earned
+              </p>
+            </motion.div>
+
+            {/* Divider */}
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
+              transition={{ duration: 0.4, delay: 0.5 }}
+              className="border-t border-[var(--border)] origin-left"
+            />
+
+            {/* Agent session */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={inView ? { opacity: 1 } : { opacity: 0 }}
+              transition={{ duration: 0.4, delay: 0.6 }}
+            >
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--accent)]">$</span> agent POST /api/sell &#123;strike: 2800&#125;
+              </p>
+              <p className="text-[var(--accent)] mt-1">
+                &gt; +$62 earned
+              </p>
+            </motion.div>
+          </div>
+        </motion.div>
+
+        {/* Punchline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.6, delay: 0.9 }}
+          className="text-center text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text-secondary)] font-light"
+        >
+          Same contracts. Same earnings.
+          <br />
+          <span className="opacity-50">Doesn&apos;t matter who calls it.</span>
+        </motion.p>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 7: CTA ── */
 
 function CTASection() {
   const ref = useRef<HTMLDivElement>(null);
@@ -721,9 +875,10 @@ function CTASection() {
 
 export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [spot, setSpot] = useState(SPOT_BASE);
-
-  const handleSpotChange = useCallback((p: number) => setSpot(p), []);
+  const { prices, loading: priceLoading } = usePrices(30_000);
+  const spot = prices[0]?.spot ? Math.round(prices[0].spot) : FALLBACK_SPOT;
+  const priceReady = !priceLoading;
+  const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
   return (
     <div className="bg-[var(--bg)] relative overflow-hidden">
@@ -742,11 +897,12 @@ export function LandingPage() {
 
       <main>
         <HeroSection />
-        <MechanismSection side={side} onSideChange={setSide} spot={spot} onSpotChange={handleSpotChange} />
+        <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
         <YieldSourceSection />
-        <LoopSection side={side} />
+        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
         <ComparisonSection />
         <SocialProofSection />
+        <AgentNativeSection />
         <CTASection />
       </main>
     </div>
