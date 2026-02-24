@@ -765,7 +765,45 @@ const SocialProofSection = memo(function SocialProofSection() {
   );
 });
 
-/* ── Section 6: CTA ── */
+/* ── Section 6: Agent-Native ── */
+
+function AgentNativeSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-10%" });
+
+  return (
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-3xl w-full space-y-8">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--bone)] tracking-tight"
+        >
+          Built for humans and their agents.
+        </motion.h2>
+
+        <motion.div
+          initial={{ opacity: 0, y: 15 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+          transition={{ duration: 0.5, delay: 0.2 }}
+          className="space-y-4"
+        >
+          <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text-secondary)]">
+            Humans use the app. Agents use the API.
+            <br />
+            Same contracts. Same settlement. Same earnings.
+          </p>
+          <p className="text-[var(--text-secondary)] text-base opacity-60">
+            The protocol is permissionless. Anyone (or anything) can read prices, evaluate, and execute.
+          </p>
+        </motion.div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 7: CTA ── */
 
 function CTASection() {
   const ref = useRef<HTMLDivElement>(null);
@@ -830,6 +868,7 @@ export function LandingPage() {
         <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spotBase} />
         <ComparisonSection />
         <SocialProofSection />
+        <AgentNativeSection />
         <CTASection />
       </main>
     </div>
