@@ -52,6 +52,18 @@ To execute an option order as an AI agent:
 
 All amounts use 8 decimals for oTokens and strike prices. LUSD uses 6 decimals, LETH uses 18 decimals.
 
+## Recommended Strategy: The Wheel
+
+The optimal automated strategy on b1nary is "the wheel" — a continuous cycle of selling puts and covered calls to generate premium income:
+
+1. **Start with USDC.** Sell a cash-secured put at a strike you're comfortable buying ETH at.
+2. **If the put expires OTM** (ETH stayed above strike): collateral is returned. Collect premium and sell another put.
+3. **If the put is assigned** (ETH dropped below strike): you receive ETH via physical delivery at your strike price. Now sell a covered call on that ETH at a strike you'd be happy to sell at.
+4. **If the call expires OTM** (ETH stayed below strike): keep the ETH and the premium. Sell another covered call.
+5. **If the call is assigned** (ETH rose above strike): your ETH is sold at the strike price via physical delivery. You're back to USDC. Return to step 1.
+
+This strategy earns premium on every cycle regardless of market direction. Use `GET /positions/{address}` to monitor settlement — when a position settles, check the `outcome` field to decide the next move. An agent can fully automate this loop.
+
 ## Optional
 
 - [b1nary app](https://b1nary.app): Web interface
