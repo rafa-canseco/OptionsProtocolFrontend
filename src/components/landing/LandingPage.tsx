@@ -3,10 +3,9 @@
 import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
-import { TickingPrice } from "./TickingPrice";
 import { BackgroundEffects } from "./BackgroundEffects";
 import { useWallet } from "@/hooks/useWallet";
-import { api } from "@/lib/api";
+import { usePrices } from "@/hooks/usePrices";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
@@ -18,23 +17,6 @@ function deriveStrikes(spot: number) {
   const buy = Math.round((spot * 0.92) / 100) * 100;
   const sell = Math.round((spot * 1.08) / 100) * 100;
   return { buyStrike: buy, sellStrike: sell };
-}
-
-function useLiveSpot(): number {
-  const [spot, setSpot] = useState(FALLBACK_SPOT);
-
-  useEffect(() => {
-    let cancelled = false;
-    api.getPrices()
-      .then((prices) => {
-        if (cancelled || prices.length === 0) return;
-        setSpot(Math.round(prices[0].spot));
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
-  }, []);
-
-  return spot;
 }
 
 /* ── Binary scramble hook ── */
@@ -279,18 +261,16 @@ function MechanismSection({
   side,
   onSideChange,
   spot,
-  spotBase,
-  onSpotChange,
   buyStrike,
   sellStrike,
+  priceReady,
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
   spot: number;
-  spotBase: number;
-  onSpotChange: (p: number) => void;
   buyStrike: number;
   sellStrike: number;
+  priceReady: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10%" });
@@ -317,7 +297,12 @@ function MechanismSection({
         >
           <div className="flex items-center gap-6 flex-wrap">
             <p className="text-[var(--text-secondary)] text-lg">
-              ETH is <TickingPrice base={spotBase} className="text-[var(--text)] font-bold font-mono" onPriceChange={onSpotChange} />
+              ETH is{" "}
+              {priceReady ? (
+                <span className="text-[var(--text)] font-bold font-mono">${spot.toLocaleString()}</span>
+              ) : (
+                <span className="inline-block w-20 h-6 rounded bg-[var(--border)] animate-pulse align-middle" />
+              )}
             </p>
             <SideToggle side={side} onSideChange={onSideChange} />
           </div>
@@ -838,13 +823,10 @@ function CTASection() {
 
 export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const spotBase = useLiveSpot();
-  const [spot, setSpot] = useState(spotBase);
-  const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spotBase), [spotBase]);
-
-  useEffect(() => { setSpot(spotBase); }, [spotBase]);
-
-  const handleSpotChange = useCallback((p: number) => setSpot(p), []);
+  const { prices, loading: priceLoading } = usePrices(30_000);
+  const spot = prices[0]?.spot ? Math.round(prices[0].spot) : FALLBACK_SPOT;
+  const priceReady = !priceLoading && prices.length > 0;
+  const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
   return (
     <div className="bg-[var(--bg)] relative overflow-hidden">
@@ -863,9 +845,9 @@ export function LandingPage() {
 
       <main>
         <HeroSection />
-        <MechanismSection side={side} onSideChange={setSide} spot={spot} spotBase={spotBase} onSpotChange={handleSpotChange} buyStrike={buyStrike} sellStrike={sellStrike} />
+        <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
         <YieldSourceSection />
-        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spotBase} />
+        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
         <ComparisonSection />
         <SocialProofSection />
         <AgentNativeSection />
