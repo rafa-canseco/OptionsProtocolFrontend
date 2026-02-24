@@ -1,20 +1,40 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback, useEffect, memo } from "react";
+import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { TickingPrice } from "./TickingPrice";
 import { BackgroundEffects } from "./BackgroundEffects";
+import { api } from "@/lib/api";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
 const BINARY_CHARS = "01";
 
-const SPOT_BASE = 2621;
-const BUY_STRIKE = 2400;
-const SELL_STRIKE = 2800;
-const BUY_PREMIUM_BASE = 61;
-const SELL_PREMIUM_BASE = 42;
+const FALLBACK_SPOT = 2621;
+
+function deriveStrikes(spot: number) {
+  const buy = Math.round((spot * 0.92) / 100) * 100;
+  const sell = Math.round((spot * 1.08) / 100) * 100;
+  return { buyStrike: buy, sellStrike: sell };
+}
+
+function useLiveSpot(): number {
+  const [spot, setSpot] = useState(FALLBACK_SPOT);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getPrices()
+      .then((prices) => {
+        if (cancelled || prices.length === 0) return;
+        setSpot(Math.round(prices[0].spot));
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
+
+  return spot;
+}
 
 /* ── Binary scramble hook ── */
 function useBinaryReveal(trigger: boolean, duration = 2000) {
@@ -73,23 +93,19 @@ function FadeBlock({
   );
 }
 
-function derivePremium(spot: number, side: "buy" | "sell"): number {
-  if (!Number.isFinite(spot)) return side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
+function derivePremium(spot: number, side: "buy" | "sell", buyStrike: number, sellStrike: number): number {
+  const basePremiumBuy = Math.round(buyStrike * 0.025);
+  const basePremiumSell = Math.round(sellStrike * 0.015);
 
-  let raw: number;
+  if (!Number.isFinite(spot)) return side === "buy" ? basePremiumBuy : basePremiumSell;
+
   if (side === "buy") {
-    const denom = SPOT_BASE - BUY_STRIKE;
-    if (denom === 0) return BUY_PREMIUM_BASE;
-    const dist = (spot - BUY_STRIKE) / denom;
-    raw = BUY_PREMIUM_BASE * (2 - dist);
+    const dist = Math.max(0, (spot - buyStrike) / spot);
+    return Math.round(Math.max(1, basePremiumBuy * (1 + dist)));
   } else {
-    const denom = SELL_STRIKE - SPOT_BASE;
-    if (denom === 0) return SELL_PREMIUM_BASE;
-    const dist = (SELL_STRIKE - spot) / denom;
-    raw = SELL_PREMIUM_BASE * (2 - dist);
+    const dist = Math.max(0, (sellStrike - spot) / spot);
+    return Math.round(Math.max(1, basePremiumSell * (1 + dist)));
   }
-  const base = side === "buy" ? BUY_PREMIUM_BASE : SELL_PREMIUM_BASE;
-  return Math.round(Math.max(1, Math.min(raw, base * 3)));
 }
 
 function AnimatedPremium({ value }: { value: number }) {
@@ -262,17 +278,23 @@ function MechanismSection({
   side,
   onSideChange,
   spot,
+  spotBase,
   onSpotChange,
+  buyStrike,
+  sellStrike,
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
   spot: number;
+  spotBase: number;
   onSpotChange: (p: number) => void;
+  buyStrike: number;
+  sellStrike: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
-  const strike = side === "buy" ? BUY_STRIKE : SELL_STRIKE;
-  const premium = derivePremium(spot, side);
+  const strike = side === "buy" ? buyStrike : sellStrike;
+  const premium = derivePremium(spot, side, buyStrike, sellStrike);
 
   return (
     <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
@@ -294,7 +316,7 @@ function MechanismSection({
         >
           <div className="flex items-center gap-6 flex-wrap">
             <p className="text-[var(--text-secondary)] text-lg">
-              ETH is <TickingPrice base={SPOT_BASE} className="text-[var(--text)] font-bold font-mono" onPriceChange={onSpotChange} />
+              ETH is <TickingPrice base={spotBase} className="text-[var(--text)] font-bold font-mono" onPriceChange={onSpotChange} />
             </p>
             <SideToggle side={side} onSideChange={onSideChange} />
           </div>
@@ -433,33 +455,46 @@ type LoopFrame = {
   slow?: boolean;
 };
 
-const BUY_LOOP: LoopFrame[] = [
-  { text: "Buy ETH @ $2,400" },
-  { text: "Earn $61 ✓", accent: true, counter: 61 },
-  { text: "Price didn't hit.\n$2,400 back.", secondary: true },
-  { text: "Earn again →", accent: true, pulse: true },
-  { text: "Buy ETH @ $2,400" },
-  { text: "Earn $61 ✓", accent: true, counter: 61 },
-  { text: "Price hit.\nYou bought ETH @ $2,400.", secondary: true },
-  { text: "You now have ETH.\nSet a sell price.", slow: true },
-  { text: "Sell ETH @ $2,800" },
-  { text: "Earn $42 ✓", accent: true, counter: 42 },
-  { text: "Earn again →", accent: true, pulse: true },
-];
+function buildLoopFrames(
+  side: "buy" | "sell",
+  buyStrike: number,
+  sellStrike: number,
+  buyPremium: number,
+  sellPremium: number,
+): LoopFrame[] {
+  const bs = `$${buyStrike.toLocaleString()}`;
+  const ss = `$${sellStrike.toLocaleString()}`;
+  const bp = buyPremium;
+  const sp = sellPremium;
 
-const SELL_LOOP: LoopFrame[] = [
-  { text: "Sell ETH @ $2,800" },
-  { text: "Earn $42 ✓", accent: true, counter: 42 },
-  { text: "Price didn't hit.\nYour ETH comes back.", secondary: true },
-  { text: "Earn again →", accent: true, pulse: true },
-  { text: "Sell ETH @ $2,800" },
-  { text: "Earn $42 ✓", accent: true, counter: 42 },
-  { text: "Price hit.\nYou sold ETH @ $2,800.", secondary: true },
-  { text: "You now have dollars.\nSet a buy price.", slow: true },
-  { text: "Buy ETH @ $2,400" },
-  { text: "Earn $61 ✓", accent: true, counter: 61 },
-  { text: "Earn again →", accent: true, pulse: true },
-];
+  if (side === "buy") return [
+    { text: `Buy ETH @ ${bs}` },
+    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
+    { text: `Price didn't hit.\n${bs} back.`, secondary: true },
+    { text: "Earn again →", accent: true, pulse: true },
+    { text: `Buy ETH @ ${bs}` },
+    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
+    { text: `Price hit.\nYou bought ETH @ ${bs}.`, secondary: true },
+    { text: "You now have ETH.\nSet a sell price.", slow: true },
+    { text: `Sell ETH @ ${ss}` },
+    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
+    { text: "Earn again →", accent: true, pulse: true },
+  ];
+
+  return [
+    { text: `Sell ETH @ ${ss}` },
+    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
+    { text: "Price didn't hit.\nYour ETH comes back.", secondary: true },
+    { text: "Earn again →", accent: true, pulse: true },
+    { text: `Sell ETH @ ${ss}` },
+    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
+    { text: `Price hit.\nYou sold ETH @ ${ss}.`, secondary: true },
+    { text: "You now have dollars.\nSet a buy price.", slow: true },
+    { text: `Buy ETH @ ${bs}` },
+    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
+    { text: "Earn again →", accent: true, pulse: true },
+  ];
+}
 
 function LoopCounter({ target }: { target: number }) {
   const [val, setVal] = useState(0);
@@ -483,11 +518,26 @@ function LoopCounter({ target }: { target: number }) {
   return <>${val}</>;
 }
 
-const LoopSection = memo(function LoopSection({ side }: { side: "buy" | "sell" }) {
+const LoopSection = memo(function LoopSection({
+  side,
+  buyStrike,
+  sellStrike,
+  spotBase,
+}: {
+  side: "buy" | "sell";
+  buyStrike: number;
+  sellStrike: number;
+  spotBase: number;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
   const [frameIndex, setFrameIndex] = useState(0);
-  const frames = side === "buy" ? BUY_LOOP : SELL_LOOP;
+  const buyPremium = derivePremium(spotBase, "buy", buyStrike, sellStrike);
+  const sellPremium = derivePremium(spotBase, "sell", buyStrike, sellStrike);
+  const frames = useMemo(
+    () => buildLoopFrames(side, buyStrike, sellStrike, buyPremium, sellPremium),
+    [side, buyStrike, sellStrike, buyPremium, sellPremium],
+  );
 
   useEffect(() => {
     setFrameIndex(0);
@@ -721,7 +771,11 @@ function CTASection() {
 
 export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [spot, setSpot] = useState(SPOT_BASE);
+  const spotBase = useLiveSpot();
+  const [spot, setSpot] = useState(spotBase);
+  const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spotBase), [spotBase]);
+
+  useEffect(() => { setSpot(spotBase); }, [spotBase]);
 
   const handleSpotChange = useCallback((p: number) => setSpot(p), []);
 
@@ -742,9 +796,9 @@ export function LandingPage() {
 
       <main>
         <HeroSection />
-        <MechanismSection side={side} onSideChange={setSide} spot={spot} onSpotChange={handleSpotChange} />
+        <MechanismSection side={side} onSideChange={setSide} spot={spot} spotBase={spotBase} onSpotChange={handleSpotChange} buyStrike={buyStrike} sellStrike={sellStrike} />
         <YieldSourceSection />
-        <LoopSection side={side} />
+        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spotBase} />
         <ComparisonSection />
         <SocialProofSection />
         <CTASection />
