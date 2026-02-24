@@ -292,7 +292,7 @@ function MechanismSection({
   sellStrike: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-20%" });
+  const inView = useInView(ref, { once: true, margin: "-10%" });
   const strike = side === "buy" ? buyStrike : sellStrike;
   const premium = derivePremium(spot, side, buyStrike, sellStrike);
 
@@ -311,7 +311,7 @@ function MechanismSection({
         <motion.div
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
           className="space-y-6"
         >
           <div className="flex items-center gap-6 flex-wrap">
@@ -342,9 +342,9 @@ function MechanismSection({
           <motion.div
             key={side}
             initial={{ opacity: 0, y: 15 }}
-            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+            animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
+            transition={{ duration: 0.4 }}
             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
@@ -384,7 +384,7 @@ function MechanismSection({
         <motion.p
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.6 }}
+          transition={{ duration: 0.5, delay: 0.3 }}
           className="text-[var(--text-secondary)] opacity-60 text-base"
         >
           Your money is locked until the end. Only the closing price matters, not what happens in between.
