@@ -23,7 +23,6 @@ function untilDate(expiryDays: number): string {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 
-
 /** Horizontal price axis with color zones — spot vs strikes */
 function StrikeChart({
   filteredPrices,
@@ -288,11 +287,14 @@ export function PriceMenuV2() {
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
-    if (!selectedQuote) return;
-    const match = filteredPrices.find((q) => q.strike === selectedQuote.strike);
-    if (match && match !== selectedQuote) setSelectedQuote(match);
-    else if (!match) setSelectedQuote(null);
-  }, [filteredPrices]); // eslint-disable-line react-hooks/exhaustive-deps
+    setSelectedQuote((prev) => {
+      if (!prev) return prev;
+      const match = filteredPrices.find((q) => q.strike === prev.strike);
+      if (!match) return null;
+      if (match.premium !== prev.premium || match.expiry_days !== prev.expiry_days) return match;
+      return prev;
+    });
+  }, [filteredPrices]);
 
   const selectedEarnings = selectedQuote && amount > 0
     ? isBuy
@@ -383,7 +385,7 @@ export function PriceMenuV2() {
           {/* 1. Buy / Sell toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
-              onClick={() => { setSide("buy"); setSelectedQuote(null); }}
+              onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 side === "buy"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
@@ -393,7 +395,7 @@ export function PriceMenuV2() {
               I&apos;d buy
             </button>
             <button
-              onClick={() => { setSide("sell"); setSelectedQuote(null); }}
+              onClick={() => { setSide("sell"); setAmountStr(""); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
                 side === "sell"
                   ? "bg-[var(--bg)] text-[var(--danger)] shadow-sm"
