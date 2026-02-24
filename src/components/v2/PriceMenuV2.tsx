@@ -379,7 +379,7 @@ export function PriceMenuV2() {
           <p className="text-4xl font-bold text-[var(--accent)] font-mono">
             ${Math.round(premium).toLocaleString()}
           </p>
-          <p className="text-base text-[var(--text-secondary)] mt-2">earned — yours to keep</p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">{Math.round(apr)}% APR</p>
         <div className="h-px bg-[var(--border)]" />
@@ -550,7 +550,7 @@ export function PriceMenuV2() {
                 ? "Enter an amount"
                 : !selectedQuote
                   ? "Select a strike price"
-                  : `Accept — Earn $${Math.round(selectedEarnings).toLocaleString()}`}
+                  : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
           </button>
         </div>
 

@@ -175,7 +175,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             consecutiveErrors++;
             console.warn(`[AcceptModal] Poll check failed for ${label} (attempt ${i + 1}):`, err);
             if (consecutiveErrors >= 5) {
-              throw new Error(`Lost connection while waiting for ${label}. Your transaction may still be processing — check your wallet before retrying.`);
+              throw new Error(`Lost connection while waiting for ${label}. Your transaction may still be processing. Check your wallet before retrying.`);
             }
           }
           await new Promise((r) => setTimeout(r, intervalMs));
@@ -311,7 +311,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       } else if (currentStep === "approving") {
         setError("Token approval failed. Please try again.");
       } else if (currentStep === "executing") {
-        setError("Order execution failed. Your approval succeeded — try accepting again.");
+        setError("Order execution failed. Your approval succeeded, try accepting again.");
       } else {
         setError("Transaction failed. Please try again.");
       }

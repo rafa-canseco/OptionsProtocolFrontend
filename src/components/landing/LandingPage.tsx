@@ -186,7 +186,7 @@ function HeroSection() {
           <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text-secondary)] font-light leading-relaxed">
             Pick a price you&apos;d buy or sell ETH at.
             <br />
-            Get paid <span className="font-semibold text-[var(--accent)]">upfront</span> — no matter what happens.
+            Get paid <span className="font-semibold text-[var(--accent)]">upfront</span>, no matter what happens.
           </p>
         </motion.div>
 
@@ -365,7 +365,7 @@ function MechanismSection({
           transition={{ duration: 0.5, delay: 0.6 }}
           className="text-[var(--text-secondary)] opacity-60 text-base"
         >
-          Your money is locked until the end. Only the closing price matters — not what happens in between.
+          Your money is locked until the end. Only the closing price matters, not what happens in between.
         </motion.p>
       </div>
     </section>
@@ -400,9 +400,9 @@ function YieldSourceSection() {
             From the market. You set a price, someone pays to lock it in.
           </p>
           <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
-            Price not reached — you collect and your money comes back untouched.
+            Price not reached? You collect and your money comes back untouched.
             <br />
-            Price reached — you buy or sell at the price you chose. And you still collect.
+            Price reached? You buy or sell at the price you chose. And you still collect.
           </p>
           <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text)]">
             You pick the price. You pick the amount. And you get paid upfront, every time.

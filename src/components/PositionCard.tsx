@@ -174,7 +174,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           {/* Two clear lines */}
           <p className="text-sm text-[var(--text)]">
-            Your price wasn&apos;t reached — no trade
+            Your price wasn&apos;t reached. No trade.
           </p>
           <p className="text-sm text-[var(--text-secondary)]">
             Committed {committedDisplay} → Returned {committedDisplay} +{" "}
