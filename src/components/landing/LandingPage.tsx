@@ -164,36 +164,47 @@ function HeaderLogo() {
 function HeroSection() {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
-      <div className="max-w-4xl mx-auto w-full space-y-8">
+      <div className="max-w-4xl mx-auto w-full">
+        {/* Line 1: short, punchy, large */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.3 }}
-          className="text-[clamp(1.8rem,5vw,3.5rem)] leading-[1.1] tracking-tight text-[var(--bone)] font-light"
+          className="text-[clamp(2.2rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-[var(--bone)] font-light"
         >
-          Your crypto is sitting there.
-          <br />
-          <span className="text-[var(--accent)]">Make it pay you.</span>
+          Pick a price you&apos;d buy or sell ETH at.
         </motion.h1>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
+        {/* Line 2: supporting, slightly smaller */}
+        <motion.p
+          initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.7 }}
-          className="space-y-2"
+          transition={{ duration: 0.7, delay: 0.6 }}
+          className="mt-4 text-[clamp(1.3rem,3.5vw,2rem)] leading-[1.2] text-[var(--text-secondary)] font-light"
         >
-          <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text-secondary)] font-light leading-relaxed">
-            Pick a price you&apos;d buy or sell ETH at.
-            <br />
-            Get paid <span className="font-semibold text-[var(--accent)]">upfront</span>, no matter what happens.
-          </p>
-        </motion.div>
+          Get paid <span className="font-normal text-[var(--accent)]">upfront</span>, no matter what happens.
+        </motion.p>
 
+        {/* Agent tagline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.8, delay: 1.0 }}
+          className="mt-8 font-mono text-[clamp(0.7rem,1.2vw,0.85rem)] text-[var(--accent)] tracking-[0.15em] uppercase"
+        >
+          humans use the app{" "}
+          <span className="text-[var(--text-secondary)] opacity-40 mx-1">/</span>{" "}
+          agents use the API{" "}
+          <span className="text-[var(--text-secondary)] opacity-40 mx-1">/</span>{" "}
+          one protocol
+        </motion.p>
+
+        {/* CTAs */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 1.1 }}
-          className="flex flex-wrap gap-4 pt-2"
+          transition={{ duration: 0.6, delay: 1.3 }}
+          className="flex flex-wrap gap-4 mt-12"
         >
           <Link
             href="/earn"
@@ -758,31 +769,72 @@ function AgentNativeSection() {
 
   return (
     <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-8">
-        <motion.h2
+      <div className="max-w-2xl w-full space-y-10">
+        {/* Terminal window */}
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--bone)] tracking-tight"
+          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
         >
-          Built for humans and their agents.
-        </motion.h2>
+          {/* Title bar */}
+          <div className="flex items-center gap-1.5 px-4 py-3 border-b border-[var(--border)]">
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
+            <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
+          </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="space-y-4"
-        >
-          <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text-secondary)]">
-            Humans use the app. Agents use the API.
-            <br />
-            Same contracts. Same settlement. Same earnings.
-          </p>
-          <p className="text-[var(--text-secondary)] text-base opacity-60">
-            The protocol is permissionless. Anyone (or anything) can read prices, evaluate, and execute.
-          </p>
+          {/* Terminal body */}
+          <div className="px-5 sm:px-6 py-6 font-mono text-[clamp(0.8rem,1.5vw,0.95rem)] leading-relaxed space-y-4">
+            {/* Human session */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={inView ? { opacity: 1 } : { opacity: 0 }}
+              transition={{ duration: 0.4, delay: 0.2 }}
+            >
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell ETH at $2,800&quot;
+              </p>
+              <p className="text-[var(--accent)] mt-1">
+                &gt; +$62 earned
+              </p>
+            </motion.div>
+
+            {/* Divider */}
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
+              transition={{ duration: 0.4, delay: 0.5 }}
+              className="border-t border-[var(--border)] origin-left"
+            />
+
+            {/* Agent session */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={inView ? { opacity: 1 } : { opacity: 0 }}
+              transition={{ duration: 0.4, delay: 0.6 }}
+            >
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--accent)]">$</span> agent POST /api/sell &#123;strike: 2800&#125;
+              </p>
+              <p className="text-[var(--accent)] mt-1">
+                &gt; +$62 earned
+              </p>
+            </motion.div>
+          </div>
         </motion.div>
+
+        {/* Punchline */}
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.6, delay: 0.9 }}
+          className="text-center text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text-secondary)] font-light"
+        >
+          Same contracts. Same earnings.
+          <br />
+          <span className="opacity-50">Doesn&apos;t matter who calls it.</span>
+        </motion.p>
       </div>
     </section>
   );
