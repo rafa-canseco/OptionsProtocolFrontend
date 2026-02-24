@@ -15,6 +15,7 @@ Base URL: `https://api.b1nary.app`
 - [GET /prices](https://api.b1nary.app/prices): Returns the live ETH options price sheet. Each entry has strike, expiry, premium, delta, IV, spot price, available amount, and oToken address. Cached ~15s. Returns 503 if circuit breaker is active.
 - [GET /positions/{address}](https://api.b1nary.app/positions/{address}): Returns all option positions for an Ethereum address. Key fields: `otoken_address`, `vault_id`, `amount`, `strike_price`, `expiry`, `is_put`, `is_settled`, `is_itm`, `settlement_type`, `outcome`, `net_premium`, `collateral`.
 - [GET /prices/simulate](https://api.b1nary.app/prices/simulate?strike=2400&side=sell): Back-test a 7-day cash-secured put at a given strike. Returns premium earned, assignment outcome, and comparison vs hold/stake/DCA.
+- [POST /faucet](https://api.b1nary.app/faucet): Get testnet tokens and gas. Send `{"address": "0x..."}` to receive 50 LETH + 100,000 LUSD + 0.005 ETH for gas. One claim per wallet — subsequent calls return an error. Response includes `leth_amount`, `lusd_amount`, `eth_amount`, `leth_tx_hash`, `lusd_tx_hash`, and `eth_tx_hash`.
 
 ## Smart Contracts (Base Sepolia)
 
@@ -44,6 +45,7 @@ On Controller. Read vault details: shortOtoken, collateralAsset, shortAmount, co
 
 To execute an option order as an AI agent:
 
+0. Call `POST /faucet` with `{"address": "0xYOUR_WALLET"}` to receive test tokens and gas (50 LETH + 100,000 LUSD + 0.005 ETH). This is a one-time claim per wallet — you only need to do this once.
 1. Call `GET /prices` to get the current price sheet
 2. Pick a quote (strike, expiry, option type) — use the `otoken_address` field
 3. Calculate and approve collateral to MarginPool:
