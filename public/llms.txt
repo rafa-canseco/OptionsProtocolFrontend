@@ -13,7 +13,8 @@ b1nary lets users sell ETH options and earn yield. A market maker provides prici
 Base URL: `https://api.b1nary.app`
 
 - [GET /prices](https://api.b1nary.app/prices): Returns the live ETH options price sheet. Each entry has strike, expiry, premium, delta, IV, spot price, available amount, and oToken address. Cached ~15s. Returns 503 if circuit breaker is active.
-- [GET /positions/{address}](https://api.b1nary.app/positions/{address}): Returns all option positions for an Ethereum address. Includes strike, expiry, premium earned, settlement status, and outcome.
+- [GET /positions/{address}](https://api.b1nary.app/positions/{address}): Returns all option positions for an Ethereum address. Key fields: `otoken_address`, `vault_id`, `amount`, `strike_price`, `expiry`, `is_put`, `is_settled`, `is_itm`, `settlement_type`, `outcome`, `net_premium`, `collateral`.
+- [GET /prices/simulate](https://api.b1nary.app/prices/simulate?strike=2400&side=sell): Back-test a 7-day cash-secured put at a given strike. Returns premium earned, assignment outcome, and comparison vs hold/stake/DCA.
 
 ## Smart Contracts (Base Sepolia)
 
@@ -31,13 +32,13 @@ All contracts are verified on BaseScan.
 ## Key Contract Functions
 
 **executeOrder(address oToken, uint256 amount, uint256 collateral) returns (uint256 vaultId)**
-On BatchSettler. Permissionless — anyone can call. Atomically: locks collateral in MarginPool, mints oTokens, transfers oTokens to the market maker, pays premium to the user (minus protocol fee). The oToken address comes from the GET /prices API response.
+On BatchSettler. Permissionless — anyone can call. `amount` is in oToken units (8 decimals, where 1e8 = 1 ETH notional). Atomically: locks collateral in MarginPool, mints oTokens, transfers oTokens to the market maker, pays premium in USDC (LUSD on testnet) to the user (minus protocol fee). The oToken address comes from the GET /prices API response.
 
 **getQuote(address oToken) returns (uint256 bidPrice, uint256 askPrice, uint256 maxAmount, uint256 filledAmount, bool isValid)**
-On PriceSheet. Read the current market maker quote for an oToken. Check isValid and that filledAmount < maxAmount before executing.
+On PriceSheet. Read the current market maker quote for an oToken. `maxAmount` and `filledAmount` are in oToken units (8 decimals). Check isValid and that filledAmount < maxAmount before executing. Note: the `GET /prices` API already provides `available_amount` so calling `getQuote` directly is optional if using the API.
 
 **getVault(address owner, uint256 vaultId) returns (tuple)**
-On Controller. Read vault details: shortOtoken, shortAmount, collateralAsset, collateralAmount.
+On Controller. Read vault details: shortOtoken, collateralAsset, shortAmount, collateralAmount.
 
 ## Integration Guide
 
@@ -45,7 +46,9 @@ To execute an option order as an AI agent:
 
 1. Call `GET /prices` to get the current price sheet
 2. Pick a quote (strike, expiry, option type) — use the `otoken_address` field
-3. Approve the collateral token (LUSD for puts, LETH for calls) to the MarginPool address for the collateral amount
+3. Calculate and approve collateral to MarginPool:
+   - **Puts:** `collateral = (amount * strike_price_8dec) / 1e10` → result in 6 decimals (LUSD). Approve LUSD to MarginPool.
+   - **Calls:** `collateral = amount * 1e10` → result in 18 decimals (LETH). Approve LETH to MarginPool.
 4. Call `executeOrder(otoken_address, amount, collateral)` on the BatchSettler contract
 5. The transaction returns a `vaultId` — use this to track the position
 6. Call `GET /positions/{your_address}` to see your positions and settlement status
@@ -58,7 +61,7 @@ The optimal automated strategy on b1nary is "the wheel" — a continuous cycle o
 
 1. **Start with USDC.** Sell a cash-secured put at a strike you're comfortable buying ETH at.
 2. **If the put expires OTM** (ETH stayed above strike): collateral is returned. Collect premium and sell another put.
-3. **If the put is assigned** (ETH dropped below strike): you receive ETH via physical delivery at your strike price. Now sell a covered call on that ETH at a strike you'd be happy to sell at.
+3. **If the put is assigned** (ETH dropped below strike): you automatically receive ETH via physical delivery at your strike price (settlement happens after expiry, no action needed). Now sell a covered call on that ETH at a strike you'd be happy to sell at.
 4. **If the call expires OTM** (ETH stayed below strike): keep the ETH and the premium. Sell another covered call.
 5. **If the call is assigned** (ETH rose above strike): your ETH is sold at the strike price via physical delivery. You're back to USDC. Return to step 1.
 
@@ -69,6 +72,6 @@ This strategy earns premium on every cycle regardless of market direction. Use `
 - [b1nary app](https://b1nary.app): Web interface
 - [BaseScan contracts](https://sepolia.basescan.org/address/0x7824ba774e0C45e31D3c75867be1566073bfF7A7): Verified source code and ABIs
 - Protocol fee: 4% (400 bps), deducted from premium automatically
-- Options expire daily at 08:00 UTC with automatic settlement
+- Options expire weekly at 08:00 UTC with automatic settlement
 - ITM options settle via physical delivery (Aave flash loan + Uniswap swap)
 - OTM options return collateral to the seller
