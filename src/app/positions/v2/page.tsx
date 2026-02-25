@@ -4,6 +4,7 @@ import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
@@ -76,6 +77,9 @@ export default function PositionsV2Page() {
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
+
+      {/* Earnings chart */}
+      <EarningsChart positions={allPositions} />
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
@@ -65,6 +66,9 @@ export default function PositionsPage() {
       <h1 className="sr-only">Your Positions</h1>
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
+
+      {/* Earnings chart */}
+      <EarningsChart positions={allPositions} />
 
       {/* Active positions — cards */}
       <section className="space-y-4">
