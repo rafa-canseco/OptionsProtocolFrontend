@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
+import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
+import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
+import type { Position } from "@/lib/api";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
@@ -16,6 +19,7 @@ export default function PositionsPage() {
   const { positions, loading, refresh } = usePositions(address);
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
+  const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
@@ -24,10 +28,20 @@ export default function PositionsPage() {
     .sort((a, b) => new Date(b.indexed_at).getTime() - new Date(a.indexed_at).getTime());
   const history = allPositions.filter((p) => p.is_settled);
 
+  function renderSparkline(position: Position, strike: number) {
+    if (position.is_settled) return null;
+    return (
+      <PositionSparkline
+        priceHistory={priceHistory}
+        strike={strike}
+        isPut={position.is_put}
+      />
+    );
+  }
+
   if (!isConnected) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
-        <h1 className="sr-only">Your Positions</h1>
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">to see your positions.</p>
@@ -38,8 +52,7 @@ export default function PositionsPage() {
 
   if (!loading && allPositions.length === 0) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-10 space-y-6">
-        <h1 className="sr-only">Your Positions</h1>
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -52,8 +65,7 @@ export default function PositionsPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-10 space-y-3">
-        <h1 className="sr-only">Your Positions</h1>
+      <main className="mx-auto max-w-5xl px-6 py-10 space-y-3">
         {[1, 2].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface)]" />
         ))}
@@ -62,15 +74,14 @@ export default function PositionsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
-      <h1 className="sr-only">Your Positions</h1>
+    <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
       {/* Earnings chart */}
       <EarningsChart positions={allPositions} />
 
-      {/* Active positions — cards */}
+      {/* Active positions — cards with sparklines */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
           Active positions
@@ -78,7 +89,16 @@ export default function PositionsPage() {
         {active.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {active.map((pos) => (
-              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" optimistic={pos.id.startsWith("opt-")} yieldMetric={yieldMetric} />
+              <PositionCard
+                key={pos.id}
+                position={pos}
+                onSettled={refresh}
+                spot={spot}
+                renderExtra={renderSparkline}
+                earnBase="/earn"
+                optimistic={pos.id.startsWith("opt-")}
+                yieldMetric={yieldMetric}
+              />
             ))}
           </div>
         ) : (
