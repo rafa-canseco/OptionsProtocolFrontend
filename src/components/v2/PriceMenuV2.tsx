@@ -8,6 +8,8 @@ import { useBalances } from "@/hooks/useBalances";
 import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
+import { HowItWorksDrawer } from "../HowItWorksDrawer";
+import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import type { PriceQuote } from "@/lib/api";
 
@@ -270,6 +272,7 @@ export function PriceMenuV2() {
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth;
@@ -398,7 +401,15 @@ export function PriceMenuV2() {
 
   return (
     <div className="space-y-6">
-      <LivePrice spot={spot} className="animate-fade-in-up" />
+      <div className="flex items-center justify-between animate-fade-in-up">
+        <LivePrice spot={spot} />
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="text-sm text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors"
+        >
+          ? How does this work?
+        </button>
+      </div>
 
       {/* Two-column: config left, preview right */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
@@ -497,9 +508,9 @@ export function PriceMenuV2() {
           {/* 4. Strike price cards */}
           <div className="animate-fade-in-up">
             <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-[var(--text-secondary)]">
+              <p className="text-sm text-[var(--text-secondary)] flex items-center">
                 {amount > 0
-                  ? "Choose your strike price"
+                  ? <>Choose your strike price<InfoTooltip title="Strike price" text="The price at which you commit to buy (or sell) ETH. Lower = safer, higher = more premium." /></>
                   : "Enter an amount to see earnings per strike"}
               </p>
               <YieldToggle value={yieldMetric} onChange={setYieldMetric} />
@@ -552,8 +563,9 @@ export function PriceMenuV2() {
         <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
           {/* Chart */}
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
-            <p className="text-xs text-[var(--text-secondary)] mb-3">
+            <p className="text-xs text-[var(--text-secondary)] mb-3 flex items-center">
               {isBuy ? "Buy" : "Sell"} strikes vs current price
+              <InfoTooltip title="Safe zone" text="The gap between your strike and the current price. Wider gap = less likely ETH reaches your price. You keep your premium either way." />
             </p>
             {spot && filteredPrices.length > 0 ? (
               <StrikeChart
@@ -575,9 +587,12 @@ export function PriceMenuV2() {
             <div className="space-y-4 animate-fade-in-up">
               {/* Earnings hero */}
               <div className="text-center py-2">
-                <p className="text-3xl font-bold text-[var(--accent)] font-mono">
-                  ${Math.round(selectedEarnings).toLocaleString()}
-                </p>
+                <div className="flex items-center justify-center gap-1">
+                  <p className="text-3xl font-bold text-[var(--accent)] font-mono">
+                    ${Math.round(selectedEarnings).toLocaleString()}
+                  </p>
+                  <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
+                </div>
                 <p className="text-sm text-[var(--text-secondary)] mt-1">
                   {yieldMetric === "apr"
                     ? `${Math.round(selectedApr)}% APR`
@@ -620,6 +635,8 @@ export function PriceMenuV2() {
           }}
         />
       )}
+
+      <HowItWorksDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
     </div>
   );
 }
