@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
+import { useEarningsHistory } from "@/hooks/useEarningsHistory";
 import { usePrices } from "@/hooks/usePrices";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import type { YieldMetric } from "@/components/YieldToggle";
@@ -16,6 +18,7 @@ export default function PositionsPage() {
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
   const allPositions = useOptimisticPositions(positions);
+  const { history: earningsHistory, loading: historyLoading } = useEarningsHistory(address);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const active = allPositions
@@ -65,6 +68,9 @@ export default function PositionsPage() {
       <h1 className="sr-only">Your Positions</h1>
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
+
+      {/* Earnings chart */}
+      <EarningsChart history={earningsHistory} loading={historyLoading} />
 
       {/* Active positions — cards */}
       <section className="space-y-4">

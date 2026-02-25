@@ -4,9 +4,11 @@ import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
+import { useEarningsHistory } from "@/hooks/useEarningsHistory";
 import { usePrices } from "@/hooks/usePrices";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
@@ -20,6 +22,7 @@ export default function PositionsV2Page() {
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
+  const { history: earningsHistory, loading: historyLoading } = useEarningsHistory(address);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const active = allPositions
@@ -76,6 +79,9 @@ export default function PositionsV2Page() {
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
+
+      {/* Earnings chart */}
+      <EarningsChart history={earningsHistory} loading={historyLoading} />
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">
