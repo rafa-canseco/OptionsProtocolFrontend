@@ -12,7 +12,7 @@ interface Props {
   onSettled?: () => void;
   spot?: number;
   renderExtra?: (position: Position, strike: number) => ReactNode;
-  /** Base path for Earn links, e.g. "/earn" or "/earn/v2" */
+  /** Base path for Earn links, e.g. "/earn" */
   earnBase?: string;
   /** When true, shows a "Confirming..." badge for optimistic positions */
   optimistic?: boolean;

@@ -402,7 +402,7 @@ export function PriceMenuV2() {
           <p>{abuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
         </div>
         <a
-          href="/positions/v2"
+          href="/positions"
           className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
           View my positions
