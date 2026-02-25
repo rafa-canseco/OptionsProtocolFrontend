@@ -25,7 +25,18 @@ function untilDate(expiryDays: number): string {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 
-/** Horizontal price axis with color zones — spot vs strikes */
+// Risk thresholds (distance from spot as %)
+const RISK_CLOSE = 3;
+const RISK_MODERATE = 8;
+const RISK_COLORS = { close: "#EF4444", moderate: "#F59E0B", safe: "#22D3EE" };
+
+function getRiskColor(distancePct: number): string {
+  if (distancePct < RISK_CLOSE) return RISK_COLORS.close;
+  if (distancePct < RISK_MODERATE) return RISK_COLORS.moderate;
+  return RISK_COLORS.safe;
+}
+
+/** Vertical bar chart with risk zones — spot line + strike bars */
 function StrikeChart({
   filteredPrices,
   spot,
@@ -41,153 +52,180 @@ function StrikeChart({
 }) {
   if (filteredPrices.length === 0) return null;
 
-  const strikes = filteredPrices.map((p) => p.strike);
-  const all = [...strikes, spot];
-  const min = Math.min(...all);
-  const max = Math.max(...all);
-  const range = max - min || 1;
-  const padded = range * 0.12;
-  const xMin = min - padded;
-  const xMax = max + padded;
-  const xRange = xMax - xMin;
-
-  const W = 400;
-  const H = 180;
-  const PAD_L = 10;
-  const PAD_R = 10;
-  const plotW = W - PAD_L - PAD_R;
-  const AXIS_Y = 90;
-
-  const toX = (price: number) => PAD_L + ((price - xMin) / xRange) * plotW;
-  const spotX = toX(spot);
   const isBuy = side === "buy";
+  const FONT = "'JetBrains Mono', monospace";
 
-  // Color zone: the "safe zone" between spot and nearest strike
-  const belowSpot = strikes.filter(s => s < spot);
-  const aboveSpot = strikes.filter(s => s > spot);
-  const nearestStrike = isBuy
-    ? (belowSpot.length > 0 ? Math.max(...belowSpot) : NaN)
-    : (aboveSpot.length > 0 ? Math.min(...aboveSpot) : NaN);
-  const safeLeft = isBuy ? toX(nearestStrike) : spotX;
-  const safeRight = isBuy ? spotX : toX(nearestStrike);
+  // Layout constants
+  const W = 400;
+  const SPOT_AREA = 36;
+  const BAR_H = 44;
+  const BAR_GAP = 8;
+  const LEGEND_H = 28;
+  const PAD_T = 8;
+  const PAD_B = 4;
+  const barCount = filteredPrices.length;
+  const H = PAD_T + SPOT_AREA + barCount * (BAR_H + BAR_GAP) + LEGEND_H + PAD_B;
+
+  const PAD_L = 80;
+  const PAD_R = 12;
+  const barAreaW = W - PAD_L - PAD_R;
+
+  // Compute earnings for each strike
+  const earningsArr = filteredPrices.map((q) =>
+    amount > 0 ? (isBuy ? (q.premium * amount) / q.strike : q.premium * amount) : 0
+  );
+  const maxEarnings = Math.max(...earningsArr, 1);
+
+  // filteredPrices already sorted: closest to spot first
+  const ordered = filteredPrices;
+
+  // Spot line Y position: top for buy, bottom for sell
+  const spotY = isBuy ? PAD_T + 14 : PAD_T + SPOT_AREA + barCount * (BAR_H + BAR_GAP) + 4;
+  const barsStartY = isBuy ? PAD_T + SPOT_AREA : PAD_T;
 
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
       className="w-full"
       preserveAspectRatio="xMidYMid meet"
+      style={{ minHeight: Math.min(H, 340) }}
     >
       <defs>
-        <linearGradient id="safeZone" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.08} />
-          <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
-        </linearGradient>
-        <radialGradient id="selectedGlow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="var(--text)" stopOpacity={0.06} />
-          <stop offset="100%" stopColor="var(--text)" stopOpacity={0} />
-        </radialGradient>
+        {ordered.map((q, i) => {
+          const dist = Math.abs(q.strike - spot) / spot * 100;
+          const color = getRiskColor(dist);
+          return (
+            <linearGradient key={`bg${i}`} id={`barGrad${i}`} x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor={color} stopOpacity={0.18} />
+              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
+            </linearGradient>
+          );
+        })}
       </defs>
 
-      {/* Safe zone fill between nearest strike and spot */}
-      {!isNaN(nearestStrike) && (
-        <rect
-          x={safeLeft} y={AXIS_Y - 40}
-          width={Math.max(0, safeRight - safeLeft)} height={80}
-          fill="url(#safeZone)"
-          rx={4}
-        />
-      )}
-
-      {/* Selected strike — soft neutral spotlight */}
-      {selectedStrike && (
-        <ellipse
-          cx={toX(selectedStrike)} cy={AXIS_Y}
-          rx={28} ry={45}
-          fill="url(#selectedGlow)"
-        />
-      )}
-
-      {/* Price axis */}
+      {/* Spot price line */}
       <line
-        x1={PAD_L} y1={AXIS_Y} x2={W - PAD_R} y2={AXIS_Y}
-        stroke="var(--border)" strokeWidth={1}
+        x1={PAD_L - 4} y1={spotY} x2={W - PAD_R} y2={spotY}
+        stroke="#FAFAFA" strokeWidth={1} strokeDasharray="6 3"
       />
+      <circle cx={PAD_L - 4} cy={spotY} r={3} fill="#FAFAFA" />
+      <text
+        x={PAD_L - 12} y={spotY + 4}
+        textAnchor="end" fill="#FAFAFA"
+        fontSize={11} fontWeight={600}
+        style={{ fontFamily: FONT }}
+      >
+        ${spot.toLocaleString()}
+      </text>
+      <text
+        x={W - PAD_R} y={spotY + 4}
+        textAnchor="end" fill="#A1A1AA"
+        fontSize={9} fontWeight={500}
+        style={{ fontFamily: FONT }}
+      >
+        now
+      </text>
 
-      {/* Strike markers */}
-      {filteredPrices.map((q) => {
-        const x = toX(q.strike);
+      {/* Strike bars */}
+      {ordered.map((q, i) => {
+        const barY = barsStartY + i * (BAR_H + BAR_GAP);
+        const dist = Math.abs(q.strike - spot) / spot * 100;
+        const color = getRiskColor(dist);
         const isSelected = q.strike === selectedStrike;
-        const earnings = amount > 0
-          ? isBuy ? (q.premium * amount) / q.strike : q.premium * amount
-          : 0;
         const unavailable = !q.otoken_address || q.available_amount <= 0;
 
+        const earnings = amount > 0
+          ? (isBuy ? (q.premium * amount) / q.strike : q.premium * amount)
+          : 0;
+        const barW = Math.max(barAreaW * 0.15, (earnings / maxEarnings) * barAreaW);
+        const apr = computeAPR(q.premium, q.strike, q.expiry_days);
+        const distLabel = isBuy ? `${dist.toFixed(1)}% below` : `${dist.toFixed(1)}% above`;
+
         return (
-          <g key={q.strike} opacity={unavailable ? 0.25 : 1}>
-            {/* Strike tick */}
-            <line
-              x1={x} y1={AXIS_Y - 14} x2={x} y2={AXIS_Y + 14}
-              stroke={isSelected ? "var(--accent)" : "var(--text-secondary)"}
-              strokeWidth={isSelected ? 2.5 : 1.5}
-              strokeLinecap="round"
+          <g key={q.strike} opacity={unavailable ? 0.3 : 1}>
+            {/* Left border indicator */}
+            <rect
+              x={PAD_L} y={barY}
+              width={3} height={BAR_H}
+              rx={1.5} fill={color}
             />
-            {/* Selected indicator */}
+
+            {/* Bar background */}
+            <rect
+              x={PAD_L + 3} y={barY}
+              width={barW} height={BAR_H}
+              fill={`url(#barGrad${i})`}
+              rx={4}
+              stroke={isSelected ? "#22D3EE" : "transparent"}
+              strokeWidth={isSelected ? 1.5 : 0}
+            />
+
+            {/* Selected pulsing indicator */}
             {isSelected && (
-              <circle cx={x} cy={AXIS_Y} r={5} fill="var(--accent)" opacity={0.9}>
-                <animate attributeName="r" values="4;6;4" dur="2s" repeatCount="indefinite" />
+              <circle cx={PAD_L + barW + 10} cy={barY + BAR_H / 2} r={4} fill="#22D3EE" opacity={0.9}>
+                <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite" />
               </circle>
             )}
-            {/* Earnings label above */}
-            {earnings > 0 && (
-              <text
-                x={x} y={AXIS_Y - 24}
-                textAnchor="middle" fill="var(--accent)"
-                fontSize={isSelected ? 13 : 11} fontWeight={700}
-                style={{ fontFamily: "var(--font-mono)" }}
-              >
-                ${Math.round(earnings).toLocaleString()}
-              </text>
-            )}
-            {/* Strike price below */}
+
+            {/* Strike price label (left of bar) */}
             <text
-              x={x} y={AXIS_Y + 30}
-              textAnchor="middle"
-              fill={isSelected ? "var(--accent)" : "var(--text-secondary)"}
-              fontSize={10}
-              fontWeight={isSelected ? 600 : 400}
-              style={{ fontFamily: "var(--font-mono)" }}
+              x={PAD_L - 8} y={barY + BAR_H / 2 + 4}
+              textAnchor="end"
+              fill={isSelected ? "#22D3EE" : "#A1A1AA"}
+              fontSize={11} fontWeight={isSelected ? 600 : 400}
+              style={{ fontFamily: FONT }}
             >
               ${q.strike.toLocaleString()}
+            </text>
+
+            {/* Inside bar: distance % (top line) */}
+            <text
+              x={PAD_L + 12} y={barY + 16}
+              fill={color}
+              fontSize={10} fontWeight={500}
+              style={{ fontFamily: FONT }}
+            >
+              {distLabel}
+            </text>
+
+            {/* Inside bar: earnings + APR (bottom line) */}
+            <text
+              x={PAD_L + 12} y={barY + 34}
+              fill="#FAFAFA"
+              fontSize={11} fontWeight={600}
+              style={{ fontFamily: FONT }}
+            >
+              {earnings > 0
+                ? `$${Math.round(earnings).toLocaleString()}  ${Math.round(apr)}% APR`
+                : `${Math.round(apr)}% APR`}
             </text>
           </g>
         );
       })}
 
-      {/* Spot marker */}
-      <line
-        x1={spotX} y1={AXIS_Y - 40} x2={spotX} y2={AXIS_Y + 4}
-        stroke="var(--text)" strokeWidth={1.5} strokeDasharray="3 2"
-      />
-      <circle cx={spotX} cy={AXIS_Y} r={3.5} fill="var(--text)" />
-      <text
-        x={spotX} y={AXIS_Y - 48}
-        textAnchor="middle" fill="var(--text)"
-        fontSize={11} fontWeight={600}
-        style={{ fontFamily: "var(--font-mono)" }}
-      >
-        ${spot.toLocaleString()} now
-      </text>
-
-      {/* "Safe zone" label */}
-      {!isNaN(nearestStrike) && safeRight - safeLeft > 40 && (
-        <text
-          x={(safeLeft + safeRight) / 2} y={AXIS_Y + 52}
-          textAnchor="middle" fill="var(--accent)"
-          fontSize={9} fontWeight={500} opacity={0.6}
-        >
-          safe zone
-        </text>
-      )}
+      {/* Legend */}
+      {(() => {
+        const legendY = isBuy
+          ? PAD_T + SPOT_AREA + barCount * (BAR_H + BAR_GAP) + 12
+          : PAD_T + barCount * (BAR_H + BAR_GAP) + SPOT_AREA + 12;
+        const items = [
+          { color: RISK_COLORS.safe, label: "Safe (>8%)" },
+          { color: RISK_COLORS.moderate, label: "Moderate (3-8%)" },
+          { color: RISK_COLORS.close, label: "Close (<3%)" },
+        ];
+        return items.map((item, i) => (
+          <g key={item.label}>
+            <circle cx={PAD_L + i * 110} cy={legendY} r={4} fill={item.color} />
+            <text
+              x={PAD_L + i * 110 + 10} y={legendY + 3.5}
+              fill="#A1A1AA" fontSize={9} fontWeight={500}
+              style={{ fontFamily: FONT }}
+            >
+              {item.label}
+            </text>
+          </g>
+        ));
+      })()}
     </svg>
   );
 }
@@ -285,7 +323,7 @@ export function PriceMenuV2() {
           p.expiry_days === activeExpiry &&
           (side === "buy" ? p.strike < (s ?? Infinity) : p.strike > (s ?? -Infinity))
       )
-      .sort((a, b) => a.strike - b.strike);
+      .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [prices, side, activeExpiry]);
 
   // When filters change, try to keep the same strike selected
@@ -539,8 +577,8 @@ export function PriceMenuV2() {
           {/* Chart */}
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
             <p className="text-xs text-[var(--text-secondary)] mb-3 flex items-center">
-              {isBuy ? "Buy" : "Sell"} strikes vs current price
-              <InfoTooltip title="Safe zone" text="The gap between your strike and the current price. Wider gap = less likely ETH reaches your price. You keep your premium either way." />
+              Strike distance from current price
+              <InfoTooltip title="Risk zones" text="Further from the current price = safer. Red bars are close to spot (higher risk, higher premium). Cyan bars are far from spot (safer, lower premium)." />
             </p>
             {spot && filteredPrices.length > 0 ? (
               <StrikeChart
