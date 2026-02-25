@@ -7,7 +7,8 @@ import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
-import { YieldToggle, type YieldMetric } from "../YieldToggle";
+import { HowItWorksDrawer } from "../HowItWorksDrawer";
+import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import type { PriceQuote } from "@/lib/api";
 
@@ -197,14 +198,12 @@ function StrikeCard({
   amount,
   isSelected,
   onSelect,
-  yieldMetric,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
   amount: number;
   isSelected: boolean;
   onSelect: () => void;
-  yieldMetric: YieldMetric;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
@@ -215,13 +214,6 @@ function StrikeCard({
       ? (quote.premium * amount) / quote.strike
       : quote.premium * amount
     : 0;
-
-  // ROI = simple return on capital committed (in USD terms)
-  // Buy: capital = amount (USD). Sell: capital = amount * strike (ETH → USD)
-  const capitalUsd = isBuy ? amount : amount * quote.strike;
-  const roi = capitalUsd > 0 ? (earnings / capitalUsd) * 100 : 0;
-  const metricValue = yieldMetric === "apr" ? apr : roi;
-  const metricLabel = yieldMetric === "apr" ? "APR" : "ROI";
 
   return (
     <button
@@ -245,11 +237,11 @@ function StrikeCard({
           </span>
         ) : (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
-            {Math.round(metricValue)}% {metricLabel}
+            {Math.round(apr)}% APR
           </span>
         )}
         {earnings > 0 && (
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(metricValue)}% {metricLabel}</p>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
         )}
       </div>
     </button>
@@ -269,7 +261,7 @@ export function PriceMenuV2() {
 
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
-  const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
+  const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth;
@@ -317,11 +309,6 @@ export function PriceMenuV2() {
     ? computeAPR(selectedQuote.premium, selectedQuote.strike, selectedQuote.expiry_days)
     : 0;
 
-  const selectedCapitalUsd = selectedQuote
-    ? isBuy ? amount : amount * selectedQuote.strike
-    : 0;
-  const selectedRoi = selectedCapitalUsd > 0 ? (selectedEarnings / selectedCapitalUsd) * 100 : 0;
-
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
 
 
@@ -359,8 +346,6 @@ export function PriceMenuV2() {
     const premium = abuy ? (aq.premium * aa) / aq.strike : aq.premium * aa;
     const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ETH`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
-    const acceptCapitalUsd = abuy ? aa : aa * aq.strike;
-    const acceptRoi = acceptCapitalUsd > 0 ? (premium / acceptCapitalUsd) * 100 : 0;
 
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
@@ -371,9 +356,7 @@ export function PriceMenuV2() {
           <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">
-          {yieldMetric === "apr"
-            ? `${Math.round(apr)}% APR`
-            : `${acceptRoi.toFixed(1)}% ROI`}
+          {Math.round(apr)}% APR
         </p>
         <div className="h-px bg-[var(--border)]" />
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -398,7 +381,15 @@ export function PriceMenuV2() {
 
   return (
     <div className="space-y-6">
-      <LivePrice spot={spot} className="animate-fade-in-up" />
+      <div className="flex items-center justify-between animate-fade-in-up">
+        <LivePrice spot={spot} />
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+        >
+          How does this work?
+        </button>
+      </div>
 
       {/* Two-column: config left, preview right */}
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
@@ -496,14 +487,10 @@ export function PriceMenuV2() {
 
           {/* 4. Strike price cards */}
           <div className="animate-fade-in-up">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-[var(--text-secondary)]">
-                {amount > 0
-                  ? "Choose your strike price"
-                  : "Enter an amount to see earnings per strike"}
-              </p>
-              <YieldToggle value={yieldMetric} onChange={setYieldMetric} />
-            </div>
+            <p className="text-sm text-[var(--text-secondary)] flex items-center mb-2">
+              {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
+              <InfoTooltip title="Strike price" text="The price at which you commit to buy (or sell) ETH. Lower = safer, higher = more premium." />
+            </p>
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {filteredPrices.map((q, i) => (
@@ -514,7 +501,6 @@ export function PriceMenuV2() {
                     amount={amount}
                     isSelected={selectedQuote?.strike === q.strike}
                     onSelect={() => setSelectedQuote(q)}
-                    yieldMetric={yieldMetric}
                   />
                 ))}
               </div>
@@ -552,8 +538,9 @@ export function PriceMenuV2() {
         <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
           {/* Chart */}
           <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
-            <p className="text-xs text-[var(--text-secondary)] mb-3">
+            <p className="text-xs text-[var(--text-secondary)] mb-3 flex items-center">
               {isBuy ? "Buy" : "Sell"} strikes vs current price
+              <InfoTooltip title="Safe zone" text="The gap between your strike and the current price. Wider gap = less likely ETH reaches your price. You keep your premium either way." />
             </p>
             {spot && filteredPrices.length > 0 ? (
               <StrikeChart
@@ -575,13 +562,14 @@ export function PriceMenuV2() {
             <div className="space-y-4 animate-fade-in-up">
               {/* Earnings hero */}
               <div className="text-center py-2">
-                <p className="text-3xl font-bold text-[var(--accent)] font-mono">
-                  ${Math.round(selectedEarnings).toLocaleString()}
-                </p>
+                <div className="flex items-center justify-center gap-1">
+                  <p className="text-3xl font-bold text-[var(--accent)] font-mono">
+                    ${Math.round(selectedEarnings).toLocaleString()}
+                  </p>
+                  <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
+                </div>
                 <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  {yieldMetric === "apr"
-                    ? `${Math.round(selectedApr)}% APR`
-                    : `${selectedRoi.toFixed(1)}% ROI`} · {activeExpiry}d
+                  {Math.round(selectedApr)}% APR · {activeExpiry}d
                 </p>
               </div>
               <OutcomeCards
@@ -620,6 +608,8 @@ export function PriceMenuV2() {
           }}
         />
       )}
+
+      <HowItWorksDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
     </div>
   );
 }
