@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { BackgroundEffects } from "./BackgroundEffects";
-import { useWallet } from "@/hooks/useWallet";
 import { usePrices } from "@/hooks/usePrices";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
@@ -378,8 +377,6 @@ function MechanismSection({
           </motion.div>
         </AnimatePresence>
 
-        <WalletCTA />
-
         <motion.p
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
@@ -390,32 +387,6 @@ function MechanismSection({
         </motion.p>
       </div>
     </section>
-  );
-}
-
-/* ── Wallet CTA ── */
-
-function WalletCTA() {
-  const { isConnected, login } = useWallet();
-
-  if (isConnected) {
-    return (
-      <Link
-        href="/earn"
-        className="inline-block rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
-      >
-        Start earning &rarr;
-      </Link>
-    );
-  }
-
-  return (
-    <button
-      onClick={login}
-      className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
-    >
-      Connect wallet to start
-    </button>
   );
 }
 
