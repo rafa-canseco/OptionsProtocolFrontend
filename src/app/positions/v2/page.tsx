@@ -8,7 +8,6 @@ import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
-import { useEarningsHistory } from "@/hooks/useEarningsHistory";
 import { usePrices } from "@/hooks/usePrices";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
@@ -22,7 +21,6 @@ export default function PositionsV2Page() {
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
-  const { history: earningsHistory, loading: historyLoading } = useEarningsHistory(address);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const active = allPositions
@@ -81,7 +79,7 @@ export default function PositionsV2Page() {
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
       {/* Earnings chart */}
-      <EarningsChart history={earningsHistory} loading={historyLoading} />
+      <EarningsChart positions={allPositions} />
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">

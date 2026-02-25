@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import type { WeeklySnapshot } from "@/lib/api";
+import type { Position } from "@/lib/api";
 
 type Period = "1M" | "3M" | "ALL";
 const PERIODS: Period[] = ["1M", "3M", "ALL"];
-const PERIOD_WEEKS: Record<Period, number> = { "1M": 4, "3M": 12, "ALL": Infinity };
 
-// Hardcode chart colors to avoid shadcn CSS variable conflicts
+// Hardcode chart colors — shadcn overrides var(--accent) to near-white
 const ACCENT = "#22D3EE";
 const ACCENT_FILL_TOP = "rgba(34, 211, 238, 0.25)";
 const ACCENT_FILL_BOT = "rgba(34, 211, 238, 0.02)";
@@ -16,13 +15,19 @@ const GRID = "#27272A";
 const TEXT_SEC = "#A1A1AA";
 const FONT_MONO = "'JetBrains Mono', monospace";
 
-interface Props {
-  history: WeeklySnapshot[];
-  loading: boolean;
+interface ChartPoint {
+  date: Date;
+  label: string;
+  cumulative: number;
+  delta: number;
+  isAssignment: boolean;
 }
 
-function formatWeek(dateStr: string): string {
-  const d = new Date(dateStr + "T00:00:00");
+interface Props {
+  positions: Position[];
+}
+
+function formatDate(d: Date): string {
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
@@ -31,54 +36,73 @@ function formatUsd(value: number): string {
   return `$${Math.round(value)}`;
 }
 
-export function EarningsChart({ history, loading }: Props) {
+function buildChartData(positions: Position[]): ChartPoint[] {
+  // Sort by indexed_at (oldest first)
+  const sorted = [...positions].sort(
+    (a, b) => new Date(a.indexed_at).getTime() - new Date(b.indexed_at).getTime(),
+  );
+
+  const points: ChartPoint[] = [];
+  let cumulative = 0;
+
+  for (const pos of sorted) {
+    const premium = Number(pos.net_premium) / 1e6;
+    cumulative += premium;
+    const date = new Date(pos.indexed_at);
+
+    points.push({
+      date,
+      label: formatDate(date),
+      cumulative,
+      delta: premium,
+      isAssignment: pos.is_itm === true,
+    });
+  }
+
+  return points;
+}
+
+export function EarningsChart({ positions }: Props) {
   const [period, setPeriod] = useState<Period>("ALL");
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const filtered = useMemo(() => {
-    const maxWeeks = PERIOD_WEEKS[period];
-    const data = maxWeeks === Infinity ? history : history.slice(-maxWeeks);
+  const allPoints = useMemo(() => buildChartData(positions), [positions]);
 
-    // Always prepend an origin point ($0) so the chart has at least 2 points
-    // and the area fill starts from zero
-    if (data.length > 0) {
-      const first = data[0];
-      const originDate = new Date(first.week_start + "T00:00:00");
-      originDate.setDate(originDate.getDate() - 7);
-      const originStr = originDate.toISOString().slice(0, 10);
-      return [
-        {
-          week_start: originStr,
-          week_end: first.week_start,
-          premium_earned: 0,
-          assignments: 0,
-          pnl: 0,
-          cumulative_pnl: 0,
-        },
-        ...data,
-      ];
-    }
-    return data;
-  }, [history, period]);
+  const filtered = useMemo(() => {
+    if (period === "ALL") return allPoints;
+    const daysBack = period === "1M" ? 30 : 90;
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - daysBack);
+    const subset = allPoints.filter((p) => p.date >= cutoff);
+    // If period filter removes everything, show all
+    return subset.length > 0 ? subset : allPoints;
+  }, [allPoints, period]);
+
+  // Prepend $0 origin so line starts from zero
+  const points = useMemo(() => {
+    if (filtered.length === 0) return [];
+    const originDate = new Date(filtered[0].date);
+    originDate.setDate(originDate.getDate() - 1);
+    return [
+      { date: originDate, label: formatDate(originDate), cumulative: 0, delta: 0, isAssignment: false },
+      ...filtered,
+    ];
+  }, [filtered]);
 
   const handleMouseMove = useCallback(
     (e: React.MouseEvent<SVGSVGElement>) => {
-      if (filtered.length === 0) return;
+      if (points.length <= 1) return;
       const svg = e.currentTarget;
       const rect = svg.getBoundingClientRect();
       const x = e.clientX - rect.left;
       const ratio = x / rect.width;
-      const idx = Math.round(ratio * (filtered.length - 1));
-      setHoverIdx(Math.max(0, Math.min(filtered.length - 1, idx)));
+      const idx = Math.round(ratio * (points.length - 1));
+      setHoverIdx(Math.max(0, Math.min(points.length - 1, idx)));
     },
-    [filtered.length],
+    [points.length],
   );
 
-  if (loading) {
-    return <div className="h-56 animate-pulse rounded-2xl bg-[var(--surface)]" />;
-  }
-
-  if (history.length === 0) {
+  if (positions.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center space-y-2">
         <p className="text-sm text-[var(--text-secondary)]">
@@ -91,6 +115,8 @@ export function EarningsChart({ history, loading }: Props) {
     );
   }
 
+  if (points.length < 2) return null;
+
   // Chart dimensions
   const W = 480;
   const H = 220;
@@ -101,26 +127,42 @@ export function EarningsChart({ history, loading }: Props) {
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
 
-  const values = filtered.map((s) => s.cumulative_pnl);
-  const minVal = Math.min(...values);
+  const values = points.map((p) => p.cumulative);
   const maxVal = Math.max(...values);
-  // Floor at 0 when all values are non-negative
-  const yFloor = minVal >= 0 ? 0 : minVal;
-  const range = maxVal - yFloor || 1;
-  const yPad = range * 0.12;
-  const yMin = yFloor;
-  const yMax = maxVal + yPad;
-  const yRange = yMax - yMin || 1;
+  const yMax = maxVal + maxVal * 0.12 || 1;
+  const yMin = 0;
+  const yRange = yMax - yMin;
 
   const toX = (i: number) =>
-    PAD_L + (filtered.length > 1 ? (i / (filtered.length - 1)) * plotW : plotW / 2);
+    PAD_L + (i / (points.length - 1)) * plotW;
   const toY = (val: number) => PAD_T + (1 - (val - yMin) / yRange) * plotH;
 
-  // Line + area paths
-  const linePoints = filtered.map((s, i) => `${toX(i)},${toY(s.cumulative_pnl)}`);
-  const linePath = `M${linePoints.join(" L")}`;
-  const baselineY = toY(yMin);
-  const areaPath = `${linePath} L${toX(filtered.length - 1)},${baselineY} L${toX(0)},${baselineY} Z`;
+  // Smooth curve via cardinal spline
+  const linePoints = points.map((p, i) => ({ x: toX(i), y: toY(p.cumulative) }));
+
+  let linePath = `M${linePoints[0].x},${linePoints[0].y}`;
+  if (linePoints.length === 2) {
+    linePath += ` L${linePoints[1].x},${linePoints[1].y}`;
+  } else {
+    // Catmull-Rom to cubic bezier
+    for (let i = 0; i < linePoints.length - 1; i++) {
+      const p0 = linePoints[Math.max(0, i - 1)];
+      const p1 = linePoints[i];
+      const p2 = linePoints[i + 1];
+      const p3 = linePoints[Math.min(linePoints.length - 1, i + 2)];
+      const tension = 0.3;
+      const cp1x = p1.x + (p2.x - p0.x) * tension;
+      const cp1y = p1.y + (p2.y - p0.y) * tension;
+      const cp2x = p2.x - (p3.x - p1.x) * tension;
+      const cp2y = p2.y - (p3.y - p1.y) * tension;
+      linePath += ` C${cp1x},${cp1y} ${cp2x},${cp2y} ${p2.x},${p2.y}`;
+    }
+  }
+
+  const baselineY = toY(0);
+  const lastPt = linePoints[linePoints.length - 1];
+  const firstPt = linePoints[0];
+  const areaPath = `${linePath} L${lastPt.x},${baselineY} L${firstPt.x},${baselineY} Z`;
 
   // Y-axis ticks
   const tickCount = 5;
@@ -129,23 +171,19 @@ export function EarningsChart({ history, loading }: Props) {
     return { val, y: toY(val) };
   });
 
-  // X-axis labels — show all when few, sample evenly when many
-  const maxLabels = Math.min(6, filtered.length);
-  const xLabels =
-    filtered.length <= maxLabels
-      ? filtered.map((s, i) => ({ label: formatWeek(s.week_start), x: toX(i) }))
-      : Array.from({ length: maxLabels }, (_, i) => {
-          const idx = Math.round((i / (maxLabels - 1)) * (filtered.length - 1));
-          return { label: formatWeek(filtered[idx].week_start), x: toX(idx) };
-        });
+  // X-axis labels
+  const maxLabels = Math.min(6, points.length);
+  const xLabels = Array.from({ length: maxLabels }, (_, i) => {
+    const idx = Math.round((i / (maxLabels - 1)) * (points.length - 1));
+    return { label: points[idx].label, x: toX(idx) };
+  });
 
-  const hovered = hoverIdx !== null ? filtered[hoverIdx] : null;
-  // Don't show tooltip for the synthetic origin point
+  const hovered = hoverIdx !== null ? points[hoverIdx] : null;
   const hoveredReal = hovered && hoverIdx !== 0 ? hovered : null;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3 animate-fade-in-up">
-      {/* Header: legend + period tabs */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4 text-[10px]" style={{ color: TEXT_SEC }}>
           <span className="flex items-center gap-1.5">
@@ -154,19 +192,19 @@ export function EarningsChart({ history, loading }: Props) {
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full" style={{ background: DANGER }} />
-            Assignment week
+            Assignment
           </span>
         </div>
         <div className="flex gap-1">
           {PERIODS.map((p) => (
             <button
               key={p}
-              onClick={() => setPeriod(p)}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors duration-150 ${
-                period === p
-                  ? "bg-[var(--accent-dim)] text-[var(--accent)]"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              }`}
+              onClick={() => { setPeriod(p); setHoverIdx(null); }}
+              className="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors duration-150"
+              style={{
+                background: period === p ? "rgba(34, 211, 238, 0.15)" : "transparent",
+                color: period === p ? ACCENT : TEXT_SEC,
+              }}
             >
               {p}
             </button>
@@ -178,23 +216,26 @@ export function EarningsChart({ history, loading }: Props) {
       <div className="h-5">
         {hoveredReal ? (
           <div className="flex items-center gap-3 text-xs">
-            <span style={{ color: TEXT_SEC }}>
-              {formatWeek(hoveredReal.week_start)} – {formatWeek(hoveredReal.week_end)}
-            </span>
+            <span style={{ color: TEXT_SEC }}>{hoveredReal.label}</span>
             <span className="font-mono font-semibold" style={{ color: ACCENT }}>
-              {formatUsd(hoveredReal.cumulative_pnl)}
+              {formatUsd(hoveredReal.cumulative)}
             </span>
             <span
               className="font-mono text-[10px]"
-              style={{ color: hoveredReal.pnl >= 0 ? ACCENT : DANGER }}
+              style={{ color: hoveredReal.delta >= 0 ? ACCENT : DANGER }}
             >
-              {hoveredReal.pnl >= 0 ? "+" : ""}
-              {formatUsd(hoveredReal.pnl)}
+              {hoveredReal.delta >= 0 ? "+" : ""}
+              {formatUsd(hoveredReal.delta)}
             </span>
+            {hoveredReal.isAssignment && (
+              <span className="text-[10px] font-medium" style={{ color: DANGER }}>
+                Assigned
+              </span>
+            )}
           </div>
         ) : (
           <p className="text-xs opacity-60" style={{ color: TEXT_SEC }}>
-            Hover to see weekly details
+            Hover to see details per position
           </p>
         )}
       </div>
@@ -218,21 +259,10 @@ export function EarningsChart({ history, loading }: Props) {
         {/* Grid lines + Y labels */}
         {yTicks.map((t, i) => (
           <g key={i}>
-            <line
-              x1={PAD_L}
-              y1={t.y}
-              x2={W - PAD_R}
-              y2={t.y}
-              stroke={GRID}
-              strokeWidth={0.5}
-            />
+            <line x1={PAD_L} y1={t.y} x2={W - PAD_R} y2={t.y} stroke={GRID} strokeWidth={0.5} />
             <text
-              x={PAD_L - 8}
-              y={t.y + 3}
-              textAnchor="end"
-              fill={TEXT_SEC}
-              fontSize={9}
-              style={{ fontFamily: FONT_MONO }}
+              x={PAD_L - 8} y={t.y + 3} textAnchor="end" fill={TEXT_SEC}
+              fontSize={9} style={{ fontFamily: FONT_MONO }}
             >
               {formatUsd(t.val)}
             </text>
@@ -242,13 +272,8 @@ export function EarningsChart({ history, loading }: Props) {
         {/* X-axis labels */}
         {xLabels.map((l, i) => (
           <text
-            key={i}
-            x={l.x}
-            y={H - 8}
-            textAnchor="middle"
-            fill={TEXT_SEC}
-            fontSize={8}
-            style={{ fontFamily: FONT_MONO }}
+            key={i} x={l.x} y={H - 8} textAnchor="middle" fill={TEXT_SEC}
+            fontSize={8} style={{ fontFamily: FONT_MONO }}
           >
             {l.label}
           </text>
@@ -258,59 +283,33 @@ export function EarningsChart({ history, loading }: Props) {
         <path d={areaPath} fill="url(#earningsGrad)" />
 
         {/* Line */}
-        <path
-          d={linePath}
-          fill="none"
-          stroke={ACCENT}
-          strokeWidth={2}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
+        <path d={linePath} fill="none" stroke={ACCENT} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" />
 
-        {/* Data points — always visible */}
-        {filtered.map((s, i) => {
+        {/* Data points */}
+        {points.map((p, i) => {
           const cx = toX(i);
-          const cy = toY(s.cumulative_pnl);
-          const isAssignment = s.assignments > 0;
+          const cy = toY(p.cumulative);
           const isHovered = hoverIdx === i;
           const isOrigin = i === 0;
 
+          if (isOrigin) return null;
+
           return (
             <g key={i}>
-              {/* Vertical guide on hover */}
-              {isHovered && !isOrigin && (
+              {isHovered && (
                 <line
-                  x1={cx}
-                  y1={PAD_T}
-                  x2={cx}
-                  y2={PAD_T + plotH}
-                  stroke={TEXT_SEC}
-                  strokeWidth={0.5}
-                  strokeDasharray="3 2"
-                  opacity={0.4}
+                  x1={cx} y1={PAD_T} x2={cx} y2={PAD_T + plotH}
+                  stroke={TEXT_SEC} strokeWidth={0.5} strokeDasharray="3 2" opacity={0.4}
                 />
               )}
-
-              {/* Assignment outer ring */}
-              {isAssignment && (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={isHovered ? 7 : 5}
-                  fill={DANGER}
-                  opacity={0.25}
-                />
+              {p.isAssignment && (
+                <circle cx={cx} cy={cy} r={isHovered ? 7 : 5} fill={DANGER} opacity={0.25} />
               )}
-
-              {/* Dot — always visible (smaller for non-hovered) */}
-              {!isOrigin && (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={isHovered ? 5 : isAssignment ? 3.5 : 2.5}
-                  fill={isAssignment ? DANGER : ACCENT}
-                />
-              )}
+              <circle
+                cx={cx} cy={cy}
+                r={isHovered ? 5 : p.isAssignment ? 3.5 : 2.5}
+                fill={p.isAssignment ? DANGER : ACCENT}
+              />
             </g>
           );
         })}

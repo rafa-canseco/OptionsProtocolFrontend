@@ -64,15 +64,6 @@ export interface AnalyticsEvent {
   data?: Record<string, unknown>;
 }
 
-export interface WeeklySnapshot {
-  week_start: string;
-  week_end: string;
-  premium_earned: number;
-  assignments: number;
-  pnl: number;
-  cumulative_pnl: number;
-}
-
 export interface SettleResult {
   settled: boolean;
   is_itm: boolean;
@@ -133,6 +124,4 @@ export const api = {
   getWaitlistCount: () =>
     fetchAPI<{ count: number }>("/waitlist/count"),
 
-  getEarningsHistory: (address: string) =>
-    fetchAPI<WeeklySnapshot[]>(`/results/history/${address}`),
 };
