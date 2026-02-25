@@ -1,12 +1,15 @@
 "use client";
 
 import type { Position } from "@/lib/api";
+import { YieldToggle, type YieldMetric } from "./YieldToggle";
 
 interface Props {
   positions: Position[];
+  yieldMetric: YieldMetric;
+  onYieldMetricChange: (metric: YieldMetric) => void;
 }
 
-export function PortfolioSummary({ positions }: Props) {
+export function PortfolioSummary({ positions, yieldMetric, onYieldMetricChange }: Props) {
   const premiumEarned = positions.reduce((sum, p) => sum + Number(p.net_premium) / 1e6, 0);
 
   const activeCapital = positions
@@ -21,6 +24,7 @@ export function PortfolioSummary({ positions }: Props) {
     return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
   }, 0);
 
+  // Weighted-average APR
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = p.is_put
       ? p.collateral / 1e6
@@ -32,6 +36,12 @@ export function PortfolioSummary({ positions }: Props) {
     return sum + apr * capital;
   }, 0);
   const avgApr = totalCapital > 0 ? totalWeightedApr / totalCapital : 0;
+
+  // Weighted-average ROI (simple return, not annualized)
+  const avgRoi = totalCapital > 0 ? (premiumEarned / totalCapital) * 100 : 0;
+
+  const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
+  const metricLabel = yieldMetric === "apr" ? "APR" : "ROI";
 
   return (
     <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
@@ -46,8 +56,13 @@ export function PortfolioSummary({ positions }: Props) {
         </p>
       </div>
       <div>
-        <p className="text-xs text-[var(--text-secondary)]">Avg APR</p>
-        <p className="text-xl font-bold text-[var(--accent)] font-mono">{Math.round(avgApr)}%</p>
+        <div className="flex items-center gap-1.5 mb-0.5">
+          <p className="text-xs text-[var(--text-secondary)]">Avg</p>
+          <YieldToggle value={yieldMetric} onChange={onYieldMetricChange} />
+        </div>
+        <p className="text-xl font-bold text-[var(--accent)] font-mono">
+          {metricValue < 10 ? metricValue.toFixed(1) : Math.round(metricValue)}%
+        </p>
       </div>
     </div>
   );

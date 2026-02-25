@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { Position, SettleResult } from "@/lib/api";
 import { api } from "@/lib/api";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
+import type { YieldMetric } from "./YieldToggle";
 
 interface Props {
   position: Position;
@@ -15,9 +16,11 @@ interface Props {
   earnBase?: string;
   /** When true, shows a "Confirming..." badge for optimistic positions */
   optimistic?: boolean;
+  /** Which yield metric to display — defaults to "apr" */
+  yieldMetric?: YieldMetric;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn", optimistic }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn", optimistic, yieldMetric = "apr" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -48,6 +51,10 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
   // APR: annualize the return over the position duration
   const apr = committedUsd > 0 ? (premiumUsd / committedUsd) * (365 / totalDays) * 100 : 0;
+
+  // Yield metric display
+  const yieldValue = yieldMetric === "apr" ? apr : returnPct;
+  const yieldLabel = yieldMetric === "apr" ? "APR" : "ROI";
 
   const canSettle = isActive && position.vault_id != null && position.otoken_address != null;
 
@@ -138,7 +145,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           <p className="text-base font-bold font-mono text-[var(--accent)]">
             ${premiumUsd.toFixed(0)} earned
             <span className="text-sm font-normal text-[var(--text-secondary)] ml-2">
-              {Math.round(apr)}% APR
+              {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
             </span>
           </p>
 
@@ -183,7 +190,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           <p className="text-xs text-[var(--text-secondary)]">
             {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/ETH · </>}
-            {returnPct.toFixed(1)}% in {totalDays}d · {Math.round(apr)}% APR
+            {returnPct.toFixed(1)}% in {totalDays}d · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
           </p>
 
           {/* CTA: Earn again */}
