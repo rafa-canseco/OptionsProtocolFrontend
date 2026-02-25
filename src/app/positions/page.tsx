@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { TradeLog } from "@/components/TradeLog";
@@ -7,6 +8,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
+import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
@@ -14,6 +16,7 @@ export default function PositionsPage() {
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
   const allPositions = useOptimisticPositions(positions);
+  const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const active = allPositions
     .filter((p) => !p.is_settled)
@@ -61,7 +64,7 @@ export default function PositionsPage() {
     <main className="mx-auto max-w-4xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
       {/* Portfolio summary */}
-      <PortfolioSummary positions={allPositions} />
+      <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
       {/* Active positions — cards */}
       <section className="space-y-4">
@@ -71,7 +74,7 @@ export default function PositionsPage() {
         {active.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {active.map((pos) => (
-              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" optimistic={pos.id.startsWith("opt-")} />
+              <PositionCard key={pos.id} position={pos} onSettled={refresh} spot={spot} earnBase="/earn" optimistic={pos.id.startsWith("opt-")} yieldMetric={yieldMetric} />
             ))}
           </div>
         ) : (

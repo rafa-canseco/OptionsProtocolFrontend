@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
 import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
@@ -10,6 +11,7 @@ import { usePrices } from "@/hooks/usePrices";
 import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import type { Position } from "@/lib/api";
+import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsV2Page() {
   const { address, isConnected } = useWallet();
@@ -18,6 +20,7 @@ export default function PositionsV2Page() {
   const spot = prices[0]?.spot;
   const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
+  const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const active = allPositions
     .filter((p) => !p.is_settled)
@@ -72,7 +75,7 @@ export default function PositionsV2Page() {
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
       {/* Portfolio summary */}
-      <PortfolioSummary positions={allPositions} />
+      <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
       {/* Active positions — cards with sparklines */}
       <section className="space-y-4">
@@ -90,6 +93,7 @@ export default function PositionsV2Page() {
                 renderExtra={renderSparkline}
                 earnBase="/earn/v2"
                 optimistic={pos.id.startsWith("opt-")}
+                yieldMetric={yieldMetric}
               />
             ))}
           </div>
