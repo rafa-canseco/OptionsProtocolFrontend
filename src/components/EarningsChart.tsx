@@ -7,6 +7,15 @@ type Period = "1M" | "3M" | "ALL";
 const PERIODS: Period[] = ["1M", "3M", "ALL"];
 const PERIOD_WEEKS: Record<Period, number> = { "1M": 4, "3M": 12, "ALL": Infinity };
 
+// Hardcode chart colors to avoid shadcn CSS variable conflicts
+const ACCENT = "#22D3EE";
+const ACCENT_FILL_TOP = "rgba(34, 211, 238, 0.25)";
+const ACCENT_FILL_BOT = "rgba(34, 211, 238, 0.02)";
+const DANGER = "#EF4444";
+const GRID = "#27272A";
+const TEXT_SEC = "#A1A1AA";
+const FONT_MONO = "'JetBrains Mono', monospace";
+
 interface Props {
   history: WeeklySnapshot[];
   loading: boolean;
@@ -28,8 +37,28 @@ export function EarningsChart({ history, loading }: Props) {
 
   const filtered = useMemo(() => {
     const maxWeeks = PERIOD_WEEKS[period];
-    if (maxWeeks === Infinity) return history;
-    return history.slice(-maxWeeks);
+    const data = maxWeeks === Infinity ? history : history.slice(-maxWeeks);
+
+    // Always prepend an origin point ($0) so the chart has at least 2 points
+    // and the area fill starts from zero
+    if (data.length > 0) {
+      const first = data[0];
+      const originDate = new Date(first.week_start + "T00:00:00");
+      originDate.setDate(originDate.getDate() - 7);
+      const originStr = originDate.toISOString().slice(0, 10);
+      return [
+        {
+          week_start: originStr,
+          week_end: first.week_start,
+          premium_earned: 0,
+          assignments: 0,
+          pnl: 0,
+          cumulative_pnl: 0,
+        },
+        ...data,
+      ];
+    }
+    return data;
   }, [history, period]);
 
   const handleMouseMove = useCallback(
@@ -46,7 +75,7 @@ export function EarningsChart({ history, loading }: Props) {
   );
 
   if (loading) {
-    return <div className="h-48 animate-pulse rounded-2xl bg-[var(--surface)]" />;
+    return <div className="h-56 animate-pulse rounded-2xl bg-[var(--surface)]" />;
   }
 
   if (history.length === 0) {
@@ -64,22 +93,24 @@ export function EarningsChart({ history, loading }: Props) {
 
   // Chart dimensions
   const W = 480;
-  const H = 200;
-  const PAD_T = 20;
-  const PAD_B = 28;
-  const PAD_L = 44;
-  const PAD_R = 12;
+  const H = 220;
+  const PAD_T = 24;
+  const PAD_B = 32;
+  const PAD_L = 48;
+  const PAD_R = 16;
   const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
 
   const values = filtered.map((s) => s.cumulative_pnl);
-  const minVal = Math.min(0, ...values);
-  const maxVal = Math.max(0, ...values);
-  const range = maxVal - minVal || 1;
-  const yPad = range * 0.1;
-  const yMin = minVal - yPad;
+  const minVal = Math.min(...values);
+  const maxVal = Math.max(...values);
+  // Floor at 0 when all values are non-negative
+  const yFloor = minVal >= 0 ? 0 : minVal;
+  const range = maxVal - yFloor || 1;
+  const yPad = range * 0.12;
+  const yMin = yFloor;
   const yMax = maxVal + yPad;
-  const yRange = yMax - yMin;
+  const yRange = yMax - yMin || 1;
 
   const toX = (i: number) =>
     PAD_L + (filtered.length > 1 ? (i / (filtered.length - 1)) * plotW : plotW / 2);
@@ -88,16 +119,17 @@ export function EarningsChart({ history, loading }: Props) {
   // Line + area paths
   const linePoints = filtered.map((s, i) => `${toX(i)},${toY(s.cumulative_pnl)}`);
   const linePath = `M${linePoints.join(" L")}`;
-  const areaPath = `${linePath} L${toX(filtered.length - 1)},${toY(yMin)} L${toX(0)},${toY(yMin)} Z`;
+  const baselineY = toY(yMin);
+  const areaPath = `${linePath} L${toX(filtered.length - 1)},${baselineY} L${toX(0)},${baselineY} Z`;
 
-  // Y-axis ticks (3-5 ticks)
-  const tickCount = 4;
+  // Y-axis ticks
+  const tickCount = 5;
   const yTicks = Array.from({ length: tickCount }, (_, i) => {
     const val = yMin + (yRange * i) / (tickCount - 1);
     return { val, y: toY(val) };
   });
 
-  // X-axis labels (show up to 6 evenly spaced)
+  // X-axis labels — show all when few, sample evenly when many
   const maxLabels = Math.min(6, filtered.length);
   const xLabels =
     filtered.length <= maxLabels
@@ -108,18 +140,20 @@ export function EarningsChart({ history, loading }: Props) {
         });
 
   const hovered = hoverIdx !== null ? filtered[hoverIdx] : null;
+  // Don't show tooltip for the synthetic origin point
+  const hoveredReal = hovered && hoverIdx !== 0 ? hovered : null;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3 animate-fade-in-up">
       {/* Header: legend + period tabs */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4 text-[10px] text-[var(--text-secondary)]">
+        <div className="flex items-center gap-4 text-[10px]" style={{ color: TEXT_SEC }}>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-3 h-0.5 rounded-full bg-[var(--accent)]" />
+            <span className="inline-block w-3 h-0.5 rounded-full" style={{ background: ACCENT }} />
             Cumulative earnings
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="inline-block w-2 h-2 rounded-full bg-[var(--danger)]" />
+            <span className="inline-block w-2 h-2 rounded-full" style={{ background: DANGER }} />
             Assignment week
           </span>
         </div>
@@ -142,25 +176,24 @@ export function EarningsChart({ history, loading }: Props) {
 
       {/* Tooltip */}
       <div className="h-5">
-        {hovered ? (
-          <div className="flex items-center gap-3 text-xs animate-fade-in">
-            <span className="text-[var(--text-secondary)]">
-              {formatWeek(hovered.week_start)} – {formatWeek(hovered.week_end)}
+        {hoveredReal ? (
+          <div className="flex items-center gap-3 text-xs">
+            <span style={{ color: TEXT_SEC }}>
+              {formatWeek(hoveredReal.week_start)} – {formatWeek(hoveredReal.week_end)}
             </span>
-            <span className="font-mono font-semibold text-[var(--accent)]">
-              {formatUsd(hovered.cumulative_pnl)}
+            <span className="font-mono font-semibold" style={{ color: ACCENT }}>
+              {formatUsd(hoveredReal.cumulative_pnl)}
             </span>
             <span
-              className={`font-mono text-[10px] ${
-                hovered.pnl >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"
-              }`}
+              className="font-mono text-[10px]"
+              style={{ color: hoveredReal.pnl >= 0 ? ACCENT : DANGER }}
             >
-              {hovered.pnl >= 0 ? "+" : ""}
-              {formatUsd(hovered.pnl)}
+              {hoveredReal.pnl >= 0 ? "+" : ""}
+              {formatUsd(hoveredReal.pnl)}
             </span>
           </div>
         ) : (
-          <p className="text-xs text-[var(--text-secondary)] opacity-60">
+          <p className="text-xs opacity-60" style={{ color: TEXT_SEC }}>
             Hover to see weekly details
           </p>
         )}
@@ -170,14 +203,15 @@ export function EarningsChart({ history, loading }: Props) {
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="w-full"
+        style={{ minHeight: 180 }}
         preserveAspectRatio="xMidYMid meet"
         onMouseMove={handleMouseMove}
         onMouseLeave={() => setHoverIdx(null)}
       >
         <defs>
           <linearGradient id="earningsGrad" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.2} />
-            <stop offset="100%" stopColor="var(--accent)" stopOpacity={0.02} />
+            <stop offset="0%" stopColor={ACCENT_FILL_TOP} />
+            <stop offset="100%" stopColor={ACCENT_FILL_BOT} />
           </linearGradient>
         </defs>
 
@@ -189,16 +223,16 @@ export function EarningsChart({ history, loading }: Props) {
               y1={t.y}
               x2={W - PAD_R}
               y2={t.y}
-              stroke="var(--border)"
+              stroke={GRID}
               strokeWidth={0.5}
             />
             <text
-              x={PAD_L - 6}
+              x={PAD_L - 8}
               y={t.y + 3}
               textAnchor="end"
-              fill="var(--text-secondary)"
+              fill={TEXT_SEC}
               fontSize={9}
-              style={{ fontFamily: "var(--font-mono)" }}
+              style={{ fontFamily: FONT_MONO }}
             >
               {formatUsd(t.val)}
             </text>
@@ -210,11 +244,11 @@ export function EarningsChart({ history, loading }: Props) {
           <text
             key={i}
             x={l.x}
-            y={H - 6}
+            y={H - 8}
             textAnchor="middle"
-            fill="var(--text-secondary)"
+            fill={TEXT_SEC}
             fontSize={8}
-            style={{ fontFamily: "var(--font-mono)" }}
+            style={{ fontFamily: FONT_MONO }}
           >
             {l.label}
           </text>
@@ -227,55 +261,54 @@ export function EarningsChart({ history, loading }: Props) {
         <path
           d={linePath}
           fill="none"
-          stroke="var(--accent)"
+          stroke={ACCENT}
           strokeWidth={2}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
 
-        {/* Data points */}
+        {/* Data points — always visible */}
         {filtered.map((s, i) => {
           const cx = toX(i);
           const cy = toY(s.cumulative_pnl);
           const isAssignment = s.assignments > 0;
           const isHovered = hoverIdx === i;
+          const isOrigin = i === 0;
 
           return (
             <g key={i}>
-              {isAssignment && (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={isHovered ? 6 : 4.5}
-                  fill="var(--danger)"
-                  opacity={isHovered ? 1 : 0.8}
-                />
-              )}
-              {(isHovered || isAssignment) && (
-                <circle
-                  cx={cx}
-                  cy={cy}
-                  r={isHovered ? 4 : 2.5}
-                  fill={isAssignment ? "var(--danger)" : "var(--accent)"}
-                  stroke={isAssignment ? "var(--danger)" : "var(--accent)"}
-                  strokeWidth={isHovered ? 2 : 0}
-                  strokeOpacity={0.3}
-                />
-              )}
-              {isHovered && !isAssignment && (
-                <circle cx={cx} cy={cy} r={4} fill="var(--accent)" />
-              )}
               {/* Vertical guide on hover */}
-              {isHovered && (
+              {isHovered && !isOrigin && (
                 <line
                   x1={cx}
                   y1={PAD_T}
                   x2={cx}
                   y2={PAD_T + plotH}
-                  stroke="var(--text-secondary)"
+                  stroke={TEXT_SEC}
                   strokeWidth={0.5}
                   strokeDasharray="3 2"
                   opacity={0.4}
+                />
+              )}
+
+              {/* Assignment outer ring */}
+              {isAssignment && (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={isHovered ? 7 : 5}
+                  fill={DANGER}
+                  opacity={0.25}
+                />
+              )}
+
+              {/* Dot — always visible (smaller for non-hovered) */}
+              {!isOrigin && (
+                <circle
+                  cx={cx}
+                  cy={cy}
+                  r={isHovered ? 5 : isAssignment ? 3.5 : 2.5}
+                  fill={isAssignment ? DANGER : ACCENT}
                 />
               )}
             </g>
