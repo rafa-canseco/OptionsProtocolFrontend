@@ -42,6 +42,7 @@ export default function PositionsPage() {
   if (!isConnected) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+        <h1 className="sr-only">Your Positions</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">to see your positions.</p>
@@ -53,6 +54,7 @@ export default function PositionsPage() {
   if (!loading && allPositions.length === 0) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
+        <h1 className="sr-only">Your Positions</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
@@ -66,6 +68,7 @@ export default function PositionsPage() {
   if (loading) {
     return (
       <main className="mx-auto max-w-5xl px-6 py-10 space-y-3">
+        <h1 className="sr-only">Your Positions</h1>
         {[1, 2].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface)]" />
         ))}
@@ -75,6 +78,7 @@ export default function PositionsPage() {
 
   return (
     <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+      <h1 className="sr-only">Your Positions</h1>
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
