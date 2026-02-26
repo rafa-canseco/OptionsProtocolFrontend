@@ -4,16 +4,15 @@ import { baseSepolia } from "viem/chains";
 export const CHAIN = baseSepolia;
 
 export const ADDRESSES = {
-  addressBook: "0xa183C0CBf142a2896Cb249F9305F3A6ACF3Abd79" as Address,
-  controller: "0xc8279f77D96a64AC3ebe4CB83BeA845d8869843B" as Address,
-  marginPool: "0x1f76058e5816BA21B9082b439e87F34402cA5792" as Address,
-  oTokenFactory: "0xAce19988105D495f95F5D57b06C48094ccCaBbAf" as Address,
-  oracle: "0x8dc0065c80342B5F6c830dB2f50896E15F10d022" as Address,
-  whitelist: "0x3719Dd9004d8D9d303C589eC8Fd9540f30775D05" as Address,
-  batchSettler: "0x7824ba774e0C45e31D3c75867be1566073bfF7A7" as Address,
-  priceSheet: "0xb68C684337abC77e5C67836A1B5E4560270163CB" as Address,
-  usdc: "0x96bD1505c91A162AD2b6b26faB0F2fe60b8FCFcb" as Address, // MockUSD (LUSD)
-  weth: "0x94f1c230777891a669a0820b8ad125473a61AA7E" as Address, // MockETH (LETH)
+  addressBook: "0x87247F9378f966834Fc90fA38A4230d31786642f" as Address,
+  controller: "0x15945776Ff184e9798BC2505129e2E4f7f404D3F" as Address,
+  marginPool: "0x9193f3a8b875749d3d5e4342BB2BECb1B15dEbDf" as Address,
+  oTokenFactory: "0x40A1CcA80b2E0408C72698e9a04777efe546bE0a" as Address,
+  oracle: "0xea3Ae72b85C130798fdBFD23C817913cC884816f" as Address,
+  whitelist: "0x43b512dA5b4938f4FE1B1Ae199Cd2324cA2478FC" as Address,
+  batchSettler: "0xF87958fDE6F4D721b9C732DE79572E1937687eEF" as Address,
+  usdc: "0x7fC7F74e5ED3a4ff03eDc310919779DD59D9C17A" as Address, // LUSD
+  weth: "0x45f3B57231bB03Ba7213a50FBe03f1B3De71412B" as Address, // LETH
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
@@ -149,7 +148,19 @@ export const BATCH_SETTLER_ABI = [
     type: "function",
     name: "executeOrder",
     inputs: [
-      { name: "oToken", type: "address" },
+      {
+        name: "quote",
+        type: "tuple",
+        components: [
+          { name: "oToken", type: "address" },
+          { name: "bidPrice", type: "uint256" },
+          { name: "deadline", type: "uint256" },
+          { name: "quoteId", type: "uint256" },
+          { name: "maxAmount", type: "uint256" },
+          { name: "makerNonce", type: "uint256" },
+        ],
+      },
+      { name: "signature", type: "bytes" },
       { name: "amount", type: "uint256" },
       { name: "collateral", type: "uint256" },
     ],
@@ -158,18 +169,3 @@ export const BATCH_SETTLER_ABI = [
   },
 ] as const;
 
-export const PRICE_SHEET_ABI = [
-  {
-    type: "function",
-    name: "getQuote",
-    inputs: [{ name: "oToken", type: "address" }],
-    outputs: [
-      { name: "bidPrice", type: "uint256" },
-      { name: "askPrice", type: "uint256" },
-      { name: "maxAmount", type: "uint256" },
-      { name: "filledAmount", type: "uint256" },
-      { name: "isValid", type: "bool" },
-    ],
-    stateMutability: "view",
-  },
-] as const;

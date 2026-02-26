@@ -15,6 +15,13 @@ export interface PriceQuote {
   expires_at: number;
   available_amount: number;
   otoken_address: string | null;
+  signature: string | null;
+  mm_address: string | null;
+  bid_price_raw: number | null;
+  deadline: number | null;
+  quote_id: string | null;
+  max_amount_raw: number | null;
+  maker_nonce: number | null;
 }
 
 export interface Position {
