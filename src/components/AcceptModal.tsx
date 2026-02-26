@@ -97,7 +97,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       login();
       return;
     }
-    if (!quote.otoken_address) {
+    if (!quote.otoken_address || !quote.signature || !quote.bid_price_raw
+        || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null
+        || quote.maker_nonce == null) {
       setError("This option is not available on-chain yet.");
       return;
     }
@@ -233,7 +235,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         );
       }
 
-      // Execute order (v3: only collateral approve needed, no oToken approve)
+      // Execute order (v4: EIP-712 signed quote + signature)
       console.log("[AcceptModal] Collateral approved, executing order...");
       updateStep("executing");
 
@@ -245,10 +247,19 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         args: [address],
       });
 
+      const quoteTuple = {
+        oToken: oTokenAddress,
+        bidPrice: BigInt(quote.bid_price_raw!),
+        deadline: BigInt(quote.deadline!),
+        quoteId: BigInt(quote.quote_id!),
+        maxAmount: BigInt(quote.max_amount_raw!),
+        makerNonce: BigInt(quote.maker_nonce!),
+      };
+
       const executeData = encodeFunctionData({
         abi: BATCH_SETTLER_ABI,
         functionName: "executeOrder",
-        args: [oTokenAddress, oTokenAmount, collateral],
+        args: [quoteTuple, quote.signature! as `0x${string}`, oTokenAmount, collateral],
       });
       // Poll until balance decreases (collateral deducted)
       await sendAndPoll(
