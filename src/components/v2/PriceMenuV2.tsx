@@ -24,211 +24,8 @@ function untilDate(expiryDays: number): string {
 }
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
-
-// Risk thresholds (distance from spot as %)
-const RISK_CLOSE = 3;
-const RISK_MODERATE = 8;
-const RISK_COLORS = { close: "#EF4444", moderate: "#F59E0B", safe: "#22D3EE" };
-
-function getRiskColor(distancePct: number): string {
-  if (distancePct < RISK_CLOSE) return RISK_COLORS.close;
-  if (distancePct < RISK_MODERATE) return RISK_COLORS.moderate;
-  return RISK_COLORS.safe;
-}
-
-/** Vertical bar chart with risk zones — spot line + strike bars */
-function StrikeChart({
-  filteredPrices,
-  spot,
-  side,
-  amount,
-  selectedStrike,
-}: {
-  filteredPrices: PriceQuote[];
-  spot: number;
-  side: "buy" | "sell";
-  amount: number;
-  selectedStrike: number | null;
-}) {
-  if (filteredPrices.length === 0) return null;
-
-  const isBuy = side === "buy";
-  const FONT = "'JetBrains Mono', monospace";
-
-  // Layout constants
-  const W = 400;
-  const SPOT_AREA = 36;
-  const BAR_H = 44;
-  const BAR_GAP = 8;
-  const LEGEND_H = 28;
-  const PAD_T = 8;
-  const PAD_B = 4;
-  const barCount = filteredPrices.length;
-  const H = PAD_T + SPOT_AREA + barCount * (BAR_H + BAR_GAP) + LEGEND_H + PAD_B;
-
-  const PAD_L = 80;
-  const PAD_R = 12;
-  const barAreaW = W - PAD_L - PAD_R;
-
-  // Compute earnings for each strike
-  const earningsArr = filteredPrices.map((q) =>
-    amount > 0 ? (isBuy ? (q.premium * amount) / q.strike : q.premium * amount) : 0
-  );
-  const maxEarnings = Math.max(...earningsArr, 1);
-
-  // filteredPrices already sorted: closest to spot first
-  const ordered = filteredPrices;
-
-  // Spot line Y position: top for buy, bottom for sell
-  const spotY = isBuy ? PAD_T + 14 : PAD_T + SPOT_AREA + barCount * (BAR_H + BAR_GAP) + 4;
-  const barsStartY = isBuy ? PAD_T + SPOT_AREA : PAD_T;
-
-  return (
-    <svg
-      viewBox={`0 0 ${W} ${H}`}
-      className="w-full"
-      preserveAspectRatio="xMidYMid meet"
-      style={{ minHeight: Math.min(H, 340) }}
-    >
-      <defs>
-        {ordered.map((q, i) => {
-          const dist = Math.abs(q.strike - spot) / spot * 100;
-          const color = getRiskColor(dist);
-          return (
-            <linearGradient key={`bg${i}`} id={`barGrad${i}`} x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor={color} stopOpacity={0.18} />
-              <stop offset="100%" stopColor={color} stopOpacity={0.02} />
-            </linearGradient>
-          );
-        })}
-      </defs>
-
-      {/* Spot price line */}
-      <line
-        x1={PAD_L - 4} y1={spotY} x2={W - PAD_R} y2={spotY}
-        stroke="#FAFAFA" strokeWidth={1} strokeDasharray="6 3"
-      />
-      <circle cx={PAD_L - 4} cy={spotY} r={3} fill="#FAFAFA" />
-      <text
-        x={PAD_L - 12} y={spotY + 4}
-        textAnchor="end" fill="#FAFAFA"
-        fontSize={11} fontWeight={600}
-        style={{ fontFamily: FONT }}
-      >
-        ${spot.toLocaleString()}
-      </text>
-      <text
-        x={W - PAD_R} y={spotY + 4}
-        textAnchor="end" fill="#A1A1AA"
-        fontSize={9} fontWeight={500}
-        style={{ fontFamily: FONT }}
-      >
-        now
-      </text>
-
-      {/* Strike bars */}
-      {ordered.map((q, i) => {
-        const barY = barsStartY + i * (BAR_H + BAR_GAP);
-        const dist = Math.abs(q.strike - spot) / spot * 100;
-        const color = getRiskColor(dist);
-        const isSelected = q.strike === selectedStrike;
-        const unavailable = !q.otoken_address || q.available_amount <= 0;
-
-        const earnings = amount > 0
-          ? (isBuy ? (q.premium * amount) / q.strike : q.premium * amount)
-          : 0;
-        const barW = Math.max(barAreaW * 0.15, (earnings / maxEarnings) * barAreaW);
-        const apr = computeAPR(q.premium, q.strike, q.expiry_days);
-        const distLabel = isBuy ? `${dist.toFixed(1)}% below` : `${dist.toFixed(1)}% above`;
-
-        return (
-          <g key={q.strike} opacity={unavailable ? 0.3 : 1}>
-            {/* Left border indicator */}
-            <rect
-              x={PAD_L} y={barY}
-              width={3} height={BAR_H}
-              rx={1.5} fill={color}
-            />
-
-            {/* Bar background */}
-            <rect
-              x={PAD_L + 3} y={barY}
-              width={barW} height={BAR_H}
-              fill={`url(#barGrad${i})`}
-              rx={4}
-              stroke={isSelected ? "#22D3EE" : "transparent"}
-              strokeWidth={isSelected ? 1.5 : 0}
-            />
-
-            {/* Selected pulsing indicator */}
-            {isSelected && (
-              <circle cx={PAD_L + barW + 10} cy={barY + BAR_H / 2} r={4} fill="#22D3EE" opacity={0.9}>
-                <animate attributeName="r" values="3;5;3" dur="2s" repeatCount="indefinite" />
-              </circle>
-            )}
-
-            {/* Strike price label (left of bar) */}
-            <text
-              x={PAD_L - 8} y={barY + BAR_H / 2 + 4}
-              textAnchor="end"
-              fill={isSelected ? "#22D3EE" : "#A1A1AA"}
-              fontSize={11} fontWeight={isSelected ? 600 : 400}
-              style={{ fontFamily: FONT }}
-            >
-              ${q.strike.toLocaleString()}
-            </text>
-
-            {/* Inside bar: distance % (top line) */}
-            <text
-              x={PAD_L + 12} y={barY + 16}
-              fill={color}
-              fontSize={10} fontWeight={500}
-              style={{ fontFamily: FONT }}
-            >
-              {distLabel}
-            </text>
-
-            {/* Inside bar: earnings + APR (bottom line) */}
-            <text
-              x={PAD_L + 12} y={barY + 34}
-              fill="#FAFAFA"
-              fontSize={11} fontWeight={600}
-              style={{ fontFamily: FONT }}
-            >
-              {earnings > 0
-                ? `$${Math.round(earnings).toLocaleString()}  ${Math.round(apr)}% APR`
-                : `${Math.round(apr)}% APR`}
-            </text>
-          </g>
-        );
-      })}
-
-      {/* Legend */}
-      {(() => {
-        const legendY = isBuy
-          ? PAD_T + SPOT_AREA + barCount * (BAR_H + BAR_GAP) + 12
-          : PAD_T + barCount * (BAR_H + BAR_GAP) + SPOT_AREA + 12;
-        const items = [
-          { color: RISK_COLORS.safe, label: "Safe (>8%)" },
-          { color: RISK_COLORS.moderate, label: "Moderate (3-8%)" },
-          { color: RISK_COLORS.close, label: "Close (<3%)" },
-        ];
-        return items.map((item, i) => (
-          <g key={item.label}>
-            <circle cx={PAD_L + i * 110} cy={legendY} r={4} fill={item.color} />
-            <text
-              x={PAD_L + i * 110 + 10} y={legendY + 3.5}
-              fill="#A1A1AA" fontSize={9} fontWeight={500}
-              style={{ fontFamily: FONT }}
-            >
-              {item.label}
-            </text>
-          </g>
-        ));
-      })()}
-    </svg>
-  );
-}
+const MAX_AMOUNT_USD = 1_000_000;
+const MAX_AMOUNT_ETH = 1_000;
 
 function StrikeCard({
   quote,
@@ -337,11 +134,12 @@ export function PriceMenuV2() {
     });
   }, [filteredPrices]);
 
-  const selectedEarnings = selectedQuote && amount > 0
-    ? isBuy
-      ? (selectedQuote.premium * amount) / selectedQuote.strike
-      : selectedQuote.premium * amount
-    : 0;
+  const selectedEarnings =
+    selectedQuote && amount > 0 && selectedQuote.strike > 0
+      ? isBuy
+        ? (selectedQuote.premium * amount) / selectedQuote.strike
+        : selectedQuote.premium * amount
+      : 0;
 
   const selectedApr = selectedQuote
     ? computeAPR(selectedQuote.premium, selectedQuote.strike, selectedQuote.expiry_days)
@@ -349,13 +147,13 @@ export function PriceMenuV2() {
 
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
 
-
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
+    const max = isBuy ? MAX_AMOUNT_USD : MAX_AMOUNT_ETH;
     if (isBuy) {
-      setAmountStr(Math.floor(raw).toString());
+      setAmountStr(Math.min(Math.floor(raw), max).toString());
     } else {
-      setAmountStr(Number(raw.toFixed(4)).toString());
+      setAmountStr(Math.min(Number(raw.toFixed(4)), max).toString());
     }
   }
 
@@ -494,6 +292,12 @@ export function PriceMenuV2() {
                 onChange={(e) => {
                   const raw = e.target.value;
                   if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
+                    const num = Number(raw);
+                    const max = isBuy ? MAX_AMOUNT_USD : MAX_AMOUNT_ETH;
+                    if (raw !== "" && num > max) {
+                      setAmountStr(max.toString());
+                      return;
+                    }
                     setAmountStr(raw);
                   }
                 }}
@@ -507,19 +311,22 @@ export function PriceMenuV2() {
                   ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                   : `${walletBalance.toFixed(2)} ETH`}</span>
               </p>
-              {walletBalance > 0 && (
-                <div className="flex gap-1.5">
-                  {PERCENT_SHORTCUTS.map((pct) => (
-                    <button
-                      key={pct}
-                      onClick={() => handlePercentShortcut(pct)}
-                      className="text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] hover:bg-[var(--accent)]/10"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-1.5">
+                {PERCENT_SHORTCUTS.map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => handlePercentShortcut(pct)}
+                    disabled={walletBalance <= 0}
+                    className={`text-[10px] font-medium transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] ${
+                      walletBalance > 0
+                        ? "text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10"
+                        : "text-[var(--text-secondary)] opacity-40 cursor-not-allowed"
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -572,63 +379,27 @@ export function PriceMenuV2() {
           </button>
         </div>
 
-        {/* RIGHT: Live preview — chart + outcome cards */}
+        {/* RIGHT: Live preview — outcome cards */}
         <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
-          {/* Chart */}
-          <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
-            <p className="text-xs text-[var(--text-secondary)] mb-3 flex items-center">
-              Strike distance from current price
-              <InfoTooltip title="Risk zones" text="Further from the current price = safer. Red bars are close to spot (higher risk, higher premium). Cyan bars are far from spot (safer, lower premium)." />
-            </p>
-            {spot && filteredPrices.length > 0 ? (
-              <StrikeChart
-                filteredPrices={filteredPrices}
-                spot={spot}
-                side={side}
-                amount={amount}
-                selectedStrike={selectedQuote?.strike ?? null}
-              />
-            ) : (
-              <div className="h-36 flex items-center justify-center text-sm text-[var(--text-secondary)]">
-                Loading prices...
-              </div>
-            )}
-          </div>
-
-          {/* Outcome preview — builds up as user configures */}
-          {selectedQuote && amount > 0 ? (
-            <div className="space-y-4 animate-fade-in-up">
-              {/* Earnings hero */}
-              <div className="text-center py-2">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-3xl font-bold text-[var(--accent)] font-mono">
-                    ${Math.round(selectedEarnings).toLocaleString()}
-                  </p>
-                  <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
-                </div>
-                <p className="text-sm text-[var(--text-secondary)] mt-1">
-                  {Math.round(selectedApr)}% APR · {activeExpiry}d
+          {selectedQuote && amount > 0 && (
+            <div className="text-center py-2 animate-fade-in-up">
+              <div className="flex items-center justify-center gap-1">
+                <p className="text-3xl font-bold text-[var(--accent)] font-mono">
+                  ${Math.round(selectedEarnings).toLocaleString()}
                 </p>
+                <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
               </div>
-              <OutcomeCards
-                strike={selectedQuote.strike}
-                premium={selectedEarnings}
-                side={side}
-                amount={amount}
-              />
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center space-y-2">
-              <p className="text-sm text-[var(--text-secondary)]">
-                {!amount
-                  ? "Enter an amount to see your earnings"
-                  : "Select a strike to see outcomes"}
-              </p>
-              <p className="text-xs text-[var(--text-secondary)] opacity-60">
-                Your earnings preview will appear here
+              <p className="text-sm text-[var(--text-secondary)] mt-1">
+                {Math.round(selectedApr)}% APR · {activeExpiry}d
               </p>
             </div>
           )}
+          <OutcomeCards
+            side={side}
+            amount={amount > 0 ? amount : undefined}
+            strike={selectedQuote?.strike}
+            premium={selectedEarnings > 0 ? selectedEarnings : undefined}
+          />
         </div>
       </div>
 
