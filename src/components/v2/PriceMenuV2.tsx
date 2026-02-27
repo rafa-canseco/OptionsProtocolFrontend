@@ -353,9 +353,9 @@ export function PriceMenuV2() {
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
     if (isBuy) {
-      setAmountStr(Math.floor(raw).toString());
+      setAmountStr(Math.min(Math.floor(raw), 1_000_000).toString());
     } else {
-      setAmountStr(Number(raw.toFixed(4)).toString());
+      setAmountStr(Math.min(Number(raw.toFixed(4)), 1_000).toString());
     }
   }
 
@@ -494,6 +494,9 @@ export function PriceMenuV2() {
                 onChange={(e) => {
                   const raw = e.target.value;
                   if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
+                    const num = Number(raw);
+                    const max = isBuy ? 1_000_000 : 1_000;
+                    if (raw !== "" && num > max) return;
                     setAmountStr(raw);
                   }
                 }}
