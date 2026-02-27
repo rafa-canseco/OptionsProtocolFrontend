@@ -20,21 +20,166 @@ interface Props {
   onAccepted: (info: { amount: number }) => void;
   renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
   initialAmount?: string;
-  /** When true, hides amount input — modal becomes a confirmation screen. */
   confirmOnly?: boolean;
 }
 
-type TxStep = "idle" | "approving" | "executing" | "confirmed";
+type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
 
-function computeAPR(premium: number, strike: number, expiryDays: number): number {
+function computeAPR(
+  premium: number,
+  strike: number,
+  expiryDays: number,
+): number {
   if (strike <= 0 || expiryDays <= 0) return 0;
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
+async function pollUntil(
+  check: () => Promise<boolean>,
+  label: string,
+  intervalMs = 2000,
+  maxAttempts = 60,
+) {
+  let consecutiveErrors = 0;
+  for (let i = 0; i < maxAttempts; i++) {
+    try {
+      const done = await check();
+      consecutiveErrors = 0;
+      if (done) {
+        console.log(`[AcceptModal] ${label} confirmed on-chain`);
+        return;
+      }
+    } catch (err) {
+      consecutiveErrors++;
+      console.warn(
+        `[AcceptModal] Poll failed for ${label} (attempt ${i + 1}):`,
+        err,
+      );
+      if (consecutiveErrors >= 5) {
+        throw new Error(
+          "Lost connection while waiting for confirmation. " +
+          "Your transaction may still be processing — " +
+          "check your balance before retrying.",
+        );
+      }
+    }
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  throw new Error(
+    "Timed out waiting for confirmation. " +
+    "Your transaction may still be processing — " +
+    "check your balance before retrying.",
+  );
+}
+
+async function fireAndPoll(
+  fire: () => Promise<unknown>,
+  check: () => Promise<boolean>,
+  label: string,
+) {
+  const txP = fire().then(() => "tx" as const);
+  const pollP = pollUntil(check, label).then(() => "poll" as const);
+  const winner = await Promise.race([txP, pollP]);
+  if (winner === "tx") {
+    await pollP;
+  } else {
+    txP.catch((err) => {
+      console.warn(`[AcceptModal] tx rejected after poll confirmed (${label}):`, err);
+    });
+  }
+}
+
+function computeCollateral(
+  isBuy: boolean,
+  amount: number,
+  strike: number,
+): { oTokenAmount: bigint; collateral: bigint; collateralAsset: Address } {
+  if (isBuy) {
+    const ethUnits = amount / strike;
+    const oTokenAmount = parseUnits(ethUnits.toFixed(8), 8);
+    const strikePrice8 = BigInt(Math.round(strike * 1e8));
+    const collateral = (oTokenAmount * strikePrice8) / BigInt(1e10);
+    return { oTokenAmount, collateral, collateralAsset: ADDRESSES.usdc };
+  }
+  const oTokenAmount = parseUnits(amount.toFixed(8), 8);
+  const collateral = oTokenAmount * BigInt(1e10);
+  return { oTokenAmount, collateral, collateralAsset: ADDRESSES.weth };
+}
+
+function readTokenBalance(token: Address, account: Address) {
+  return publicClient.readContract({
+    address: token, abi: ERC20_ABI,
+    functionName: "balanceOf", args: [account],
+  });
+}
+
+function encodeExecuteOrder(
+  quote: PriceQuote,
+  oTokenAmount: bigint,
+  collateral: bigint,
+): `0x${string}` {
+  const quoteTuple = {
+    oToken: quote.otoken_address as Address,
+    bidPrice: BigInt(quote.bid_price_raw!),
+    deadline: BigInt(quote.deadline!),
+    quoteId: BigInt(quote.quote_id!),
+    maxAmount: BigInt(quote.max_amount_raw!),
+    makerNonce: BigInt(quote.maker_nonce!),
+  };
+  return encodeFunctionData({
+    abi: BATCH_SETTLER_ABI,
+    functionName: "executeOrder",
+    args: [quoteTuple, quote.signature! as `0x${string}`, oTokenAmount, collateral],
+  });
+}
+
+function buildOptimisticPosition(
+  quote: PriceQuote,
+  amount: number,
+  isBuy: boolean,
+  address: Address,
+): Position {
+  const optOTokenAmt = isBuy
+    ? (amount / quote.strike) * 1e8
+    : amount * 1e8;
+  const optCollateral = isBuy ? amount * 1e6 : amount * 1e18;
+  const optPremium = isBuy
+    ? String(((quote.premium * amount) / quote.strike) * 1e6)
+    : String(quote.premium * amount * 1e6);
+  return {
+    id: "opt-" + Date.now(),
+    tx_hash: "",
+    block_number: 0,
+    user_address: address,
+    otoken_address: quote.otoken_address!,
+    amount: optOTokenAmt,
+    premium: optPremium,
+    collateral: optCollateral,
+    vault_id: null as unknown as number,
+    strike_price: quote.strike * 1e8,
+    expiry: quote.expires_at,
+    is_put: isBuy,
+    is_settled: false,
+    settled_at: null,
+    settlement_tx_hash: null,
+    indexed_at: new Date().toISOString(),
+    settlement_type: null,
+    delivered_asset: null,
+    delivered_amount: null,
+    delivery_tx_hash: null,
+    is_itm: null,
+    expiry_price: null,
+    gross_premium: optPremium,
+    net_premium: optPremium,
+    protocol_fee: "0",
+    outcome: null,
+  };
+}
+
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly }: Props) {
-  const { address, sendSponsoredTx, isConnected, login } = useWallet();
+  const { address, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -43,12 +188,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth;
 
-  // Max capped by available capacity
   const maxAmount = isBuy
     ? quote.available_amount * quote.strike
     : quote.available_amount;
 
-  // String state avoids leading-zero bug with controlled number inputs.
   const [amountStr, setAmountStr] = useState(initialAmount ?? "");
   const amount = Number(amountStr) || 0;
 
@@ -67,7 +210,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   const ethEquiv = isBuy ? (amount / quote.strike).toFixed(2) : String(amount);
 
-  // Earnings ALWAYS in USD
   const scaledPremium = isBuy
     ? (quote.premium * amount) / quote.strike
     : quote.premium * amount;
@@ -80,251 +222,108 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   const loading = step !== "idle";
   const buttonLabel =
-    step === "approving"
-      ? isBuy ? "Approving USD..." : "Approving ETH..."
-      : step === "executing"
-        ? "Executing order..."
-        : step === "confirmed"
-          ? "Done"
-          : !isConnected
-            ? "Connect wallet"
-            : "Accept";
+    step === "executing"
+      ? "Executing order..."
+      : step === "confirmed"
+        ? "Done"
+        : !isConnected
+          ? "Connect wallet"
+          : "Accept";
 
   const minAmount = isBuy ? 100 : 0.01;
 
   async function handleAccept() {
-    if (!isConnected || !address) {
-      login();
-      return;
-    }
+    if (!isConnected || !address) { login(); return; }
+
     if (!quote.otoken_address || !quote.signature || !quote.bid_price_raw
         || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null
         || quote.maker_nonce == null) {
       setError("This option is not available on-chain yet.");
       return;
     }
+
     if (amount < minAmount) {
-      const minLabel = isBuy ? `$${minAmount}` : `${minAmount} ETH`;
-      setError(`Minimum amount is ${minLabel}.`);
+      const label = isBuy ? `$${minAmount}` : `${minAmount} ETH`;
+      setError(`Minimum amount is ${label}.`);
       return;
     }
     if (amount > maxAmount) {
-      const maxLabel = isBuy
+      const label = isBuy
         ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
         : `${maxAmount.toFixed(2)} ETH`;
-      setError(`Maximum available is ${maxLabel}.`);
+      setError(`Maximum available is ${label}.`);
       return;
     }
 
     setError(null);
-    const oTokenAddress = quote.otoken_address as Address;
-    let currentStep = "idle" as TxStep;
+    let currentStep: TxStep = "idle";
     const updateStep = (s: TxStep) => { currentStep = s; setStep(s); };
 
     try {
-      let oTokenAmount: bigint;
-      let collateral: bigint;
-      let collateralAsset: Address;
+      const { oTokenAmount, collateral, collateralAsset } =
+        computeCollateral(isBuy, amount, quote.strike);
 
-      if (isBuy) {
-        // Put: user commits USD. oTokenAmount in 8 dec, collateral in LUSD 6 dec.
-        // Contract formula: collateral_6dec = (oTokenAmount_8dec * strikePrice_8dec) / 1e10
-        const ethUnits = amount / quote.strike;
-        oTokenAmount = parseUnits(ethUnits.toFixed(8), 8);
-        const strikePrice8 = BigInt(Math.round(quote.strike * 1e8));
-        collateral = (oTokenAmount * strikePrice8) / BigInt(1e10);
-        collateralAsset = ADDRESSES.usdc;
-      } else {
-        // Call: user commits ETH. oTokenAmount in 8 dec, collateral in LETH 18 dec.
-        // Contract formula: collateral_18dec = oTokenAmount_8dec * 1e10
-        const formattedAmount = amount.toFixed(8);
-        oTokenAmount = parseUnits(formattedAmount, 8);
-        collateral = oTokenAmount * BigInt(1e10);
-        collateralAsset = ADDRESSES.weth;
-      }
-
-      // Check balance before sending tx
-      const balance = await publicClient.readContract({
-        address: collateralAsset,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [address],
-      });
+      const balance = await readTokenBalance(collateralAsset, address);
       if (balance < collateral) {
-        const token = isBuy ? "USD" : "ETH";
-        setError(`Insufficient ${token} balance.`);
+        setError(`Insufficient ${isBuy ? "USD" : "ETH"} balance.`);
         return;
       }
 
-      // Poll on-chain until a condition is met (default: 2s interval, 60 attempts = ~120s timeout).
-      // Tolerates transient RPC errors; aborts only after 5 consecutive failures.
-      const pollUntil = async (
-        check: () => Promise<boolean>,
-        label: string,
-        intervalMs = 2000,
-        maxAttempts = 60,
-      ) => {
-        let consecutiveErrors = 0;
-        for (let i = 0; i < maxAttempts; i++) {
-          try {
-            const done = await check();
-            consecutiveErrors = 0;
-            if (done) {
-              console.log(`[AcceptModal] ${label} confirmed on-chain`);
-              return;
-            }
-          } catch (err) {
-            consecutiveErrors++;
-            console.warn(`[AcceptModal] Poll check failed for ${label} (attempt ${i + 1}):`, err);
-            if (consecutiveErrors >= 5) {
-              throw new Error(`Lost connection while waiting for ${label}. Your transaction may still be processing. Check your wallet before retrying.`);
-            }
-          }
-          await new Promise((r) => setTimeout(r, intervalMs));
-        }
-        throw new Error(`Timed out waiting for ${label}`);
-      };
-
-      // Fire a tx and poll for on-chain confirmation simultaneously.
-      // If the tx rejects immediately (user cancel, sponsorship fail), we catch it fast.
-      // If polling confirms first, we ignore the tx promise resolution.
-      const sendAndPoll = async (
-        tx: { to: Address; data: `0x${string}` },
-        check: () => Promise<boolean>,
-        label: string,
-      ) => {
-        const txPromise = sendSponsoredTx(tx).then(() => "tx-resolved" as const);
-        const pollPromise = pollUntil(check, label).then(() => "poll-confirmed" as const);
-        const result = await Promise.race([txPromise, pollPromise]);
-        if (result === "tx-resolved") {
-          // Tx resolved but poll hasn't confirmed yet — keep waiting
-          await pollPromise;
-        } else {
-          // Poll confirmed first — suppress any late tx rejection
-          txPromise.catch(() => {});
-        }
-      };
-
-      // Check allowance
+      const executeData = encodeExecuteOrder(quote, oTokenAmount, collateral);
       const currentAllowance = await publicClient.readContract({
-        address: collateralAsset,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [address, ADDRESSES.marginPool],
+        address: collateralAsset, abi: ERC20_ABI,
+        functionName: "allowance", args: [address, ADDRESSES.marginPool],
       });
 
-      // Approve if needed — use max approval so it's only needed once per token
-      if (currentAllowance < collateral) {
-        updateStep("approving");
+      updateStep("executing");
 
+      const balanceBefore = await readTokenBalance(collateralAsset, address);
+      const balanceDecreased = async () => {
+        const bal = await readTokenBalance(collateralAsset, address);
+        return bal < balanceBefore;
+      };
+
+      if (currentAllowance < collateral) {
         const approveData = encodeFunctionData({
           abi: ERC20_ABI,
           functionName: "approve",
           args: [ADDRESSES.marginPool, maxUint256],
         });
-        await sendAndPoll(
-          { to: collateralAsset, data: approveData },
-          async () => {
-            const a = await publicClient.readContract({
-              address: collateralAsset, abi: ERC20_ABI, functionName: "allowance",
-              args: [address, ADDRESSES.marginPool],
-            });
-            return a >= collateral;
-          },
-          "approve",
+        await fireAndPoll(
+          () => sendBatchTx([
+            { to: collateralAsset, data: approveData },
+            { to: ADDRESSES.batchSettler, data: executeData },
+          ]),
+          balanceDecreased,
+          "batch-approve-execute",
+        );
+      } else {
+        await fireAndPoll(
+          () => sendBatchTx([
+            { to: ADDRESSES.batchSettler, data: executeData },
+          ]),
+          balanceDecreased,
+          "executeOrder",
         );
       }
 
-      // Execute order (v4: EIP-712 signed quote + signature)
-      console.log("[AcceptModal] Collateral approved, executing order...");
-      updateStep("executing");
-
-      // Snapshot balance before executeOrder to detect when collateral is deducted
-      const balanceBefore = await publicClient.readContract({
-        address: collateralAsset,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [address],
-      });
-
-      const quoteTuple = {
-        oToken: oTokenAddress,
-        bidPrice: BigInt(quote.bid_price_raw!),
-        deadline: BigInt(quote.deadline!),
-        quoteId: BigInt(quote.quote_id!),
-        maxAmount: BigInt(quote.max_amount_raw!),
-        makerNonce: BigInt(quote.maker_nonce!),
-      };
-
-      const executeData = encodeFunctionData({
-        abi: BATCH_SETTLER_ABI,
-        functionName: "executeOrder",
-        args: [quoteTuple, quote.signature! as `0x${string}`, oTokenAmount, collateral],
-      });
-      // Poll until balance decreases (collateral deducted)
-      await sendAndPoll(
-        { to: ADDRESSES.batchSettler, data: executeData },
-        async () => {
-          const bal = await publicClient.readContract({
-            address: collateralAsset, abi: ERC20_ABI, functionName: "balanceOf",
-            args: [address],
-          });
-          return bal < balanceBefore;
-        },
-        "executeOrder",
-      );
-
       updateStep("confirmed");
-
-      // Save optimistic position so it shows instantly on positions page
-      const optOTokenAmount = isBuy ? (amount / quote.strike) * 1e8 : amount * 1e8;
-      const optCollateral = isBuy ? amount * 1e6 : amount * 1e18;
-      const optPremium = isBuy
-        ? String(((quote.premium * amount) / quote.strike) * 1e6)
-        : String(quote.premium * amount * 1e6);
-
-      const optimisticPos: Position = {
-        id: "opt-" + Date.now(),
-        tx_hash: "",
-        block_number: 0,
-        user_address: address!,
-        otoken_address: quote.otoken_address!,
-        amount: optOTokenAmount,
-        premium: optPremium,
-        collateral: optCollateral,
-        vault_id: null as unknown as number,
-        strike_price: quote.strike * 1e8,
-        expiry: quote.expires_at,
-        is_put: isBuy,
-        is_settled: false,
-        settled_at: null,
-        settlement_tx_hash: null,
-        indexed_at: new Date().toISOString(),
-        settlement_type: null,
-        delivered_asset: null,
-        delivered_amount: null,
-        delivery_tx_hash: null,
-        is_itm: null,
-        expiry_price: null,
-        gross_premium: optPremium,
-        net_premium: optPremium,
-        protocol_fee: "0",
-        outcome: null,
-      };
       onAccepted({ amount });
       window.dispatchEvent(new Event("balance:refetch"));
 
-      try { saveOptimistic(optimisticPos); } catch { /* best-effort; backend will index it */ }
+      const pos = buildOptimisticPosition(quote, amount, isBuy, address);
+      try { saveOptimistic(pos); } catch (err) {
+        console.warn("[AcceptModal] Could not save optimistic position:", err);
+      }
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
-      if (currentStep === "idle") {
-        setError("Could not read on-chain data. Check your network connection and try again.");
-      } else if (currentStep === "approving") {
-        setError("Token approval failed. Please try again.");
-      } else if (currentStep === "executing") {
-        setError("Order execution failed. Your approval succeeded, try accepting again.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.includes("Timed out") || msg.includes("Lost connection")) {
+        setError(msg);
+      } else if (currentStep === "idle") {
+        setError("Could not read on-chain data. Check your connection and try again.");
       } else {
-        setError("Transaction failed. Please try again.");
+        setError("Transaction failed. No funds were moved. Please try again.");
       }
       setStep("idle");
     }
@@ -420,7 +419,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               You commit {commitDisplay} for {quote.expiry_days} days
             </p>
 
-            {/* Outcome cards (renderExtra) replace text outcomes when provided */}
             {renderExtra ? (
               typeof renderExtra === "function" ? renderExtra(amount) : renderExtra
             ) : (
