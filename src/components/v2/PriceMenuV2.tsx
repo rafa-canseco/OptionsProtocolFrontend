@@ -595,11 +595,10 @@ export function PriceMenuV2() {
             )}
           </div>
 
-          {/* Outcome preview — builds up as user configures */}
-          {selectedQuote && amount > 0 ? (
-            <div className="space-y-4 animate-fade-in-up">
-              {/* Earnings hero */}
-              <div className="text-center py-2">
+          {/* Outcome preview — always visible, fills in progressively */}
+          <div className="space-y-4">
+            {selectedQuote && amount > 0 && (
+              <div className="text-center py-2 animate-fade-in-up">
                 <div className="flex items-center justify-center gap-1">
                   <p className="text-3xl font-bold text-[var(--accent)] font-mono">
                     ${Math.round(selectedEarnings).toLocaleString()}
@@ -610,25 +609,14 @@ export function PriceMenuV2() {
                   {Math.round(selectedApr)}% APR · {activeExpiry}d
                 </p>
               </div>
-              <OutcomeCards
-                strike={selectedQuote.strike}
-                premium={selectedEarnings}
-                side={side}
-                amount={amount}
-              />
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center space-y-2">
-              <p className="text-sm text-[var(--text-secondary)]">
-                {!amount
-                  ? "Enter an amount to see your earnings"
-                  : "Select a strike to see outcomes"}
-              </p>
-              <p className="text-xs text-[var(--text-secondary)] opacity-60">
-                Your earnings preview will appear here
-              </p>
-            </div>
-          )}
+            )}
+            <OutcomeCards
+              side={side}
+              amount={amount > 0 ? amount : undefined}
+              strike={selectedQuote?.strike}
+              premium={selectedEarnings > 0 ? selectedEarnings : undefined}
+            />
+          </div>
         </div>
       </div>
 
