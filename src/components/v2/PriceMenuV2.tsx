@@ -10,7 +10,6 @@ import { LivePrice } from "../LivePrice";
 import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
-import { ScenarioSlider } from "./ScenarioSlider";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
@@ -96,7 +95,6 @@ export function PriceMenuV2() {
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [previewMode, setPreviewMode] = useState<"cards" | "slider">("cards");
 
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth;
@@ -372,21 +370,8 @@ export function PriceMenuV2() {
           </button>
         </div>
 
-        {/* RIGHT: Live preview — outcome cards + optional scenario slider */}
+        {/* RIGHT: Live preview — outcome cards */}
         <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
-          {/* Toggle: cards only vs scenario slider */}
-          <div className="flex justify-end">
-            <button
-              onClick={() => setPreviewMode(
-                (m) => m === "cards" ? "slider" : "cards"
-              )}
-              className="text-xs font-medium text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors px-2 py-1 rounded bg-[var(--surface)] border border-[var(--border)]"
-            >
-              {previewMode === "cards" ? "Try scenario slider" : "Back to cards"}
-            </button>
-          </div>
-
-          {/* Earnings hero — only when fully configured */}
           {selectedQuote && amount > 0 && (
             <div className="text-center py-2 animate-fade-in-up">
               <div className="flex items-center justify-center gap-1">
@@ -400,23 +385,12 @@ export function PriceMenuV2() {
               </p>
             </div>
           )}
-
-          {previewMode === "slider" && spot ? (
-            <ScenarioSlider
-              spot={spot}
-              side={side}
-              amount={amount > 0 ? amount : undefined}
-              strike={selectedQuote?.strike}
-              premium={selectedEarnings > 0 ? selectedEarnings : undefined}
-            />
-          ) : (
-            <OutcomeCards
-              side={side}
-              amount={amount > 0 ? amount : undefined}
-              strike={selectedQuote?.strike}
-              premium={selectedEarnings > 0 ? selectedEarnings : undefined}
-            />
-          )}
+          <OutcomeCards
+            side={side}
+            amount={amount > 0 ? amount : undefined}
+            strike={selectedQuote?.strike}
+            premium={selectedEarnings > 0 ? selectedEarnings : undefined}
+          />
         </div>
       </div>
 
