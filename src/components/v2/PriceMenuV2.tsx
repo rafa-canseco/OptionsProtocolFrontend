@@ -24,6 +24,8 @@ function untilDate(expiryDays: number): string {
 }
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
+const MAX_AMOUNT_USD = 1_000_000;
+const MAX_AMOUNT_ETH = 1_000;
 
 function StrikeCard({
   quote,
@@ -132,11 +134,12 @@ export function PriceMenuV2() {
     });
   }, [filteredPrices]);
 
-  const selectedEarnings = selectedQuote && amount > 0
-    ? isBuy
-      ? (selectedQuote.premium * amount) / selectedQuote.strike
-      : selectedQuote.premium * amount
-    : 0;
+  const selectedEarnings =
+    selectedQuote && amount > 0 && selectedQuote.strike > 0
+      ? isBuy
+        ? (selectedQuote.premium * amount) / selectedQuote.strike
+        : selectedQuote.premium * amount
+      : 0;
 
   const selectedApr = selectedQuote
     ? computeAPR(selectedQuote.premium, selectedQuote.strike, selectedQuote.expiry_days)
@@ -144,13 +147,13 @@ export function PriceMenuV2() {
 
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
 
-
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
+    const max = isBuy ? MAX_AMOUNT_USD : MAX_AMOUNT_ETH;
     if (isBuy) {
-      setAmountStr(Math.min(Math.floor(raw), 1_000_000).toString());
+      setAmountStr(Math.min(Math.floor(raw), max).toString());
     } else {
-      setAmountStr(Math.min(Number(raw.toFixed(4)), 1_000).toString());
+      setAmountStr(Math.min(Number(raw.toFixed(4)), max).toString());
     }
   }
 
@@ -290,8 +293,11 @@ export function PriceMenuV2() {
                   const raw = e.target.value;
                   if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
                     const num = Number(raw);
-                    const max = isBuy ? 1_000_000 : 1_000;
-                    if (raw !== "" && num > max) return;
+                    const max = isBuy ? MAX_AMOUNT_USD : MAX_AMOUNT_ETH;
+                    if (raw !== "" && num > max) {
+                      setAmountStr(max.toString());
+                      return;
+                    }
                     setAmountStr(raw);
                   }
                 }}
@@ -305,19 +311,22 @@ export function PriceMenuV2() {
                   ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
                   : `${walletBalance.toFixed(2)} ETH`}</span>
               </p>
-              {walletBalance > 0 && (
-                <div className="flex gap-1.5">
-                  {PERCENT_SHORTCUTS.map((pct) => (
-                    <button
-                      key={pct}
-                      onClick={() => handlePercentShortcut(pct)}
-                      className="text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--accent)] transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] hover:bg-[var(--accent)]/10"
-                    >
-                      {pct}%
-                    </button>
-                  ))}
-                </div>
-              )}
+              <div className="flex gap-1.5">
+                {PERCENT_SHORTCUTS.map((pct) => (
+                  <button
+                    key={pct}
+                    onClick={() => handlePercentShortcut(pct)}
+                    disabled={walletBalance <= 0}
+                    className={`text-[10px] font-medium transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] ${
+                      walletBalance > 0
+                        ? "text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10"
+                        : "text-[var(--text-secondary)] opacity-40 cursor-not-allowed"
+                    }`}
+                  >
+                    {pct}%
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
