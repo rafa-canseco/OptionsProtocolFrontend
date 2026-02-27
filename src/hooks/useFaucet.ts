@@ -20,7 +20,11 @@ export function useFaucet(
   const [error, setError] = useState<string | null>(null);
 
   async function mint() {
-    if (!address || !sendBatchTx) return;
+    if (!address) return;
+    if (!sendBatchTx) {
+      setError("Wallet is still initializing. Please wait a moment and try again.");
+      return;
+    }
     setMinting(true);
     setError(null);
 

@@ -29,47 +29,13 @@ export function useWallet() {
     });
   }, [embeddedWallet]);
 
-  // Single sponsored tx — routes through smart wallet client when
-  // available so the sender address is consistent with batch calls.
-  const sendSponsoredTx = useCallback(
-    (tx: {
-      to: Address;
-      data: `0x${string}`;
-      value?: bigint;
-    }): Promise<unknown> => {
-      if (!client) {
-        throw new Error("Smart wallet not ready");
-      }
-      console.log("[sendSponsoredTx] Firing tx via smart wallet:", {
-        to: tx.to,
-        data: tx.data.slice(0, 10),
-      });
-      return client
-        .sendTransaction(
-          {
-            calls: [
-              {
-                to: tx.to,
-                data: tx.data,
-                value: tx.value,
-              },
-            ],
-          },
-          { uiOptions: { showWalletUIs: false } },
-        )
-        .catch((err) => {
-          console.error("[sendSponsoredTx] Error:", err);
-          throw err;
-        });
-    },
-    [client],
-  );
-
-  // Batch multiple calls into a single UserOperation
   const sendBatchTx = useCallback(
     (calls: BatchCall[]): Promise<unknown> => {
       if (!client) {
         throw new Error("Smart wallet not ready");
+      }
+      if (calls.length === 0) {
+        throw new Error("sendBatchTx requires at least one call");
       }
       console.log(
         "[sendBatchTx] Firing batch with",
@@ -98,7 +64,6 @@ export function useWallet() {
 
   return {
     address,
-    sendSponsoredTx,
     sendBatchTx,
     isConnected: authenticated && !!address,
     isReady: ready,
