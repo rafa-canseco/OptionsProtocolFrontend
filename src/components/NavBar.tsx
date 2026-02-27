@@ -20,8 +20,15 @@ export function NavBar() {
 
   const showFaucetButton = isConnected && !balLoading;
 
+  const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
+
   return (
     <>
+      {isStaging && (
+        <div className="bg-amber-500 text-black text-center text-xs font-bold py-1">
+          STAGING — staging.b1nary.app
+        </div>
+      )}
       <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
         <div className="flex items-center gap-6">
           <Link href="/" className="text-lg font-bold tracking-tight text-[var(--bone)] font-mono">
