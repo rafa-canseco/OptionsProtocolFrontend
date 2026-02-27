@@ -14,9 +14,9 @@ const LINKS = [
 
 export function NavBar() {
   const pathname = usePathname();
-  const { address, sendSponsoredTx, isConnected } = useWallet();
+  const { address, sendBatchTx, isConnected } = useWallet();
   const { usd, usdFormatted, ethFormatted, loading: balLoading, refetch } = useBalances(address);
-  const { mint, minting, showNotification, error: faucetError } = useFaucet(address, sendSponsoredTx, refetch);
+  const { mint, minting, showNotification, error: faucetError } = useFaucet(address, sendBatchTx, refetch);
 
   const showFaucetButton = isConnected && !balLoading;
 

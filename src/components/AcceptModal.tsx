@@ -24,7 +24,7 @@ interface Props {
   confirmOnly?: boolean;
 }
 
-type TxStep = "idle" | "approving" | "executing" | "confirmed";
+type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
 
@@ -34,7 +34,7 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
 }
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly }: Props) {
-  const { address, sendSponsoredTx, isConnected, login } = useWallet();
+  const { address, sendSponsoredTx, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -80,15 +80,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   const loading = step !== "idle";
   const buttonLabel =
-    step === "approving"
-      ? isBuy ? "Approving USD..." : "Approving ETH..."
-      : step === "executing"
-        ? "Executing order..."
-        : step === "confirmed"
-          ? "Done"
-          : !isConnected
-            ? "Connect wallet"
-            : "Accept";
+    step === "executing"
+      ? "Executing order..."
+      : step === "confirmed"
+        ? "Done"
+        : !isConnected
+          ? "Connect wallet"
+          : "Accept";
 
   const minAmount = isBuy ? 100 : 0.01;
 
@@ -205,48 +203,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         }
       };
 
-      // Check allowance
-      const currentAllowance = await publicClient.readContract({
-        address: collateralAsset,
-        abi: ERC20_ABI,
-        functionName: "allowance",
-        args: [address, ADDRESSES.marginPool],
-      });
-
-      // Approve if needed — use max approval so it's only needed once per token
-      if (currentAllowance < collateral) {
-        updateStep("approving");
-
-        const approveData = encodeFunctionData({
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [ADDRESSES.marginPool, maxUint256],
-        });
-        await sendAndPoll(
-          { to: collateralAsset, data: approveData },
-          async () => {
-            const a = await publicClient.readContract({
-              address: collateralAsset, abi: ERC20_ABI, functionName: "allowance",
-              args: [address, ADDRESSES.marginPool],
-            });
-            return a >= collateral;
-          },
-          "approve",
-        );
-      }
-
-      // Execute order (v4: EIP-712 signed quote + signature)
-      console.log("[AcceptModal] Collateral approved, executing order...");
-      updateStep("executing");
-
-      // Snapshot balance before executeOrder to detect when collateral is deducted
-      const balanceBefore = await publicClient.readContract({
-        address: collateralAsset,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [address],
-      });
-
+      // Build executeOrder calldata
       const quoteTuple = {
         oToken: oTokenAddress,
         bidPrice: BigInt(quote.bid_price_raw!),
@@ -261,18 +218,62 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         functionName: "executeOrder",
         args: [quoteTuple, quote.signature! as `0x${string}`, oTokenAmount, collateral],
       });
-      // Poll until balance decreases (collateral deducted)
-      await sendAndPoll(
-        { to: ADDRESSES.batchSettler, data: executeData },
-        async () => {
-          const bal = await publicClient.readContract({
-            address: collateralAsset, abi: ERC20_ABI, functionName: "balanceOf",
-            args: [address],
-          });
-          return bal < balanceBefore;
-        },
-        "executeOrder",
-      );
+
+      // Check allowance
+      const currentAllowance = await publicClient.readContract({
+        address: collateralAsset,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [address, ADDRESSES.marginPool],
+      });
+
+      updateStep("executing");
+
+      // Snapshot balance before tx to detect when collateral is deducted
+      const balanceBefore = await publicClient.readContract({
+        address: collateralAsset,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [address],
+      });
+
+      const balanceDecreased = async () => {
+        const bal = await publicClient.readContract({
+          address: collateralAsset, abi: ERC20_ABI, functionName: "balanceOf",
+          args: [address],
+        });
+        return bal < balanceBefore;
+      };
+
+      if (currentAllowance < collateral) {
+        // Batch approve + executeOrder into single UserOperation
+        const approveData = encodeFunctionData({
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [ADDRESSES.marginPool, maxUint256],
+        });
+        console.log("[AcceptModal] Batching approve + executeOrder");
+        const txPromise = sendBatchTx([
+          { to: collateralAsset, data: approveData },
+          { to: ADDRESSES.batchSettler, data: executeData },
+        ]).then(() => "tx-resolved" as const);
+        const pollPromise = pollUntil(balanceDecreased, "batch-approve-execute")
+          .then(() => "poll-confirmed" as const);
+        const result = await Promise.race([txPromise, pollPromise]);
+        if (result === "tx-resolved") {
+          await pollPromise;
+        } else {
+          txPromise.catch(() => {});
+        }
+      } else {
+        // Allowance sufficient — single executeOrder
+        console.log("[AcceptModal] Allowance sufficient, executing order...");
+        await sendAndPoll(
+          { to: ADDRESSES.batchSettler, data: executeData },
+          balanceDecreased,
+          "executeOrder",
+        );
+      }
 
       updateStep("confirmed");
 
@@ -319,10 +320,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       console.error("[AcceptModal] Transaction failed:", err);
       if (currentStep === "idle") {
         setError("Could not read on-chain data. Check your network connection and try again.");
-      } else if (currentStep === "approving") {
-        setError("Token approval failed. Please try again.");
       } else if (currentStep === "executing") {
-        setError("Order execution failed. Your approval succeeded, try accepting again.");
+        setError("Order execution failed. Please try again.");
       } else {
         setError("Transaction failed. Please try again.");
       }

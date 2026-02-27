@@ -3,15 +3,16 @@
 import { useState } from "react";
 import { parseUnits, encodeFunctionData, type Address } from "viem";
 import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
+import type { BatchCall } from "@/hooks/useWallet";
 
 const MINT_USD = parseUnits("100000", 6);   // 100,000 LUSD
 const MINT_ETH = parseUnits("50", 18);      // 50 LETH
 
-type SendSponsoredTx = (tx: { to: Address; data: `0x${string}` }) => Promise<unknown>;
+type SendBatchTx = (calls: BatchCall[]) => Promise<unknown>;
 
 export function useFaucet(
   address: Address | undefined,
-  sendSponsoredTx: SendSponsoredTx | undefined,
+  sendBatchTx: SendBatchTx | undefined,
   onComplete?: () => void,
 ) {
   const [minting, setMinting] = useState(false);
@@ -19,7 +20,7 @@ export function useFaucet(
   const [error, setError] = useState<string | null>(null);
 
   async function mint() {
-    if (!address || !sendSponsoredTx) return;
+    if (!address || !sendBatchTx) return;
     setMinting(true);
     setError(null);
 
@@ -40,16 +41,13 @@ export function useFaucet(
         args: [address, MINT_ETH],
       });
 
-      // Serialize mints — Privy's relayer drops txs on concurrent nonces
-      let usdOk = false;
-      let ethOk = false;
-      try { await sendSponsoredTx({ to: ADDRESSES.usdc, data: usdData }); usdOk = true; }
-      catch (e) { console.warn("[useFaucet] USD mint tx failed:", e); }
-      try { await sendSponsoredTx({ to: ADDRESSES.weth, data: ethData }); ethOk = true; }
-      catch (e) { console.warn("[useFaucet] ETH mint tx failed:", e); }
-      if (!usdOk && !ethOk) throw new Error("Both mint transactions failed. Check your connection and try again.");
+      // Batch both mints into a single UserOperation
+      await sendBatchTx([
+        { to: ADDRESSES.usdc, data: usdData },
+        { to: ADDRESSES.weth, data: ethData },
+      ]);
 
-      // Poll until USD balance increases (proves at least one mint landed)
+      // Poll until USD balance increases (proves mints landed)
       let confirmed = false;
       let consecutiveErrors = 0;
       for (let i = 0; i < 30; i++) {

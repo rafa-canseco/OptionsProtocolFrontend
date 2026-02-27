@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { baseSepolia } from "viem/chains";
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -20,7 +21,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      {children}
+      <SmartWalletsProvider>{children}</SmartWalletsProvider>
     </PrivyProvider>
   );
 }
