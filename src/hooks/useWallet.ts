@@ -45,15 +45,18 @@ export function useWallet() {
         data: tx.data.slice(0, 10),
       });
       return client
-        .sendTransaction({
-          calls: [
-            {
-              to: tx.to,
-              data: tx.data,
-              value: tx.value,
-            },
-          ],
-        })
+        .sendTransaction(
+          {
+            calls: [
+              {
+                to: tx.to,
+                data: tx.data,
+                value: tx.value,
+              },
+            ],
+          },
+          { uiOptions: { showWalletUIs: false } },
+        )
         .catch((err) => {
           console.error("[sendSponsoredTx] Error:", err);
           throw err;
@@ -75,13 +78,16 @@ export function useWallet() {
         calls.map((c) => ({ to: c.to, data: c.data.slice(0, 10) })),
       );
       return client
-        .sendTransaction({
-          calls: calls.map((c) => ({
-            to: c.to,
-            data: c.data,
-            value: c.value,
-          })),
-        })
+        .sendTransaction(
+          {
+            calls: calls.map((c) => ({
+              to: c.to,
+              data: c.data,
+              value: c.value,
+            })),
+          },
+          { uiOptions: { showWalletUIs: false } },
+        )
         .catch((err) => {
           console.error("[sendBatchTx] Error:", err);
           throw err;
