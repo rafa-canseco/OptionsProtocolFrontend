@@ -4,7 +4,7 @@ import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { type Address } from "viem";
 import { baseSepolia } from "viem/chains";
-import { useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 
 export type BatchCall = {
   to: Address;
@@ -16,17 +16,20 @@ export function useWallet() {
   const { login, logout, authenticated, ready } = usePrivy();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
+  const [chainError, setChainError] = useState<string | null>(null);
 
   const embeddedWallet = wallets[0];
   const address = (client?.account?.address ??
     embeddedWallet?.address) as Address | undefined;
 
-  // Ensure embedded wallet is on Base Sepolia
   useEffect(() => {
     if (!embeddedWallet) return;
-    embeddedWallet.switchChain(baseSepolia.id).catch((err) => {
-      console.error("[useWallet] Failed to switch chain:", err);
-    });
+    embeddedWallet.switchChain(baseSepolia.id)
+      .then(() => setChainError(null))
+      .catch((err) => {
+        console.error("[useWallet] Failed to switch chain:", err);
+        setChainError("Failed to switch to Base Sepolia. Transactions will fail.");
+      });
   }, [embeddedWallet]);
 
   const sendBatchTx = useCallback(
@@ -65,6 +68,7 @@ export function useWallet() {
   return {
     address,
     sendBatchTx,
+    chainError,
     isConnected: authenticated && !!address,
     isReady: ready,
     login,

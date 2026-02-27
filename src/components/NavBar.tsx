@@ -14,7 +14,7 @@ const LINKS = [
 
 export function NavBar() {
   const pathname = usePathname();
-  const { address, sendBatchTx, isConnected } = useWallet();
+  const { address, sendBatchTx, chainError, isConnected } = useWallet();
   const { usd, usdFormatted, ethFormatted, loading: balLoading, refetch } = useBalances(address);
   const { mint, minting, showNotification, error: faucetError } = useFaucet(address, sendBatchTx, refetch);
 
@@ -74,6 +74,12 @@ export function NavBar() {
       {showNotification && (
         <div className="mx-6 mt-2 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-4 py-2.5 text-sm text-[var(--accent)] animate-fade-in-up">
           You received 100,000 USD and 50 ETH test tokens.
+        </div>
+      )}
+
+      {chainError && (
+        <div className="mx-6 mt-2 rounded-xl bg-[var(--danger)]/10 border border-[var(--danger)]/20 px-4 py-2.5 text-sm text-[var(--danger)]">
+          {chainError}
         </div>
       )}
 
