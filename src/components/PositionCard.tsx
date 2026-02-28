@@ -46,8 +46,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   // Expiry: total duration from indexed_at to expiry
   const indexedTime = new Date(position.indexed_at).getTime();
   const expiryTime = position.expiry * 1000;
-  const totalDays = Math.max(1, Math.round((expiryTime - indexedTime) / 86_400_000));
-  const expiryDays = Math.max(0, Math.ceil((expiryTime - Date.now()) / 86_400_000));
+  const totalDays = Math.max(1, Math.floor((expiryTime - indexedTime) / 86_400_000));
+  const expiryDays = Math.max(0, Math.floor((expiryTime - Date.now()) / 86_400_000));
 
   // APR: annualize the return over the position duration
   const apr = committedUsd > 0 ? (premiumUsd / committedUsd) * (365 / totalDays) * 100 : 0;
