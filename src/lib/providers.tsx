@@ -1,12 +1,25 @@
 "use client";
 
 import { PrivyProvider } from "@privy-io/react-auth";
+import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { baseSepolia } from "viem/chains";
+
+function getPrivyAppId(): string {
+  const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+  if (!id) {
+    throw new Error(
+      "NEXT_PUBLIC_PRIVY_APP_ID is not set. Add it to your .env.local file.",
+    );
+  }
+  return id;
+}
+
+const PRIVY_APP_ID = getPrivyAppId();
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <PrivyProvider
-      appId={process.env.NEXT_PUBLIC_PRIVY_APP_ID || ""}
+      appId={PRIVY_APP_ID}
       config={{
         loginMethods: ["email"],
         appearance: {
@@ -20,7 +33,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
         },
       }}
     >
-      {children}
+      <SmartWalletsProvider>{children}</SmartWalletsProvider>
     </PrivyProvider>
   );
 }

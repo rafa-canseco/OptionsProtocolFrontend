@@ -101,7 +101,7 @@ function TradeRow({
 
   // Expiry duration
   const indexedTime = date.getTime();
-  const expiryDays = Math.max(1, Math.round((p.expiry * 1000 - indexedTime) / 86_400_000));
+  const expiryDays = Math.max(1, Math.floor((p.expiry * 1000 - indexedTime) / 86_400_000));
 
   // Outcome
   const outcome = isItm ? "Assigned" : "Expired";

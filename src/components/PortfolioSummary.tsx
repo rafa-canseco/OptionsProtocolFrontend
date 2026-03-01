@@ -31,7 +31,7 @@ export function PortfolioSummary({ positions, yieldMetric, onYieldMetricChange }
       : (p.collateral / 1e18) * (p.strike_price / 1e8);
     const premium = Number(p.net_premium) / 1e6;
     const indexedTime = new Date(p.indexed_at).getTime();
-    const days = Math.max(1, Math.round((p.expiry * 1000 - indexedTime) / 86_400_000));
+    const days = Math.max(1, Math.floor((p.expiry * 1000 - indexedTime) / 86_400_000));
     const apr = capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
     return sum + apr * capital;
   }, 0);
