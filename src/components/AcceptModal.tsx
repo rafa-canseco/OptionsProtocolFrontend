@@ -251,7 +251,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       const label = isBuy
         ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
         : `${maxAmount.toFixed(2)} ETH`;
-      setError(`Maximum available is ${label}.`);
+      setError(`Exceeds max trade size — enter ${label} or less.`);
       return;
     }
 
@@ -442,9 +442,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         {amount > maxAmount && (
           <p className="text-sm text-[var(--danger)]">
-            Max available: {isBuy
+            Exceeds max trade size — enter {isBuy
               ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : `${maxAmount.toFixed(2)} ETH`}
+              : `${maxAmount.toFixed(2)} ETH`} or less.
           </p>
         )}
 
