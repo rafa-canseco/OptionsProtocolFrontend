@@ -29,15 +29,15 @@ Base URL: `https://api.b1nary.app`
 
 All contracts are UUPS-proxied and verified on BaseScan.
 
-- [BatchSettler](https://sepolia.basescan.org/address/0xF87958fDE6F4D721b9C732DE79572E1937687eEF): `0xF87958fDE6F4D721b9C732DE79572E1937687eEF` — Entry point for executing orders (EIP-712 signed quotes)
-- [Controller](https://sepolia.basescan.org/address/0x15945776Ff184e9798BC2505129e2E4f7f404D3F): `0x15945776Ff184e9798BC2505129e2E4f7f404D3F` — Vault operations
-- [MarginPool](https://sepolia.basescan.org/address/0x9193f3a8b875749d3d5e4342BB2BECb1B15dEbDf): `0x9193f3a8b875749d3d5e4342BB2BECb1B15dEbDf` — Holds all collateral
-- [OTokenFactory](https://sepolia.basescan.org/address/0x40A1CcA80b2E0408C72698e9a04777efe546bE0a): `0x40A1CcA80b2E0408C72698e9a04777efe546bE0a` — Creates option tokens via CREATE2
-- [Oracle](https://sepolia.basescan.org/address/0xea3Ae72b85C130798fdBFD23C817913cC884816f): `0xea3Ae72b85C130798fdBFD23C817913cC884816f` — Chainlink price feeds
-- [AddressBook](https://sepolia.basescan.org/address/0x87247F9378f966834Fc90fA38A4230d31786642f): `0x87247F9378f966834Fc90fA38A4230d31786642f` — Central registry for contract addresses
-- [Whitelist](https://sepolia.basescan.org/address/0x43b512dA5b4938f4FE1B1Ae199Cd2324cA2478FC): `0x43b512dA5b4938f4FE1B1Ae199Cd2324cA2478FC` — Whitelisted assets and products
-- [LUSD (Mock USDC)](https://sepolia.basescan.org/address/0x7fC7F74e5ED3a4ff03eDc310919779DD59D9C17A): `0x7fC7F74e5ED3a4ff03eDc310919779DD59D9C17A` — Testnet USDC (6 decimals)
-- [LETH (Mock WETH)](https://sepolia.basescan.org/address/0x45f3B57231bB03Ba7213a50FBe03f1B3De71412B): `0x45f3B57231bB03Ba7213a50FBe03f1B3De71412B` — Testnet WETH (18 decimals)
+- [BatchSettler](https://sepolia.basescan.org/address/0x29bb32c014aC3378FfbE335804B94cED48f2afc4): `0x29bb32c014aC3378FfbE335804B94cED48f2afc4` — Entry point for executing orders (EIP-712 signed quotes)
+- [Controller](https://sepolia.basescan.org/address/0x5f3fAb42F74ce2455732e7d2F444ABbD6C5AAd2e): `0x5f3fAb42F74ce2455732e7d2F444ABbD6C5AAd2e` — Vault operations
+- [MarginPool](https://sepolia.basescan.org/address/0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44): `0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44` — Holds all collateral
+- [OTokenFactory](https://sepolia.basescan.org/address/0x29f897775ccFcFc7382929e0EC9580756041E4FE): `0x29f897775ccFcFc7382929e0EC9580756041E4FE` — Creates option tokens via CREATE2
+- [Oracle](https://sepolia.basescan.org/address/0x7843A0b0288DeEceCef333b8764342eA4Fc439D9): `0x7843A0b0288DeEceCef333b8764342eA4Fc439D9` — Chainlink price feeds
+- [AddressBook](https://sepolia.basescan.org/address/0x2043b48D7Cb9ED1b983c51F805E3D364230cbAd3): `0x2043b48D7Cb9ED1b983c51F805E3D364230cbAd3` — Central registry for contract addresses
+- [Whitelist](https://sepolia.basescan.org/address/0xe188f203650425AcFF343bD64F7FF5bd8c89AB43): `0xe188f203650425AcFF343bD64F7FF5bd8c89AB43` — Whitelisted assets and products
+- [LUSD (Mock USDC)](https://sepolia.basescan.org/address/0x5A2972d3390ABe3E57010272c8032BfC84E2077b): `0x5A2972d3390ABe3E57010272c8032BfC84E2077b` — Testnet USDC (6 decimals)
+- [LETH (Mock WETH)](https://sepolia.basescan.org/address/0x8C259D169378B705ae62AA697F3233C8dc3774Da): `0x8C259D169378B705ae62AA697F3233C8dc3774Da` — Testnet WETH (18 decimals)
 
 ## Key Contract Functions
 
@@ -60,11 +60,11 @@ To execute an option order as an AI agent:
 0. Call `POST /faucet` with `{"address": "0xYOUR_WALLET"}` to receive test tokens and gas (50 LETH + 100,000 LUSD + 0.005 ETH). One-time per wallet.
 1. Call `GET /prices` to get the current price sheet with signed quotes
 2. Pick a quote (strike, expiry, option type) — it must have `signature` and `otoken_address` fields present
-3. Calculate and approve collateral to MarginPool (`0x9193f3a8b875749d3d5e4342BB2BECb1B15dEbDf`):
+3. Calculate and approve collateral to MarginPool (`0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44`):
    - **Puts:** `collateral = (amount * strike_price_8dec) / 1e10` in 6 decimals (LUSD). Approve LUSD to MarginPool.
    - **Calls:** `collateral = amount * 1e10` in 18 decimals (LETH). Approve LETH to MarginPool.
 4. Build the Quote struct from the API response fields: `{oToken: otoken_address, bidPrice: bid_price_raw, deadline: deadline, quoteId: quote_id, maxAmount: max_amount_raw, makerNonce: maker_nonce}`
-5. Call `executeOrder(quote, signature, amount, collateral)` on BatchSettler (`0xF87958fDE6F4D721b9C732DE79572E1937687eEF`)
+5. Call `executeOrder(quote, signature, amount, collateral)` on BatchSettler (`0x29bb32c014aC3378FfbE335804B94cED48f2afc4`)
 6. The transaction returns a `vaultId` — use this to track the position
 7. Call `GET /positions/{your_address}` to see your positions and settlement status
 
@@ -85,7 +85,7 @@ This strategy earns premium on every cycle regardless of market direction. Use `
 ## Optional
 
 - [b1nary app](https://b1nary.app): Web interface
-- [BaseScan contracts](https://sepolia.basescan.org/address/0xF87958fDE6F4D721b9C732DE79572E1937687eEF): Verified source code and ABIs
+- [BaseScan contracts](https://sepolia.basescan.org/address/0x29bb32c014aC3378FfbE335804B94cED48f2afc4): Verified source code and ABIs
 - Protocol fee: 4% (400 bps), deducted from premium automatically
 - Options expire weekly at 08:00 UTC with automatic settlement
 - ITM options settle via physical delivery (Aave flash loan + Uniswap swap)

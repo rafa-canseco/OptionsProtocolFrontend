@@ -2,7 +2,7 @@
 
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
-import { type Address } from "viem";
+import { createWalletClient, custom, type Address } from "viem";
 import { baseSepolia } from "viem/chains";
 import { useState, useEffect, useCallback } from "react";
 
@@ -18,30 +18,61 @@ export function useWallet() {
   const { client } = useSmartWallets();
   const [chainError, setChainError] = useState<string | null>(null);
 
-  const embeddedWallet = wallets[0];
-  const address = (client?.account?.address ??
+  const externalWallet = wallets.find((w) => w.walletClientType !== "privy");
+  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+  const primaryWallet = externalWallet ?? embeddedWallet;
+
+  const address = (externalWallet?.address ??
+    client?.account?.address ??
     embeddedWallet?.address) as Address | undefined;
 
   useEffect(() => {
-    if (!embeddedWallet) return;
-    embeddedWallet.switchChain(baseSepolia.id)
+    if (!primaryWallet) return;
+    primaryWallet
+      .switchChain(baseSepolia.id)
       .then(() => setChainError(null))
       .catch((err) => {
         console.error("[useWallet] Failed to switch chain:", err);
-        setChainError("Failed to switch to Base Sepolia. Transactions will fail.");
+        setChainError(
+          "Failed to switch to Base Sepolia. Transactions will fail.",
+        );
       });
-  }, [embeddedWallet]);
+  }, [primaryWallet]);
 
   const sendBatchTx = useCallback(
-    (calls: BatchCall[]): Promise<unknown> => {
-      if (!client) {
-        throw new Error("Smart wallet not ready");
-      }
+    async (calls: BatchCall[]): Promise<unknown> => {
       if (calls.length === 0) {
         throw new Error("sendBatchTx requires at least one call");
       }
+
+      if (externalWallet) {
+        const provider = await externalWallet.getEthereumProvider();
+        const walletClient = createWalletClient({
+          account: externalWallet.address as Address,
+          chain: baseSepolia,
+          transport: custom(provider),
+        });
+        console.log(
+          "[sendBatchTx] External wallet: sending",
+          calls.length,
+          "call(s) sequentially",
+        );
+        let lastResult: unknown;
+        for (const call of calls) {
+          lastResult = await walletClient.sendTransaction({
+            to: call.to,
+            data: call.data,
+            value: call.value,
+          });
+        }
+        return lastResult;
+      }
+
+      if (!client) {
+        throw new Error("Smart wallet not ready");
+      }
       console.log(
-        "[sendBatchTx] Firing batch with",
+        "[sendBatchTx] Smart wallet: firing batch with",
         calls.length,
         "calls:",
         calls.map((c) => ({ to: c.to, data: c.data.slice(0, 10) })),
@@ -62,7 +93,7 @@ export function useWallet() {
           throw err;
         });
     },
-    [client],
+    [externalWallet, client],
   );
 
   return {
