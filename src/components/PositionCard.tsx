@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Link from "next/link";
-import type { Position, SettleResult } from "@/lib/api";
-import { api } from "@/lib/api";
+import type { Position } from "@/lib/api";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
 import type { YieldMetric } from "./YieldToggle";
 
@@ -56,38 +55,10 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const yieldValue = yieldMetric === "apr" ? apr : returnPct;
   const yieldLabel = yieldMetric === "apr" ? "APR" : "ROI";
 
-  const canSettle = isActive && position.vault_id != null && position.otoken_address != null;
-
-  const [settling, setSettling] = useState(false);
-  const [settleResult, setSettleResult] = useState<SettleResult | null>(null);
-  const [settleError, setSettleError] = useState<string | null>(null);
-
-  async function handleSettle(forceItm: boolean) {
-    if (!canSettle) return;
-    setSettling(true);
-    setSettleError(null);
-    try {
-      const result = await api.demoSettle(
-        position.user_address,
-        position.vault_id!,
-        position.otoken_address!,
-        forceItm,
-      );
-      setSettleResult(result);
-      onSettled?.();
-      window.dispatchEvent(new Event("balance:refetch"));
-    } catch (err) {
-      console.error("[PositionCard] Settle failed:", err);
-      setSettleError(err instanceof Error ? err.message : "Settlement failed");
-    } finally {
-      setSettling(false);
-    }
-  }
-
-  // Settled state (from backend or from just-settled result)
-  const isSettled = position.is_settled || settleResult?.settled;
-  const isItm = position.is_itm ?? settleResult?.is_itm ?? false;
-  const expiryPrice = position.expiry_price ?? settleResult?.expiry_price ?? null;
+  // Settled state
+  const isSettled = position.is_settled;
+  const isItm = position.is_itm ?? false;
+  const expiryPrice = position.expiry_price;
   const expiryPriceDisplay = expiryPrice != null
     ? `$${(expiryPrice / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : null;
@@ -117,7 +88,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
       {/* ── ACTIVE POSITION ── */}
-      {isActive && !settleResult && (
+      {isActive && (
         <>
           {/* Header */}
           <div className="flex items-center justify-between">
@@ -273,28 +244,6 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
       {/* Extra visual slot (V2 sparklines) */}
       {renderExtra?.(position, strike)}
 
-      {settleError && (
-        <p className="text-sm text-[var(--danger)]">{settleError}</p>
-      )}
-
-      {canSettle && !settleResult && (
-        <div className="grid grid-cols-2 gap-2">
-          <button
-            onClick={() => handleSettle(false)}
-            disabled={settling}
-            className="rounded-xl bg-[var(--surface)] border border-[var(--border)] py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors"
-          >
-            {settling ? "Settling..." : "Demo: No trade"}
-          </button>
-          <button
-            onClick={() => handleSettle(true)}
-            disabled={settling}
-            className="rounded-xl bg-[var(--surface)] border border-[var(--border)] py-2.5 text-sm font-medium text-[var(--text)] hover:bg-[var(--border)] disabled:opacity-40 transition-colors"
-          >
-            {settling ? "Settling..." : isBuy ? "Demo: Buy ETH" : "Demo: Sell ETH"}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
