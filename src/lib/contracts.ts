@@ -4,15 +4,15 @@ import { baseSepolia } from "viem/chains";
 export const CHAIN = baseSepolia;
 
 export const ADDRESSES = {
-  addressBook: "0x87247F9378f966834Fc90fA38A4230d31786642f" as Address,
-  controller: "0x15945776Ff184e9798BC2505129e2E4f7f404D3F" as Address,
-  marginPool: "0x9193f3a8b875749d3d5e4342BB2BECb1B15dEbDf" as Address,
-  oTokenFactory: "0x40A1CcA80b2E0408C72698e9a04777efe546bE0a" as Address,
-  oracle: "0xea3Ae72b85C130798fdBFD23C817913cC884816f" as Address,
-  whitelist: "0x43b512dA5b4938f4FE1B1Ae199Cd2324cA2478FC" as Address,
-  batchSettler: "0xF87958fDE6F4D721b9C732DE79572E1937687eEF" as Address,
-  usdc: "0x7fC7F74e5ED3a4ff03eDc310919779DD59D9C17A" as Address, // LUSD
-  weth: "0x45f3B57231bB03Ba7213a50FBe03f1B3De71412B" as Address, // LETH
+  addressBook: "0x2043b48D7Cb9ED1b983c51F805E3D364230cbAd3" as Address,
+  controller: "0x5f3fAb42F74ce2455732e7d2F444ABbD6C5AAd2e" as Address,
+  marginPool: "0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44" as Address,
+  oTokenFactory: "0x29f897775ccFcFc7382929e0EC9580756041E4FE" as Address,
+  oracle: "0x7843A0b0288DeEceCef333b8764342eA4Fc439D9" as Address,
+  whitelist: "0xe188f203650425AcFF343bD64F7FF5bd8c89AB43" as Address,
+  batchSettler: "0x29bb32c014aC3378FfbE335804B94cED48f2afc4" as Address,
+  usdc: "0x5A2972d3390ABe3E57010272c8032BfC84E2077b" as Address, // LUSD
+  weth: "0x8C259D169378B705ae62AA697F3233C8dc3774Da" as Address, // LETH
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
