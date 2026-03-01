@@ -1,5 +1,4 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-const DEMO_API_KEY = process.env.NEXT_PUBLIC_DEMO_API_KEY || "";
 
 export type OptionType = "call" | "put";
 
@@ -71,15 +70,6 @@ export interface AnalyticsEvent {
   data?: Record<string, unknown>;
 }
 
-export interface SettleResult {
-  settled: boolean;
-  is_itm: boolean;
-  settlement_type: string;
-  expiry_price: number;
-  delivered_asset?: string;
-  delivered_amount?: number;
-}
-
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -102,21 +92,6 @@ export const api = {
     fetchAPI<{ ok: boolean; new: boolean }>("/waitlist", {
       method: "POST",
       body: JSON.stringify({ email }),
-    }),
-
-  demoSettle: (userAddress: string, vaultId: number, otokenAddress: string, forceItm?: boolean) =>
-    fetchAPI<SettleResult>("/demo/settle", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(DEMO_API_KEY ? { "X-Demo-Key": DEMO_API_KEY } : {}),
-      },
-      body: JSON.stringify({
-        user_address: userAddress,
-        vault_id: vaultId,
-        otoken_address: otokenAddress,
-        ...(forceItm !== undefined ? { force_itm: forceItm } : {}),
-      }),
     }),
 
   simulate: (strike: number, side: "buy" | "sell") =>
