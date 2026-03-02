@@ -19,6 +19,9 @@ export const metadata: Metadata = {
     ],
     apple: "/apple-touch-icon.png",
   },
+  other: {
+    "base:app_id": "69a5b7c877bc7576330f4b09",
+  },
   openGraph: {
     type: "website",
     siteName: "b1nary",
