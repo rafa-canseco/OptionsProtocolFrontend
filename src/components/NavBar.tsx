@@ -64,7 +64,7 @@ export function NavBar() {
               disabled={minting}
               className="rounded-full bg-[var(--accent)] px-4 py-1.5 text-xs font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
             >
-              {minting ? "Minting..." : "Get Test Tokens"}
+              {minting ? "Getting funds..." : "Get Test Money"}
             </button>
           )}
           <ConnectButton />
