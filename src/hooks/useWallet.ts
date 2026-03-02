@@ -5,12 +5,26 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createWalletClient, custom, type Address } from "viem";
 import { baseSepolia } from "viem/chains";
 import { useState, useEffect, useCallback } from "react";
+import { Attribution } from "ox/erc8021";
+
+const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
+const DATA_SUFFIX = BUILDER_CODE
+  ? Attribution.toDataSuffix({ codes: [BUILDER_CODE] })
+  : null;
 
 export type BatchCall = {
   to: Address;
   data: `0x${string}`;
   value?: bigint;
 };
+
+function appendSuffix(call: BatchCall): BatchCall {
+  if (!DATA_SUFFIX || !call.data) return call;
+  return {
+    ...call,
+    data: `${call.data}${DATA_SUFFIX.slice(2)}` as `0x${string}`,
+  };
+}
 
 export function useWallet() {
   const { login, logout, authenticated, ready } = usePrivy();
@@ -80,7 +94,7 @@ export function useWallet() {
       return client
         .sendTransaction(
           {
-            calls: calls.map((c) => ({
+            calls: calls.map(appendSuffix).map((c) => ({
               to: c.to,
               data: c.data,
               value: c.value,
