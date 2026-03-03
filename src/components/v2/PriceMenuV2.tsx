@@ -17,16 +17,20 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
+function parseLocalDate(isoDate: string): Date {
+  const [year, month, day] = isoDate.split("-").map(Number);
+  return new Date(year, month - 1, day); // month is 0-indexed; uses local time
+}
+
 function expiryLabel(expiryDate: string): string {
-  const d = new Date(expiryDate);
+  const d = parseLocalDate(expiryDate);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function daysUntil(expiryDate: string): number {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const expiry = new Date(expiryDate);
-  expiry.setHours(0, 0, 0, 0);
+  const expiry = parseLocalDate(expiryDate);
   return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
@@ -348,9 +352,9 @@ export function PriceMenuV2() {
             </p>
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
-                {filteredPrices.map((q, i) => (
+                {filteredPrices.map((q) => (
                   <StrikeCard
-                    key={`${q.strike}-${q.expiry_days}-${i}`}
+                    key={`${q.strike}-${q.expiry_date}`}
                     quote={q}
                     side={side}
                     amount={amount}
