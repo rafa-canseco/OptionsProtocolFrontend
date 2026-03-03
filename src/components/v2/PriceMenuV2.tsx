@@ -17,10 +17,17 @@ function computeAPR(premium: number, strike: number, expiryDays: number): number
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
-function untilDate(expiryDays: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + expiryDays);
+function expiryLabel(expiryDate: string): string {
+  const d = new Date(expiryDate);
   return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+function daysUntil(expiryDate: string): number {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const expiry = new Date(expiryDate);
+  expiry.setHours(0, 0, 0, 0);
+  return Math.ceil((expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
@@ -102,11 +109,14 @@ export function PriceMenuV2() {
   const walletBalance = isBuy ? usd : eth;
 
   const expiries = useMemo(() => {
-    const unique = [...new Set(prices.map((p) => p.expiry_days))].sort((a, b) => a - b);
-    return unique;
+    const seen = new Set<string>();
+    for (const p of prices) {
+      seen.add(p.expiry_date);
+    }
+    return [...seen].sort();   // ISO strings sort correctly lexicographically
   }, [prices]);
 
-  const [selectedExpiry, setSelectedExpiry] = useState<number | null>(null);
+  const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
   const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
 
   const spot = prices[0]?.spot;
@@ -117,7 +127,7 @@ export function PriceMenuV2() {
       .filter(
         (p) =>
           p.option_type === (side === "buy" ? "put" : "call") &&
-          p.expiry_days === activeExpiry &&
+          p.expiry_date === activeExpiry &&
           (side === "buy" ? p.strike < (s ?? Infinity) : p.strike > (s ?? -Infinity))
       )
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
@@ -260,17 +270,17 @@ export function PriceMenuV2() {
             <div className="animate-fade-in-up">
               <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
               <div className="flex flex-wrap gap-2">
-                {expiries.map((days) => (
+                {expiries.map((d) => (
                   <button
-                    key={days}
-                    onClick={() => { setSelectedExpiry(days); }}
+                    key={d}
+                    onClick={() => { setSelectedExpiry(d); }}
                     className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
-                      activeExpiry === days
+                      activeExpiry === d
                         ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
                         : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
                     }`}
                   >
-                    {untilDate(days)} ({days}d)
+                    {expiryLabel(d)} ({daysUntil(d)}d)
                   </button>
                 ))}
               </div>
@@ -390,7 +400,7 @@ export function PriceMenuV2() {
                 <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
               </div>
               <p className="text-sm text-[var(--text-secondary)] mt-1">
-                {Math.round(selectedApr)}% APR · {activeExpiry}d
+                {Math.round(selectedApr)}% APR · {activeExpiry ? daysUntil(activeExpiry) : 0}d
               </p>
             </div>
           )}
