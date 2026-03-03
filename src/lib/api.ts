@@ -6,6 +6,7 @@ export interface PriceQuote {
   option_type: OptionType;
   strike: number;
   expiry_days: number;
+  expiry_date: string;
   premium: number;
   delta: number;
   iv: number;
