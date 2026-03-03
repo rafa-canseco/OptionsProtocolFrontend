@@ -46,7 +46,20 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const indexedTime = new Date(position.indexed_at).getTime();
   const expiryTime = position.expiry * 1000;
   const totalDays = Math.max(1, Math.floor((expiryTime - indexedTime) / 86_400_000));
-  const expiryDays = Math.max(0, Math.floor((expiryTime - Date.now()) / 86_400_000));
+
+  // Days remaining: use UTC calendar date parts so the result matches the duration
+  // selector (which uses parseLocalDate on expiry_date). position.expiry is midnight
+  // UTC on the expiry date; converting via getUTC* then creating a local Date avoids
+  // the off-by-one that occurs in negative UTC offsets.
+  const expiryUTCDate = new Date(expiryTime);
+  const expiryLocalMidnight = new Date(
+    expiryUTCDate.getUTCFullYear(),
+    expiryUTCDate.getUTCMonth(),
+    expiryUTCDate.getUTCDate()
+  );
+  const todayMidnight = new Date();
+  todayMidnight.setHours(0, 0, 0, 0);
+  const expiryDays = Math.max(0, Math.ceil((expiryLocalMidnight.getTime() - todayMidnight.getTime()) / 86_400_000));
 
   // APR: annualize the return over the position duration
   const apr = committedUsd > 0 ? (premiumUsd / committedUsd) * (365 / totalDays) * 100 : 0;
