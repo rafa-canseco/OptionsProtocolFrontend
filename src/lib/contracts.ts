@@ -1,7 +1,8 @@
 import { type Address, createPublicClient, http } from "viem";
-import { baseSepolia } from "viem/chains";
+import { base, baseSepolia } from "viem/chains";
 
-export const CHAIN = baseSepolia;
+const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532");
+export const CHAIN = chainId === 8453 ? base : baseSepolia;
 
 export const ADDRESSES = {
   addressBook: "0x2043b48D7Cb9ED1b983c51F805E3D364230cbAd3" as Address,
@@ -21,7 +22,7 @@ if (!rpcUrl && typeof window !== "undefined") {
 }
 
 export const publicClient = createPublicClient({
-  chain: baseSepolia,
+  chain: CHAIN,
   transport: http(rpcUrl),
 });
 
