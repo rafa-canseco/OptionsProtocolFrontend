@@ -73,10 +73,11 @@ export function useWallet() {
         );
         let lastResult: unknown;
         for (const call of calls) {
+          const suffixed = appendSuffix(call);
           lastResult = await walletClient.sendTransaction({
-            to: call.to,
-            data: call.data,
-            value: call.value,
+            to: suffixed.to,
+            data: suffixed.data,
+            value: suffixed.value,
           });
         }
         return lastResult;
