@@ -3,8 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
+import { CHAIN } from "@/lib/contracts";
 
-const EXPLORER = "https://sepolia.basescan.org/tx/";
+const EXPLORER = CHAIN.blockExplorers?.default.url
+  ? `${CHAIN.blockExplorers.default.url}/tx/`
+  : "https://basescan.org/tx/";
 const DEFAULT_VISIBLE = 5;
 
 interface Props {
