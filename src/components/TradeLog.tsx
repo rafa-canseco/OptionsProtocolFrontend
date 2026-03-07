@@ -5,9 +5,7 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { CHAIN } from "@/lib/contracts";
 
-const EXPLORER = CHAIN.blockExplorers?.default.url
-  ? `${CHAIN.blockExplorers.default.url}/tx/`
-  : "https://basescan.org/tx/";
+const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
 const DEFAULT_VISIBLE = 5;
 
 interface Props {
@@ -209,11 +207,11 @@ function TradeRow({
                 </p>
               )}
 
-              {p.tx_hash && (
+              {p.tx_hash && EXPLORER_BASE && (
                 <p>
                   TX:{" "}
                   <a
-                    href={`${EXPLORER}${p.tx_hash}`}
+                    href={`${EXPLORER_BASE}/tx/${p.tx_hash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-mono text-[var(--accent)] hover:underline"

@@ -1,7 +1,13 @@
 import { type Address, createPublicClient, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
 
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532");
+const rawChainId = process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532";
+const chainId = Number(rawChainId);
+if (Number.isNaN(chainId)) {
+  throw new Error(
+    `[contracts] NEXT_PUBLIC_CHAIN_ID="${rawChainId}" is not a valid number. Use 8453 (Base) or 84532 (Base Sepolia).`,
+  );
+}
 export const CHAIN = chainId === 8453 ? base : baseSepolia;
 
 const ADDRESS_ENV: Record<string, string | undefined> = {
@@ -21,13 +27,10 @@ const missing = Object.entries(ADDRESS_ENV)
   .map(([k]) => k);
 
 if (missing.length > 0) {
-  const msg = `[contracts] Missing or invalid contract address env vars: ${missing.join(", ")}. Add them to .env.local or Vercel environment settings.`;
-  if (typeof window === "undefined") {
-    // Server-side: throw so the build/SSR fails loudly
-    throw new Error(msg);
-  } else {
-    console.error(msg);
-  }
+  throw new Error(
+    `[contracts] Missing or invalid contract address env vars: ${missing.join(", ")}. ` +
+      "Add them to .env.local or Vercel environment settings.",
+  );
 }
 
 export const ADDRESSES = {
@@ -43,8 +46,11 @@ export const ADDRESSES = {
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-if (!rpcUrl && typeof window !== "undefined") {
-  console.warn("[contracts] NEXT_PUBLIC_RPC_URL is not set. Falling back to default public RPC, which may be rate-limited.");
+if (!rpcUrl) {
+  console.error(
+    "[contracts] NEXT_PUBLIC_RPC_URL is not set. Falling back to the default public RPC, " +
+      "which is rate-limited and unsuitable for production.",
+  );
 }
 
 export const publicClient = createPublicClient({
