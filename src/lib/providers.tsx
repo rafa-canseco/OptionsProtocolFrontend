@@ -2,7 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
-import { baseSepolia } from "viem/chains";
+import { CHAIN } from "@/lib/contracts";
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -26,8 +26,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
           theme: "dark",
           accentColor: "#22D3EE",
         },
-        defaultChain: baseSepolia,
-        supportedChains: [baseSepolia],
+        defaultChain: CHAIN,
+        supportedChains: [CHAIN],
         embeddedWallets: {
           createOnLogin: "users-without-wallets",
         },

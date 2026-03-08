@@ -3,8 +3,8 @@
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createWalletClient, custom, type Address } from "viem";
-import { baseSepolia } from "viem/chains";
 import { useState, useEffect, useCallback } from "react";
+import { CHAIN } from "@/lib/contracts";
 import { Attribution } from "ox/erc8021";
 
 const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
@@ -43,12 +43,12 @@ export function useWallet() {
   useEffect(() => {
     if (!primaryWallet) return;
     primaryWallet
-      .switchChain(baseSepolia.id)
+      .switchChain(CHAIN.id)
       .then(() => setChainError(null))
       .catch((err) => {
         console.error("[useWallet] Failed to switch chain:", err);
         setChainError(
-          "Failed to switch to Base Sepolia. Transactions will fail.",
+          "Failed to switch to the required chain. Transactions will fail.",
         );
       });
   }, [primaryWallet]);
@@ -63,7 +63,7 @@ export function useWallet() {
         const provider = await externalWallet.getEthereumProvider();
         const walletClient = createWalletClient({
           account: externalWallet.address as Address,
-          chain: baseSepolia,
+          chain: CHAIN,
           transport: custom(provider),
         });
         console.log(
