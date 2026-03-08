@@ -1,24 +1,56 @@
 import { type Address, createPublicClient, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
 
-const chainId = Number(process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532");
+const rawChainId = process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532";
+const chainId = Number(rawChainId);
+if (Number.isNaN(chainId)) {
+  throw new Error(
+    `[contracts] NEXT_PUBLIC_CHAIN_ID="${rawChainId}" is not a valid number. Use 8453 (Base) or 84532 (Base Sepolia).`,
+  );
+}
 export const CHAIN = chainId === 8453 ? base : baseSepolia;
 
+const ADDRESS_ENV: Record<string, string | undefined> = {
+  NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS:   process.env.NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS,
+  NEXT_PUBLIC_CONTROLLER_ADDRESS:     process.env.NEXT_PUBLIC_CONTROLLER_ADDRESS,
+  NEXT_PUBLIC_MARGIN_POOL_ADDRESS:    process.env.NEXT_PUBLIC_MARGIN_POOL_ADDRESS,
+  NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS: process.env.NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS,
+  NEXT_PUBLIC_ORACLE_ADDRESS:         process.env.NEXT_PUBLIC_ORACLE_ADDRESS,
+  NEXT_PUBLIC_WHITELIST_ADDRESS:      process.env.NEXT_PUBLIC_WHITELIST_ADDRESS,
+  NEXT_PUBLIC_BATCH_SETTLER_ADDRESS:  process.env.NEXT_PUBLIC_BATCH_SETTLER_ADDRESS,
+  NEXT_PUBLIC_USDC_ADDRESS:           process.env.NEXT_PUBLIC_USDC_ADDRESS,
+  NEXT_PUBLIC_WETH_ADDRESS:           process.env.NEXT_PUBLIC_WETH_ADDRESS,
+};
+
+const missing = Object.entries(ADDRESS_ENV)
+  .filter(([, v]) => !v || !/^0x[0-9a-fA-F]{40}$/.test(v))
+  .map(([k]) => k);
+
+if (missing.length > 0) {
+  throw new Error(
+    `[contracts] Missing or invalid contract address env vars: ${missing.join(", ")}. ` +
+      "Add them to .env.local or Vercel environment settings.",
+  );
+}
+
 export const ADDRESSES = {
-  addressBook:   (process.env.NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS   ?? "") as Address,
-  controller:    (process.env.NEXT_PUBLIC_CONTROLLER_ADDRESS     ?? "") as Address,
-  marginPool:    (process.env.NEXT_PUBLIC_MARGIN_POOL_ADDRESS    ?? "") as Address,
-  oTokenFactory: (process.env.NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS ?? "") as Address,
-  oracle:        (process.env.NEXT_PUBLIC_ORACLE_ADDRESS         ?? "") as Address,
-  whitelist:     (process.env.NEXT_PUBLIC_WHITELIST_ADDRESS      ?? "") as Address,
-  batchSettler:  (process.env.NEXT_PUBLIC_BATCH_SETTLER_ADDRESS  ?? "") as Address,
-  usdc:          (process.env.NEXT_PUBLIC_USDC_ADDRESS           ?? "") as Address,
-  weth:          (process.env.NEXT_PUBLIC_WETH_ADDRESS           ?? "") as Address,
+  addressBook:   ADDRESS_ENV.NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS   as Address,
+  controller:    ADDRESS_ENV.NEXT_PUBLIC_CONTROLLER_ADDRESS     as Address,
+  marginPool:    ADDRESS_ENV.NEXT_PUBLIC_MARGIN_POOL_ADDRESS    as Address,
+  oTokenFactory: ADDRESS_ENV.NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS as Address,
+  oracle:        ADDRESS_ENV.NEXT_PUBLIC_ORACLE_ADDRESS         as Address,
+  whitelist:     ADDRESS_ENV.NEXT_PUBLIC_WHITELIST_ADDRESS      as Address,
+  batchSettler:  ADDRESS_ENV.NEXT_PUBLIC_BATCH_SETTLER_ADDRESS  as Address,
+  usdc:          ADDRESS_ENV.NEXT_PUBLIC_USDC_ADDRESS           as Address,
+  weth:          ADDRESS_ENV.NEXT_PUBLIC_WETH_ADDRESS           as Address,
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-if (!rpcUrl && typeof window !== "undefined") {
-  console.warn("[contracts] NEXT_PUBLIC_RPC_URL is not set. Falling back to default public RPC, which may be rate-limited.");
+if (!rpcUrl) {
+  console.error(
+    "[contracts] NEXT_PUBLIC_RPC_URL is not set. Falling back to the default public RPC, " +
+      "which is rate-limited and unsuitable for production.",
+  );
 }
 
 export const publicClient = createPublicClient({
