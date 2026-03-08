@@ -87,7 +87,8 @@ export function StrikeLadder({
         {filteredPrices.map((q) => {
           const y = priceToY(q.strike);
           const apr = Math.round(computeAPR(q.premium, q.strike, q.expiry_days));
-          const earn = Math.round(q.premium * q.available_amount);
+          const earnRaw = q.premium * q.available_amount;
+          const earn = earnRaw < 1 ? Number(earnRaw.toFixed(2)) : Math.round(earnRaw);
           const disabled = !q.otoken_address || q.available_amount <= 0;
 
           return (
