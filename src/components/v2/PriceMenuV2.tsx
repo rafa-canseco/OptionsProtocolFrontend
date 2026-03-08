@@ -79,7 +79,7 @@ function StrikeCard({
       <div className="text-right">
         {earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
-            ${Math.round(earnings).toLocaleString()}
+            ${earnings < 1 ? earnings.toFixed(2) : Math.round(earnings).toLocaleString()}
           </span>
         ) : (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
@@ -201,7 +201,7 @@ export function PriceMenuV2() {
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
         <div>
           <p className="text-4xl font-bold text-[var(--accent)] font-mono">
-            ${Math.round(premium).toLocaleString()}
+            ${premium < 1 ? premium.toFixed(2) : Math.round(premium).toLocaleString()}
           </p>
           <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
         </div>

@@ -214,7 +214,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     ? (quote.premium * amount) / quote.strike
     : quote.premium * amount;
 
-  const premiumDisplay = `$${scaledPremium.toFixed(0)}`;
+  const premiumDisplay = scaledPremium < 1
+    ? `$${scaledPremium.toFixed(2)}`
+    : `$${scaledPremium.toFixed(0)}`;
 
   const commitDisplay = isBuy
     ? `$${amount.toLocaleString()}`
@@ -230,7 +232,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           ? "Connect wallet"
           : "Accept";
 
-  const minAmount = isBuy ? 100 : 0.01;
+  const minAmount = isBuy ? 10 : 0.005;
 
   async function handleAccept() {
     if (!isConnected || !address) { login(); return; }
