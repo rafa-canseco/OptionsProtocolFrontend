@@ -6,18 +6,27 @@ import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
 
 interface Balances {
   usdRaw: bigint;
+  /** Native ETH balance */
   ethRaw: bigint;
+  /** WETH token balance — used internally for covered call collateral */
+  wethRaw: bigint;
   usd: number;
+  /** Native ETH as a number */
   eth: number;
+  /** WETH token as a number */
+  weth: number;
   usdFormatted: string;
+  /** Formatted native ETH balance */
   ethFormatted: string;
 }
 
 const ZERO: Balances = {
   usdRaw: BigInt(0),
   ethRaw: BigInt(0),
+  wethRaw: BigInt(0),
   usd: 0,
   eth: 0,
+  weth: 0,
   usdFormatted: "0",
   ethFormatted: "0.00",
 };
@@ -33,7 +42,7 @@ export function useBalances(address: Address | undefined, pollInterval = 15_000)
       return;
     }
     try {
-      const [usdRaw, ethRaw] = await Promise.all([
+      const [usdRaw, wethRaw, ethRaw] = await Promise.all([
         publicClient.readContract({
           address: ADDRESSES.usdc,
           abi: ERC20_ABI,
@@ -46,16 +55,20 @@ export function useBalances(address: Address | undefined, pollInterval = 15_000)
           functionName: "balanceOf",
           args: [address],
         }),
+        publicClient.getBalance({ address }),
       ]);
 
       const usd = Number(formatUnits(usdRaw, 6));
       const eth = Number(formatUnits(ethRaw, 18));
+      const weth = Number(formatUnits(wethRaw, 18));
 
       setBalances({
         usdRaw,
         ethRaw,
+        wethRaw,
         usd,
         eth,
+        weth,
         usdFormatted: usd.toLocaleString(undefined, { maximumFractionDigits: 0 }),
         ethFormatted: eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       });
