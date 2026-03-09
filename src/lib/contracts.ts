@@ -60,6 +60,16 @@ export const publicClient = createPublicClient({
 
 // Minimal ABIs — only the functions the frontend needs to call/read
 
+export const WETH_ABI = [
+  {
+    type: "function",
+    name: "deposit",
+    inputs: [],
+    outputs: [],
+    stateMutability: "payable",
+  },
+] as const;
+
 export const ERC20_ABI = [
   {
     type: "function",
