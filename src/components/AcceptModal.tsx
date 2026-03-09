@@ -9,7 +9,8 @@ import {
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
+import { publicClient, ADDRESSES, ERC20_ABI, WETH_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
+import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote, Position } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
 
@@ -180,13 +181,14 @@ function buildOptimisticPosition(
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly }: Props) {
   const { address, sendBatchTx, isConnected, login } = useWallet();
-  const { usd, eth } = useBalances(address);
+  const { usd, eth, weth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
 
   const isBuy = side === "buy";
-  const walletBalance = isBuy ? usd : eth;
+  // For covered calls, show total ETH capacity (native + WETH already held)
+  const walletBalance = isBuy ? usd : eth + weth;
 
   const maxAmount = isBuy
     ? quote.available_amount * quote.strike
@@ -265,10 +267,26 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       const { oTokenAmount, collateral, collateralAsset } =
         computeCollateral(isBuy, amount, quote.strike);
 
-      const balance = await readTokenBalance(collateralAsset, address);
-      if (balance < collateral) {
-        setError(`Insufficient ${isBuy ? "USD" : "ETH"} balance.`);
-        return;
+      // On-chain balance check. For covered calls, accept native ETH + WETH combined.
+      let wrapAmount = BigInt(0);
+      if (isBuy) {
+        const usdcBal = await readTokenBalance(ADDRESSES.usdc, address);
+        if (usdcBal < collateral) {
+          setError("Insufficient USD balance.");
+          return;
+        }
+      } else {
+        const [wethBal, nativeBal] = await Promise.all([
+          readTokenBalance(ADDRESSES.weth, address),
+          publicClient.getBalance({ address }),
+        ]);
+        if (wethBal + nativeBal < collateral) {
+          setError("Insufficient ETH balance.");
+          return;
+        }
+        if (wethBal < collateral) {
+          wrapAmount = collateral - wethBal;
+        }
       }
 
       const executeData = encodeExecuteOrder(quote, oTokenAmount, collateral);
@@ -279,35 +297,45 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
       updateStep("executing");
 
+      // If wrapping is needed: wrap ETH → WETH first, wait for receipt,
+      // then send approve + execute. This ensures WETH is available before
+      // the collateral transfer is attempted.
+      if (wrapAmount > BigInt(0)) {
+        const wrapHash = await sendBatchTx([{
+          to: ADDRESSES.weth,
+          data: encodeFunctionData({ abi: WETH_ABI, functionName: "deposit", args: [] }),
+          value: wrapAmount,
+        }]) as `0x${string}`;
+        await publicClient.waitForTransactionReceipt({ hash: wrapHash });
+        console.log("[AcceptModal] ETH wrapped to WETH confirmed");
+      }
+
+      // After wrapping (if needed), WETH balance is sufficient. Now approve + execute.
       const balanceBefore = await readTokenBalance(collateralAsset, address);
       const balanceDecreased = async () => {
         const bal = await readTokenBalance(collateralAsset, address);
         return bal < balanceBefore;
       };
 
+      const approveAndExecuteCalls: BatchCall[] = [];
       if (currentAllowance < collateral) {
-        const approveData = encodeFunctionData({
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [ADDRESSES.marginPool, maxUint256],
+        approveAndExecuteCalls.push({
+          to: collateralAsset,
+          data: encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [ADDRESSES.marginPool, maxUint256],
+          }),
         });
-        await fireAndPoll(
-          () => sendBatchTx([
-            { to: collateralAsset, data: approveData },
-            { to: ADDRESSES.batchSettler, data: executeData },
-          ]),
-          balanceDecreased,
-          "batch-approve-execute",
-        );
-      } else {
-        await fireAndPoll(
-          () => sendBatchTx([
-            { to: ADDRESSES.batchSettler, data: executeData },
-          ]),
-          balanceDecreased,
-          "executeOrder",
-        );
       }
+      approveAndExecuteCalls.push({ to: ADDRESSES.batchSettler, data: executeData });
+
+      const label = currentAllowance < collateral ? "batch-approve-execute" : "executeOrder";
+      await fireAndPoll(
+        () => sendBatchTx(approveAndExecuteCalls),
+        balanceDecreased,
+        label,
+      );
 
       updateStep("confirmed");
       onAccepted({ amount });
