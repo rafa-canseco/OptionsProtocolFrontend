@@ -97,7 +97,7 @@ function StrikeCard({
 export function PriceMenuV2() {
   const { prices, loading, error, refresh } = usePrices();
   const { address, isConnected, login } = useWallet();
-  const { usd, eth } = useBalances(address);
+  const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
   const initialSide = searchParams.get("side") === "sell" ? "sell" : "buy";
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
@@ -110,7 +110,7 @@ export function PriceMenuV2() {
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const isBuy = side === "buy";
-  const walletBalance = isBuy ? usd : eth;
+  const walletBalance = isBuy ? usd : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
