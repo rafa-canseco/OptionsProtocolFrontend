@@ -2,16 +2,13 @@
 
 import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
-import { PositionSparkline } from "@/components/v2/PositionSparkline";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
-import { usePriceHistory } from "@/hooks/usePriceHistory";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
-import type { Position } from "@/lib/api";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
@@ -19,7 +16,6 @@ export default function PositionsPage() {
   const { positions, loading, refresh } = usePositions(address);
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
-  const priceHistory = usePriceHistory(spot);
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
@@ -27,17 +23,6 @@ export default function PositionsPage() {
     .filter((p) => !p.is_settled)
     .sort((a, b) => new Date(b.indexed_at).getTime() - new Date(a.indexed_at).getTime());
   const history = allPositions.filter((p) => p.is_settled);
-
-  function renderSparkline(position: Position, strike: number) {
-    if (position.is_settled) return null;
-    return (
-      <PositionSparkline
-        priceHistory={priceHistory}
-        strike={strike}
-        isPut={position.is_put}
-      />
-    );
-  }
 
   if (!isConnected) {
     return (
@@ -98,7 +83,6 @@ export default function PositionsPage() {
                 position={pos}
                 onSettled={refresh}
                 spot={spot}
-                renderExtra={renderSparkline}
                 earnBase="/earn"
                 optimistic={pos.id.startsWith("opt-")}
                 yieldMetric={yieldMetric}
