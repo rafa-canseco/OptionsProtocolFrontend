@@ -173,7 +173,7 @@ function HeaderLogo() {
 function HeroSection() {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
-      <div className="max-w-4xl mx-auto w-full">
+      <div className="max-w-5xl mx-auto w-full">
         {/* Line 1: short, punchy, large */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
@@ -181,7 +181,7 @@ function HeroSection() {
           transition={{ duration: 0.8, delay: 0.3 }}
           className="text-[clamp(2.2rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-[var(--bone)] font-light"
         >
-          Pick a price you&apos;d buy or sell ETH at.
+          Turn volatility into income.
         </motion.h1>
 
         {/* Line 2: supporting, slightly smaller */}
@@ -191,7 +191,7 @@ function HeroSection() {
           transition={{ duration: 0.7, delay: 0.6 }}
           className="mt-4 text-[clamp(1.3rem,3.5vw,2rem)] leading-[1.2] text-[var(--text-secondary)] font-light"
         >
-          Get paid <span className="font-normal text-[var(--accent)]">upfront</span>, no matter what happens.
+          You set the terms. The market moves. You already know the outcome.
         </motion.p>
 
         {/* Agent tagline */}
@@ -248,7 +248,71 @@ function HeroSection() {
   );
 }
 
-/* ── Section 2: The Mechanism ── */
+/* ── Section 2: Problem ── */
+
+const PAIN_CARDS = [
+  {
+    title: "Lending",
+    body: "2-4% APY. Safe, but barely keeps up with inflation.",
+  },
+  {
+    title: "Staking",
+    body: "3% a year. Predictable, but the market moves more in an afternoon.",
+  },
+  {
+    title: "LP positions",
+    body: "Uniswap, Pendle. Higher returns until impermanent loss and complexity eat the gains.",
+  },
+  {
+    title: "Leveraged trading",
+    body: "Futures promise big returns. Liquidations deliver big losses.",
+  },
+];
+
+function ProblemSection() {
+  return (
+    <section className="py-24 relative z-[3] overflow-hidden">
+      <div className="max-w-6xl mx-auto px-6 mb-14">
+        <FadeBlock>
+          <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]">
+            DeFi income has been stuck.
+          </h2>
+          <p className="mt-4 text-xl text-[var(--text-secondary)]">
+            Too little, too complex, or too risky. Pick two.
+          </p>
+        </FadeBlock>
+      </div>
+
+      {/* Auto-scrolling marquee */}
+      <div className="relative">
+        <div className="flex gap-5 marquee-track">
+          {[...PAIN_CARDS, ...PAIN_CARDS, ...PAIN_CARDS].map((card, i) => (
+            <div
+              key={i}
+              className="w-[300px] sm:w-[360px] shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-7 space-y-3 hover:border-[var(--text-secondary)]/40 transition-colors"
+            >
+              <h3 className="text-[var(--bone)] font-medium text-lg">{card.title}</h3>
+              <p className="text-[var(--text-secondary)] text-base leading-relaxed">{card.body}</p>
+            </div>
+          ))}
+        </div>
+        {/* Fade edges */}
+        <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[var(--bg)] to-transparent pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[var(--bg)] to-transparent pointer-events-none" />
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 mt-14">
+        <FadeBlock delay={0.3}>
+          <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] font-medium text-[var(--accent)]">
+            There&apos;s a better way to put your crypto to work.
+          </p>
+        </FadeBlock>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 3: The Mechanism ── */
 
 function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange: (s: "buy" | "sell") => void }) {
   return (
@@ -299,51 +363,63 @@ function MechanismSection({
 
   return (
     <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-10">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
-        >
-          Here&apos;s how it works.
-        </motion.h2>
+      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
+        {/* Left: controls + explanation */}
+        <div className="space-y-8">
+          <motion.h2
+            initial={{ opacity: 0, y: 20 }}
+            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+            transition={{ duration: 0.6 }}
+            className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight"
+          >
+            Here&apos;s how it works.
+          </motion.h2>
 
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.15 }}
-          className="space-y-6"
-        >
-          <div className="flex items-center gap-6 flex-wrap">
-            <p className="text-[var(--text-secondary)] text-lg">
-              ETH is{" "}
-              {priceReady ? (
-                <span className="text-[var(--text)] font-bold font-mono">${spot.toLocaleString()}</span>
-              ) : (
-                <span className="inline-block w-20 h-6 rounded bg-[var(--border)] animate-pulse align-middle" />
-              )}
-            </p>
-            <SideToggle side={side} onSideChange={onSideChange} />
-          </div>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={inView ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.5, delay: 0.15 }}
+            className="space-y-5"
+          >
+            <div className="flex items-center gap-6 flex-wrap">
+              <p className="text-[var(--text-secondary)] text-lg">
+                ETH is{" "}
+                {priceReady ? (
+                  <span className="text-[var(--text)] font-bold font-mono">${spot.toLocaleString()}</span>
+                ) : (
+                  <span className="inline-block w-20 h-6 rounded bg-[var(--border)] animate-pulse align-middle" />
+                )}
+              </p>
+              <SideToggle side={side} onSideChange={onSideChange} />
+            </div>
 
-          <AnimatePresence mode="wait">
-            <motion.p
-              key={side}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.3 }}
-              className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]"
-            >
-              You set: <span className="text-[var(--text)]">{side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}</span>
-              <br />
-              You receive: <span className="font-semibold text-[var(--accent)]"><AnimatedPremium value={premium} /></span> upfront
-            </motion.p>
-          </AnimatePresence>
-        </motion.div>
+            <AnimatePresence mode="wait">
+              <motion.p
+                key={side}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.3 }}
+                className="text-xl text-[var(--text-secondary)]"
+              >
+                You set: <span className="text-[var(--text)]">{side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}</span>
+                <br />
+                You receive: <span className="font-semibold text-[var(--accent)]"><AnimatedPremium value={premium} /></span> upfront
+              </motion.p>
+            </AnimatePresence>
+          </motion.div>
 
-        {/* Outcome card */}
+          <motion.p
+            initial={{ opacity: 0 }}
+            animate={inView ? { opacity: 1 } : { opacity: 0 }}
+            transition={{ duration: 0.5, delay: 0.3 }}
+            className="text-[var(--text-secondary)] opacity-60 text-sm"
+          >
+            Locked until expiry. Only the closing price matters.
+          </motion.p>
+        </div>
+
+        {/* Right: outcome card */}
         <AnimatePresence mode="wait">
           <motion.div
             key={side}
@@ -354,47 +430,38 @@ function MechanismSection({
             className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
           >
             <div className="space-y-1">
-              <p className="text-[var(--text-secondary)] text-sm uppercase tracking-wider">When time&apos;s up, ETH is {side === "buy" ? "below" : "above"} ${strike.toLocaleString()}</p>
-              <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
+              <p className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">Price {side === "buy" ? "drops" : "rises"}</p>
+              <p className="text-xl text-[var(--text)] font-light">
                 {side === "buy"
                   ? `You buy ETH at $${strike.toLocaleString()}.`
                   : `You sell ETH at $${strike.toLocaleString()}.`}
               </p>
               <p className="text-[var(--text-secondary)]">
-                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>.
+                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>
               </p>
             </div>
 
             <div className="border-t border-[var(--border)]" />
 
             <div className="space-y-1">
-              <p className="text-[var(--text-secondary)] text-sm uppercase tracking-wider">When time&apos;s up, it {side === "buy" ? "didn't drop" : "didn't rise"}</p>
-              <p className="text-[clamp(1.2rem,3vw,1.6rem)] text-[var(--text)] font-light">
+              <p className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">It {side === "buy" ? "doesn't drop" : "doesn't rise"}</p>
+              <p className="text-xl text-[var(--text)] font-light">
                 {side === "buy"
                   ? `Your $${strike.toLocaleString()} comes back.`
                   : "Your ETH comes back."}
               </p>
               <p className="text-[var(--text-secondary)]">
-                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>.
+                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>
               </p>
             </div>
 
             <div className="border-t border-[var(--border)]" />
 
-            <p className="text-[clamp(1.1rem,2.5vw,1.4rem)] font-medium text-[var(--accent)]">
+            <p className="text-lg font-medium text-[var(--accent)]">
               Either way: +${premium} earned.
             </p>
           </motion.div>
         </AnimatePresence>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.3 }}
-          className="text-[var(--text-secondary)] opacity-60 text-base"
-        >
-          Your money is locked until the end. Only the closing price matters, not what happens in between.
-        </motion.p>
       </div>
     </section>
   );
@@ -407,13 +474,13 @@ function YieldSourceSection() {
   const inView = useInView(ref, { margin: "-20%" });
 
   return (
-    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-10">
+    <section ref={ref} className="py-24 px-6 relative z-[3]">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
+          className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]"
         >
           Where does the money come from?
         </motion.h2>
@@ -422,29 +489,15 @@ function YieldSourceSection() {
           initial={{ opacity: 0, y: 15 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="space-y-6"
+          className="lg:pt-2 space-y-4"
         >
-          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
-            From the market. You set a price, someone pays to lock it in.
+          <p className="text-lg text-[var(--text-secondary)]">
+            You set a price, someone pays to lock it in. You get paid upfront, every time.
           </p>
-          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
-            Price not reached? You collect and your money comes back untouched.
-            <br />
-            Price reached? You buy or sell at the price you chose. And you still collect.
-          </p>
-          <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text)]">
-            You pick the price. You pick the amount. And you get paid upfront, every time.
+          <p className="text-lg font-medium text-[var(--accent)]">
+            Not token rewards. Real market income.
           </p>
         </motion.div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.5 }}
-          className="text-[clamp(1.1rem,2.5vw,1.4rem)] font-medium text-[var(--accent)]"
-        >
-          Not token rewards. Not incentives. It&apos;s what the market pays for a guaranteed price.
-        </motion.p>
       </div>
     </section>
   );
@@ -562,9 +615,9 @@ const LoopSection = memo(function LoopSection({
 
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-12">
+      <div className="max-w-5xl w-full space-y-12">
         <FadeBlock>
-          <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight">
+          <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight">
             Every outcome earns.
           </h2>
         </FadeBlock>
@@ -622,8 +675,8 @@ const LoopSection = memo(function LoopSection({
 
 const COMPARISONS = [
   { name: "Savings account", apr: "~4%", pros: ["Safe"], cons: ["Not crypto"] },
-  { name: "Staking ETH", apr: "~3.5%", pros: ["Passive"], cons: ["Low yield"] },
-  { name: "Lending (Aave)", apr: "~2%", pros: ["DeFi"], cons: ["Lower yield"] },
+  { name: "Staking ETH", apr: "~3.5%", pros: ["Passive"], cons: ["Low income"] },
+  { name: "Lending (Aave)", apr: "~2%", pros: ["DeFi"], cons: ["Lower income"] },
 ];
 
 const ComparisonSection = memo(function ComparisonSection() {
@@ -632,12 +685,12 @@ const ComparisonSection = memo(function ComparisonSection() {
 
   return (
     <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-12">
+      <div className="max-w-5xl w-full space-y-12">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
+          className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight"
         >
           How does this compare?
         </motion.h2>
@@ -689,7 +742,91 @@ const ComparisonSection = memo(function ComparisonSection() {
   );
 });
 
-/* ── Section 5: Social Proof ── */
+/* ── Section 7: Engine ── */
+
+const ENGINE_CARDS = [
+  {
+    title: "Earn from prices",
+    badge: "live",
+    body: "Pick a price. Get paid upfront. Trade at your terms or get your capital back.",
+  },
+  {
+    title: "Earn from movement",
+    badge: "coming soon",
+    body: "Earn when the market moves in either direction. No prediction needed.",
+  },
+  {
+    title: "Trade direction, capped risk",
+    badge: "coming soon",
+    body: "Get exposure without liquidation risk. Max loss known before you enter.",
+  },
+  {
+    title: "Amplify your income",
+    badge: "coming soon",
+    body: "Earn on larger positions from the same deposit. Protocol handles the leverage.",
+  },
+];
+
+function EngineSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "-20%" });
+
+  return (
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-6xl w-full space-y-12">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight"
+        >
+          One engine. Multiple ways to earn.
+        </motion.h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {ENGINE_CARDS.map((card, i) => (
+            <motion.div
+              key={card.title}
+              initial={{ opacity: 0, y: 15 }}
+              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+              transition={{ duration: 0.4, delay: 0.1 + i * 0.1 }}
+              className={`rounded-xl border p-6 space-y-3 transition-all duration-300 ${
+                card.badge === "live"
+                  ? "border-[var(--accent)]/30 bg-[var(--surface)] shadow-[0_0_20px_rgba(34,211,238,0.06)] hover:border-[var(--accent)]/50 hover:shadow-[0_0_30px_rgba(34,211,238,0.1)]"
+                  : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--text-secondary)]/30"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-[var(--bone)] font-medium text-base">{card.title}</h3>
+                <span
+                  className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-mono ${
+                    card.badge === "live"
+                      ? "bg-[var(--accent)]/15 text-[var(--accent)] shadow-[0_0_8px_rgba(34,211,238,0.15)]"
+                      : "bg-[var(--border)] text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {card.badge}
+                </span>
+              </div>
+              <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{card.body}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          className="text-[var(--text-secondary)] opacity-60 text-base text-center"
+        >
+          Same protocol. Same contracts. New products are configuration, not complexity.
+        </motion.p>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 8: Social Proof ── */
 
 const STATS = [
   { label: "Built on", value: "Base" },
@@ -703,8 +840,8 @@ const SocialProofSection = memo(function SocialProofSection() {
   const inView = useInView(ref, { margin: "-20%" });
 
   return (
-    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-3xl w-full space-y-12">
+    <section ref={ref} className="py-24 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-5xl w-full space-y-12">
         <motion.h2
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -749,25 +886,22 @@ function AgentNativeSection() {
   const inView = useInView(ref, { once: true, margin: "-10%" });
 
   return (
-    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-2xl w-full space-y-10">
-        {/* Terminal window */}
+    <section ref={ref} className="py-24 px-6 relative z-[3]">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-16 items-center">
+        {/* Left: terminal (wider) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
           transition={{ duration: 0.6 }}
-          className="rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
+          className="lg:col-span-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] overflow-hidden"
         >
-          {/* Title bar */}
           <div className="flex items-center gap-1.5 px-4 py-3 border-b border-[var(--border)]">
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
           </div>
 
-          {/* Terminal body */}
-          <div className="px-5 sm:px-6 py-6 font-mono text-[clamp(0.8rem,1.5vw,0.95rem)] leading-relaxed space-y-4">
-            {/* Human session */}
+          <div className="px-5 sm:px-6 py-6 font-mono text-[clamp(0.75rem,1.3vw,0.9rem)] leading-relaxed space-y-4">
             <motion.div
               initial={{ opacity: 0 }}
               animate={inView ? { opacity: 1 } : { opacity: 0 }}
@@ -776,12 +910,9 @@ function AgentNativeSection() {
               <p className="text-[var(--text-secondary)]">
                 <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell ETH at $2,800&quot;
               </p>
-              <p className="text-[var(--accent)] mt-1">
-                &gt; +$62 earned
-              </p>
+              <p className="text-[var(--accent)] mt-1">&gt; +$62 earned</p>
             </motion.div>
 
-            {/* Divider */}
             <motion.div
               initial={{ scaleX: 0 }}
               animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
@@ -789,33 +920,53 @@ function AgentNativeSection() {
               className="border-t border-[var(--border)] origin-left"
             />
 
-            {/* Agent session */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={inView ? { opacity: 1 } : { opacity: 0 }}
               transition={{ duration: 0.4, delay: 0.6 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> agent POST /api/sell &#123;strike: 2800&#125;
+                <span className="text-[var(--accent)]">$</span> agent POST /execute &#123;asset: &quot;ETH&quot;, price: 2800, side: &quot;sell&quot;&#125;
               </p>
-              <p className="text-[var(--accent)] mt-1">
-                &gt; +$62 earned
+              <p className="text-[var(--accent)] mt-1">&gt; +$62 earned</p>
+            </motion.div>
+
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
+              transition={{ duration: 0.4, delay: 0.85 }}
+              className="border-t border-[var(--border)] origin-left"
+            />
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={inView ? { opacity: 1 } : { opacity: 0 }}
+              transition={{ duration: 0.4, delay: 1.0 }}
+            >
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--accent)]">$</span> agent POST /provide &#123;asset: &quot;ETH&quot;, quotes: [...]&#125;
               </p>
+              <p className="text-[var(--accent)] mt-1">&gt; Liquidity published. Earning fees on every trade.</p>
             </motion.div>
           </div>
         </motion.div>
 
-        {/* Punchline */}
-        <motion.p
+        {/* Right: punchline */}
+        <motion.div
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
           transition={{ duration: 0.6, delay: 0.9 }}
-          className="text-center text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text-secondary)] font-light"
+          className="lg:col-span-2 space-y-4"
         >
-          Same contracts. Same earnings.
-          <br />
-          <span className="opacity-50">Doesn&apos;t matter who calls it.</span>
-        </motion.p>
+          <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] text-[var(--bone)] font-light leading-snug">
+            Humans trade. Agents trade.
+            <br />
+            Agents provide liquidity.
+          </p>
+          <p className="text-[var(--text-secondary)] opacity-60 text-base">
+            Both sides of the protocol are open.
+          </p>
+        </motion.div>
       </div>
     </section>
   );
@@ -833,7 +984,7 @@ function CTASection() {
         initial={{ opacity: 0, y: 30 }}
         animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 30 }}
         transition={{ duration: 0.8 }}
-        className="max-w-3xl w-full text-center space-y-10"
+        className="max-w-5xl w-full text-center space-y-10"
       >
         <h2 className="text-[clamp(2.5rem,8vw,6rem)] text-[var(--bone)] leading-[0.95] tracking-tight font-light">
           Set your price.
@@ -866,7 +1017,7 @@ export function LandingPage() {
       {/* Global background layers */}
       <BackgroundEffects />
 
-      <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5 flex items-center justify-between">
+      <header className="fixed top-0 left-0 right-0 z-50 px-6 sm:px-10 lg:px-16 py-5 flex items-center justify-between">
         <HeaderLogo />
         <div className="flex items-center gap-4">
           <a
@@ -889,12 +1040,15 @@ export function LandingPage() {
 
       <main>
         <HeroSection />
+        <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
+        <ProblemSection />
+        <EngineSection />
         <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
         <YieldSourceSection />
         <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
         <ComparisonSection />
-        <SocialProofSection />
         <AgentNativeSection />
+        <SocialProofSection />
         <CTASection />
       </main>
 

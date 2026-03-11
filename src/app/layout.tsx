@@ -7,11 +7,11 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   title: {
-    default: "b1nary | Set your price. Get paid.",
+    default: "b1nary · Turn volatility into income",
     template: "%s | b1nary",
   },
   description:
-    "Pick a price you'd buy or sell ETH at. Earn premium upfront, no matter what happens. Fully collateralized options on Base.",
+    "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents. Live on Base.",
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "48x48" },
@@ -25,15 +25,15 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "b1nary",
-    title: "b1nary | Set your price. Get paid.",
+    title: "b1nary · Turn volatility into income",
     description:
-      "Pick a price you'd buy or sell ETH at. Earn premium upfront, no matter what happens. Fully collateralized options on Base.",
+      "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents. Live on Base.",
   },
   twitter: {
     card: "summary",
-    title: "b1nary | Set your price. Get paid.",
+    title: "b1nary · Turn volatility into income",
     description:
-      "Pick a price you'd buy or sell ETH at. Earn premium upfront, no matter what happens.",
+      "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents. Live on Base.",
   },
 };
 
