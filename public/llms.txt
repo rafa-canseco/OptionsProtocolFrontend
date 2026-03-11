@@ -66,7 +66,7 @@ Base URL: `https://optionsprotocolbackend-staging.up.railway.app`
 - **GET /mm/quotes**: Active, non-expired quotes for the authenticated MM.
 - **DELETE /mm/quotes**: Cancel all active quotes.
 
-For the full market making guide, see [llms-mm.txt](https://b1nary.app/llms-mm.txt).
+For the full market making guide, see [llms-mm.txt](https://staging.b1nary.app/llms-mm.txt).
 
 ---
 
@@ -173,11 +173,11 @@ positions = requests.get(f"{API}/positions/{MY_ADDRESS}").json()
 
 ## Market Making
 
-Want to provide liquidity instead of consuming it? See the full market making guide: [llms-mm.txt](https://b1nary.app/llms-mm.txt). Covers pricing, hedging, EIP-712 signing, and the complete integration flow.
+Want to provide liquidity instead of consuming it? See the full market making guide: [llms-mm.txt](https://staging.b1nary.app/llms-mm.txt). Covers pricing, hedging, EIP-712 signing, and the complete integration flow.
 
 ## Optional
 
-- [b1nary app](https://b1nary.app): Web interface
+- [b1nary app](https://staging.b1nary.app): Web interface
 - [BaseScan contracts](https://sepolia.basescan.org/address/0x3B5d4640233E14cc330A749926838ba2C540054f): Verified source code and ABIs
 - Protocol fee: 4% (400 bps), deducted from premium automatically
 - Options expire weekly at 08:00 UTC with automatic settlement
