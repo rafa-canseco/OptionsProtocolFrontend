@@ -256,18 +256,18 @@ function ProblemSection() {
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
         <FadeBlock>
           <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]">
-            Your ETH earns 3%.
+            The market moves 5% in a day.
             <br />
-            <span className="text-[var(--text-secondary)]">The market moves 5% in a day.</span>
+            <span className="text-[var(--text-secondary)]">Your staking earns 3% a year.</span>
           </h2>
         </FadeBlock>
         <FadeBlock delay={0.15}>
-          <div className="lg:pt-2 space-y-4">
+          <div className="lg:pt-2 space-y-6">
             <p className="text-lg text-[var(--text-secondary)]">
-              Trading means leverage, liquidations, and charts. Most people lose.
+              You could trade. But leverage, liquidations, and charts eat most people alive.
             </p>
-            <p className="text-lg text-[var(--text)]">
-              There&apos;s a better way to put your crypto to work.
+            <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] font-medium text-[var(--accent)]">
+              There&apos;s a third path.
             </p>
           </div>
         </FadeBlock>
@@ -754,14 +754,18 @@ function EngineSection() {
               initial={{ opacity: 0, y: 15 }}
               animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
               transition={{ duration: 0.4, delay: 0.1 + i * 0.1 }}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-3"
+              className={`rounded-xl border p-6 space-y-3 transition-all duration-300 ${
+                card.badge === "live"
+                  ? "border-[var(--accent)]/30 bg-[var(--surface)] shadow-[0_0_20px_rgba(34,211,238,0.06)] hover:border-[var(--accent)]/50 hover:shadow-[0_0_30px_rgba(34,211,238,0.1)]"
+                  : "border-[var(--border)] bg-[var(--surface)] hover:border-[var(--text-secondary)]/30"
+              }`}
             >
               <div className="flex items-start justify-between gap-3">
                 <h3 className="text-[var(--bone)] font-medium text-base">{card.title}</h3>
                 <span
-                  className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-mono ${
+                  className={`shrink-0 text-xs px-2.5 py-1 rounded-full font-mono ${
                     card.badge === "live"
-                      ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                      ? "bg-[var(--accent)]/15 text-[var(--accent)] shadow-[0_0_8px_rgba(34,211,238,0.15)]"
                       : "bg-[var(--border)] text-[var(--text-secondary)]"
                   }`}
                 >
@@ -977,7 +981,7 @@ export function LandingPage() {
       {/* Global background layers */}
       <BackgroundEffects />
 
-      <header className="fixed top-0 left-0 right-0 z-50 px-8 py-5 flex items-center justify-between max-w-7xl mx-auto">
+      <header className="fixed top-0 left-0 right-0 z-50 px-6 sm:px-10 lg:px-16 py-5 flex items-center justify-between">
         <HeaderLogo />
         <div className="flex items-center gap-4">
           <a
@@ -1000,12 +1004,13 @@ export function LandingPage() {
 
       <main>
         <HeroSection />
+        <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
+        <EngineSection />
         <ProblemSection />
         <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
         <YieldSourceSection />
         <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
         <ComparisonSection />
-        <EngineSection />
         <AgentNativeSection />
         <SocialProofSection />
         <CTASection />
