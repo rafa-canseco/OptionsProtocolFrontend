@@ -250,10 +250,29 @@ function HeroSection() {
 
 /* ── Section 2: Problem ── */
 
+const PAIN_CARDS = [
+  {
+    title: "Low staking returns",
+    body: "Your ETH earns 3% a year. The market moves more than that in a single afternoon.",
+  },
+  {
+    title: "Trading losses",
+    body: "Leverage and liquidations eat most people alive. The house always wins.",
+  },
+  {
+    title: "Wasted volatility",
+    body: "Every price swing is income someone else is capturing. You just watch.",
+  },
+  {
+    title: "Fake DeFi yield",
+    body: "Protocols promise yield. You get token rewards that go to zero.",
+  },
+];
+
 function ProblemSection() {
   return (
-    <section className="py-24 px-6 relative z-[3]">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
+    <section className="py-24 relative z-[3]">
+      <div className="max-w-6xl mx-auto px-6 mb-12">
         <FadeBlock>
           <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]">
             The market moves 5% in a day.
@@ -261,15 +280,27 @@ function ProblemSection() {
             <span className="text-[var(--text-secondary)]">Your staking earns 3% a year.</span>
           </h2>
         </FadeBlock>
-        <FadeBlock delay={0.15}>
-          <div className="lg:pt-2 space-y-6">
-            <p className="text-lg text-[var(--text-secondary)]">
-              You could trade, but that means leverage, liquidations, and staring at charts. Most people lose.
-            </p>
-            <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] font-medium text-[var(--accent)]">
-              There&apos;s a better way to put your crypto to work.
-            </p>
-          </div>
+      </div>
+
+      {/* Horizontal scrolling cards */}
+      <div className="overflow-x-auto scrollbar-hide">
+        <div className="flex gap-4 px-6 pb-4" style={{ width: "max-content" }}>
+          {[...PAIN_CARDS, ...PAIN_CARDS].map((card, i) => (
+            <FadeBlock key={i} delay={0.05 * (i % PAIN_CARDS.length)}>
+              <div className="w-[280px] sm:w-[320px] rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-3 shrink-0 hover:border-[var(--text-secondary)]/30 transition-colors">
+                <h3 className="text-[var(--bone)] font-medium text-base">{card.title}</h3>
+                <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{card.body}</p>
+              </div>
+            </FadeBlock>
+          ))}
+        </div>
+      </div>
+
+      <div className="max-w-6xl mx-auto px-6 mt-10">
+        <FadeBlock delay={0.3}>
+          <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] font-medium text-[var(--accent)]">
+            There&apos;s a better way to put your crypto to work.
+          </p>
         </FadeBlock>
       </div>
     </section>
