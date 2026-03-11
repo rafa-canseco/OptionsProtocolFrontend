@@ -181,7 +181,7 @@ function HeroSection() {
           transition={{ duration: 0.8, delay: 0.3 }}
           className="text-[clamp(2.2rem,6vw,4.5rem)] leading-[1.05] tracking-tight text-[var(--bone)] font-light"
         >
-          Pick a price you&apos;d buy or sell ETH at.
+          Turn volatility into income.
         </motion.h1>
 
         {/* Line 2: supporting, slightly smaller */}
@@ -191,7 +191,7 @@ function HeroSection() {
           transition={{ duration: 0.7, delay: 0.6 }}
           className="mt-4 text-[clamp(1.3rem,3.5vw,2rem)] leading-[1.2] text-[var(--text-secondary)] font-light"
         >
-          Get paid <span className="font-normal text-[var(--accent)]">upfront</span>, no matter what happens.
+          You set the terms. The market moves. You already know the outcome.
         </motion.p>
 
         {/* Agent tagline */}
@@ -248,7 +248,41 @@ function HeroSection() {
   );
 }
 
-/* ── Section 2: The Mechanism ── */
+/* ── Section 2: Problem ── */
+
+function ProblemSection() {
+  return (
+    <section className="py-32 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-3xl w-full space-y-10">
+        <FadeBlock>
+          <h2 className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight">
+            You&apos;re leaving money on the table.
+          </h2>
+        </FadeBlock>
+        <div className="space-y-6">
+          <FadeBlock delay={0.1}>
+            <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
+              Your ETH sits in a wallet. Or earns 3% staked. Meanwhile, the market moves 5% in a day
+              and you capture none of it.
+            </p>
+          </FadeBlock>
+          <FadeBlock delay={0.2}>
+            <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text-secondary)]">
+              You could trade, but that means leverage, liquidations, and staring at charts. Most people lose.
+            </p>
+          </FadeBlock>
+          <FadeBlock delay={0.3}>
+            <p className="text-[clamp(1.1rem,2.5vw,1.5rem)] text-[var(--text)]">
+              There&apos;s a better way to put your crypto to work.
+            </p>
+          </FadeBlock>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 3: The Mechanism ── */
 
 function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange: (s: "buy" | "sell") => void }) {
   return (
@@ -622,8 +656,8 @@ const LoopSection = memo(function LoopSection({
 
 const COMPARISONS = [
   { name: "Savings account", apr: "~4%", pros: ["Safe"], cons: ["Not crypto"] },
-  { name: "Staking ETH", apr: "~3.5%", pros: ["Passive"], cons: ["Low yield"] },
-  { name: "Lending (Aave)", apr: "~2%", pros: ["DeFi"], cons: ["Lower yield"] },
+  { name: "Staking ETH", apr: "~3.5%", pros: ["Passive"], cons: ["Low income"] },
+  { name: "Lending (Aave)", apr: "~2%", pros: ["DeFi"], cons: ["Lower income"] },
 ];
 
 const ComparisonSection = memo(function ComparisonSection() {
@@ -689,7 +723,87 @@ const ComparisonSection = memo(function ComparisonSection() {
   );
 });
 
-/* ── Section 5: Social Proof ── */
+/* ── Section 7: Engine ── */
+
+const ENGINE_CARDS = [
+  {
+    title: "Earn from prices",
+    badge: "live",
+    body: "Pick a price you'd buy or sell at. Get paid the moment you commit. If the price hits, you trade at your terms. If not, your capital comes back. Either way, you earned.",
+  },
+  {
+    title: "Earn from movement",
+    badge: "coming soon",
+    body: "Big event coming? Earn when the market moves in either direction. You don't need to predict where. Just that something happens.",
+  },
+  {
+    title: "Trade direction, capped risk",
+    badge: "coming soon",
+    body: "Think ETH is going up? Or down? Get the exposure without liquidation risk. Your max loss is known before you enter. Same conviction, less downside.",
+  },
+  {
+    title: "Amplify your income",
+    badge: "coming soon",
+    body: "Use your capital as a base to earn on larger positions. More income from the same deposit. The protocol handles the leverage, you keep the simplicity.",
+  },
+];
+
+function EngineSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "-20%" });
+
+  return (
+    <section ref={ref} className="py-32 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-3xl w-full space-y-12">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(2rem,6vw,4rem)] font-light text-[var(--bone)] tracking-tight"
+        >
+          One engine. Multiple ways to earn.
+        </motion.h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {ENGINE_CARDS.map((card, i) => (
+            <motion.div
+              key={card.title}
+              initial={{ opacity: 0, y: 15 }}
+              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+              transition={{ duration: 0.4, delay: 0.1 + i * 0.1 }}
+              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-3"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h3 className="text-[var(--bone)] font-medium text-base">{card.title}</h3>
+                <span
+                  className={`shrink-0 text-xs px-2 py-0.5 rounded-full font-mono ${
+                    card.badge === "live"
+                      ? "bg-[var(--accent)]/15 text-[var(--accent)]"
+                      : "bg-[var(--border)] text-[var(--text-secondary)]"
+                  }`}
+                >
+                  {card.badge}
+                </span>
+              </div>
+              <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{card.body}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.5, delay: 0.6 }}
+          className="text-[var(--text-secondary)] opacity-60 text-base text-center"
+        >
+          Same protocol. Same contracts. New products are configuration, not complexity.
+        </motion.p>
+      </div>
+    </section>
+  );
+}
+
+/* ── Section 8: Social Proof ── */
 
 const STATS = [
   { label: "Built on", value: "Base" },
@@ -789,17 +903,39 @@ function AgentNativeSection() {
               className="border-t border-[var(--border)] origin-left"
             />
 
-            {/* Agent session */}
+            {/* Agent consume session */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={inView ? { opacity: 1 } : { opacity: 0 }}
               transition={{ duration: 0.4, delay: 0.6 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> agent POST /api/sell &#123;strike: 2800&#125;
+                <span className="text-[var(--accent)]">$</span> agent POST /execute &#123;asset: &quot;ETH&quot;, price: 2800, side: &quot;sell&quot;&#125;
               </p>
               <p className="text-[var(--accent)] mt-1">
                 &gt; +$62 earned
+              </p>
+            </motion.div>
+
+            {/* Divider */}
+            <motion.div
+              initial={{ scaleX: 0 }}
+              animate={inView ? { scaleX: 1 } : { scaleX: 0 }}
+              transition={{ duration: 0.4, delay: 0.85 }}
+              className="border-t border-[var(--border)] origin-left"
+            />
+
+            {/* Agent provide session */}
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={inView ? { opacity: 1 } : { opacity: 0 }}
+              transition={{ duration: 0.4, delay: 1.0 }}
+            >
+              <p className="text-[var(--text-secondary)]">
+                <span className="text-[var(--accent)]">$</span> agent POST /provide &#123;asset: &quot;ETH&quot;, quotes: [...]&#125;
+              </p>
+              <p className="text-[var(--accent)] mt-1">
+                &gt; Liquidity published. Earning fees on every trade.
               </p>
             </motion.div>
           </div>
@@ -812,9 +948,9 @@ function AgentNativeSection() {
           transition={{ duration: 0.6, delay: 0.9 }}
           className="text-center text-[clamp(1.1rem,2.5vw,1.4rem)] text-[var(--text-secondary)] font-light"
         >
-          Same contracts. Same earnings.
+          Humans trade. Agents trade. Agents provide liquidity.
           <br />
-          <span className="opacity-50">Doesn&apos;t matter who calls it.</span>
+          <span className="opacity-50">Both sides of the protocol are open.</span>
         </motion.p>
       </div>
     </section>
@@ -889,12 +1025,14 @@ export function LandingPage() {
 
       <main>
         <HeroSection />
+        <ProblemSection />
         <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
         <YieldSourceSection />
         <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
         <ComparisonSection />
-        <SocialProofSection />
+        <EngineSection />
         <AgentNativeSection />
+        <SocialProofSection />
         <CTASection />
       </main>
 
