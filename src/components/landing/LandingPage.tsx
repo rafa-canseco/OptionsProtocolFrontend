@@ -264,10 +264,10 @@ function ProblemSection() {
         <FadeBlock delay={0.15}>
           <div className="lg:pt-2 space-y-6">
             <p className="text-lg text-[var(--text-secondary)]">
-              You could trade. But leverage, liquidations, and charts eat most people alive.
+              You could trade, but that means leverage, liquidations, and staring at charts. Most people lose.
             </p>
             <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] font-medium text-[var(--accent)]">
-              There&apos;s a third path.
+              There&apos;s a better way to put your crypto to work.
             </p>
           </div>
         </FadeBlock>
