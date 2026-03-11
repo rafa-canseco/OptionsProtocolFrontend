@@ -2,90 +2,183 @@
 
 > Simplified options protocol on Base. Sell cash-secured puts or covered calls on ETH, earn premium instantly. Fully on-chain, permissionless, no sign-up required.
 
-b1nary lets users sell ETH options and earn yield. A market maker provides pricing via Black-Scholes and signs EIP-712 quotes off-chain. Settlement is atomic and on-chain — collateral locks, oTokens mint, and premium pays out in a single transaction. No margin, no liquidations, fully collateralized.
+b1nary lets users sell ETH options and earn yield. A market maker provides pricing via Black-Scholes and signs EIP-712 quotes off-chain. Settlement is atomic and on-chain: collateral locks, oTokens mint, and premium pays out in a single transaction. No margin, no liquidations, fully collateralized.
 
-- **Chain:** Base (currently Base Sepolia testnet, chain ID 84532)
+- **Chain:** Base Sepolia (testnet, chain ID `84532`)
+- **Base URL:** `https://optionsprotocolbackend-staging.up.railway.app`
 - **Authentication:** None for users. MM endpoints require an API key.
 - **Assets:** ETH options. Puts collateralized with USDC, calls with WETH.
 
+---
+
+## What Your Agent Must Do
+
+This is the complete job description for a trading agent on b1nary. Sell cash-secured puts or covered calls to earn premium.
+
+### One-time setup
+
+1. **Get test tokens.** Call `POST /faucet` with `{"address": "0xYourWallet"}`. You receive 0.005 ETH (gas), 50 LETH (test WETH), and 100,000 LUSD (test USDC). One claim per wallet.
+2. **Approve collateral to MarginPool.** Call `approve(MarginPool, max)` on the collateral token. For puts: approve LUSD. For calls: approve LETH. One transaction per token.
+
+### Every cycle (run in a loop)
+
+3. **Read prices.** `GET /prices` returns the live option price sheet with signed quotes from market makers. Each entry has strike, expiry, premium, delta, and all the EIP-712 data needed for execution. If it returns 503, the circuit breaker is active. Wait and retry.
+4. **Pick an option.** Choose based on your strategy. The entry must have `signature` and `otoken_address` present. Filter by `option_type` (PUT or CALL), `strike`, `expiry_days`, `premium`, and `delta`.
+5. **Calculate collateral.**
+   - Puts: `collateral = (amount * strike_price_8dec) / 1e10` in LUSD (6 decimals)
+   - Calls: `collateral = amount * 1e10` in LETH (18 decimals)
+6. **Execute on-chain.** Call `executeOrder(quote, signature, amount, collateral)` on BatchSettler. The quote struct and signature come directly from the `/prices` response. Premium arrives in your wallet in the same transaction.
+7. **Check your position.** `GET /positions/{your_address}` shows all open and settled positions with `outcome` field.
+
+### At expiry (weekly, 08:00 UTC)
+
+8. **Settlement is automatic.** OTM: your collateral is returned. ITM: physical delivery occurs (you receive ETH for puts, USDC for calls).
+9. **Decide next move.** Check the `outcome` field on your settled position and continue the cycle.
+
+### Recommended strategy: The Wheel
+
+The optimal automated strategy is a continuous cycle:
+
+1. Start with USDC. Sell a cash-secured put at a strike you'd buy ETH at.
+2. If OTM (ETH stayed above strike): collateral returned. Collect premium, sell another put.
+3. If ITM (ETH dropped below strike): you receive ETH via physical delivery. Now sell a covered call.
+4. If call OTM (ETH stayed below strike): keep ETH and premium. Sell another covered call.
+5. If call ITM (ETH rose above strike): ETH sold at strike. Back to USDC. Return to step 1.
+
+Premium earned on every cycle regardless of direction. Use `GET /positions/{address}` to monitor settlement.
+
+---
+
 ## API Endpoints
 
-Base URL: `https://api.b1nary.app`
+Base URL: `https://optionsprotocolbackend-staging.up.railway.app`
 
 ### Public (no auth)
 
-- [GET /prices](https://api.b1nary.app/prices): Returns the live ETH options price sheet. Each entry has strike, expiry, premium, delta, IV, spot price, available amount, oToken address, and EIP-712 signed quote data (`signature`, `mm_address`, `bid_price_raw`, `deadline`, `quote_id`, `max_amount_raw`, `maker_nonce`). The signature and quote fields are required to call `executeOrder` on-chain. Returns 503 if circuit breaker is active.
-- [GET /positions/{address}](https://api.b1nary.app/positions/{address}): Returns all option positions for an Ethereum address. Key fields: `otoken_address`, `vault_id`, `amount`, `strike_price`, `expiry`, `is_put`, `is_settled`, `is_itm`, `settlement_type`, `outcome`, `net_premium`, `collateral`.
-- [GET /prices/simulate](https://api.b1nary.app/prices/simulate?strike=2400&side=sell): Back-test a 7-day cash-secured put at a given strike. Returns premium earned, assignment outcome, and comparison vs hold/stake/DCA.
-- [POST /faucet](https://api.b1nary.app/faucet): Get testnet tokens and gas. Send `{"address": "0x..."}` to receive 50 LETH + 100,000 LUSD + 0.005 ETH for gas. One claim per wallet.
+- **GET /prices**: Live option price sheet. Each entry: strike, expiry, premium, delta, IV, spot, available amount, oToken address, and EIP-712 quote data (`signature`, `mm_address`, `bid_price_raw`, `deadline`, `quote_id`, `max_amount_raw`, `maker_nonce`). Returns 503 if circuit breaker is active.
+- **GET /positions/{address}**: All positions for a wallet. Fields: `otoken_address`, `vault_id`, `amount`, `strike_price`, `expiry`, `is_put`, `is_settled`, `is_itm`, `settlement_type`, `outcome`, `net_premium`, `collateral`.
+- **GET /prices/simulate?strike=2400&side=sell**: Back-test a 7-day put at a given strike. Returns premium, assignment outcome, comparison vs hold/stake/DCA.
+- **POST /faucet**: Test tokens + gas. Send `{"address": "0x..."}`. Receives 50 LETH + 100,000 LUSD + 0.005 ETH. One claim per wallet.
 
-### Market Maker (requires `X-MM-API-Key` header)
+### Market Maker (requires `X-API-Key` header)
 
-- [POST /mm/quotes](https://api.b1nary.app/mm/quotes): Submit a batch of EIP-712 signed quotes. Each quote's signature is verified against the MM address. Rejects quotes with expired deadlines, wrong makerNonce, or invalid signatures.
-- [GET /mm/quotes](https://api.b1nary.app/mm/quotes): Retrieve all active, non-expired quotes for the authenticated MM.
-- [DELETE /mm/quotes](https://api.b1nary.app/mm/quotes): Cancel all active quotes. Stops the backend from serving them in GET /prices. On-chain, quotes remain valid until the MM calls `incrementMakerNonce()` on BatchSettler.
+- **POST /mm/quotes**: Submit signed EIP-712 quotes. Validates signatures, deadlines, nonces.
+- **GET /mm/quotes**: Active, non-expired quotes for the authenticated MM.
+- **DELETE /mm/quotes**: Cancel all active quotes.
+
+For the full market making guide, see [llms-mm.txt](https://staging.b1nary.app/llms-mm.txt).
+
+---
 
 ## Smart Contracts (Base Sepolia)
 
 All contracts are UUPS-proxied and verified on BaseScan.
 
-- [BatchSettler](https://sepolia.basescan.org/address/0x29bb32c014aC3378FfbE335804B94cED48f2afc4): `0x29bb32c014aC3378FfbE335804B94cED48f2afc4` — Entry point for executing orders (EIP-712 signed quotes)
-- [Controller](https://sepolia.basescan.org/address/0x5f3fAb42F74ce2455732e7d2F444ABbD6C5AAd2e): `0x5f3fAb42F74ce2455732e7d2F444ABbD6C5AAd2e` — Vault operations
-- [MarginPool](https://sepolia.basescan.org/address/0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44): `0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44` — Holds all collateral
-- [OTokenFactory](https://sepolia.basescan.org/address/0x29f897775ccFcFc7382929e0EC9580756041E4FE): `0x29f897775ccFcFc7382929e0EC9580756041E4FE` — Creates option tokens via CREATE2
-- [Oracle](https://sepolia.basescan.org/address/0x7843A0b0288DeEceCef333b8764342eA4Fc439D9): `0x7843A0b0288DeEceCef333b8764342eA4Fc439D9` — Chainlink price feeds
-- [AddressBook](https://sepolia.basescan.org/address/0x2043b48D7Cb9ED1b983c51F805E3D364230cbAd3): `0x2043b48D7Cb9ED1b983c51F805E3D364230cbAd3` — Central registry for contract addresses
-- [Whitelist](https://sepolia.basescan.org/address/0xe188f203650425AcFF343bD64F7FF5bd8c89AB43): `0xe188f203650425AcFF343bD64F7FF5bd8c89AB43` — Whitelisted assets and products
-- [LUSD (Mock USDC)](https://sepolia.basescan.org/address/0x5A2972d3390ABe3E57010272c8032BfC84E2077b): `0x5A2972d3390ABe3E57010272c8032BfC84E2077b` — Testnet USDC (6 decimals)
-- [LETH (Mock WETH)](https://sepolia.basescan.org/address/0x8C259D169378B705ae62AA697F3233C8dc3774Da): `0x8C259D169378B705ae62AA697F3233C8dc3774Da` — Testnet WETH (18 decimals)
+| Contract | Address |
+|----------|---------|
+| [BatchSettler](https://sepolia.basescan.org/address/0x3B5d4640233E14cc330A749926838ba2C540054f) | `0x3B5d4640233E14cc330A749926838ba2C540054f` |
+| [Controller](https://sepolia.basescan.org/address/0x6222a4F9B2f0114ABc8F2bb370a4ba0c2C003A5D) | `0x6222a4F9B2f0114ABc8F2bb370a4ba0c2C003A5D` |
+| [MarginPool](https://sepolia.basescan.org/address/0x1A16753019fDF2986a0a69A4A5b07e6ce0feb9eE) | `0x1A16753019fDF2986a0a69A4A5b07e6ce0feb9eE` |
+| [OTokenFactory](https://sepolia.basescan.org/address/0xB62837c28830cA22Ea9F036C58FbA975A2d4CF7B) | `0xB62837c28830cA22Ea9F036C58FbA975A2d4CF7B` |
+| [Oracle](https://sepolia.basescan.org/address/0xC8C417CA1B3A186286697B3dC11d506CC19C7E95) | `0xC8C417CA1B3A186286697B3dC11d506CC19C7E95` |
+| [AddressBook](https://sepolia.basescan.org/address/0xF2A0536d09D968bFa2Bb37e04617110069F25DA3) | `0xF2A0536d09D968bFa2Bb37e04617110069F25DA3` |
+| [Whitelist](https://sepolia.basescan.org/address/0x0FBb6A48182Da23224A9139f879e183DC91d7eD1) | `0x0FBb6A48182Da23224A9139f879e183DC91d7eD1` |
+| [LUSD (Mock USDC)](https://sepolia.basescan.org/address/0xC056AcB155F37D4993c158902139BBB55fB59ab2) | `0xC056AcB155F37D4993c158902139BBB55fB59ab2` |
+| [LETH (Mock WETH)](https://sepolia.basescan.org/address/0x0f5bB1a8B826ff3Aa42Cc389F4AAF07b4bD77e2E) | `0x0f5bB1a8B826ff3Aa42Cc389F4AAF07b4bD77e2E` |
+
+---
 
 ## Key Contract Functions
 
 **executeOrder(Quote calldata quote, bytes calldata signature, uint256 amount, uint256 collateral) returns (uint256 vaultId)**
-On BatchSettler. Permissionless. The `quote` is a struct: `{address oToken, uint256 bidPrice, uint256 deadline, uint256 quoteId, uint256 maxAmount, uint256 makerNonce}`. The `signature` is the MM's EIP-712 signature over the quote. `amount` is in oToken units (8 decimals, where 1e8 = 1 ETH notional). Atomically: verifies signature, locks collateral in MarginPool, mints oTokens to the MM, pays premium in USDC to the user (minus protocol fee). Both the quote fields and signature come from the `GET /prices` API response.
+On BatchSettler. Permissionless. The `quote` struct: `{address oToken, uint256 bidPrice, uint256 deadline, uint256 quoteId, uint256 maxAmount, uint256 makerNonce}`. The `signature` is the MM's EIP-712 signature. `amount` in oToken units (8 decimals, 1e8 = 1 ETH notional). Atomically: verifies signature, locks collateral, mints oTokens to MM, pays premium to user (minus 4% protocol fee). Quote fields and signature come from `GET /prices`.
 
 **makerNonce(address mm) returns (uint256)**
-On BatchSettler. Returns the current nonce for an MM. Quotes signed with a stale nonce are rejected.
+On BatchSettler. Current nonce for an MM. Quotes with stale nonce are rejected.
 
 **incrementMakerNonce() returns (uint256)**
-On BatchSettler. MM calls this to invalidate all outstanding signed quotes (circuit breaker).
+On BatchSettler. Invalidates all outstanding signed quotes (circuit breaker).
 
 **getVault(address owner, uint256 vaultId) returns (tuple)**
-On Controller. Read vault details: shortOtoken, collateralAsset, shortAmount, collateralAmount.
+On Controller. Vault details: shortOtoken, collateralAsset, shortAmount, collateralAmount.
 
-## Integration Guide
+---
 
-To execute an option order as an AI agent:
+## Integration Example
 
-0. Call `POST /faucet` with `{"address": "0xYOUR_WALLET"}` to receive test tokens and gas (50 LETH + 100,000 LUSD + 0.005 ETH). One-time per wallet.
-1. Call `GET /prices` to get the current price sheet with signed quotes
-2. Pick a quote (strike, expiry, option type) — it must have `signature` and `otoken_address` fields present
-3. Calculate and approve collateral to MarginPool (`0xA1832B3bf28272Ae9F1Fa28288Bb894b47491D44`):
-   - **Puts:** `collateral = (amount * strike_price_8dec) / 1e10` in 6 decimals (LUSD). Approve LUSD to MarginPool.
-   - **Calls:** `collateral = amount * 1e10` in 18 decimals (LETH). Approve LETH to MarginPool.
-4. Build the Quote struct from the API response fields: `{oToken: otoken_address, bidPrice: bid_price_raw, deadline: deadline, quoteId: quote_id, maxAmount: max_amount_raw, makerNonce: maker_nonce}`
-5. Call `executeOrder(quote, signature, amount, collateral)` on BatchSettler (`0x29bb32c014aC3378FfbE335804B94cED48f2afc4`)
-6. The transaction returns a `vaultId` — use this to track the position
-7. Call `GET /positions/{your_address}` to see your positions and settlement status
+```python
+import requests
+from web3 import Web3
 
-All amounts use 8 decimals for oTokens and strike prices. LUSD uses 6 decimals, LETH uses 18 decimals.
+API = "https://optionsprotocolbackend-staging.up.railway.app"
+BATCH_SETTLER = "0x3B5d4640233E14cc330A749926838ba2C540054f"
+MARGIN_POOL = "0x1A16753019fDF2986a0a69A4A5b07e6ce0feb9eE"
+LUSD = "0xC056AcB155F37D4993c158902139BBB55fB59ab2"
 
-## Recommended Strategy: The Wheel
+w3 = Web3(Web3.HTTPProvider("https://sepolia.base.org"))
 
-The optimal automated strategy on b1nary is "the wheel" — a continuous cycle of selling puts and covered calls to generate premium income:
+# 1. Get test tokens (one-time)
+requests.post(f"{API}/faucet", json={"address": MY_ADDRESS})
 
-1. **Start with USDC.** Sell a cash-secured put at a strike you're comfortable buying ETH at.
-2. **If the put expires OTM** (ETH stayed above strike): collateral is returned. Collect premium and sell another put.
-3. **If the put is assigned** (ETH dropped below strike): you receive ETH via physical delivery at your strike price. Now sell a covered call on that ETH.
-4. **If the call expires OTM** (ETH stayed below strike): keep the ETH and premium. Sell another covered call.
-5. **If the call is assigned** (ETH rose above strike): your ETH is sold at the strike price. You're back to USDC. Return to step 1.
+# 2. Approve LUSD to MarginPool (one-time)
+lusd = w3.eth.contract(address=LUSD, abi=ERC20_ABI)
+lusd.functions.approve(MARGIN_POOL, 2**256 - 1).transact({"from": MY_ADDRESS})
 
-This strategy earns premium on every cycle regardless of market direction. Use `GET /positions/{address}` to monitor settlement — when a position settles, check the `outcome` field to decide the next move.
+# 3. Read prices
+prices = requests.get(f"{API}/prices").json()
+
+# 4. Pick a PUT with an otoken_address
+put = next(p for p in prices if p["option_type"] == "put" and p["otoken_address"])
+
+# 5. Calculate collateral for $2,400 commitment
+usd_amount = 2400
+eth_units = usd_amount / put["strike"]
+otoken_amount = int(eth_units * 1e8)
+strike_8dec = int(put["strike"] * 1e8)
+collateral = (otoken_amount * strike_8dec) // 10**10
+
+# 6. Build quote struct from API response
+quote = (
+    put["otoken_address"],      # oToken
+    int(put["bid_price_raw"]),   # bidPrice
+    int(put["deadline"]),        # deadline
+    int(put["quote_id"]),        # quoteId
+    int(put["max_amount_raw"]),  # maxAmount
+    int(put["maker_nonce"]),     # makerNonce
+)
+
+# 7. Execute order
+settler = w3.eth.contract(address=BATCH_SETTLER, abi=SETTLER_ABI)
+tx = settler.functions.executeOrder(
+    quote,
+    bytes.fromhex(put["signature"][2:]),
+    otoken_amount,
+    collateral,
+).transact({"from": MY_ADDRESS})
+
+# 8. Check position
+positions = requests.get(f"{API}/positions/{MY_ADDRESS}").json()
+```
+
+---
+
+## Decimal Reference
+
+| Type | Decimals | Example |
+|------|----------|---------|
+| oToken amounts | 8 | `100000000` = 1 ETH notional |
+| Strike prices (on-chain) | 8 | `240000000000` = $2,400 |
+| USDC (LUSD) | 6 | `5000000` = 5 USDC |
+| WETH (LETH) | 18 | `1000000000000000000` = 1 WETH |
+
+## Market Making
+
+Want to provide liquidity instead of consuming it? See the full market making guide: [llms-mm.txt](https://staging.b1nary.app/llms-mm.txt). Covers pricing, hedging, EIP-712 signing, and the complete integration flow.
 
 ## Optional
 
-- [b1nary app](https://b1nary.app): Web interface
-- [BaseScan contracts](https://sepolia.basescan.org/address/0x29bb32c014aC3378FfbE335804B94cED48f2afc4): Verified source code and ABIs
+- [b1nary app](https://staging.b1nary.app): Web interface
+- [BaseScan contracts](https://sepolia.basescan.org/address/0x3B5d4640233E14cc330A749926838ba2C540054f): Verified source code and ABIs
 - Protocol fee: 4% (400 bps), deducted from premium automatically
 - Options expire weekly at 08:00 UTC with automatic settlement
 - ITM options settle via physical delivery (Aave flash loan + Uniswap swap)
