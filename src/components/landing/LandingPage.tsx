@@ -252,51 +252,56 @@ function HeroSection() {
 
 const PAIN_CARDS = [
   {
-    title: "Low staking returns",
-    body: "Your ETH earns 3% a year. The market moves more than that in a single afternoon.",
+    title: "Lending",
+    body: "2-4% APY. Safe, but barely keeps up with inflation.",
   },
   {
-    title: "Trading losses",
-    body: "Leverage and liquidations eat most people alive. The house always wins.",
+    title: "Staking",
+    body: "3% a year. Predictable, but the market moves more in an afternoon.",
   },
   {
-    title: "Wasted volatility",
-    body: "Every price swing is income someone else is capturing. You just watch.",
+    title: "LP positions",
+    body: "Uniswap, Pendle. Higher returns until impermanent loss and complexity eat the gains.",
   },
   {
-    title: "Fake DeFi yield",
-    body: "Protocols promise yield. You get token rewards that go to zero.",
+    title: "Leveraged trading",
+    body: "Futures promise big returns. Liquidations deliver big losses.",
   },
 ];
 
 function ProblemSection() {
   return (
-    <section className="py-24 relative z-[3]">
-      <div className="max-w-6xl mx-auto px-6 mb-12">
+    <section className="py-24 relative z-[3] overflow-hidden">
+      <div className="max-w-6xl mx-auto px-6 mb-14">
         <FadeBlock>
           <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]">
-            The market moves 5% in a day.
-            <br />
-            <span className="text-[var(--text-secondary)]">Your staking earns 3% a year.</span>
+            DeFi income has been stuck.
           </h2>
+          <p className="mt-4 text-xl text-[var(--text-secondary)]">
+            Too little, too complex, or too risky. Pick two.
+          </p>
         </FadeBlock>
       </div>
 
-      {/* Horizontal scrolling cards */}
-      <div className="overflow-x-auto scrollbar-hide">
-        <div className="flex gap-4 px-6 pb-4" style={{ width: "max-content" }}>
-          {[...PAIN_CARDS, ...PAIN_CARDS].map((card, i) => (
-            <FadeBlock key={i} delay={0.05 * (i % PAIN_CARDS.length)}>
-              <div className="w-[280px] sm:w-[320px] rounded-xl border border-[var(--border)] bg-[var(--surface)] p-6 space-y-3 shrink-0 hover:border-[var(--text-secondary)]/30 transition-colors">
-                <h3 className="text-[var(--bone)] font-medium text-base">{card.title}</h3>
-                <p className="text-[var(--text-secondary)] text-sm leading-relaxed">{card.body}</p>
-              </div>
-            </FadeBlock>
+      {/* Auto-scrolling marquee */}
+      <div className="relative">
+        <div className="flex gap-5 marquee-track">
+          {[...PAIN_CARDS, ...PAIN_CARDS, ...PAIN_CARDS].map((card, i) => (
+            <div
+              key={i}
+              className="w-[300px] sm:w-[360px] shrink-0 rounded-xl border border-[var(--border)] bg-[var(--surface)] p-7 space-y-3 hover:border-[var(--text-secondary)]/40 transition-colors"
+            >
+              <h3 className="text-[var(--bone)] font-medium text-lg">{card.title}</h3>
+              <p className="text-[var(--text-secondary)] text-base leading-relaxed">{card.body}</p>
+            </div>
           ))}
         </div>
+        {/* Fade edges */}
+        <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[var(--bg)] to-transparent pointer-events-none" />
+        <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[var(--bg)] to-transparent pointer-events-none" />
       </div>
 
-      <div className="max-w-6xl mx-auto px-6 mt-10">
+      <div className="max-w-6xl mx-auto px-6 mt-14">
         <FadeBlock delay={0.3}>
           <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] font-medium text-[var(--accent)]">
             There&apos;s a better way to put your crypto to work.
