@@ -1041,8 +1041,8 @@ export function LandingPage() {
       <main>
         <HeroSection />
         <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
-        <EngineSection />
         <ProblemSection />
+        <EngineSection />
         <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
         <YieldSourceSection />
         <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
