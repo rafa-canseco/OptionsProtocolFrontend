@@ -53,29 +53,24 @@ export function ActivitySection() {
         <p className="text-sm text-[var(--text-secondary)]">
           No activity yet. Start earning to see your stats here.
         </p>
-      ) : activity.positions === 0 ? (
+      ) : activity.positionCount === 0 ? (
         <p className="text-sm text-[var(--text-secondary)]">
           No activity yet. Start earning to see your stats here.
         </p>
       ) : (
-        <div className={`grid grid-cols-2 gap-6 ${
-          activity.referrals > 0 ? "sm:grid-cols-6" : "sm:grid-cols-5"
-        }`}>
-          <StatCell label="Total volume" value={formatUSD(activity.total_volume)} />
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-6">
+          <StatCell label="Total volume" value={formatUSD(activity.totalVolume)} />
           <div className="text-center">
             <p className="text-lg sm:text-xl font-semibold text-[var(--accent)] font-mono">
-              {formatUSD(activity.premium_earned)}
+              {formatUSD(activity.totalPremiumEarned)}
             </p>
             <p className="text-xs text-[var(--text-secondary)] opacity-60 mt-1">
               Premium earned
             </p>
           </div>
-          <StatCell label="Positions" value={String(activity.positions)} />
-          <StatCell label="Active days" value={String(activity.active_days)} />
-          <StatCell label="Member since" value={`${activity.days_since_first}d`} />
-          {activity.referrals > 0 && (
-            <StatCell label="Referrals" value={String(activity.referrals)} />
-          )}
+          <StatCell label="Positions" value={String(activity.positionCount)} />
+          <StatCell label="Active days" value={String(activity.activeDays)} />
+          <StatCell label="Member since" value={`${activity.daysSinceFirst}d`} />
         </div>
       )}
     </div>

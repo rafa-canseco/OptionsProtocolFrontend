@@ -66,12 +66,11 @@ export interface SimulateResult {
 }
 
 export interface Activity {
-  total_volume: number;
-  premium_earned: number;
-  positions: number;
-  active_days: number;
-  days_since_first: number;
-  referrals: number;
+  totalVolume: number;
+  totalPremiumEarned: number;
+  positionCount: number;
+  activeDays: number;
+  daysSinceFirst: number;
 }
 
 export interface AnalyticsEvent {
