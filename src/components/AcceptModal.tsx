@@ -9,7 +9,7 @@ import {
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { publicClient, ADDRESSES, ERC20_ABI, WETH_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
+import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
 import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote, Position } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
@@ -79,8 +79,9 @@ async function fireAndPoll(
   fire: () => Promise<unknown>,
   check: () => Promise<boolean>,
   label: string,
-) {
-  const txP = fire().then(() => "tx" as const);
+): Promise<string | null> {
+  let hash: string | null = null;
+  const txP = fire().then((h) => { hash = h as string; return "tx" as const; });
   const pollP = pollUntil(check, label).then(() => "poll" as const);
   const winner = await Promise.race([txP, pollP]);
   if (winner === "tx") {
@@ -90,6 +91,7 @@ async function fireAndPoll(
       console.warn(`[AcceptModal] tx rejected after poll confirmed (${label}):`, err);
     });
   }
+  return hash;
 }
 
 function computeCollateral(
@@ -183,6 +185,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const { address, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
+  const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
 
@@ -331,11 +334,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       approveAndExecuteCalls.push({ to: ADDRESSES.batchSettler, data: executeData });
 
       const label = currentAllowance < collateral ? "batch-approve-execute" : "executeOrder";
-      await fireAndPoll(
+      const resultHash = await fireAndPoll(
         () => sendBatchTx(approveAndExecuteCalls),
         balanceDecreased,
         label,
       );
+      if (resultHash) setTxHash(resultHash);
 
       updateStep("confirmed");
       onAccepted({ amount });
@@ -487,6 +491,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         >
           {buttonLabel}
         </button>
+
+        {step === "confirmed" && txHash && CHAIN.blockExplorers?.default.url && (
+          <a
+            href={`${CHAIN.blockExplorers.default.url}/tx/${txHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block text-center text-sm text-[var(--accent)] hover:underline"
+          >
+            View transaction ↗
+          </a>
+        )}
       </div>
     </div>
   );
