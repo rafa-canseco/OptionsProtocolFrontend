@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
+import { useCapacity } from "@/hooks/useCapacity";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { AcceptModal } from "../AcceptModal";
@@ -97,6 +98,7 @@ function StrikeCard({
 
 export function PriceMenuV2() {
   const { prices, loading, error, refresh } = usePrices();
+  const { capacity } = useCapacity();
   const { address, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
@@ -125,6 +127,11 @@ export function PriceMenuV2() {
   const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
 
   const spot = prices[0]?.spot;
+
+  const marketClosed = capacity !== null && (!capacity.market_open || capacity.market_status === "full");
+  const marketDegraded = capacity !== null && capacity.market_status === "degraded";
+  const capEth = capacity?.max_position_eth ?? MAX_AMOUNT_ETH;
+  const capUsd = spot ? Math.min(MAX_AMOUNT_USD, capEth * spot) : MAX_AMOUNT_USD;
 
   const filteredPrices = useMemo(() => {
     const s = prices[0]?.spot;
@@ -164,11 +171,10 @@ export function PriceMenuV2() {
 
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
-    const max = isBuy ? MAX_AMOUNT_USD : MAX_AMOUNT_ETH;
     if (isBuy) {
-      setAmountStr(Math.min(Math.floor(raw), max).toString());
+      setAmountStr(Math.min(Math.floor(raw), capUsd).toString());
     } else {
-      setAmountStr(Math.min(Number(raw.toFixed(4)), max).toString());
+      setAmountStr(Math.min(Number(raw.toFixed(4)), capEth).toString());
     }
   }
 
@@ -245,12 +251,25 @@ export function PriceMenuV2() {
     <div className="space-y-6">
       <div className="flex items-center justify-between animate-fade-in-up">
         <LivePrice spot={spot} />
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
-        >
-          How does this work?
-        </button>
+        <div className="flex items-center gap-4">
+          {capacity && (
+            <span className={`text-xs font-medium ${
+              marketClosed
+                ? "text-[var(--danger)]"
+                : marketDegraded
+                  ? "text-amber-400"
+                  : "text-[var(--accent)]"
+            }`}>
+              {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
+            </span>
+          )}
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
+          >
+            How does this work?
+          </button>
+        </div>
       </div>
 
       {/* Two-column: config left, preview right */}
@@ -319,7 +338,7 @@ export function PriceMenuV2() {
                   const raw = e.target.value;
                   if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
                     const num = Number(raw);
-                    const max = isBuy ? MAX_AMOUNT_USD : MAX_AMOUNT_ETH;
+                    const max = isBuy ? capUsd : capEth;
                     if (raw !== "" && num > max) {
                       setAmountStr(max.toString());
                       return;
@@ -383,26 +402,35 @@ export function PriceMenuV2() {
           </div>
 
           {/* 5. Accept button — glows when ready */}
-          <button
-            onClick={() => {
-              if (!isConnected) { login(); return; }
-              setConfirming(true);
-            }}
-            disabled={!canAccept && isConnected}
-            className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 animate-fade-in-up ${
-              canAccept
-                ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
-                : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
-            }`}
-          >
-            {!isConnected
-              ? "Connect wallet"
-              : !amount
-                ? "Enter an amount"
-                : !selectedQuote
-                  ? "Select a strike price"
-                  : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
-          </button>
+          <div className="space-y-2 animate-fade-in-up">
+            <button
+              onClick={() => {
+                if (!isConnected) { login(); return; }
+                setConfirming(true);
+              }}
+              disabled={marketClosed || (!canAccept && isConnected)}
+              className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
+                !marketClosed && canAccept
+                  ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
+                  : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
+              }`}
+            >
+              {marketClosed
+                ? "Market temporarily closed"
+                : !isConnected
+                  ? "Connect wallet"
+                  : !amount
+                    ? "Enter an amount"
+                    : !selectedQuote
+                      ? "Select a strike price"
+                      : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
+            </button>
+            {marketClosed && (
+              <p className="text-xs text-center text-[var(--text-secondary)]">
+                The MM is at capacity. Check back soon.
+              </p>
+            )}
+          </div>
         </div>
 
         {/* RIGHT: Live preview — outcome cards */}
@@ -436,6 +464,7 @@ export function PriceMenuV2() {
           side={side}
           initialAmount={amountStr}
           confirmOnly
+          maxPositionEth={capacity?.max_position_eth}
           onClose={() => setConfirming(false)}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);

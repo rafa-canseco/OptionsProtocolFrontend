@@ -22,6 +22,7 @@ interface Props {
   renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
   initialAmount?: string;
   confirmOnly?: boolean;
+  maxPositionEth?: number;
 }
 
 type TxStep = "idle" | "executing" | "confirmed";
@@ -181,7 +182,7 @@ function buildOptimisticPosition(
   };
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth }: Props) {
   const { address, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -193,9 +194,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   // For covered calls, show total ETH capacity (native + WETH already held)
   const walletBalance = isBuy ? usd : eth + weth;
 
+  const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
-    ? quote.available_amount * quote.strike
-    : quote.available_amount;
+    ? Math.min(quote.available_amount, capEth) * quote.strike
+    : Math.min(quote.available_amount, capEth);
 
   const [amountStr, setAmountStr] = useState(initialAmount ?? "");
   const amount = Number(amountStr) || 0;
