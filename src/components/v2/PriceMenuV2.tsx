@@ -10,6 +10,7 @@ import { LivePrice } from "../LivePrice";
 import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
+import { CHAIN } from "@/lib/contracts";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
@@ -103,7 +104,7 @@ export function PriceMenuV2() {
   const [side, setSide] = useState<"buy" | "sell">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
-  const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number } | null>(null);
+  const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number; txHash: string | null } | null>(null);
 
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
@@ -191,11 +192,12 @@ export function PriceMenuV2() {
   }
 
   if (accepted) {
-    const { quote: aq, side: as_, amount: aa } = accepted;
+    const { quote: aq, side: as_, amount: aa, txHash: aTxHash } = accepted;
     const abuy = as_ === "buy";
     const premium = abuy ? (aq.premium * aa) / aq.strike : aq.premium * aa;
     const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ETH`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
+    const explorerUrl = CHAIN.blockExplorers?.default.url;
 
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
@@ -213,6 +215,16 @@ export function PriceMenuV2() {
           <p>{commitLabel} committed for {aq.expiry_days} days</p>
           <p>{abuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
         </div>
+        {aTxHash && explorerUrl && (
+          <a
+            href={`${explorerUrl}/tx/${aTxHash}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-sm text-[var(--accent)] hover:underline"
+          >
+            View transaction ↗
+          </a>
+        )}
         <a
           href="/positions"
           className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
@@ -425,9 +437,9 @@ export function PriceMenuV2() {
           initialAmount={amountStr}
           confirmOnly
           onClose={() => setConfirming(false)}
-          onAccepted={({ amount: amt }) => {
+          onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);
-            setAccepted({ quote: selectedQuote, side, amount: amt });
+            setAccepted({ quote: selectedQuote, side, amount: amt, txHash: hash });
           }}
         />
       )}

@@ -18,7 +18,7 @@ interface Props {
   quote: PriceQuote;
   side: "buy" | "sell";
   onClose: () => void;
-  onAccepted: (info: { amount: number }) => void;
+  onAccepted: (info: { amount: number; txHash: string | null }) => void;
   renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
   initialAmount?: string;
   confirmOnly?: boolean;
@@ -342,7 +342,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       if (resultHash) setTxHash(resultHash);
 
       updateStep("confirmed");
-      onAccepted({ amount });
+      onAccepted({ amount, txHash: resultHash });
       window.dispatchEvent(new Event("balance:refetch"));
 
       const pos = buildOptimisticPosition(quote, amount, isBuy, address);
