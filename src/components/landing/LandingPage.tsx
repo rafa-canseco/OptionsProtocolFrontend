@@ -832,7 +832,6 @@ const STATS = [
   { label: "Built on", value: "Base" },
   { label: "Backed", value: "100%" },
   { label: "Margin calls", value: "None" },
-  { label: "Contracts", value: "Verified" },
 ];
 
 const SocialProofSection = memo(function SocialProofSection() {
@@ -851,7 +850,7 @@ const SocialProofSection = memo(function SocialProofSection() {
           Fully collateralized. No margin. No liquidations.
         </motion.h2>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+        <div className="grid grid-cols-3 gap-6">
           {STATS.map((stat, i) => (
             <motion.div
               key={stat.label}
@@ -872,7 +871,7 @@ const SocialProofSection = memo(function SocialProofSection() {
           transition={{ duration: 0.5, delay: 0.7 }}
           className="text-center text-[var(--text-secondary)] opacity-50 text-sm"
         >
-          Smart contracts verified on BaseScan · Open source
+          Open source · Audited · Live on Base
         </motion.p>
       </div>
     </section>
@@ -959,12 +958,12 @@ function AgentNativeSection() {
           className="lg:col-span-2 space-y-4"
         >
           <p className="text-[clamp(1.3rem,2.5vw,1.8rem)] text-[var(--bone)] font-light leading-snug">
-            Humans trade. Agents trade.
+            Trade or provide liquidity.
             <br />
-            Agents provide liquidity.
+            Human or agent.
           </p>
           <p className="text-[var(--text-secondary)] opacity-60 text-base">
-            Both sides of the protocol are open.
+            Both sides of the protocol are open to both.
           </p>
         </motion.div>
       </div>

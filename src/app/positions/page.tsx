@@ -9,11 +9,13 @@ import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
+import { useActivity } from "@/hooks/useActivity";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
+  const { activity } = useActivity(address);
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
   const allPositions = useOptimisticPositions(positions);
@@ -26,7 +28,7 @@ export default function PositionsPage() {
 
   if (!isConnected) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
         <h1 className="sr-only">Your Positions</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
@@ -38,7 +40,7 @@ export default function PositionsPage() {
 
   if (!loading && allPositions.length === 0) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-6">
         <h1 className="sr-only">Your Positions</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
@@ -52,7 +54,7 @@ export default function PositionsPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10 space-y-3">
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-3">
         <h1 className="sr-only">Your Positions</h1>
         {[1, 2].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface)]" />
@@ -62,10 +64,10 @@ export default function PositionsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+    <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
-      {/* Portfolio summary */}
-      <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
+      {/* Portfolio summary + activity */}
+      <PortfolioSummary positions={allPositions} activity={activity} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
       {/* Earnings chart */}
       <EarningsChart positions={allPositions} />
