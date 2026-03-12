@@ -73,6 +73,16 @@ export interface Activity {
   daysSinceFirst: number;
 }
 
+export interface Capacity {
+  capacity_eth: number;
+  capacity_usd: number;
+  market_open: boolean;
+  market_status: "active" | "degraded" | "full";
+  max_position_eth: number;
+  mm_count: number;
+  updated_at: string;
+}
+
 export interface AnalyticsEvent {
   session_id: string;
   event_type: string;
@@ -117,5 +127,7 @@ export const api = {
 
   getActivity: (address: string) =>
     fetchAPI<Activity>(`/activity/${address}`),
+
+  getCapacity: () => fetchAPI<Capacity>("/capacity"),
 
 };
