@@ -69,8 +69,8 @@ export function useBalances(address: Address | undefined, pollInterval = 15_000)
         usd,
         eth,
         weth,
-        usdFormatted: usd.toLocaleString(undefined, { maximumFractionDigits: 0 }),
-        ethFormatted: eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        usdFormatted: usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ethFormatted: eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 }),
       });
     } catch (err) {
       console.error("[useBalances] Failed to fetch balances:", err);

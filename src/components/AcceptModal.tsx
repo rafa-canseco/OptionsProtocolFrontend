@@ -438,8 +438,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
                 Balance {isBuy
-                  ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                  : `${walletBalance.toFixed(2)} ETH`}
+                  ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH`}
               </p>
             </div>
           </>

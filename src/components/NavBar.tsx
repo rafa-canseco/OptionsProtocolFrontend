@@ -18,7 +18,6 @@ export function NavBar() {
   const pathname = usePathname();
   const { address, sendBatchTx, chainError, isConnected } = useWallet();
   const { usd, eth, weth, usdFormatted, loading: balLoading, refetch } = useBalances(address);
-  const totalEth = eth + weth;
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
 
@@ -51,11 +50,17 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && !balLoading && (usd > 0 || totalEth > 0) && (
+          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
-              <span>{usdFormatted} USD</span>
+              <span>${usdFormatted}</span>
               <span className="opacity-40">·</span>
-              <span>{totalEth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ETH</span>
+              <span>{eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH</span>
+              {weth > 0 && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{weth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} WETH</span>
+                </>
+              )}
             </div>
           )}
           {SHOW_FAUCET && isConnected && !balLoading && address && (

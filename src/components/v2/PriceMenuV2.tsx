@@ -334,8 +334,8 @@ export function PriceMenuV2() {
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
                 Balance: <span className="font-mono">{isBuy
-                  ? `$${walletBalance.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                  : `${walletBalance.toFixed(2)} ETH`}</span>
+                  ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH`}</span>
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
