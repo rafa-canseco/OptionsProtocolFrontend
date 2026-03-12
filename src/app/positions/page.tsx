@@ -5,16 +5,17 @@ import { PositionCard } from "@/components/PositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
-import { ActivitySection } from "@/components/ActivitySection";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
+import { useActivity } from "@/hooks/useActivity";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
+  const { activity } = useActivity(address);
   const { prices } = usePrices();
   const spot = prices[0]?.spot;
   const allPositions = useOptimisticPositions(positions);
@@ -65,9 +66,8 @@ export default function PositionsPage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
-      <ActivitySection />
-      {/* Portfolio summary */}
-      <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
+      {/* Portfolio summary + activity */}
+      <PortfolioSummary positions={allPositions} activity={activity} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
       {/* Earnings chart */}
       <EarningsChart positions={allPositions} />

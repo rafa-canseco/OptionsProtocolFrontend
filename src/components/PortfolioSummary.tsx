@@ -1,16 +1,31 @@
 "use client";
 
-import type { Position } from "@/lib/api";
+import type { Position, Activity } from "@/lib/api";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 
 interface Props {
   positions: Position[];
+  activity: Activity | null;
   yieldMetric: YieldMetric;
   onYieldMetricChange: (metric: YieldMetric) => void;
 }
 
-export function PortfolioSummary({ positions, yieldMetric, onYieldMetricChange }: Props) {
-  const premiumEarned = positions.reduce((sum, p) => sum + Number(p.net_premium) / 1e6, 0);
+function formatUSD(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${Math.round(n).toLocaleString()}`;
+}
+
+export function PortfolioSummary({
+  positions,
+  activity,
+  yieldMetric,
+  onYieldMetricChange,
+}: Props) {
+  const premiumEarned = positions.reduce(
+    (sum, p) => sum + Number(p.net_premium) / 1e6,
+    0,
+  );
 
   const activeCapital = positions
     .filter((p) => !p.is_settled)
@@ -24,45 +39,86 @@ export function PortfolioSummary({ positions, yieldMetric, onYieldMetricChange }
     return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
   }, 0);
 
-  // Weighted-average APR
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = p.is_put
       ? p.collateral / 1e6
       : (p.collateral / 1e18) * (p.strike_price / 1e8);
     const premium = Number(p.net_premium) / 1e6;
     const indexedTime = new Date(p.indexed_at).getTime();
-    const days = Math.max(1, Math.floor((p.expiry * 1000 - indexedTime) / 86_400_000));
-    const apr = capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
+    const days = Math.max(
+      1,
+      Math.floor((p.expiry * 1000 - indexedTime) / 86_400_000),
+    );
+    const apr =
+      capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
     return sum + apr * capital;
   }, 0);
   const avgApr = totalCapital > 0 ? totalWeightedApr / totalCapital : 0;
-
-  // Weighted-average ROI (simple return, not annualized)
-  const avgRoi = totalCapital > 0 ? (premiumEarned / totalCapital) * 100 : 0;
+  const avgRoi =
+    totalCapital > 0 ? (premiumEarned / totalCapital) * 100 : 0;
 
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
-  const metricLabel = yieldMetric === "apr" ? "APR" : "ROI";
 
   return (
-    <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
-      <div>
-        <p className="text-xs text-[var(--text-secondary)]">Total Earned</p>
-        <p className="text-xl font-bold text-[var(--accent)] font-mono">${premiumEarned.toFixed(0)}</p>
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-4">
+      {/* Status badge */}
+      <div className="flex items-center justify-between">
+        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] text-xs font-semibold tracking-wide uppercase">
+          <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
+          OG Supporter
+        </span>
+        {activity && activity.daysSinceFirst > 0 && (
+          <span className="text-xs text-[var(--text-secondary)] font-mono">
+            Member for {activity.daysSinceFirst}d
+          </span>
+        )}
       </div>
-      <div>
-        <p className="text-xs text-[var(--text-secondary)]">Active Capital</p>
-        <p className="text-xl font-bold text-[var(--bone)] font-mono">
-          ${activeCapital.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-        </p>
-      </div>
-      <div>
-        <div className="flex items-center gap-1.5 mb-0.5">
-          <p className="text-xs text-[var(--text-secondary)]">Avg</p>
-          <YieldToggle value={yieldMetric} onChange={onYieldMetricChange} />
+
+      {/* Stats grid */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+        <div>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Total Earned
+          </p>
+          <p className="text-xl font-bold text-[var(--accent)] font-mono">
+            ${premiumEarned.toFixed(0)}
+          </p>
         </div>
-        <p className="text-xl font-bold text-[var(--accent)] font-mono">
-          {metricValue < 10 ? metricValue.toFixed(1) : Math.round(metricValue)}%
-        </p>
+        <div>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Active Capital
+          </p>
+          <p className="text-xl font-bold text-[var(--bone)] font-mono">
+            {formatUSD(activeCapital)}
+          </p>
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 mb-0.5">
+            <p className="text-xs text-[var(--text-secondary)]">Avg</p>
+            <YieldToggle
+              value={yieldMetric}
+              onChange={onYieldMetricChange}
+            />
+          </div>
+          <p className="text-xl font-bold text-[var(--accent)] font-mono">
+            {metricValue < 10
+              ? metricValue.toFixed(1)
+              : Math.round(metricValue)}
+            %
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-[var(--text-secondary)]">Positions</p>
+          <p className="text-xl font-bold text-[var(--bone)] font-mono">
+            {activity?.positionCount ?? positions.length}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-[var(--text-secondary)]">Volume</p>
+          <p className="text-xl font-bold text-[var(--bone)] font-mono">
+            {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
+          </p>
+        </div>
       </div>
     </div>
   );
