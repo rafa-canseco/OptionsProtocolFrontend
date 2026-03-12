@@ -65,6 +65,15 @@ export interface SimulateResult {
   };
 }
 
+export interface Activity {
+  total_volume: number;
+  premium_earned: number;
+  positions: number;
+  active_days: number;
+  days_since_first: number;
+  referrals: number;
+}
+
 export interface AnalyticsEvent {
   session_id: string;
   event_type: string;
@@ -106,5 +115,8 @@ export const api = {
 
   getWaitlistCount: () =>
     fetchAPI<{ count: number }>("/waitlist/count"),
+
+  getActivity: (address: string) =>
+    fetchAPI<Activity>(`/api/activity/${address}`),
 
 };
