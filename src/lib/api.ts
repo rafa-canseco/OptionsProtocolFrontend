@@ -117,6 +117,6 @@ export const api = {
     fetchAPI<{ count: number }>("/waitlist/count"),
 
   getActivity: (address: string) =>
-    fetchAPI<Activity>(`/api/activity/${address}`),
+    fetchAPI<Activity>(`/activity/${address}`),
 
 };

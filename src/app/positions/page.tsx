@@ -5,6 +5,7 @@ import { PositionCard } from "@/components/PositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
+import { ActivitySection } from "@/components/ActivitySection";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { usePrices } from "@/hooks/usePrices";
@@ -26,7 +27,7 @@ export default function PositionsPage() {
 
   if (!isConnected) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
         <h1 className="sr-only">Your Positions</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
@@ -38,7 +39,7 @@ export default function PositionsPage() {
 
   if (!loading && allPositions.length === 0) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10 space-y-6">
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-6">
         <h1 className="sr-only">Your Positions</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
@@ -52,7 +53,7 @@ export default function PositionsPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-10 space-y-3">
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-3">
         <h1 className="sr-only">Your Positions</h1>
         {[1, 2].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface)]" />
@@ -62,8 +63,9 @@ export default function PositionsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-10 space-y-8">
+    <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
+      <ActivitySection />
       {/* Portfolio summary */}
       <PortfolioSummary positions={allPositions} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
