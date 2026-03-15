@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
+import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
 interface Props {
@@ -118,11 +119,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           {/* Countdown — prominent */}
           <p className="text-lg font-bold text-[var(--bone)]">
-            {expiryDays > 1
-              ? `${expiryDays}d left`
-              : expiryDays === 1
-                ? "Expires tomorrow"
-                : "Expires today"}
+            <ExpiryCountdown expiryTimestamp={position.expiry} />
           </p>
 
           {/* Premium earned — accent + mono */}
