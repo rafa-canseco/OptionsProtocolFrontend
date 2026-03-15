@@ -168,6 +168,7 @@ export function PriceMenuV2() {
     : 0;
 
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
+  const insufficientBalance = isConnected && amount > 0 && amount > walletBalance;
 
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
@@ -337,12 +338,6 @@ export function PriceMenuV2() {
                 onChange={(e) => {
                   const raw = e.target.value;
                   if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                    const num = Number(raw);
-                    const max = isBuy ? capUsd : capEth;
-                    if (raw !== "" && num > max) {
-                      setAmountStr(max.toString());
-                      return;
-                    }
                     setAmountStr(raw);
                   }
                 }}
@@ -408,9 +403,9 @@ export function PriceMenuV2() {
                 if (!isConnected) { login(); return; }
                 setConfirming(true);
               }}
-              disabled={marketClosed || (!canAccept && isConnected)}
+              disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept
+                !marketClosed && canAccept && !insufficientBalance
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -421,9 +416,11 @@ export function PriceMenuV2() {
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
-                    : !selectedQuote
-                      ? "Select a strike price"
-                      : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
+                    : insufficientBalance
+                      ? "Insufficient balance"
+                      : !selectedQuote
+                        ? "Select a strike price"
+                        : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
