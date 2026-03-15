@@ -52,6 +52,7 @@ export function NavBar() {
         <div className="flex items-center gap-4">
           {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
+              <img src="/usdc.svg" alt="USDC" className="w-4 h-4 inline" />
               <span>${usdFormatted}</span>
               <span className="opacity-40">·</span>
               <span>{eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH</span>

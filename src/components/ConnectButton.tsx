@@ -29,8 +29,9 @@ export function ConnectButton() {
       <div ref={ref} className="relative">
         <button
           onClick={() => setOpen((o) => !o)}
-          className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
+          className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors flex items-center gap-1.5"
         >
+          <img src="/base.svg" alt="Base" className="w-4 h-4" />
           {short}
         </button>
 
