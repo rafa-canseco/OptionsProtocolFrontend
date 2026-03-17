@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
+import { fmtUsd } from "@/lib/utils";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
@@ -124,7 +125,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           {/* Premium earned — accent + mono */}
           <p className="text-base font-bold font-mono text-[var(--accent)]">
-            ${premiumUsd.toFixed(0)} earned
+            ${fmtUsd(premiumUsd)} earned
             <span className="text-sm font-normal text-[var(--text-secondary)] ml-2">
               {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
             </span>
@@ -166,7 +167,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           </p>
           <p className="text-sm text-[var(--text-secondary)]">
             Committed {committedDisplay} → Returned {committedDisplay} +{" "}
-            <span className="text-[var(--accent)] font-semibold font-mono">${premiumUsd.toFixed(0)} earned</span>
+            <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)} earned</span>
           </p>
 
           <p className="text-xs text-[var(--text-secondary)]">
@@ -236,7 +237,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {/* Premium kept */}
           <p className="text-sm text-[var(--text-secondary)]">
             + kept{" "}
-            <span className="text-[var(--accent)] font-semibold font-mono">${premiumUsd.toFixed(0)} in premium</span>
+            <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)} in premium</span>
           </p>
 
           {/* CTA: Next step */}
