@@ -1,6 +1,7 @@
 "use client";
 
 import type { PriceQuote } from "@/lib/api";
+import { fmtUsd } from "@/lib/utils";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
   if (strike <= 0 || expiryDays <= 0) return 0;
@@ -88,7 +89,7 @@ export function StrikeLadder({
           const y = priceToY(q.strike);
           const apr = Math.round(computeAPR(q.premium, q.strike, q.expiry_days));
           const earnRaw = q.premium * q.available_amount;
-          const earn = earnRaw < 1 ? Number(earnRaw.toFixed(2)) : Math.round(earnRaw);
+          const earn = fmtUsd(earnRaw);
           const disabled = !q.otoken_address || q.available_amount <= 0;
 
           return (
@@ -127,7 +128,7 @@ export function StrikeLadder({
                 fill="var(--text-secondary)"
                 fontSize={10}
               >
-                Earn ${earn.toLocaleString()} · {apr}% APR
+                Earn ${earn} · {apr}% APR
               </text>
               {/* Invisible wider click target */}
               <rect

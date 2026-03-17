@@ -12,6 +12,7 @@ import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
+import { fmtUsd } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
@@ -81,7 +82,7 @@ function StrikeCard({
       <div className="text-right">
         {earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
-            ${earnings < 1 ? earnings.toFixed(2) : Math.round(earnings).toLocaleString()}
+            ${fmtUsd(earnings)}
           </span>
         ) : (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
@@ -210,7 +211,7 @@ export function PriceMenuV2() {
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
         <div>
           <p className="text-4xl font-bold text-[var(--accent)] font-mono">
-            ${premium < 1 ? premium.toFixed(2) : Math.round(premium).toLocaleString()}
+            ${fmtUsd(premium)}
           </p>
           <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
         </div>
@@ -420,7 +421,7 @@ export function PriceMenuV2() {
                       ? "Insufficient balance"
                       : !selectedQuote
                         ? "Select a strike price"
-                        : `Accept: Earn $${Math.round(selectedEarnings).toLocaleString()}`}
+                        : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
@@ -436,7 +437,7 @@ export function PriceMenuV2() {
             <div className="text-center py-2 animate-fade-in-up">
               <div className="flex items-center justify-center gap-1">
                 <p className="text-3xl font-bold text-[var(--accent)] font-mono">
-                  ${Math.round(selectedEarnings).toLocaleString()}
+                  ${fmtUsd(selectedEarnings)}
                 </p>
                 <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
               </div>

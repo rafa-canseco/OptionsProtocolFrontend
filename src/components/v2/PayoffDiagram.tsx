@@ -1,5 +1,7 @@
 "use client";
 
+import { fmtUsd } from "@/lib/utils";
+
 export function PayoffDiagram({
   strike,
   premium,
@@ -83,7 +85,7 @@ export function PayoffDiagram({
           strokeDasharray="4 3"
         />
         <text x={PAD_L - 4} y={premiumY + 3} textAnchor="end" fill="var(--accent)" fontSize={9} fontWeight={600}>
-          +${Math.round(premium)}
+          +${fmtUsd(premium)}
         </text>
 
         {/* Strike vertical line */}
@@ -118,7 +120,7 @@ export function PayoffDiagram({
           fontSize={9}
           fontWeight={500}
         >
-          Earn ${Math.round(premium)}
+          Earn ${fmtUsd(premium)}
         </text>
         <text
           x={(Math.min(greenLeft, greenRight) + Math.max(greenLeft, greenRight)) / 2}
@@ -147,7 +149,7 @@ export function PayoffDiagram({
           fill="var(--text-secondary)"
           fontSize={8}
         >
-          + keep ${Math.round(premium)}
+          + keep ${fmtUsd(premium)}
         </text>
 
         {/* X axis */}
