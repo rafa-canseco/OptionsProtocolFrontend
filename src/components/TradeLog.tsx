@@ -14,7 +14,7 @@ interface Props {
   earnBase?: string;
 }
 
-export function TradeLog({ positions, earnBase = "/earn" }: Props) {
+export function TradeLog({ positions, earnBase = "/earn/eth" }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 

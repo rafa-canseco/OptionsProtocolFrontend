@@ -14,6 +14,8 @@ import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import { fmtUsd } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
+import type { AssetConfig } from "@/lib/assets";
+import { AssetSelector } from "./AssetSelector";
 
 function computeAPR(premium: number, strike: number, expiryDays: number): number {
   if (strike <= 0 || expiryDays <= 0) return 0;
@@ -38,8 +40,6 @@ function daysUntil(expiryDate: string): number {
 }
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
-const MAX_AMOUNT_USD = 1_000_000;
-const MAX_AMOUNT_ETH = 1_000;
 
 function StrikeCard({
   quote,
@@ -47,12 +47,14 @@ function StrikeCard({
   amount,
   isSelected,
   onSelect,
+  assetSymbol: symbol,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
   amount: number;
   isSelected: boolean;
   onSelect: () => void;
+  assetSymbol: string;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
@@ -77,7 +79,7 @@ function StrikeCard({
       }`}
     >
       <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
-        ${quote.strike.toLocaleString()}/ETH
+        ${quote.strike.toLocaleString()}/{symbol}
       </span>
       <div className="text-right">
         {earnings > 0 ? (
@@ -97,7 +99,7 @@ function StrikeCard({
   );
 }
 
-export function PriceMenuV2() {
+export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices();
   const { capacity } = useCapacity();
   const { address, isConnected, login } = useWallet();
@@ -131,8 +133,8 @@ export function PriceMenuV2() {
 
   const marketClosed = capacity !== null && (!capacity.market_open || capacity.market_status === "full");
   const marketDegraded = capacity !== null && capacity.market_status === "degraded";
-  const capEth = capacity?.max_position_eth ?? MAX_AMOUNT_ETH;
-  const capUsd = spot ? Math.min(MAX_AMOUNT_USD, capEth * spot) : MAX_AMOUNT_USD;
+  const capEth = capacity?.max_position_eth ?? asset.maxAmount;
+  const capUsd = spot ? Math.min(asset.maxAmountUsd, capEth * spot) : asset.maxAmountUsd;
 
   const filteredPrices = useMemo(() => {
     const s = prices[0]?.spot;
@@ -203,7 +205,7 @@ export function PriceMenuV2() {
     const { quote: aq, side: as_, amount: aa, txHash: aTxHash } = accepted;
     const abuy = as_ === "buy";
     const premium = abuy ? (aq.premium * aa) / aq.strike : aq.premium * aa;
-    const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ETH`;
+    const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ${asset.symbol}`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
     const explorerUrl = CHAIN.blockExplorers?.default.url;
 
@@ -221,7 +223,7 @@ export function PriceMenuV2() {
         <div className="h-px bg-[var(--border)]" />
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
           <p>{commitLabel} committed for {aq.expiry_days} days</p>
-          <p>{abuy ? "Buy" : "Sell"} ETH at ${aq.strike.toLocaleString()}/ETH</p>
+          <p>{abuy ? "Buy" : "Sell"} {asset.symbol} at ${aq.strike.toLocaleString()}/{asset.symbol}</p>
         </div>
         {aTxHash && explorerUrl && (
           <a
@@ -252,7 +254,10 @@ export function PriceMenuV2() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between animate-fade-in-up">
-        <LivePrice spot={spot} />
+        <div className="flex items-center gap-4">
+          <AssetSelector current={asset} spot={spot} />
+          <LivePrice spot={spot} />
+        </div>
         <div className="flex items-center gap-4">
           {capacity && (
             <span className={`text-xs font-medium ${
@@ -334,7 +339,7 @@ export function PriceMenuV2() {
               <input
                 type="text"
                 inputMode="decimal"
-                placeholder={isBuy ? "1,000" : "0.5"}
+                placeholder={isBuy ? "1,000" : asset.amountPlaceholder}
                 value={amountStr}
                 onChange={(e) => {
                   const raw = e.target.value;
@@ -344,13 +349,13 @@ export function PriceMenuV2() {
                 }}
                 className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"
               />
-              {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
+              {!isBuy && <span className="text-sm text-[var(--text-secondary)]">{asset.symbol}</span>}
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
                 Balance: <span className="font-mono">{isBuy
                   ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH`}</span>
+                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
@@ -375,7 +380,7 @@ export function PriceMenuV2() {
           <div className="animate-fade-in-up">
             <p className="text-sm text-[var(--text-secondary)] flex items-center mb-2">
               {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
-              <InfoTooltip title="Strike price" text="The price at which you commit to buy (or sell) ETH. Lower = safer, higher = more premium." />
+              <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
             </p>
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
@@ -387,6 +392,7 @@ export function PriceMenuV2() {
                     amount={amount}
                     isSelected={selectedQuote?.strike === q.strike}
                     onSelect={() => setSelectedQuote(q)}
+                    assetSymbol={asset.symbol}
                   />
                 ))}
               </div>
@@ -451,6 +457,7 @@ export function PriceMenuV2() {
             amount={amount > 0 ? amount : undefined}
             strike={selectedQuote?.strike}
             premium={selectedEarnings > 0 ? selectedEarnings : undefined}
+            assetSymbol={asset.symbol}
           />
         </div>
       </div>
@@ -463,6 +470,7 @@ export function PriceMenuV2() {
           initialAmount={amountStr}
           confirmOnly
           maxPositionEth={capacity?.max_position_eth}
+          assetSymbol={asset.symbol}
           onClose={() => setConfirming(false)}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);

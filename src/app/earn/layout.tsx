@@ -4,11 +4,11 @@ import { NavBar } from "@/components/NavBar";
 export const metadata: Metadata = {
   title: "Earn Premium",
   description:
-    "Browse live strike prices and earn premium by selling covered options on ETH. Get paid upfront every time.",
+    "Browse live strike prices and earn premium by selling covered options. Get paid upfront every time.",
   openGraph: {
     title: "Earn Premium | b1nary",
     description:
-      "Browse live strike prices and earn premium by selling covered options on ETH. Get paid upfront every time.",
+      "Browse live strike prices and earn premium by selling covered options. Get paid upfront every time.",
   },
 };
 

@@ -1,12 +1,6 @@
-"use client";
-
-import { PriceMenuV2 } from "@/components/v2/PriceMenuV2";
+import { redirect } from "next/navigation";
+import { DEFAULT_ASSET } from "@/lib/assets";
 
 export default function EarnPage() {
-  return (
-    <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-      <h1 className="sr-only">Earn Premium</h1>
-      <PriceMenuV2 />
-    </main>
-  );
+  redirect(`/earn/${DEFAULT_ASSET}`);
 }

@@ -23,6 +23,7 @@ interface Props {
   initialAmount?: string;
   confirmOnly?: boolean;
   maxPositionEth?: number;
+  assetSymbol?: string;
 }
 
 type TxStep = "idle" | "executing" | "confirmed";
@@ -187,7 +188,7 @@ function buildOptimisticPosition(
   };
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH" }: Props) {
   const { address, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -232,7 +233,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   const commitDisplay = isBuy
     ? `$${amount.toLocaleString()}`
-    : `${amount} ETH`;
+    : `${amount} ${assetSymbol}`;
 
   const loading = step !== "idle";
   const buttonLabel =
@@ -257,15 +258,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     }
 
     if (amount < minAmount) {
-      const label = isBuy ? `$${minAmount}` : `${minAmount} ETH`;
+      const label = isBuy ? `$${minAmount}` : `${minAmount} ${assetSymbol}`;
       setError(`Minimum amount is ${label}.`);
       return;
     }
     if (amount > maxAmount) {
       const label = isBuy
         ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-        : `${maxAmount.toFixed(2)} ETH`;
-      setError(`Exceeds max trade size — enter ${label} or less.`);
+        : `${maxAmount.toFixed(2)} ${assetSymbol}`;
+      setError(`Exceeds max trade size. Enter ${label} or less.`);
       return;
     }
 
@@ -291,7 +292,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           publicClient.getBalance({ address }),
         ]);
         if (wethBal + nativeBal < collateral) {
-          setError("Insufficient ETH balance.");
+          setError(`Insufficient ${assetSymbol} balance.`);
           return;
         }
         if (wethBal < collateral) {
@@ -386,7 +387,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         {/* Title + earnings hero */}
         <div>
           <p className="text-lg font-semibold text-[var(--bone)]">
-            {isBuy ? "Buy" : "Sell"} ETH at ${quote.strike.toLocaleString()}/ETH
+            {isBuy ? "Buy" : "Sell"} {assetSymbol} at ${quote.strike.toLocaleString()}/{assetSymbol}
           </p>
           {amount > 0 && (
             <div className="mt-1 flex items-baseline gap-3">
@@ -441,12 +442,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                   }}
                   className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
                 />
-                {!isBuy && <span className="text-sm text-[var(--text-secondary)]">ETH</span>}
+                {!isBuy && <span className="text-sm text-[var(--text-secondary)]">{assetSymbol}</span>}
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
                 Balance {isBuy
                   ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH`}
+                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
               </p>
             </div>
           </>
@@ -467,14 +468,14 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                 <p className="text-[var(--text-secondary)]">
                   <span className="text-[var(--text)]">If price hits ${quote.strike.toLocaleString()}:</span>{" "}
                   {isBuy
-                    ? `You buy ${ethEquiv} ETH + keep ${premiumDisplay}`
-                    : `You sell ${amount} ETH + keep ${premiumDisplay}`}
+                    ? `You buy ${ethEquiv} ${assetSymbol} + keep ${premiumDisplay}`
+                    : `You sell ${amount} ${assetSymbol} + keep ${premiumDisplay}`}
                 </p>
                 <p className="text-[var(--text-secondary)]">
                   <span className="text-[var(--text)]">If not:</span>{" "}
                   {isBuy
                     ? `${commitDisplay} back + keep ${premiumDisplay}`
-                    : `${amount} ETH back + keep ${premiumDisplay}`}
+                    : `${amount} ${assetSymbol} back + keep ${premiumDisplay}`}
                 </p>
               </div>
             )}
@@ -485,7 +486,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           <p className="text-sm text-[var(--danger)]">
             Exceeds max trade size — enter {isBuy
               ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : `${maxAmount.toFixed(2)} ETH`} or less.
+              : `${maxAmount.toFixed(2)} ${assetSymbol}`} or less.
           </p>
         )}
 

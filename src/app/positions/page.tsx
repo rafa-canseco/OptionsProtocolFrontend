@@ -45,7 +45,7 @@ export default function PositionsPage() {
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Accept a price on the <a href="/earn" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
+            Accept a price on the <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
           </p>
         </div>
       </main>
@@ -85,7 +85,7 @@ export default function PositionsPage() {
                 position={pos}
                 onSettled={refresh}
                 spot={spot}
-                earnBase="/earn"
+                earnBase="/earn/eth"
                 optimistic={pos.id.startsWith("opt-")}
                 yieldMetric={yieldMetric}
               />
@@ -95,7 +95,7 @@ export default function PositionsPage() {
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
             <p className="text-sm text-[var(--text-secondary)]">
               No active positions.{" "}
-              <a href="/earn" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
+              <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
             </p>
           </div>
         )}
@@ -107,7 +107,7 @@ export default function PositionsPage() {
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <TradeLog positions={history} earnBase="/earn" />
+          <TradeLog positions={history} earnBase="/earn/eth" />
         </section>
       )}
     </main>
