@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
+import { fmtUsd } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
@@ -203,7 +204,7 @@ function TradeRow({
               ) : (
                 <p>
                   Committed {committedDisplay} &rarr; Returned {committedDisplay} +{" "}
-                  <span className="font-mono font-medium text-[var(--accent)]">${premiumUsd.toFixed(0)} earned</span>
+                  <span className="font-mono font-medium text-[var(--accent)]">${fmtUsd(premiumUsd)} earned</span>
                 </p>
               )}
 

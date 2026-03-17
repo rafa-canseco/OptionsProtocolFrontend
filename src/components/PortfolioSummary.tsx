@@ -1,6 +1,7 @@
 "use client";
 
 import type { Position, Activity } from "@/lib/api";
+import { fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
 function formatUSD(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${Math.round(n).toLocaleString()}`;
+  return `$${fmtUsd(n)}`;
 }
 
 export function PortfolioSummary({
@@ -81,7 +82,7 @@ export function PortfolioSummary({
             Total Earned
           </p>
           <p className="text-xl font-bold text-[var(--accent)] font-mono">
-            ${premiumEarned.toFixed(0)}
+            ${fmtUsd(premiumEarned)}
           </p>
         </div>
         <div>

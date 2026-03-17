@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import type { Position } from "@/lib/api";
+import { fmtUsd } from "@/lib/utils";
 
 type Period = "1M" | "3M" | "ALL";
 const PERIODS: Period[] = ["1M", "3M", "ALL"];
@@ -33,7 +34,7 @@ function formatDate(d: Date): string {
 
 function formatUsd(value: number): string {
   if (Math.abs(value) >= 1000) return `$${(value / 1000).toFixed(1)}k`;
-  return `$${Math.round(value)}`;
+  return `$${fmtUsd(value)}`;
 }
 
 function buildChartData(positions: Position[]): ChartPoint[] {

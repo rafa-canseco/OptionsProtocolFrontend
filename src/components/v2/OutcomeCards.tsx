@@ -1,5 +1,7 @@
 "use client";
 
+import { fmtUsd } from "@/lib/utils";
+
 interface OutcomeCardsProps {
   side: "buy" | "sell";
   amount?: number;
@@ -33,7 +35,7 @@ export function OutcomeCards({
     : "Your capital back";
 
   const otmEarnings = hasPremium
-    ? `+ keep $${Math.round(premium).toLocaleString()}`
+    ? `+ keep $${fmtUsd(premium)}`
     : "+ keep earnings";
 
   const itmDescription = hasStrike
