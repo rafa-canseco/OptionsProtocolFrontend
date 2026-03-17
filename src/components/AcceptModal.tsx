@@ -95,6 +95,11 @@ async function fireAndPoll(
   return hash;
 }
 
+function truncate(value: number, decimals: number): string {
+  const factor = 10 ** decimals;
+  return (Math.floor(value * factor) / factor).toFixed(decimals);
+}
+
 function computeCollateral(
   isBuy: boolean,
   amount: number,
@@ -102,12 +107,12 @@ function computeCollateral(
 ): { oTokenAmount: bigint; collateral: bigint; collateralAsset: Address } {
   if (isBuy) {
     const ethUnits = amount / strike;
-    const oTokenAmount = parseUnits(ethUnits.toFixed(8), 8);
+    const oTokenAmount = parseUnits(truncate(ethUnits, 8), 8);
     const strikePrice8 = BigInt(Math.round(strike * 1e8));
     const collateral = (oTokenAmount * strikePrice8) / BigInt(1e10);
     return { oTokenAmount, collateral, collateralAsset: ADDRESSES.usdc };
   }
-  const oTokenAmount = parseUnits(amount.toFixed(8), 8);
+  const oTokenAmount = parseUnits(truncate(amount, 8), 8);
   const collateral = oTokenAmount * BigInt(1e10);
   return { oTokenAmount, collateral, collateralAsset: ADDRESSES.weth };
 }
