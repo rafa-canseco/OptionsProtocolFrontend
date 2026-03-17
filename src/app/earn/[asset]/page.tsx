@@ -13,7 +13,7 @@ export default function EarnAssetPage({
   const { asset } = use(params);
   const config = getAssetConfig(asset);
 
-  if (!config) {
+  if (!config || config.comingSoon) {
     redirect(`/earn/${DEFAULT_ASSET}`);
   }
 

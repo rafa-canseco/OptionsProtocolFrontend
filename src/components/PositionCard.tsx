@@ -81,16 +81,16 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
     : null;
 
   // Cost basis for ITM assigned positions
-  // Put assigned: user bought ETH → cost basis = strike - premium per ETH
-  // Call assigned: user sold ETH → effective sale price = strike + premium per ETH
+  // Put assigned: user bought asset at strike - premium per unit
+  // Call assigned: user sold asset at strike + premium per unit
   const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
   const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
 
   // Unrealized gain for ITM: compare current spot to cost basis
   const unrealizedPerEth = spot != null
     ? isBuy
-      ? spot - costBasis   // bought ETH: gain if spot > cost basis
-      : costBasis - spot   // sold ETH: gain if cost basis > spot (already realized)
+      ? spot - costBasis   // bought asset: gain if spot > cost basis
+      : costBasis - spot   // sold asset: gain if cost basis > spot
     : null;
   const unrealizedPct = unrealizedPerEth != null && costBasis > 0
     ? (unrealizedPerEth / costBasis) * 100

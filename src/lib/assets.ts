@@ -14,6 +14,8 @@ export interface AssetConfig {
   amountPlaceholder: string;
   /** Number of decimals to show for the asset */
   displayDecimals: number;
+  /** When true, the asset is shown in selectors but not yet tradeable */
+  comingSoon?: boolean;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -38,11 +40,18 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.01",
     displayDecimals: 6,
+    comingSoon: true,
   },
 };
 
 export const ASSET_SLUGS = Object.keys(ASSETS);
 export const DEFAULT_ASSET = "eth";
+
+if (!(DEFAULT_ASSET in ASSETS)) {
+  throw new Error(
+    `DEFAULT_ASSET "${DEFAULT_ASSET}" not found in ASSETS registry`
+  );
+}
 
 export function getAssetConfig(slug: string): AssetConfig | undefined {
   return ASSETS[slug.toLowerCase()];

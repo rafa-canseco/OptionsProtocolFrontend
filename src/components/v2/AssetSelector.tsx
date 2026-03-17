@@ -99,26 +99,37 @@ export function AssetSelector({
               {ASSET_SLUGS.map((slug) => {
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
+                const disabled = !!asset.comingSoon;
                 return (
                   <CommandItem
                     key={slug}
                     value={`${asset.symbol} ${asset.name}`}
+                    disabled={disabled}
                     onSelect={() => {
+                      if (disabled) return;
                       if (!isActive) {
                         router.push(`/earn/${slug}`);
                       }
                       setOpen(false);
                     }}
-                    className="flex items-center gap-2.5 px-3 py-2.5
-                      cursor-pointer text-[var(--text)]
-                      data-[selected=true]:bg-[var(--surface)]"
+                    className={`flex items-center gap-2.5 px-3 py-2.5
+                      text-[var(--text)]
+                      data-[selected=true]:bg-[var(--surface)]
+                      ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
                   >
                     <AssetIcon slug={slug} size={18} />
                     <span className="font-medium">{asset.symbol}</span>
                     <span className="text-xs text-[var(--text-secondary)]">
                       {asset.name}
                     </span>
-                    {isActive && (
+                    {disabled && (
+                      <span className="ml-auto text-[10px] font-medium
+                        text-[var(--text-secondary)] bg-[var(--surface)]
+                        px-1.5 py-0.5 rounded">
+                        Soon
+                      </span>
+                    )}
+                    {!disabled && isActive && (
                       <Check className="ml-auto size-4 text-[var(--accent)]" />
                     )}
                   </CommandItem>
