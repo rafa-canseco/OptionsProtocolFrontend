@@ -20,6 +20,7 @@ const ADDRESS_ENV: Record<string, string | undefined> = {
   NEXT_PUBLIC_BATCH_SETTLER_ADDRESS:  process.env.NEXT_PUBLIC_BATCH_SETTLER_ADDRESS,
   NEXT_PUBLIC_USDC_ADDRESS:           process.env.NEXT_PUBLIC_USDC_ADDRESS,
   NEXT_PUBLIC_WETH_ADDRESS:           process.env.NEXT_PUBLIC_WETH_ADDRESS,
+  NEXT_PUBLIC_WBTC_ADDRESS:           process.env.NEXT_PUBLIC_WBTC_ADDRESS,
 };
 
 const missing = Object.entries(ADDRESS_ENV)
@@ -43,6 +44,7 @@ export const ADDRESSES = {
   batchSettler:  ADDRESS_ENV.NEXT_PUBLIC_BATCH_SETTLER_ADDRESS  as Address,
   usdc:          ADDRESS_ENV.NEXT_PUBLIC_USDC_ADDRESS           as Address,
   weth:          ADDRESS_ENV.NEXT_PUBLIC_WETH_ADDRESS           as Address,
+  wbtc:          ADDRESS_ENV.NEXT_PUBLIC_WBTC_ADDRESS           as Address,
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;

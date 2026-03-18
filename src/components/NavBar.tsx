@@ -18,7 +18,7 @@ const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
 export function NavBar() {
   const pathname = usePathname();
   const { address, sendBatchTx, chainError, isConnected } = useWallet();
-  const { usd, eth, weth, usdFormatted, loading: balLoading, refetch } = useBalances(address);
+  const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
 
@@ -55,7 +55,7 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0) && (
+          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
               <img src="/usdc.svg" alt="USDC" className="w-4 h-4 inline" />
               <span>${usdFormatted}</span>
@@ -69,6 +69,12 @@ export function NavBar() {
                       <span>{weth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} WETH</span>
                     </>
                   )}
+                </>
+              )}
+              {currentAsset === "btc" && wbtc > 0 && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{wbtc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} LBTC</span>
                 </>
               )}
             </div>
