@@ -8,18 +8,17 @@ import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { useSpot } from "@/hooks/useSpot";
-import { usePrices } from "@/hooks/usePrices";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
+import { inferAssetFromStrike } from "@/lib/assets";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
   const { activity } = useActivity(address);
-  const { spot: spotFromEndpoint } = useSpot("eth");
-  const { prices } = usePrices();
-  const spot = spotFromEndpoint ?? prices[0]?.spot;
+  const { spot: ethSpot } = useSpot("eth");
+  const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
@@ -81,17 +80,22 @@ export default function PositionsPage() {
         </h2>
         {active.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {active.map((pos) => (
-              <PositionCard
-                key={pos.id}
-                position={pos}
-                onSettled={refresh}
-                spot={spot}
-                earnBase="/earn/eth"
-                optimistic={pos.id.startsWith("opt-")}
-                yieldMetric={yieldMetric}
-              />
-            ))}
+            {active.map((pos) => {
+              const posAsset = inferAssetFromStrike(pos.strike_price);
+              const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+              return (
+                <PositionCard
+                  key={pos.id}
+                  position={pos}
+                  onSettled={refresh}
+                  spot={posSpot}
+                  earnBase={`/earn/${posAsset.slug}`}
+                  assetSymbol={posAsset.symbol}
+                  optimistic={pos.id.startsWith("opt-")}
+                  yieldMetric={yieldMetric}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
@@ -109,7 +113,7 @@ export default function PositionsPage() {
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <TradeLog positions={history} earnBase="/earn/eth" />
+          <TradeLog positions={history} />
         </section>
       )}
     </main>

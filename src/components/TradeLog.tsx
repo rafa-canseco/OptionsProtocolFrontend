@@ -5,17 +5,16 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
+import { inferAssetFromStrike } from "@/lib/assets";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
 const DEFAULT_VISIBLE = 5;
 
 interface Props {
   positions: Position[];
-  earnBase?: string;
-  assetSymbol?: string;
 }
 
-export function TradeLog({ positions, earnBase = "/earn/eth", assetSymbol = "ETH" }: Props) {
+export function TradeLog({ positions }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 
@@ -57,8 +56,6 @@ export function TradeLog({ positions, earnBase = "/earn/eth", assetSymbol = "ETH
             <TradeRow
               key={p.id}
               position={p}
-              earnBase={earnBase}
-              assetSymbol={assetSymbol}
               isExpanded={expanded.has(p.id)}
               onToggle={() => toggle(p.id)}
             />
@@ -80,17 +77,16 @@ export function TradeLog({ positions, earnBase = "/earn/eth", assetSymbol = "ETH
 
 function TradeRow({
   position: p,
-  earnBase,
-  assetSymbol,
   isExpanded,
   onToggle,
 }: {
   position: Position;
-  earnBase: string;
-  assetSymbol: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
+  const posAsset = inferAssetFromStrike(p.strike_price);
+  const assetSymbol = posAsset.symbol;
+  const earnBase = `/earn/${posAsset.slug}`;
   const isBuy = p.is_put;
   const isItm = p.is_itm === true;
   const strike = p.strike_price / 1e8;
@@ -127,10 +123,11 @@ function TradeRow({
     nextSide = isBuy ? "buy" : "sell";
   }
 
-  // Expanded detail
+  // Expanded detail — call collateral decimals: WETH=18, WBTC=8
+  const collateralDecimals = posAsset.slug === "btc" ? 1e8 : 1e18;
   const committedDisplay = isBuy
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(p.collateral / 1e18).toFixed(2)} ${assetSymbol}`;
+    : `${(p.collateral / collateralDecimals).toFixed(2)} ${assetSymbol}`;
 
   const totalCols = 8;
 
