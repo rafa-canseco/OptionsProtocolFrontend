@@ -12,9 +12,10 @@ const DEFAULT_VISIBLE = 5;
 interface Props {
   positions: Position[];
   earnBase?: string;
+  assetSymbol?: string;
 }
 
-export function TradeLog({ positions, earnBase = "/earn" }: Props) {
+export function TradeLog({ positions, earnBase = "/earn/eth", assetSymbol = "ETH" }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 
@@ -57,6 +58,7 @@ export function TradeLog({ positions, earnBase = "/earn" }: Props) {
               key={p.id}
               position={p}
               earnBase={earnBase}
+              assetSymbol={assetSymbol}
               isExpanded={expanded.has(p.id)}
               onToggle={() => toggle(p.id)}
             />
@@ -79,11 +81,13 @@ export function TradeLog({ positions, earnBase = "/earn" }: Props) {
 function TradeRow({
   position: p,
   earnBase,
+  assetSymbol,
   isExpanded,
   onToggle,
 }: {
   position: Position;
   earnBase: string;
+  assetSymbol: string;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -126,7 +130,7 @@ function TradeRow({
   // Expanded detail
   const committedDisplay = isBuy
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(p.collateral / 1e18).toFixed(2)} ETH`;
+    : `${(p.collateral / 1e18).toFixed(2)} ${assetSymbol}`;
 
   const totalCols = 8;
 
@@ -191,13 +195,13 @@ function TradeRow({
               {isItm ? (
                 <>
                   <p>
-                    Cost basis: ${strike.toLocaleString()} {isBuy ? "−" : "+"} ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH premium ={" "}
-                    <span className="font-mono font-medium text-[var(--text)]">${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH</span>
+                    Cost basis: ${strike.toLocaleString()} {isBuy ? "−" : "+"} ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol} premium ={" "}
+                    <span className="font-mono font-medium text-[var(--text)]">${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</span>
                   </p>
                   <p>
-                    {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} ETH
+                    {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} {assetSymbol}
                     {expiryPriceUsd != null && (
-                      <> · Settled at ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH</>
+                      <> · Settled at ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</>
                     )}
                   </p>
                 </>

@@ -13,15 +13,17 @@ interface Props {
   onSettled?: () => void;
   spot?: number;
   renderExtra?: (position: Position, strike: number) => ReactNode;
-  /** Base path for Earn links, e.g. "/earn" */
+  /** Base path for Earn links, e.g. "/earn/eth" */
   earnBase?: string;
   /** When true, shows a "Confirming..." badge for optimistic positions */
   optimistic?: boolean;
   /** Which yield metric to display — defaults to "apr" */
   yieldMetric?: YieldMetric;
+  /** Asset symbol for display, e.g. "ETH", "BTC" */
+  assetSymbol?: string;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn", optimistic, yieldMetric = "apr" }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -34,7 +36,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
     : (position.collateral / 1e18) * strike;
   const committedDisplay = isBuy
     ? `$${(position.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(position.collateral / 1e18).toFixed(2)} ETH`;
+    : `${(position.collateral / 1e18).toFixed(2)} ${assetSymbol}`;
 
   // Premium in LUSD base units (6 decimals)
   const premiumUsd = Number(position.net_premium) / 1e6;
@@ -79,16 +81,16 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
     : null;
 
   // Cost basis for ITM assigned positions
-  // Put assigned: user bought ETH → cost basis = strike - premium per ETH
-  // Call assigned: user sold ETH → effective sale price = strike + premium per ETH
+  // Put assigned: user bought asset at strike - premium per unit
+  // Call assigned: user sold asset at strike + premium per unit
   const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
   const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
 
   // Unrealized gain for ITM: compare current spot to cost basis
   const unrealizedPerEth = spot != null
     ? isBuy
-      ? spot - costBasis   // bought ETH: gain if spot > cost basis
-      : costBasis - spot   // sold ETH: gain if cost basis > spot (already realized)
+      ? spot - costBasis   // bought asset: gain if spot > cost basis
+      : costBasis - spot   // sold asset: gain if cost basis > spot
     : null;
   const unrealizedPct = unrealizedPerEth != null && costBasis > 0
     ? (unrealizedPerEth / costBasis) * 100
@@ -108,7 +110,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {/* Header */}
           <div className="flex items-center justify-between">
             <p className="text-base font-semibold text-[var(--bone)]">
-              {isBuy ? "Buy" : "Sell"} ETH at <span className="font-mono">${strike.toLocaleString()}</span>/ETH
+              {isBuy ? "Buy" : "Sell"} {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span>/{assetSymbol}
             </p>
             {optimistic && (
               <span className="flex items-center gap-1.5 text-xs font-medium text-[var(--text-secondary)]">
@@ -154,7 +156,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {/* Badge */}
           <div className="flex items-center justify-between">
             <p className="text-base font-semibold text-[var(--bone)]">
-              {isBuy ? "Buy" : "Sell"} ETH at <span className="font-mono">${strike.toLocaleString()}</span>/ETH
+              {isBuy ? "Buy" : "Sell"} {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span>/{assetSymbol}
             </p>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
               Earned
@@ -171,7 +173,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           </p>
 
           <p className="text-xs text-[var(--text-secondary)]">
-            {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/ETH · </>}
+            {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/{assetSymbol} · </>}
             {returnPct.toFixed(1)}% in {totalDays}d · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
           </p>
 
@@ -191,7 +193,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {/* Badge — positive framing */}
           <div className="flex items-center justify-between">
             <p className="text-base font-semibold text-[var(--bone)]">
-              {isBuy ? "Bought" : "Sold"} <span className="font-mono">{ethAmountDisplay}</span> ETH
+              {isBuy ? "Bought" : "Sold"} <span className="font-mono">{ethAmountDisplay}</span> {assetSymbol}
             </p>
             <span className="text-xs font-medium text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-full">
               Assigned
@@ -202,11 +204,11 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           <div className="space-y-1">
             <p className="text-sm text-[var(--text)]">
               {isBuy
-                ? `You bought ETH at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-                : `You sold ETH at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
+                ? `You bought ${assetSymbol} at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+                : `You sold ${assetSymbol} at $${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}`}
             </p>
             <p className="text-xs text-[var(--text-secondary)]">
-              Strike ${strike.toLocaleString()} {isBuy ? "−" : "+"} premium ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH = cost basis ${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/ETH
+              Strike ${strike.toLocaleString()} {isBuy ? "−" : "+"} premium ${premiumPerEth.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol} = cost basis ${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}
             </p>
           </div>
 
@@ -223,11 +225,11 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
               </div>
               <div className="flex items-center justify-between mt-0.5">
                 <span className="text-xs text-[var(--text-secondary)]">
-                  ETH now: ${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                  {assetSymbol} now: ${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}
                 </span>
                 {unrealizedPct != null && (
                 <span className={`text-xs font-mono ${unrealizedPerEth >= 0 ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-                  {unrealizedPerEth >= 0 ? "+" : ""}{unrealizedPct.toFixed(1)}%/ETH
+                  {unrealizedPerEth >= 0 ? "+" : ""}{unrealizedPct.toFixed(1)}%/{assetSymbol}
                 </span>
                 )}
               </div>
@@ -246,8 +248,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             className="block w-full text-center rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
             {isBuy
-              ? "Earn more: sell ETH at a higher price"
-              : "Earn more: buy ETH at a lower price"}
+              ? `Earn more: sell ${assetSymbol} at a higher price`
+              : `Earn more: buy ${assetSymbol} at a lower price`}
           </Link>
         </div>
       )}
