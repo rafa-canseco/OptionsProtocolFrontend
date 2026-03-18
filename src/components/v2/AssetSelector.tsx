@@ -21,7 +21,7 @@ import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 
 const ASSET_LOGOS: Record<string, { src: string; type: "svg" | "png" }> = {
   eth: { src: "/eth.svg", type: "svg" },
-  btc: { src: "/cbbtc.png", type: "png" },
+  btc: { src: "/cbbtc.webp", type: "webp" },
 };
 
 function AssetIcon({
