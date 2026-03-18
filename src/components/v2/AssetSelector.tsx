@@ -20,7 +20,7 @@ import Image from "next/image";
 import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 
 const ASSET_LOGOS: Record<string, string> = {
-  eth: "/eth.svg",
+  eth: "/eth.png",
   btc: "/cbbtc.webp",
   aero: "/aero.png",
   virtual: "/virtual.png",
