@@ -100,7 +100,7 @@ function StrikeCard({
 }
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
-  const { prices, loading, error, refresh } = usePrices();
+  const { prices, loading, error, refresh } = usePrices(asset.slug);
   const { capacity } = useCapacity();
   const { address, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);

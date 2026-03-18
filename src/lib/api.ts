@@ -102,7 +102,8 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getPrices: () => fetchAPI<PriceQuote[]>("/prices"),
+  getPrices: (asset?: string) =>
+    fetchAPI<PriceQuote[]>(asset ? `/prices?asset=${asset}` : "/prices"),
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
