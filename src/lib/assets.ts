@@ -53,3 +53,23 @@ if (!(DEFAULT_ASSET in ASSETS)) {
 export function getAssetConfig(slug: string): AssetConfig | undefined {
   return ASSETS[slug.toLowerCase()];
 }
+
+/**
+ * Resolve asset config for a position.
+ * Uses the backend `asset` field when available, falls back to
+ * inferring from strike price (BTC > $10k, ETH below).
+ */
+export function resolvePositionAsset(
+  asset?: string,
+  strikePrice?: number,
+): AssetConfig {
+  if (asset) {
+    const config = ASSETS[asset.toLowerCase()];
+    if (config) return config;
+  }
+  if (strikePrice != null) {
+    const strikeUsd = strikePrice / 1e8;
+    return strikeUsd > 10_000 ? ASSETS.btc : ASSETS.eth;
+  }
+  return ASSETS[DEFAULT_ASSET];
+}

@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
-import { inferAssetFromStrike } from "@/lib/assets";
+import { resolvePositionAsset } from "@/lib/assets";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
 const DEFAULT_VISIBLE = 5;
@@ -84,7 +84,7 @@ function TradeRow({
   isExpanded: boolean;
   onToggle: () => void;
 }) {
-  const posAsset = inferAssetFromStrike(p.strike_price);
+  const posAsset = resolvePositionAsset(p.asset, p.strike_price);
   const assetSymbol = posAsset.symbol;
   const earnBase = `/earn/${posAsset.slug}`;
   const isBuy = p.is_put;

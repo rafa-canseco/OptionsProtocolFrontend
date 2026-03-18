@@ -51,6 +51,8 @@ export interface Position {
   net_premium: string;
   protocol_fee: string;
   outcome: string | null;
+  /** Asset slug (e.g. "eth", "btc"). May be absent on older rows. */
+  asset?: string;
 }
 
 export interface SimulateResult {

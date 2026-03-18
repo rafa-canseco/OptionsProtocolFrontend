@@ -10,7 +10,7 @@ import { usePositions } from "@/hooks/usePositions";
 import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
-import { inferAssetFromStrike } from "@/lib/assets";
+import { resolvePositionAsset } from "@/lib/assets";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
@@ -81,7 +81,7 @@ export default function PositionsPage() {
         {active.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {active.map((pos) => {
-              const posAsset = inferAssetFromStrike(pos.strike_price);
+              const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
               const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
               return (
                 <PositionCard
