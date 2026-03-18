@@ -19,9 +19,11 @@ import {
 import Image from "next/image";
 import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 
-const ASSET_LOGOS: Record<string, { src: string; type: "svg" | "png" }> = {
-  eth: { src: "/eth.svg", type: "svg" },
-  btc: { src: "/cbbtc.webp", type: "webp" },
+const ASSET_LOGOS: Record<string, string> = {
+  eth: "/eth.svg",
+  btc: "/cbbtc.webp",
+  aero: "/aero.png",
+  virtual: "/virtual.png",
 };
 
 function AssetIcon({
@@ -31,11 +33,11 @@ function AssetIcon({
   slug: string;
   size?: number;
 }) {
-  const logo = ASSET_LOGOS[slug];
-  if (logo) {
+  const logoSrc = ASSET_LOGOS[slug];
+  if (logoSrc) {
     return (
       <Image
-        src={logo.src}
+        src={logoSrc}
         alt={ASSETS[slug]?.symbol ?? slug}
         width={size}
         height={size}
@@ -95,27 +97,38 @@ export function AssetSelector({
               {ASSET_SLUGS.map((slug) => {
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
+                const disabled = asset.comingSoon === true;
                 return (
                   <CommandItem
                     key={slug}
                     value={`${asset.symbol} ${asset.name}`}
+                    disabled={disabled}
                     onSelect={() => {
+                      if (disabled) return;
                       if (!isActive) {
                         router.push(`/earn/${slug}`);
                       }
                       setOpen(false);
                     }}
-                    className="flex items-center gap-2.5 px-3 py-2.5
-                      cursor-pointer text-[var(--text)]
+                    className={`flex items-center gap-2.5 px-3 py-2.5
+                      text-[var(--text)]
                       data-[selected=true]:bg-[var(--surface)]
-                      data-[selected=true]:text-[var(--text)]"
+                      data-[selected=true]:text-[var(--text)]
+                      ${disabled ? "opacity-50 cursor-default" : "cursor-pointer"}`}
                   >
                     <AssetIcon slug={slug} size={18} />
                     <span className="font-medium">{asset.symbol}</span>
                     <span className="text-xs text-[var(--text-secondary)]">
                       {asset.name}
                     </span>
-                    {isActive && (
+                    {disabled && (
+                      <span className="ml-auto text-[10px] font-medium
+                        text-[var(--text-secondary)] border
+                        border-[var(--border)] rounded px-1.5 py-0.5">
+                        Soon
+                      </span>
+                    )}
+                    {!disabled && isActive && (
                       <Check className="ml-auto size-4 text-[var(--accent)]" />
                     )}
                   </CommandItem>

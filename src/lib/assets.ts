@@ -14,6 +14,8 @@ export interface AssetConfig {
   amountPlaceholder: string;
   /** Number of decimals to show for the asset */
   displayDecimals: number;
+  /** If true, asset is shown in selector but not tradeable yet */
+  comingSoon?: boolean;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -38,6 +40,30 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.01",
     displayDecimals: 6,
+  },
+  aero: {
+    slug: "aero",
+    symbol: "AERO",
+    name: "Aerodrome",
+    wrappedSymbol: "AERO",
+    stableSymbol: "USDC",
+    maxAmount: 0,
+    maxAmountUsd: 0,
+    amountPlaceholder: "0",
+    displayDecimals: 2,
+    comingSoon: true,
+  },
+  virtual: {
+    slug: "virtual",
+    symbol: "VIRTUAL",
+    name: "Virtuals Protocol",
+    wrappedSymbol: "VIRTUAL",
+    stableSymbol: "USDC",
+    maxAmount: 0,
+    maxAmountUsd: 0,
+    amountPlaceholder: "0",
+    displayDecimals: 2,
+    comingSoon: true,
   },
 };
 
