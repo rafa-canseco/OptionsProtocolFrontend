@@ -5,6 +5,7 @@ import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { BackgroundEffects } from "./BackgroundEffects";
 import { usePrices } from "@/hooks/usePrices";
+import { useSpot } from "@/hooks/useSpot";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
@@ -1007,8 +1008,9 @@ function CTASection() {
 export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const { prices, loading: priceLoading } = usePrices(undefined, 30_000);
-  const spot = prices[0]?.spot ? Math.round(prices[0].spot) : FALLBACK_SPOT;
-  const priceReady = !priceLoading;
+  const { spot: liveSpot, loading: spotLoading } = useSpot("eth", 30_000);
+  const spot = liveSpot ? Math.round(liveSpot) : FALLBACK_SPOT;
+  const priceReady = !priceLoading && !spotLoading;
   const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
   return (
