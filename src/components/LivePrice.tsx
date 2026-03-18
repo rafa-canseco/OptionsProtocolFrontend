@@ -103,15 +103,9 @@ export function LivePrice({ spot, className = "" }: { spot: number | undefined; 
   return (
     <div className={`flex items-center gap-4 ${className}`}>
       <div>
-        <p className="text-sm text-[var(--text-secondary)]">ETH</p>
         <p className={`text-4xl font-bold text-[var(--bone)] font-mono tabular-nums ${flash ? "price-flash" : ""}`}>
           <AnimatedNumber value={spot} prefix="$" />
         </p>
-        {direction && (
-          <p className={`text-sm font-medium mt-0.5 ${direction === "up" ? "text-[var(--accent)]" : "text-[var(--danger)]"}`}>
-            {direction === "up" ? "↑" : "↓"}
-          </p>
-        )}
       </div>
       <Sparkline prices={history} />
     </div>

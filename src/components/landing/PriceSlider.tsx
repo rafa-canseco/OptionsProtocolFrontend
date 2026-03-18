@@ -90,7 +90,7 @@ export function PriceSlider({ spot }: { spot: number }) {
     }
   }, [side, spot, low, high]);
 
-  const { prices, loading } = usePrices(60_000);
+  const { prices, loading } = usePrices(undefined, 60_000);
 
   // Get premium: real MM quote if available, realistic estimate otherwise
   const premium = useMemo(() => {

@@ -7,6 +7,7 @@ interface OutcomeCardsProps {
   amount?: number;
   strike?: number;
   premium?: number;
+  assetSymbol?: string;
 }
 
 export function OutcomeCards({
@@ -14,6 +15,7 @@ export function OutcomeCards({
   amount,
   strike,
   premium,
+  assetSymbol = "ETH",
 }: OutcomeCardsProps) {
   const isBuy = side === "buy";
   const hasAmount = amount !== undefined && amount > 0;
@@ -31,7 +33,7 @@ export function OutcomeCards({
   const otmCommit = hasAmount
     ? isBuy
       ? `$${amount.toLocaleString()} back`
-      : `${amount} ETH back`
+      : `${amount} ${assetSymbol} back`
     : "Your capital back";
 
   const otmEarnings = hasPremium
@@ -46,15 +48,15 @@ export function OutcomeCards({
 
   const itmAction = hasStrike && hasAmount
     ? isBuy
-      ? `Buy ${(amount / strike).toFixed(2)} ETH at $${strike.toLocaleString()}`
-      : `Sell ${amount} ETH at $${strike.toLocaleString()}`
+      ? `Buy ${(amount / strike).toFixed(2)} ${assetSymbol} at $${strike.toLocaleString()}`
+      : `Sell ${amount} ${assetSymbol} at $${strike.toLocaleString()}`
     : hasAmount
       ? isBuy
-        ? `Buy ETH at your strike price`
-        : `Sell ${amount} ETH at your strike price`
+        ? `Buy ${assetSymbol} at your strike price`
+        : `Sell ${amount} ${assetSymbol} at your strike price`
       : isBuy
-        ? "Buy ETH at your price"
-        : "Sell ETH at your price";
+        ? `Buy ${assetSymbol} at your price`
+        : `Sell ${assetSymbol} at your price`;
 
   const itmEarnings = otmEarnings;
 

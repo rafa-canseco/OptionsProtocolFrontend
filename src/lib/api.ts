@@ -51,6 +51,8 @@ export interface Position {
   net_premium: string;
   protocol_fee: string;
   outcome: string | null;
+  /** Asset slug (e.g. "eth", "btc"). May be absent on older rows. */
+  asset?: string;
 }
 
 export interface SimulateResult {
@@ -83,6 +85,12 @@ export interface Capacity {
   updated_at: string;
 }
 
+export interface SpotPrice {
+  asset: string;
+  price: number;
+  timestamp: number;
+}
+
 export interface AnalyticsEvent {
   session_id: string;
   event_type: string;
@@ -102,7 +110,8 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  getPrices: () => fetchAPI<PriceQuote[]>("/prices"),
+  getPrices: (asset?: string) =>
+    fetchAPI<PriceQuote[]>(asset ? `/prices?asset=${asset}` : "/prices"),
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
@@ -128,6 +137,9 @@ export const api = {
   getActivity: (address: string) =>
     fetchAPI<Activity>(`/activity/${address}`),
 
-  getCapacity: () => fetchAPI<Capacity>("/capacity"),
+  getCapacity: (asset?: string) =>
+    fetchAPI<Capacity>(asset ? `/capacity?asset=${asset}` : "/capacity"),
 
+  getSpot: (asset: string) =>
+    fetchAPI<SpotPrice>(`/spot?asset=${asset}`),
 };

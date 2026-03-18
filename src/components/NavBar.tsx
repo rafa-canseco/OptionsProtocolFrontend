@@ -6,6 +6,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
+import { DEFAULT_ASSET } from "@/lib/assets";
 
 const LINKS = [
   { href: "/earn", label: "Earn" },
@@ -17,9 +18,13 @@ const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
 export function NavBar() {
   const pathname = usePathname();
   const { address, sendBatchTx, chainError, isConnected } = useWallet();
-  const { usd, eth, weth, usdFormatted, loading: balLoading, refetch } = useBalances(address);
+  const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
+
+  // Extract current asset from /earn/[asset] path
+  const earnMatch = pathname.match(/^\/earn\/(\w+)/);
+  const currentAsset = earnMatch?.[1] ?? DEFAULT_ASSET;
 
   return (
     <>
@@ -50,16 +55,26 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0) && (
+          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
               <img src="/usdc.svg" alt="USDC" className="w-4 h-4 inline" />
               <span>${usdFormatted}</span>
-              <span className="opacity-40">·</span>
-              <span>{eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH</span>
-              {weth > 0 && (
+              {currentAsset === "eth" && (
                 <>
                   <span className="opacity-40">·</span>
-                  <span>{weth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} WETH</span>
+                  <span>{eth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ETH</span>
+                  {weth > 0 && (
+                    <>
+                      <span className="opacity-40">·</span>
+                      <span>{weth.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} WETH</span>
+                    </>
+                  )}
+                </>
+              )}
+              {currentAsset === "btc" && wbtc > 0 && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{wbtc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} cbBTC</span>
                 </>
               )}
             </div>

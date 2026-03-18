@@ -1,29 +1,29 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { api, type Capacity } from "@/lib/api";
+import { api } from "@/lib/api";
 
-export function useCapacity(asset?: string, pollInterval = 30_000) {
-  const [capacity, setCapacity] = useState<Capacity | null>(null);
+export function useSpot(asset: string, pollInterval = 10_000) {
+  const [spot, setSpot] = useState<number | undefined>(undefined);
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
     try {
-      const data = await api.getCapacity(asset);
-      setCapacity(data);
+      const data = await api.getSpot(asset);
+      setSpot(data.price);
     } catch {
-      // Keep last known value on error — don't flip market to "closed"
-      // on a transient network failure.
+      // Spot endpoint may not exist yet; fall silent
     } finally {
       setLoading(false);
     }
   }, [asset]);
 
   useEffect(() => {
+    setLoading(true);
     refresh();
     const id = setInterval(refresh, pollInterval);
     return () => clearInterval(id);
   }, [refresh, pollInterval]);
 
-  return { capacity, loading };
+  return { spot, loading };
 }

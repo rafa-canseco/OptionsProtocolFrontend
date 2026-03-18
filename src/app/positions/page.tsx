@@ -7,17 +7,18 @@ import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
-import { usePrices } from "@/hooks/usePrices";
+import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
+import { resolvePositionAsset } from "@/lib/assets";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
   const { activity } = useActivity(address);
-  const { prices } = usePrices();
-  const spot = prices[0]?.spot;
+  const { spot: ethSpot } = useSpot("eth");
+  const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
@@ -45,7 +46,7 @@ export default function PositionsPage() {
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Accept a price on the <a href="/earn" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
+            Accept a price on the <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
           </p>
         </div>
       </main>
@@ -79,23 +80,28 @@ export default function PositionsPage() {
         </h2>
         {active.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {active.map((pos) => (
-              <PositionCard
-                key={pos.id}
-                position={pos}
-                onSettled={refresh}
-                spot={spot}
-                earnBase="/earn"
-                optimistic={pos.id.startsWith("opt-")}
-                yieldMetric={yieldMetric}
-              />
-            ))}
+            {active.map((pos) => {
+              const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
+              const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+              return (
+                <PositionCard
+                  key={pos.id}
+                  position={pos}
+                  onSettled={refresh}
+                  spot={posSpot}
+                  earnBase={`/earn/${posAsset.slug}`}
+                  assetSymbol={posAsset.symbol}
+                  optimistic={pos.id.startsWith("opt-")}
+                  yieldMetric={yieldMetric}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
             <p className="text-sm text-[var(--text-secondary)]">
               No active positions.{" "}
-              <a href="/earn" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
+              <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
             </p>
           </div>
         )}
@@ -107,7 +113,7 @@ export default function PositionsPage() {
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <TradeLog positions={history} earnBase="/earn" />
+          <TradeLog positions={history} />
         </section>
       )}
     </main>
