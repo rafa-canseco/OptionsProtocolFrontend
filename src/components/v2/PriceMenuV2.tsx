@@ -102,7 +102,8 @@ function StrikeCard({
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices(asset.slug);
-  const { spot } = useSpot(asset.slug);
+  const { spot: spotFromEndpoint } = useSpot(asset.slug);
+  const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
   const { address, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);

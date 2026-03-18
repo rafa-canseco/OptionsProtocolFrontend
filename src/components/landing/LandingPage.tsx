@@ -1009,7 +1009,8 @@ export function LandingPage() {
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const { prices, loading: priceLoading } = usePrices(undefined, 30_000);
   const { spot: liveSpot, loading: spotLoading } = useSpot("eth", 30_000);
-  const spot = liveSpot ? Math.round(liveSpot) : FALLBACK_SPOT;
+  const quoteSpot = prices[0]?.spot;
+  const spot = liveSpot ? Math.round(liveSpot) : quoteSpot ? Math.round(quoteSpot) : FALLBACK_SPOT;
   const priceReady = !priceLoading && !spotLoading;
   const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
