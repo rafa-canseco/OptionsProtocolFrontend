@@ -101,7 +101,8 @@ export function AssetSelector({
                     }}
                     className="flex items-center gap-2.5 px-3 py-2.5
                       cursor-pointer text-[var(--text)]
-                      data-[selected=true]:bg-[var(--surface)]"
+                      data-[selected=true]:bg-[var(--surface)]
+                      data-[selected=true]:text-[var(--text)]"
                   >
                     <AssetIcon slug={slug} size={18} />
                     <span className="font-medium">{asset.symbol}</span>
