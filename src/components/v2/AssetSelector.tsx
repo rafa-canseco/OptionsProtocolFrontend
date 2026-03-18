@@ -16,11 +16,12 @@ import {
   CommandGroup,
   CommandItem,
 } from "@/components/ui/command";
+import Image from "next/image";
 import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 
-const ASSET_COLORS: Record<string, string> = {
-  eth: "#627eea",
-  btc: "#f7931a",
+const ASSET_LOGOS: Record<string, { src: string; type: "svg" | "png" }> = {
+  eth: { src: "/eth.svg", type: "svg" },
+  btc: { src: "/cbbtc.png", type: "png" },
 };
 
 function AssetIcon({
@@ -30,20 +31,25 @@ function AssetIcon({
   slug: string;
   size?: number;
 }) {
-  const color = ASSET_COLORS[slug] ?? "#888";
-  const symbol = ASSETS[slug]?.symbol ?? slug.toUpperCase();
+  const logo = ASSET_LOGOS[slug];
+  if (logo) {
+    return (
+      <Image
+        src={logo.src}
+        alt={ASSETS[slug]?.symbol ?? slug}
+        width={size}
+        height={size}
+        className="shrink-0 rounded-full"
+      />
+    );
+  }
   return (
     <div
       className="rounded-full flex items-center justify-center
-        text-white font-bold shrink-0"
-      style={{
-        width: size,
-        height: size,
-        backgroundColor: color,
-        fontSize: size * 0.4,
-      }}
+        text-white font-bold shrink-0 bg-[#888]"
+      style={{ width: size, height: size, fontSize: size * 0.4 }}
     >
-      {symbol.charAt(0)}
+      {(ASSETS[slug]?.symbol ?? slug).charAt(0)}
     </div>
   );
 }

@@ -30,9 +30,9 @@ export const ASSETS: Record<string, AssetConfig> = {
   },
   btc: {
     slug: "btc",
-    symbol: "BTC",
-    name: "Bitcoin",
-    wrappedSymbol: "WBTC",
+    symbol: "cbBTC",
+    name: "Coinbase Wrapped BTC",
+    wrappedSymbol: "cbBTC",
     stableSymbol: "USDC",
     maxAmount: 100,
     maxAmountUsd: 1_000_000,

@@ -74,7 +74,7 @@ export function NavBar() {
               {currentAsset === "btc" && wbtc > 0 && (
                 <>
                   <span className="opacity-40">·</span>
-                  <span>{wbtc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} LBTC</span>
+                  <span>{wbtc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} cbBTC</span>
                 </>
               )}
             </div>
