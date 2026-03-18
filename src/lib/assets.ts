@@ -14,8 +14,6 @@ export interface AssetConfig {
   amountPlaceholder: string;
   /** Number of decimals to show for the asset */
   displayDecimals: number;
-  /** When true, the asset is shown in selectors but not yet tradeable */
-  comingSoon?: boolean;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -40,7 +38,6 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.01",
     displayDecimals: 6,
-    comingSoon: true,
   },
 };
 

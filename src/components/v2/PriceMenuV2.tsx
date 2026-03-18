@@ -255,7 +255,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     <div className="space-y-6">
       <div className="flex items-center justify-between animate-fade-in-up">
         <div className="flex items-center gap-4">
-          <AssetSelector current={asset} spot={spot} />
+          <AssetSelector current={asset} />
           <LivePrice spot={spot} />
         </div>
         <div className="flex items-center gap-4">
