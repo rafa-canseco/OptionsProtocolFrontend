@@ -7,7 +7,7 @@ import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
-import { usePrices } from "@/hooks/usePrices";
+import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
 import type { YieldMetric } from "@/components/YieldToggle";
@@ -16,8 +16,7 @@ export default function PositionsPage() {
   const { address, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address);
   const { activity } = useActivity(address);
-  const { prices } = usePrices();
-  const spot = prices[0]?.spot;
+  const { spot } = useSpot("eth");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 

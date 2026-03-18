@@ -83,6 +83,12 @@ export interface Capacity {
   updated_at: string;
 }
 
+export interface SpotPrice {
+  asset: string;
+  price: number;
+  timestamp: number;
+}
+
 export interface AnalyticsEvent {
   session_id: string;
   event_type: string;
@@ -129,6 +135,9 @@ export const api = {
   getActivity: (address: string) =>
     fetchAPI<Activity>(`/activity/${address}`),
 
-  getCapacity: () => fetchAPI<Capacity>("/capacity"),
+  getCapacity: (asset?: string) =>
+    fetchAPI<Capacity>(asset ? `/capacity?asset=${asset}` : "/capacity"),
 
+  getSpot: (asset: string) =>
+    fetchAPI<SpotPrice>(`/spot?asset=${asset}`),
 };

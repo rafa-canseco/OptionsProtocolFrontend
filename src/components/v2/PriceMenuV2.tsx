@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
+import { useSpot } from "@/hooks/useSpot";
 import { useCapacity } from "@/hooks/useCapacity";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
@@ -101,7 +102,8 @@ function StrikeCard({
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices(asset.slug);
-  const { capacity } = useCapacity();
+  const { spot } = useSpot(asset.slug);
+  const { capacity } = useCapacity(asset.slug);
   const { address, isConnected, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
@@ -129,24 +131,21 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
   const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
 
-  const spot = prices[0]?.spot;
-
   const marketClosed = capacity !== null && (!capacity.market_open || capacity.market_status === "full");
   const marketDegraded = capacity !== null && capacity.market_status === "degraded";
   const capEth = capacity?.max_position_eth ?? asset.maxAmount;
   const capUsd = spot ? Math.min(asset.maxAmountUsd, capEth * spot) : asset.maxAmountUsd;
 
   const filteredPrices = useMemo(() => {
-    const s = prices[0]?.spot;
     return prices
       .filter(
         (p) =>
           p.option_type === (side === "buy" ? "put" : "call") &&
           p.expiry_date === activeExpiry &&
-          (side === "buy" ? p.strike < (s ?? Infinity) : p.strike > (s ?? -Infinity))
+          (side === "buy" ? p.strike < (spot ?? Infinity) : p.strike > (spot ?? -Infinity))
       )
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
-  }, [prices, side, activeExpiry]);
+  }, [prices, side, activeExpiry, spot]);
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
