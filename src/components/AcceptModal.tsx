@@ -297,7 +297,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           return;
         }
       } else if (isBtc) {
-        // BTC calls: WBTC is already ERC20, no wrapping needed
+        // BTC calls: cbBTC is already ERC20, no wrapping needed
         const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
         if (wbtcBal < collateral) {
           setError(`Insufficient ${assetSymbol} balance.`);
