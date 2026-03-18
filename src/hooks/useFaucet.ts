@@ -7,6 +7,7 @@ import type { BatchCall } from "@/hooks/useWallet";
 
 const MINT_USD = parseUnits("100000", 6);   // 100,000 LUSD
 const MINT_ETH = parseUnits("50", 18);      // 50 LETH
+const MINT_BTC = parseUnits("2", 8);        // 2 LBTC
 
 type SendBatchTx = (calls: BatchCall[]) => Promise<unknown>;
 
@@ -44,11 +45,17 @@ export function useFaucet(
         functionName: "mint",
         args: [address, MINT_ETH],
       });
+      const btcData = encodeFunctionData({
+        abi: ERC20_ABI,
+        functionName: "mint",
+        args: [address, MINT_BTC],
+      });
 
-      // Batch both mints into a single UserOperation
+      // Batch all mints into a single UserOperation
       await sendBatchTx([
         { to: ADDRESSES.usdc, data: usdData },
         { to: ADDRESSES.weth, data: ethData },
+        { to: ADDRESSES.wbtc, data: btcData },
       ]);
 
       // Poll until USD balance increases (proves mints landed)

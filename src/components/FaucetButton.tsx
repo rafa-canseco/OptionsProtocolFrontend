@@ -25,7 +25,7 @@ export function FaucetButton({ address, sendBatchTx, refetch }: Props) {
 
       {showNotification && (
         <div className="mx-6 mt-2 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-4 py-2.5 text-sm text-[var(--accent)] animate-fade-in-up">
-          You received 100,000 USD and 50 ETH test tokens.
+          You received 100,000 USDC, 50 ETH, and 2 LBTC test tokens.
         </div>
       )}
 
