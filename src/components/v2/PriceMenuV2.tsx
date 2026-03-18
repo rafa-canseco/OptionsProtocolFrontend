@@ -471,6 +471,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           confirmOnly
           maxPositionEth={capacity?.max_position_eth}
           assetSymbol={asset.symbol}
+          assetSlug={asset.slug}
           onClose={() => setConfirming(false)}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);

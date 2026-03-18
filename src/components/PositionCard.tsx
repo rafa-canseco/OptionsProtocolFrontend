@@ -30,13 +30,15 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   // strike_price is 8 decimals on-chain
   const strike = position.strike_price / 1e8;
 
-  // Collateral: puts = LUSD (6 dec), calls = LETH (18 dec)
+  // Collateral: puts = USDC (6 dec), ETH calls = WETH (18 dec), BTC calls = WBTC (8 dec)
+  const isBtc = assetSymbol === "BTC";
+  const callDec = isBtc ? 1e8 : 1e18;
   const committedUsd = isBuy
     ? position.collateral / 1e6
-    : (position.collateral / 1e18) * strike;
+    : (position.collateral / callDec) * strike;
   const committedDisplay = isBuy
     ? `$${(position.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(position.collateral / 1e18).toFixed(2)} ${assetSymbol}`;
+    : `${(position.collateral / callDec).toFixed(2)} ${assetSymbol}`;
 
   // Premium in LUSD base units (6 decimals)
   const premiumUsd = Number(position.net_premium) / 1e6;

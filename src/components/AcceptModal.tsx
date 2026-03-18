@@ -24,6 +24,8 @@ interface Props {
   confirmOnly?: boolean;
   maxPositionEth?: number;
   assetSymbol?: string;
+  /** Asset slug ("eth" | "btc") to pick the right collateral token for calls */
+  assetSlug?: string;
 }
 
 type TxStep = "idle" | "executing" | "confirmed";
@@ -105,6 +107,7 @@ function computeCollateral(
   isBuy: boolean,
   amount: number,
   strike: number,
+  assetSlug: string,
 ): { oTokenAmount: bigint; collateral: bigint; collateralAsset: Address } {
   if (isBuy) {
     const ethUnits = amount / strike;
@@ -114,8 +117,11 @@ function computeCollateral(
     return { oTokenAmount, collateral, collateralAsset: ADDRESSES.usdc };
   }
   const oTokenAmount = parseUnits(truncate(amount, 8), 8);
-  const collateral = oTokenAmount * BigInt(1e10);
-  return { oTokenAmount, collateral, collateralAsset: ADDRESSES.weth };
+  // WETH uses 18 decimals, WBTC uses 8 decimals
+  const isBtc = assetSlug === "btc";
+  const collateral = isBtc ? oTokenAmount : oTokenAmount * BigInt(1e10);
+  const collateralAsset = isBtc ? ADDRESSES.wbtc : ADDRESSES.weth;
+  return { oTokenAmount, collateral, collateralAsset };
 }
 
 function readTokenBalance(token: Address, account: Address) {
@@ -150,11 +156,14 @@ function buildOptimisticPosition(
   amount: number,
   isBuy: boolean,
   address: Address,
+  assetSlug: string,
 ): Position {
   const optOTokenAmt = isBuy
     ? (amount / quote.strike) * 1e8
     : amount * 1e8;
-  const optCollateral = isBuy ? amount * 1e6 : amount * 1e18;
+  // Puts use USDC (6 dec), ETH calls use WETH (18 dec), BTC calls use WBTC (8 dec)
+  const callDecimals = assetSlug === "btc" ? 1e8 : 1e18;
+  const optCollateral = isBuy ? amount * 1e6 : amount * callDecimals;
   const optPremium = isBuy
     ? String(((quote.premium * amount) / quote.strike) * 1e6)
     : String(quote.premium * amount * 1e6);
@@ -188,17 +197,18 @@ function buildOptimisticPosition(
   };
 }
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH" }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth" }: Props) {
   const { address, sendBatchTx, isConnected, login } = useWallet();
-  const { usd, eth, weth } = useBalances(address);
+  const { usd, eth, weth, wbtc } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
 
   const isBuy = side === "buy";
-  // For covered calls, show total ETH capacity (native + WETH already held)
-  const walletBalance = isBuy ? usd : eth + weth;
+  const isBtc = assetSlug === "btc";
+  // For covered calls: ETH uses native + WETH, BTC uses WBTC
+  const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
@@ -276,9 +286,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
     try {
       const { oTokenAmount, collateral, collateralAsset } =
-        computeCollateral(isBuy, amount, quote.strike);
+        computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
-      // On-chain balance check. For covered calls, accept native ETH + WETH combined.
+      // On-chain balance check
       let wrapAmount = BigInt(0);
       if (isBuy) {
         const usdcBal = await readTokenBalance(ADDRESSES.usdc, address);
@@ -286,7 +296,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           setError("Insufficient USD balance.");
           return;
         }
+      } else if (isBtc) {
+        // BTC calls: WBTC is already ERC20, no wrapping needed
+        const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
+        if (wbtcBal < collateral) {
+          setError(`Insufficient ${assetSymbol} balance.`);
+          return;
+        }
       } else {
+        // ETH calls: accept native ETH + WETH combined, wrap if needed
         const [wethBal, nativeBal] = await Promise.all([
           readTokenBalance(ADDRESSES.weth, address),
           publicClient.getBalance({ address }),
@@ -353,7 +371,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       onAccepted({ amount, txHash: resultHash });
       window.dispatchEvent(new Event("balance:refetch"));
 
-      const pos = buildOptimisticPosition(quote, amount, isBuy, address);
+      const pos = buildOptimisticPosition(quote, amount, isBuy, address, assetSlug);
       try { saveOptimistic(pos); } catch (err) {
         console.warn("[AcceptModal] Could not save optimistic position:", err);
       }

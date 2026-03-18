@@ -14,7 +14,14 @@ export function ExpiryCountdown({ createdAt, expiryDays, expiryTimestamp }: Prop
   useEffect(() => {
     const expiryMs = expiryTimestamp
       ? expiryTimestamp * 1000
-      : new Date(createdAt!).getTime() + expiryDays! * 86_400_000;
+      : createdAt && expiryDays
+        ? new Date(createdAt).getTime() + expiryDays * 86_400_000
+        : NaN;
+
+    if (Number.isNaN(expiryMs)) {
+      setLabel("—");
+      return;
+    }
 
     const tick = () => {
       const remaining = expiryMs - Date.now();
@@ -35,7 +42,7 @@ export function ExpiryCountdown({ createdAt, expiryDays, expiryTimestamp }: Prop
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, [createdAt, expiryDays]);
+  }, [createdAt, expiryDays, expiryTimestamp]);
 
   return <>{label}</>;
 }
