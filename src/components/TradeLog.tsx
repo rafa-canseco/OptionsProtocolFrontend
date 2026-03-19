@@ -169,7 +169,7 @@ function TradeRow({
 
         {/* Premium */}
         <td className="py-3 px-4 text-right font-mono text-[var(--accent)]">
-          +${premiumUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          +${fmtUsd(premiumUsd)}
         </td>
 
         {/* Next Step */}
