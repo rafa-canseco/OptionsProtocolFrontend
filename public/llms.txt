@@ -46,9 +46,9 @@ You deposit the asset (ETH or cbBTC) as collateral and choose a strike price abo
 | Sell call, price stays below strike | Asset returned + keep premium | None |
 | Sell call, price rises above strike | You sell asset at strike (plus premium) | You miss gains above strike |
 
-**Worst case for put sellers:** The asset goes to zero. You bought at the strike price and the asset is now worthless. Your loss is `strike - premium`. This is the same risk as buying the asset outright, minus the premium you earned.
+**Worst case for put sellers:** The asset drops significantly after you're assigned. Your loss is `strike - current_price - premium`. But this loss is **unrealized** — you hold the asset, not a loss. You don't lose money until you sell back to USDC. Instead of selling at a loss, you sell covered calls above your cost basis (`strike - premium`). Each call earns more premium, lowering your cost basis further. You repeat until the price recovers above your cost basis, then your call gets assigned and you exit with profit. This is The Wheel — it turns a drawdown into a recovery engine.
 
-**Worst case for call sellers:** The asset doubles or triples. You sold at the strike and missed all the upside above it. You still made money (premium + appreciation to strike), but less than if you had just held.
+**Worst case for call sellers:** The asset rises sharply above your strike. You sell the asset at the strike and miss the upside above it. You still made money (premium + appreciation to strike), but less than if you had just held. You're now back in USDC — sell another put to re-enter at a price you like.
 
 **What you cannot lose:** More than your collateral. b1nary is fully collateralized — no margin, no liquidations.
 
