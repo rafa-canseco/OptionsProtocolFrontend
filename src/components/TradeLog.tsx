@@ -46,6 +46,7 @@ export function TradeLog({ positions }: Props) {
             <th className="text-left py-3 px-4 font-medium">Type</th>
             <th className="text-right py-3 px-4 font-medium">Strike</th>
             <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Expiry</th>
+            <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Maturity</th>
             <th className="text-left py-3 px-4 font-medium">Outcome</th>
             <th className="text-right py-3 px-4 font-medium">Premium</th>
             <th className="text-right py-3 px-4 font-medium">Next Step</th>
@@ -129,7 +130,7 @@ function TradeRow({
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${(p.collateral / collateralDecimals).toFixed(2)} ${assetSymbol}`;
 
-  const totalCols = 8;
+  const totalCols = 9;
 
   return (
     <>
@@ -158,6 +159,13 @@ function TradeRow({
         {/* Expiry */}
         <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
           {expiryDays}d
+        </td>
+
+        {/* Maturity price */}
+        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
+          {expiryPriceUsd != null
+            ? `$${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+            : "—"}
         </td>
 
         {/* Outcome badge */}
