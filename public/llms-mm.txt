@@ -1,10 +1,22 @@
 # b1nary Market Making Guide
 
-> Everything an AI agent (or human) needs to know to market-make ETH options on b1nary. From zero knowledge of options to submitting your first signed quote.
+> Everything an AI agent (or human) needs to know to market-make options on b1nary. From zero knowledge of options to submitting your first signed quote.
 
-**Chain:** Base Sepolia (testnet, chain ID `84532`)
-**Base URL:** `https://optionsprotocolbackend-staging.up.railway.app`
 **Authentication:** API key required for all `/mm/*` endpoints
+
+### Environments
+
+| | Production (Base mainnet) | Testnet (Base Sepolia) |
+|---|---|---|
+| Chain ID | `8453` | `84532` |
+| API | `https://api.b1nary.app` | `https://optionsprotocolbackend-staging.up.railway.app` |
+| RPC | `https://mainnet.base.org` | `https://sepolia.base.org` |
+| BatchSettler | `0xd281ADdB8b5574360Fd6BFC245B811ad5C582a3B` | `0x766bD3aF1D102f7EbcB65a7B7bC12478C2DbA918` |
+| USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` | `0xAB51a471493832C1D70cef8ff937A850cf37c860` (LUSD) |
+| WETH | `0x4200000000000000000000000000000000000006` | `0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6` (LETH) |
+| cbBTC | `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` | `0x39fA11EbBE82699Fd9F79C566D7384064571d2b4` (LBTC) |
+
+Use testnet for development. All code examples below use testnet values — swap addresses and URLs for production when ready.
 
 ---
 
@@ -258,7 +270,7 @@ Everything runs on Base Sepolia testnet. No real money.
 Call the faucet to get gas ETH + test tokens:
 
 ```bash
-curl -X POST https://optionsprotocolbackend-staging.up.railway.app/faucet \
+curl -X POST $API_URL/faucet \
   -H "Content-Type: application/json" \
   -d '{"address": "0xYourWalletAddress"}'
 ```
@@ -269,21 +281,21 @@ This sends 0.005 ETH (gas), 50 LETH (test WETH), and 100,000 LUSD (test USDC). O
 
 ```python
 # Mint 100,000 LUSD (test USDC) to your wallet
-LUSD_ADDRESS = "0xC056AcB155F37D4993c158902139BBB55fB59ab2"
+LUSD_ADDRESS = "0xAB51a471493832C1D70cef8ff937A850cf37c860"
 LUSD_ABI = [{"inputs": [{"name": "to", "type": "address"}, {"name": "amount", "type": "uint256"}], "name": "mint", "outputs": [], "stateMutability": "nonpayable", "type": "function"}]
 
 lusd = w3.eth.contract(address=LUSD_ADDRESS, abi=LUSD_ABI)
 tx = lusd.functions.mint(YOUR_ADDRESS, 100_000 * 10**6).transact({"from": YOUR_ADDRESS})
 ```
 
-Or use BaseScan Write Contract: https://sepolia.basescan.org/address/0xC056AcB155F37D4993c158902139BBB55fB59ab2#writeContract
+Or use BaseScan Write Contract: https://sepolia.basescan.org/address/0xAB51a471493832C1D70cef8ff937A850cf37c860#writeContract
 
 ### Step 2: Approve USDC to BatchSettler
 
 When users fill your quotes, the contract pulls premium (LUSD) from your wallet. You must approve this once:
 
 ```python
-BATCH_SETTLER = "0x3B5d4640233E14cc330A749926838ba2C540054f"
+BATCH_SETTLER = "0x766bD3aF1D102f7EbcB65a7B7bC12478C2DbA918"  # testnet; see Environments for production
 usdc = w3.eth.contract(address=LUSD_ADDRESS, abi=ERC20_ABI)
 usdc.functions.approve(BATCH_SETTLER, 2**256 - 1).transact({"from": YOUR_ADDRESS})
 ```
@@ -311,7 +323,9 @@ Send your wallet address to the b1nary team. We will:
 ```python
 import requests
 
+# Testnet:
 API = "https://optionsprotocolbackend-staging.up.railway.app"
+# Production: API = "https://api.b1nary.app"
 API_KEY = "your-api-key"
 HEADERS = {"X-API-Key": API_KEY}
 
@@ -331,7 +345,7 @@ from web3 import Web3
 
 w3 = Web3(Web3.HTTPProvider("https://sepolia.base.org"))
 SETTLER_ABI = [{"inputs": [{"name": "", "type": "address"}], "name": "makerNonce", "outputs": [{"name": "", "type": "uint256"}], "stateMutability": "view", "type": "function"}]
-settler = w3.eth.contract(address="0x3B5d4640233E14cc330A749926838ba2C540054f", abi=SETTLER_ABI)
+settler = w3.eth.contract(address="0x766bD3aF1D102f7EbcB65a7B7bC12478C2DbA918", abi=SETTLER_ABI)  # testnet
 
 nonce = settler.functions.makerNonce(YOUR_ADDRESS).call()
 ```
@@ -381,8 +395,8 @@ PRIVATE_KEY = "0x..."  # your MM wallet private key
 DOMAIN = {
     "name": "b1nary",
     "version": "1",
-    "chainId": 84532,
-    "verifyingContract": "0x3B5d4640233E14cc330A749926838ba2C540054f",
+    "chainId": 84532,  # testnet; use 8453 for production
+    "verifyingContract": "0x766bD3aF1D102f7EbcB65a7B7bC12478C2DbA918",  # testnet BatchSettler; see Environments for production
 }
 
 QUOTE_TYPES = {
@@ -435,6 +449,8 @@ import asyncio
 import websockets
 
 async def listen_fills():
+    # Testnet: wss://optionsprotocolbackend-staging.up.railway.app/mm/stream
+    # Production: wss://api.b1nary.app/mm/stream
     url = f"wss://optionsprotocolbackend-staging.up.railway.app/mm/stream?api_key={API_KEY}"
     async for ws in websockets.connect(url):
         try:
@@ -605,8 +621,8 @@ Every quote you sign must follow this exact structure. It is verified both by th
 ```
 name: "b1nary"
 version: "1"
-chainId: 84532
-verifyingContract: 0x3B5d4640233E14cc330A749926838ba2C540054f  (BatchSettler)
+chainId: 84532 (testnet) or 8453 (production)
+verifyingContract: BatchSettler address for your environment (see Environments table)
 ```
 
 ### Quote Fields
@@ -630,19 +646,37 @@ keccak256("Quote(address oToken,uint256 bidPrice,uint256 deadline,uint256 quoteI
 
 ---
 
-## Contract Addresses (Base Sepolia)
+## Contract Addresses
+
+See the Environments table at the top for BatchSettler, USDC, WETH, and cbBTC addresses per environment.
+
+### Production (Base mainnet)
 
 | Contract | Address |
 |----------|---------|
-| BatchSettler | `0x3B5d4640233E14cc330A749926838ba2C540054f` |
-| Controller | `0x6222a4F9B2f0114ABc8F2bb370a4ba0c2C003A5D` |
-| MarginPool | `0x1A16753019fDF2986a0a69A4A5b07e6ce0feb9eE` |
-| Oracle | `0xC8C417CA1B3A186286697B3dC11d506CC19C7E95` |
-| Whitelist | `0x0FBb6A48182Da23224A9139f879e183DC91d7eD1` |
-| LUSD (test USDC) | `0xC056AcB155F37D4993c158902139BBB55fB59ab2` |
-| LETH (test WETH) | `0x0f5bB1a8B826ff3Aa42Cc389F4AAF07b4bD77e2E` |
+| BatchSettler | `0xd281ADdB8b5574360Fd6BFC245B811ad5C582a3B` |
+| Controller | `0x2Ab6D1c41f0863Bc2324b392f1D8cF073cF42624` |
+| MarginPool | `0xa1e04873F6d112d84824C88c9D6937bE38811657` |
+| Oracle | `0x09daa0194A3AF59b46C5443aF9C20fAd98347671` |
+| Whitelist | `0xC0E6b9F214151cEDbeD3735dF77E9d8EE70ebA8A` |
+| USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
+| WETH | `0x4200000000000000000000000000000000000006` |
+| cbBTC | `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` |
 
-All contracts verified on BaseScan. ABIs available from verified source code.
+### Testnet (Base Sepolia)
+
+| Contract | Address |
+|----------|---------|
+| BatchSettler | `0x766bD3aF1D102f7EbcB65a7B7bC12478C2DbA918` |
+| Controller | `0xB64a532B71E711B5F45B906D9Fc09c184EC54CA0` |
+| MarginPool | `0x727ddBD04A691E73feaE26349F48144953Ef20d6` |
+| Oracle | `0x101cB9E8a3105EfB18A81E768238eFc041F31E15` |
+| Whitelist | `0xda732e343cfAd50Df28881B66f111779671a17E1` |
+| LUSD (mock USDC) | `0xAB51a471493832C1D70cef8ff937A850cf37c860` |
+| LETH (mock WETH) | `0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6` |
+| LBTC (mock cbBTC) | `0x39fA11EbBE82699Fd9F79C566D7384064571d2b4` |
+
+All contracts are UUPS-proxied and verified on BaseScan.
 
 ### Decimal Reference
 
@@ -671,7 +705,7 @@ pip install hyperliquid-python-sdk
 ## FAQ
 
 **Do I need to run a node?**
-No. Use any Base Sepolia RPC. Public endpoint: `https://sepolia.base.org`
+No. Use any Base RPC. Public endpoints: `https://mainnet.base.org` (production) or `https://sepolia.base.org` (testnet)
 
 **How often should I refresh quotes?**
 Our reference MM refreshes every 60 seconds. Faster is better for tighter spreads.
