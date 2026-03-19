@@ -1011,7 +1011,7 @@ export function LandingPage() {
   const { spot: liveSpot, loading: spotLoading } = useSpot("eth", 30_000);
   const quoteSpot = prices[0]?.spot;
   const spot = liveSpot ? Math.round(liveSpot) : quoteSpot ? Math.round(quoteSpot) : FALLBACK_SPOT;
-  const priceReady = !priceLoading && !spotLoading;
+  const priceReady = spot !== FALLBACK_SPOT || (!priceLoading && !spotLoading);
   const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
   return (
