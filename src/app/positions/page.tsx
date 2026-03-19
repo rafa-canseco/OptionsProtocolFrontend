@@ -67,13 +67,16 @@ export default function PositionsPage() {
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
-      {/* Portfolio summary + activity */}
-      <PortfolioSummary positions={allPositions} activity={activity} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
-      {/* Earnings chart */}
-      <EarningsChart positions={allPositions} />
+      {/* Portfolio summary — all 5 stats */}
+      <PortfolioSummary
+        positions={allPositions}
+        activity={activity}
+        yieldMetric={yieldMetric}
+        onYieldMetricChange={setYieldMetric}
+      />
 
-      {/* Active positions — cards with sparklines */}
+      {/* Active positions — promoted above chart */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
           Active positions
@@ -108,7 +111,10 @@ export default function PositionsPage() {
         )}
       </section>
 
-      {/* Trade log — table */}
+      {/* Earnings chart */}
+      <EarningsChart positions={allPositions} />
+
+      {/* History */}
       {history.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
