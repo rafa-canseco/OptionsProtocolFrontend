@@ -452,35 +452,30 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             premium={selectedEarnings > 0 ? selectedEarnings : undefined}
             assetSymbol={asset.symbol}
           />
-
-          {/* Help cards */}
-          <div className="grid grid-cols-2 gap-3 pt-2">
-            <button
-              onClick={() => setDrawerOpen(true)}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left hover:border-[var(--accent)]/50 transition-colors group"
-            >
-              <p className="text-sm font-medium text-[var(--bone)]">New here?</p>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">4 steps to understand how this works</p>
-              <p className="text-xs font-medium text-[var(--accent)] mt-2 group-hover:underline">How it works &rarr;</p>
-            </button>
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/llms.txt`;
-                navigator.clipboard.writeText(url).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                });
-              }}
-              className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left hover:border-[var(--accent)]/50 transition-colors group"
-            >
-              <p className="text-sm font-medium text-[var(--bone)]">Use AI?</p>
-              <p className="text-xs text-[var(--text-secondary)] mt-1">Give your AI full context on b1nary</p>
-              <p className="text-xs font-medium text-[var(--accent)] mt-2 group-hover:underline">
-                {copied ? "Copied!" : "Copy link"}
-              </p>
-            </button>
-          </div>
         </div>
+      </div>
+
+      {/* Help strip — full width, below the grid */}
+      <div className="flex items-center justify-center gap-4 text-xs text-[var(--text-secondary)] pt-2">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="hover:text-[var(--accent)] transition-colors"
+        >
+          New here? How it works &rarr;
+        </button>
+        <span className="opacity-30">|</span>
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}/llms.txt`;
+            navigator.clipboard.writeText(url).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="hover:text-[var(--accent)] transition-colors"
+        >
+          {copied ? "Copied!" : "Use AI? Copy llms.txt link"}
+        </button>
       </div>
 
       {/* AcceptModal — only opens on Accept click, confirmation-only */}
