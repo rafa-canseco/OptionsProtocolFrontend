@@ -46,6 +46,7 @@ export function TradeLog({ positions }: Props) {
             <th className="text-left py-3 px-4 font-medium">Type</th>
             <th className="text-right py-3 px-4 font-medium">Strike</th>
             <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Expiry</th>
+            <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Maturity</th>
             <th className="text-left py-3 px-4 font-medium">Outcome</th>
             <th className="text-right py-3 px-4 font-medium">Premium</th>
             <th className="text-right py-3 px-4 font-medium">Next Step</th>
@@ -129,7 +130,7 @@ function TradeRow({
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${(p.collateral / collateralDecimals).toFixed(2)} ${assetSymbol}`;
 
-  const totalCols = 8;
+  const totalCols = 9;
 
   return (
     <>
@@ -160,6 +161,13 @@ function TradeRow({
           {expiryDays}d
         </td>
 
+        {/* Maturity price */}
+        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
+          {expiryPriceUsd != null
+            ? `$${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+            : "—"}
+        </td>
+
         {/* Outcome badge */}
         <td className="py-3 px-4">
           <span className="text-xs font-medium px-2 py-0.5 rounded-full text-[var(--accent)] bg-[var(--accent)]/10">
@@ -169,7 +177,7 @@ function TradeRow({
 
         {/* Premium */}
         <td className="py-3 px-4 text-right font-mono text-[var(--accent)]">
-          +${premiumUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+          +${fmtUsd(premiumUsd)}
         </td>
 
         {/* Next Step */}
@@ -203,24 +211,35 @@ function TradeRow({
                   </p>
                 </>
               ) : (
-                <p>
-                  Committed {committedDisplay} &rarr; Returned {committedDisplay} +{" "}
-                  <span className="font-mono font-medium text-[var(--accent)]">${fmtUsd(premiumUsd)} earned</span>
-                </p>
+                <>
+                  <p>
+                    Committed {committedDisplay} &rarr; Returned {committedDisplay} +{" "}
+                    <span className="font-mono font-medium text-[var(--accent)]">${fmtUsd(premiumUsd)} earned</span>
+                  </p>
+                  {expiryPriceUsd != null && (
+                    <p>Maturity price: ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</p>
+                  )}
+                </>
               )}
 
-              {p.tx_hash && EXPLORER_BASE && (
-                <p>
-                  TX:{" "}
-                  <a
-                    href={`${EXPLORER_BASE}/tx/${p.tx_hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-[var(--accent)] hover:underline"
-                  >
-                    {p.tx_hash.slice(0, 10)}...{p.tx_hash.slice(-6)}
-                  </a>
-                </p>
+              {EXPLORER_BASE && (
+                <div className="flex gap-3">
+                  {p.tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${p.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Open tx
+                    </a>
+                  )}
+                  {p.settlement_tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${p.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Settle tx
+                    </a>
+                  )}
+                  {p.delivery_tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${p.delivery_tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Delivery tx
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           </td>

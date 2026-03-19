@@ -4,9 +4,12 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
+import { CHAIN } from "@/lib/contracts";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
+
+const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
 
 interface Props {
   position: Position;
@@ -19,11 +22,13 @@ interface Props {
   optimistic?: boolean;
   /** Which yield metric to display — defaults to "apr" */
   yieldMetric?: YieldMetric;
-  /** Asset symbol for display, e.g. "ETH", "BTC" */
+  /** Asset symbol for display, e.g. "ETH", "cbBTC" */
   assetSymbol?: string;
+  /** Asset slug for collateral logic, e.g. "eth", "btc" */
+  assetSlug?: string;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH" }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -31,7 +36,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const strike = position.strike_price / 1e8;
 
   // Collateral: puts = USDC (6 dec), ETH calls = WETH (18 dec), BTC calls = WBTC (8 dec)
-  const isBtc = assetSymbol === "BTC";
+  const isBtc = assetSlug === "btc";
   const callDec = isBtc ? 1e8 : 1e18;
   const committedUsd = isBuy
     ? position.collateral / 1e6
@@ -175,9 +180,24 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           </p>
 
           <p className="text-xs text-[var(--text-secondary)]">
-            {expiryPriceDisplay && <>Closed at {expiryPriceDisplay}/{assetSymbol} · </>}
+            {expiryPriceDisplay && <>Maturity price: {expiryPriceDisplay}/{assetSymbol} · </>}
             {returnPct.toFixed(1)}% in {totalDays}d · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
           </p>
+
+          {EXPLORER && (
+            <div className="flex gap-3 text-xs">
+              {position.tx_hash && (
+                <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                  Open tx
+                </a>
+              )}
+              {position.settlement_tx_hash && (
+                <a href={`${EXPLORER}/tx/${position.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                  Settle tx
+                </a>
+              )}
+            </div>
+          )}
 
           {/* CTA: Earn again */}
           <Link
@@ -243,6 +263,32 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             + kept{" "}
             <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)} in premium</span>
           </p>
+
+          {expiryPriceDisplay && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Maturity price: {expiryPriceDisplay}/{assetSymbol}
+            </p>
+          )}
+
+          {EXPLORER && (
+            <div className="flex gap-3 text-xs">
+              {position.tx_hash && (
+                <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                  Open tx
+                </a>
+              )}
+              {position.settlement_tx_hash && (
+                <a href={`${EXPLORER}/tx/${position.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                  Settle tx
+                </a>
+              )}
+              {position.delivery_tx_hash && (
+                <a href={`${EXPLORER}/tx/${position.delivery_tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                  Delivery tx
+                </a>
+              )}
+            </div>
+          )}
 
           {/* CTA: Next step */}
           <Link

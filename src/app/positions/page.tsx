@@ -91,6 +91,7 @@ export default function PositionsPage() {
                   spot={posSpot}
                   earnBase={`/earn/${posAsset.slug}`}
                   assetSymbol={posAsset.symbol}
+                  assetSlug={posAsset.slug}
                   optimistic={pos.id.startsWith("opt-")}
                   yieldMetric={yieldMetric}
                 />
