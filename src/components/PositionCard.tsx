@@ -22,11 +22,13 @@ interface Props {
   optimistic?: boolean;
   /** Which yield metric to display — defaults to "apr" */
   yieldMetric?: YieldMetric;
-  /** Asset symbol for display, e.g. "ETH", "BTC" */
+  /** Asset symbol for display, e.g. "ETH", "cbBTC" */
   assetSymbol?: string;
+  /** Asset slug for collateral logic, e.g. "eth", "btc" */
+  assetSlug?: string;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH" }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -34,7 +36,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const strike = position.strike_price / 1e8;
 
   // Collateral: puts = USDC (6 dec), ETH calls = WETH (18 dec), BTC calls = WBTC (8 dec)
-  const isBtc = assetSymbol === "BTC";
+  const isBtc = assetSlug === "btc";
   const callDec = isBtc ? 1e8 : 1e18;
   const committedUsd = isBuy
     ? position.collateral / 1e6
