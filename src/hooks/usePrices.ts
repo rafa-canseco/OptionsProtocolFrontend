@@ -11,7 +11,9 @@ export function usePrices(asset?: string, pollInterval = 10_000) {
   const refresh = useCallback(async () => {
     try {
       const data = await api.getPrices(asset);
-      setPrices(data);
+      setPrices(prev =>
+        data.length === 0 && prev.length > 0 ? prev : data
+      );
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch prices");
