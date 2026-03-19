@@ -220,7 +220,7 @@ function HeroSection() {
             href="/earn"
             className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
-            Try the beta
+            Launch App
           </Link>
           <a
             href="#mechanism"
@@ -1035,7 +1035,7 @@ export function LandingPage() {
             href="/earn"
             className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
           >
-            Try the beta &rarr;
+            Launch App &rarr;
           </Link>
         </div>
       </header>
