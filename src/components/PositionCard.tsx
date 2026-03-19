@@ -154,6 +154,12 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           <p className="text-xs text-[var(--text-secondary)]">
             Committed {committedDisplay}
           </p>
+
+          {EXPLORER && position.tx_hash && (
+            <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
+              Open tx
+            </a>
+          )}
         </>
       )}
 
