@@ -254,22 +254,45 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between animate-fade-in-up">
-        <div className="flex items-center gap-4">
-          <AssetSelector current={asset} />
-          <LivePrice spot={spot} />
+      <div className="space-y-2 animate-fade-in-up">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <AssetSelector current={asset} />
+            <LivePrice spot={spot} />
+          </div>
+          {capacity && (
+            <span className={`text-xs font-medium ${
+              marketClosed
+                ? "text-[var(--danger)]"
+                : marketDegraded
+                  ? "text-amber-400"
+                  : "text-[var(--accent)]"
+            }`}>
+              {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
+            </span>
+          )}
         </div>
-        {capacity && (
-          <span className={`text-xs font-medium ${
-            marketClosed
-              ? "text-[var(--danger)]"
-              : marketDegraded
-                ? "text-amber-400"
-                : "text-[var(--accent)]"
-          }`}>
-            {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
-          </span>
-        )}
+        <div className="flex items-center gap-4 text-xs font-medium text-[var(--accent)]">
+          <button
+            onClick={() => setDrawerOpen(true)}
+            className="hover:underline transition-colors"
+          >
+            How does this work?
+          </button>
+          <span className="opacity-30">·</span>
+          <button
+            onClick={() => {
+              const url = `${window.location.origin}/llms.txt`;
+              navigator.clipboard.writeText(url).then(() => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              });
+            }}
+            className="hover:underline transition-colors"
+          >
+            {copied ? "Copied!" : "Share with your AI"}
+          </button>
+        </div>
       </div>
 
       {/* Two-column: config left, preview right */}
@@ -453,29 +476,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             assetSymbol={asset.symbol}
           />
         </div>
-      </div>
-
-      {/* Help strip — full width, below the grid */}
-      <div className="flex items-center justify-center gap-4 text-xs text-[var(--text-secondary)] pt-2">
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="hover:text-[var(--accent)] transition-colors"
-        >
-          New here? How it works &rarr;
-        </button>
-        <span className="opacity-30">|</span>
-        <button
-          onClick={() => {
-            const url = `${window.location.origin}/llms.txt`;
-            navigator.clipboard.writeText(url).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            });
-          }}
-          className="hover:text-[var(--accent)] transition-colors"
-        >
-          {copied ? "Copied!" : "Use AI? Copy llms.txt link"}
-        </button>
       </div>
 
       {/* AcceptModal — only opens on Accept click, confirmation-only */}
