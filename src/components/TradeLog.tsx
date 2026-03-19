@@ -203,24 +203,35 @@ function TradeRow({
                   </p>
                 </>
               ) : (
-                <p>
-                  Committed {committedDisplay} &rarr; Returned {committedDisplay} +{" "}
-                  <span className="font-mono font-medium text-[var(--accent)]">${fmtUsd(premiumUsd)} earned</span>
-                </p>
+                <>
+                  <p>
+                    Committed {committedDisplay} &rarr; Returned {committedDisplay} +{" "}
+                    <span className="font-mono font-medium text-[var(--accent)]">${fmtUsd(premiumUsd)} earned</span>
+                  </p>
+                  {expiryPriceUsd != null && (
+                    <p>Maturity price: ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</p>
+                  )}
+                </>
               )}
 
-              {p.tx_hash && EXPLORER_BASE && (
-                <p>
-                  TX:{" "}
-                  <a
-                    href={`${EXPLORER_BASE}/tx/${p.tx_hash}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-mono text-[var(--accent)] hover:underline"
-                  >
-                    {p.tx_hash.slice(0, 10)}...{p.tx_hash.slice(-6)}
-                  </a>
-                </p>
+              {EXPLORER_BASE && (
+                <div className="flex gap-3">
+                  {p.tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${p.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Open tx
+                    </a>
+                  )}
+                  {p.settlement_tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${p.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Settle tx
+                    </a>
+                  )}
+                  {p.delivery_tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${p.delivery_tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Delivery tx
+                    </a>
+                  )}
+                </div>
               )}
             </div>
           </td>
