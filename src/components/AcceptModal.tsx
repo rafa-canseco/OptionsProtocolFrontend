@@ -239,7 +239,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   const premiumDisplay = scaledPremium < 1
     ? `$${scaledPremium.toFixed(2)}`
-    : `$${scaledPremium.toFixed(0)}`;
+    : `$${scaledPremium.toFixed(2)}`;
 
   const commitDisplay = isBuy
     ? `$${amount.toLocaleString()}`
