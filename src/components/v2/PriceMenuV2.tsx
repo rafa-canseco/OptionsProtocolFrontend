@@ -117,6 +117,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth + weth;
@@ -253,30 +254,43 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   return (
     <div className="space-y-6">
+      <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
+        <button
+          onClick={() => setDrawerOpen(true)}
+          className="rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors"
+        >
+          How does this work?
+        </button>
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}/llms.txt`;
+            navigator.clipboard.writeText(url).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors"
+        >
+          {copied ? "Copied!" : "Share with your AI"}
+        </button>
+      </div>
+
       <div className="flex items-center justify-between animate-fade-in-up">
         <div className="flex items-center gap-4">
           <AssetSelector current={asset} />
           <LivePrice spot={spot} />
         </div>
-        <div className="flex items-center gap-4">
-          {capacity && (
-            <span className={`text-xs font-medium ${
-              marketClosed
-                ? "text-[var(--danger)]"
-                : marketDegraded
-                  ? "text-amber-400"
-                  : "text-[var(--accent)]"
-            }`}>
-              {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
-            </span>
-          )}
-          <button
-            onClick={() => setDrawerOpen(true)}
-            className="text-sm font-medium text-[var(--accent)] hover:text-[var(--accent-hover)] transition-colors"
-          >
-            How does this work?
-          </button>
-        </div>
+        {capacity && (
+          <span className={`text-xs font-medium ${
+            marketClosed
+              ? "text-[var(--danger)]"
+              : marketDegraded
+                ? "text-amber-400"
+                : "text-[var(--accent)]"
+          }`}>
+            {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
+          </span>
+        )}
       </div>
 
       {/* Two-column: config left, preview right */}

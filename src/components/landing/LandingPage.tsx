@@ -1003,6 +1003,41 @@ function CTASection() {
   );
 }
 
+/* ── AI CTA ── */
+
+function AiCtaSection() {
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { once: true, margin: "-10%" });
+  const [copied, setCopied] = useState(false);
+
+  return (
+    <section ref={ref} className="py-16 px-6 relative z-[3]">
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+        transition={{ duration: 0.6 }}
+        className="max-w-2xl mx-auto text-center space-y-4"
+      >
+        <p className="text-lg text-[var(--bone)] font-light">
+          Use an AI assistant? Give it full context on b1nary.
+        </p>
+        <button
+          onClick={() => {
+            const url = `${window.location.origin}/llms.txt`;
+            navigator.clipboard.writeText(url).then(() => {
+              setCopied(true);
+              setTimeout(() => setCopied(false), 2000);
+            });
+          }}
+          className="inline-flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-5 py-2.5 text-sm font-medium text-[var(--accent)] hover:border-[var(--accent)]/50 transition-colors"
+        >
+          {copied ? "Copied!" : "Copy llms.txt link"}
+        </button>
+      </motion.div>
+    </section>
+  );
+}
+
 /* ── Main ── */
 
 export function LandingPage() {
@@ -1052,6 +1087,7 @@ export function LandingPage() {
         <AgentNativeSection />
         <SocialProofSection />
         <CTASection />
+        <AiCtaSection />
       </main>
 
       <footer className="relative z-[3] border-t border-[var(--border)] px-6 py-8 flex items-center justify-between">
