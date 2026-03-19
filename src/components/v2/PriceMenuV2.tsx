@@ -182,7 +182,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     }
   }
 
-  if (loading && prices.length === 0) {
+  if (loading && prices.length === 0 && !spot) {
     return (
       <div className="space-y-3">
         <div className="h-14 w-48 animate-pulse rounded-xl bg-[var(--surface)]" />
@@ -398,7 +398,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               </div>
             ) : (
               <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
-                No prices available for this date.
+                {marketClosed ? "MM is at capacity. Check back soon." : "No prices available for this date."}
               </div>
             )}
           </div>
