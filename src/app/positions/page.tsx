@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { PositionCard } from "@/components/PositionCard";
-import { PortfolioSummary } from "@/components/PortfolioSummary";
+import { PortfolioSummary, computeStats, formatUSD } from "@/components/PortfolioSummary";
 import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
@@ -21,6 +21,7 @@ export default function PositionsPage() {
   const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const active = allPositions
     .filter((p) => !p.is_settled)
@@ -64,57 +65,97 @@ export default function PositionsPage() {
     );
   }
 
+  const { activeCapital } = computeStats(allPositions);
+
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
-      {/* Portfolio summary + activity */}
-      <PortfolioSummary positions={allPositions} activity={activity} yieldMetric={yieldMetric} onYieldMetricChange={setYieldMetric} />
 
-      {/* Earnings chart */}
-      <EarningsChart positions={allPositions} />
+      {/* Hero header — simplified */}
+      <PortfolioSummary
+        positions={allPositions}
+        activity={activity}
+        yieldMetric={yieldMetric}
+        onYieldMetricChange={setYieldMetric}
+      />
 
-      {/* Active positions — cards with sparklines */}
-      <section className="space-y-4">
-        <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-          Active positions
-        </h2>
-        {active.length > 0 ? (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {active.map((pos) => {
-              const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
-              const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
-              return (
-                <PositionCard
-                  key={pos.id}
-                  position={pos}
-                  onSettled={refresh}
-                  spot={posSpot}
-                  earnBase={`/earn/${posAsset.slug}`}
-                  assetSymbol={posAsset.symbol}
-                  assetSlug={posAsset.slug}
-                  optimistic={pos.id.startsWith("opt-")}
-                  yieldMetric={yieldMetric}
-                />
-              );
-            })}
-          </div>
-        ) : (
-          <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
-            <p className="text-sm text-[var(--text-secondary)]">
-              No active positions.{" "}
-              <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
-            </p>
-          </div>
-        )}
-      </section>
-
-      {/* Trade log — table */}
-      {history.length > 0 && (
+      {/* Two-column: active positions left, chart + stats right */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* LEFT: Active positions */}
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-            History
+            Active positions
           </h2>
-          <TradeLog positions={history} />
+          {active.length > 0 ? (
+            <div className="space-y-4">
+              {active.map((pos) => {
+                const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
+                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+                return (
+                  <PositionCard
+                    key={pos.id}
+                    position={pos}
+                    onSettled={refresh}
+                    spot={posSpot}
+                    earnBase={`/earn/${posAsset.slug}`}
+                    assetSymbol={posAsset.symbol}
+                    assetSlug={posAsset.slug}
+                    optimistic={pos.id.startsWith("opt-")}
+                    yieldMetric={yieldMetric}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
+              <p className="text-sm text-[var(--text-secondary)]">
+                No active positions.{" "}
+                <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* RIGHT: Chart + secondary stats */}
+        <section className="space-y-4">
+          <EarningsChart positions={allPositions} />
+
+          <div className="grid grid-cols-3 gap-4 rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4">
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Active Capital</p>
+              <p className="text-base font-bold text-[var(--bone)] font-mono">
+                {formatUSD(activeCapital)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Volume</p>
+              <p className="text-base font-bold text-[var(--bone)] font-mono">
+                {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">Positions</p>
+              <p className="text-base font-bold text-[var(--bone)] font-mono">
+                {activity?.positionCount ?? allPositions.length}
+              </p>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      {/* History — collapsible */}
+      {history.length > 0 && (
+        <section className="space-y-4">
+          <button
+            onClick={() => setHistoryOpen(!historyOpen)}
+            className="flex items-center gap-2 text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider hover:text-[var(--text)] transition-colors"
+          >
+            <span className={`transition-transform duration-200 ${historyOpen ? "rotate-90" : ""}`}>
+              ▸
+            </span>
+            History ({history.length})
+          </button>
+          {historyOpen && <TradeLog positions={history} />}
         </section>
       )}
     </main>

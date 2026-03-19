@@ -11,18 +11,7 @@ interface Props {
   onYieldMetricChange: (metric: YieldMetric) => void;
 }
 
-function formatUSD(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
-  return `$${fmtUsd(n)}`;
-}
-
-export function PortfolioSummary({
-  positions,
-  activity,
-  yieldMetric,
-  onYieldMetricChange,
-}: Props) {
+function computeStats(positions: Position[]) {
   const premiumEarned = positions.reduce(
     (sum, p) => sum + Number(p.net_premium) / 1e6,
     0,
@@ -58,12 +47,29 @@ export function PortfolioSummary({
   const avgRoi =
     totalCapital > 0 ? (premiumEarned / totalCapital) * 100 : 0;
 
+  return { premiumEarned, activeCapital, totalCapital, avgApr, avgRoi };
+}
+
+function formatUSD(n: number): string {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${fmtUsd(n)}`;
+}
+
+export { computeStats, formatUSD };
+
+export function PortfolioSummary({
+  positions,
+  activity,
+  yieldMetric,
+  onYieldMetricChange,
+}: Props) {
+  const { premiumEarned, avgApr, avgRoi } = computeStats(positions);
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-4">
-      {/* Status badge */}
-      <div className="flex items-center justify-between">
+    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5">
+      <div className="flex items-center justify-between mb-4">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] text-xs font-semibold tracking-wide uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
           OG Supporter
@@ -75,22 +81,13 @@ export function PortfolioSummary({
         )}
       </div>
 
-      {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
             Total Earned
           </p>
-          <p className="text-xl font-bold text-[var(--accent)] font-mono">
+          <p className="text-2xl font-bold text-[var(--accent)] font-mono">
             ${fmtUsd(premiumEarned)}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Active Capital
-          </p>
-          <p className="text-xl font-bold text-[var(--bone)] font-mono">
-            {formatUSD(activeCapital)}
           </p>
         </div>
         <div>
@@ -101,23 +98,11 @@ export function PortfolioSummary({
               onChange={onYieldMetricChange}
             />
           </div>
-          <p className="text-xl font-bold text-[var(--accent)] font-mono">
+          <p className="text-2xl font-bold text-[var(--accent)] font-mono">
             {metricValue < 10
               ? metricValue.toFixed(1)
               : Math.round(metricValue)}
             %
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-secondary)]">Positions</p>
-          <p className="text-xl font-bold text-[var(--bone)] font-mono">
-            {activity?.positionCount ?? positions.length}
-          </p>
-        </div>
-        <div>
-          <p className="text-xs text-[var(--text-secondary)]">Volume</p>
-          <p className="text-xl font-bold text-[var(--bone)] font-mono">
-            {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
           </p>
         </div>
       </div>
