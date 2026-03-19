@@ -19,7 +19,6 @@ export function useSpot(asset: string, pollInterval = 10_000) {
   }, [asset]);
 
   useEffect(() => {
-    setLoading(true);
     refresh();
     const id = setInterval(refresh, pollInterval);
     return () => clearInterval(id);

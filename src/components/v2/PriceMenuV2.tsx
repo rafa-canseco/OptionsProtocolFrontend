@@ -182,7 +182,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     }
   }
 
-  if (loading) {
+  if (loading && prices.length === 0) {
     return (
       <div className="space-y-3">
         <div className="h-14 w-48 animate-pulse rounded-xl bg-[var(--surface)]" />
