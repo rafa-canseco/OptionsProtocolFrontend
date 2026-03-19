@@ -134,7 +134,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const marketClosed = capacity !== null && (!capacity.market_open || capacity.market_status === "full");
   const marketDegraded = capacity !== null && capacity.market_status === "degraded";
-  const capEth = capacity?.max_position_eth ?? asset.maxAmount;
+  const capEth = capacity?.max_position ?? asset.maxAmount;
   const capUsd = spot ? Math.min(asset.maxAmountUsd, capEth * spot) : asset.maxAmountUsd;
 
   const filteredPrices = useMemo(() => {
@@ -469,7 +469,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           side={side}
           initialAmount={amountStr}
           confirmOnly
-          maxPositionEth={capacity?.max_position_eth}
+          maxPositionEth={capacity?.max_position}
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
           onClose={() => setConfirming(false)}

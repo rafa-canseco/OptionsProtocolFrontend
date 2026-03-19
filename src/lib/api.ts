@@ -76,11 +76,11 @@ export interface Activity {
 }
 
 export interface Capacity {
-  capacity_eth: number;
+  capacity: number;
   capacity_usd: number;
   market_open: boolean;
   market_status: "active" | "degraded" | "full";
-  max_position_eth: number;
+  max_position: number;
   mm_count: number;
   updated_at: string;
 }
