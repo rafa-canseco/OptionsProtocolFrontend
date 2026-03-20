@@ -49,7 +49,7 @@ export function OutcomeCards({
   const itmAction = hasStrike && hasAmount
     ? isBuy
       ? `Buy ${(amount / strike).toFixed(2)} ${assetSymbol} at $${strike.toLocaleString()}`
-      : `Sell ${amount} ${assetSymbol} at $${strike.toLocaleString()}`
+      : `Sell $${fmtUsd(amount * strike)} of ${assetSymbol} at $${strike.toLocaleString()}`
     : hasAmount
       ? isBuy
         ? `Buy ${assetSymbol} at your strike price`
