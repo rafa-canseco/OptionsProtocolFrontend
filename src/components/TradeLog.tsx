@@ -205,9 +205,6 @@ function TradeRow({
                   </p>
                   <p>
                     {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} {assetSymbol}
-                    {expiryPriceUsd != null && (
-                      <> · Settled at ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</>
-                    )}
                   </p>
                 </>
               ) : (
