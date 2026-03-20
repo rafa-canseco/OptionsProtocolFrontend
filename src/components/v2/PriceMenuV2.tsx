@@ -71,12 +71,12 @@ function StrikeCard({
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group ${
+      className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
         disabled
           ? "opacity-40 cursor-not-allowed"
           : isSelected
-            ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)]"
-            : "hover:bg-[var(--surface)] hover:pl-6"
+            ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)] cursor-pointer"
+            : "hover:bg-[var(--surface)] hover:pl-6 cursor-pointer active:bg-[var(--surface)]"
       }`}
     >
       <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
@@ -257,7 +257,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
         <button
           onClick={() => setDrawerOpen(true)}
-          className="rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors"
+          className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         >
           How does this work?
         </button>
@@ -269,7 +269,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               setTimeout(() => setCopied(false), 2000);
             });
           }}
-          className="rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors"
+          className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         >
           {copied ? "Copied!" : "Share with your AI"}
         </button>
@@ -301,7 +301,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
               onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "buy"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -311,7 +311,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </button>
             <button
               onClick={() => { setSide("sell"); setAmountStr(""); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 ${
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "sell"
                   ? "bg-[var(--bg)] text-[var(--danger)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -330,7 +330,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   <button
                     key={d}
                     onClick={() => { setSelectedExpiry(d); }}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 ${
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                       activeExpiry === d
                         ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
                         : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
@@ -377,9 +377,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     key={pct}
                     onClick={() => handlePercentShortcut(pct)}
                     disabled={walletBalance <= 0}
-                    className={`text-[10px] font-medium transition-colors duration-150 px-1.5 py-0.5 rounded bg-[var(--surface)] ${
+                    className={`text-xs font-medium transition-colors duration-150 px-2 py-1 min-h-[28px] rounded bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                       walletBalance > 0
-                        ? "text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10"
+                        ? "cursor-pointer text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10"
                         : "text-[var(--text-secondary)] opacity-40 cursor-not-allowed"
                     }`}
                   >
