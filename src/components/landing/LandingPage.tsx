@@ -964,7 +964,7 @@ function AgentNativeSection() {
             Human or agent.
           </p>
           <p className="text-[var(--text-secondary)] opacity-60 text-base">
-            Same protocol, same access. No gatekeeping.
+            Every side of the protocol, open to both.
           </p>
         </motion.div>
       </div>
