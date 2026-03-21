@@ -79,7 +79,11 @@ export function OutcomeCards({
               </svg>
             </div>
             <p className="text-[10px] font-semibold text-[var(--accent)] uppercase tracking-wider">
-              Most likely
+              {hasStrike
+                ? isBuy
+                  ? `If above $${strike.toLocaleString()}`
+                  : `If below $${strike.toLocaleString()}`
+                : "If price stays"}
             </p>
           </div>
           <p className="text-xs text-[var(--text-secondary)]">
@@ -115,7 +119,11 @@ export function OutcomeCards({
             </svg>
           </div>
           <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-            If price moves
+            {hasStrike
+              ? isBuy
+                ? `If below $${strike.toLocaleString()}`
+                : `If above $${strike.toLocaleString()}`
+              : "If price moves"}
           </p>
         </div>
         <p className="text-xs text-[var(--text-secondary)]">
