@@ -79,16 +79,9 @@ export function OutcomeCards({
               </svg>
             </div>
             <p className="text-[10px] font-semibold text-[var(--accent)] uppercase tracking-wider">
-              {hasStrike
-                ? isBuy
-                  ? `If above $${strike.toLocaleString()}`
-                  : `If below $${strike.toLocaleString()}`
-                : "If price stays"}
+              {otmDescription}
             </p>
           </div>
-          <p className="text-xs text-[var(--text-secondary)]">
-            {otmDescription}
-          </p>
           <p className="text-sm font-semibold text-[var(--text)] mt-1.5">
             {otmCommit}
           </p>
@@ -119,16 +112,9 @@ export function OutcomeCards({
             </svg>
           </div>
           <p className="text-[10px] font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-            {hasStrike
-              ? isBuy
-                ? `If below $${strike.toLocaleString()}`
-                : `If above $${strike.toLocaleString()}`
-              : "If price moves"}
+            {itmDescription}
           </p>
         </div>
-        <p className="text-xs text-[var(--text-secondary)]">
-          {itmDescription}
-        </p>
         <p className="text-sm font-semibold text-[var(--text)] mt-1.5">
           {itmAction}
         </p>
