@@ -115,7 +115,7 @@ export function PortfolioSummary({
           </p>
         </div>
         <div>
-          <p className="text-xs text-[var(--text-secondary)]">Volume</p>
+          <p className="text-xs text-[var(--text-secondary)]">Total Traded</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
             {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
           </p>
