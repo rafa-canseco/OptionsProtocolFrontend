@@ -195,3 +195,16 @@ body {
 .marquee-track:hover {
   animation-play-state: paused;
 }
+
+/* Respect reduced motion preference */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-fade-in,
+  .animate-slide-up,
+  .animate-glow,
+  .stagger-children > *,
+  .price-flash,
+  .marquee-track {
+    animation: none !important;
+  }
+}
