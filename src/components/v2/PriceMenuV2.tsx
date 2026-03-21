@@ -49,6 +49,7 @@ function StrikeCard({
   isSelected,
   onSelect,
   assetSymbol: symbol,
+  spot,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
@@ -56,6 +57,7 @@ function StrikeCard({
   isSelected: boolean;
   onSelect: () => void;
   assetSymbol: string;
+  spot?: number;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
@@ -66,6 +68,10 @@ function StrikeCard({
       ? (quote.premium * amount) / quote.strike
       : quote.premium * amount
     : 0;
+
+  const distancePct = spot && spot > 0
+    ? ((quote.strike - spot) / spot) * 100
+    : null;
 
   return (
     <button
@@ -79,9 +85,16 @@ function StrikeCard({
             : "hover:bg-[var(--surface)] hover:pl-6 cursor-pointer active:bg-[var(--surface)]"
       }`}
     >
-      <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
-        ${quote.strike.toLocaleString()}/{symbol}
-      </span>
+      <div>
+        <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
+          ${quote.strike.toLocaleString()}/{symbol}
+        </span>
+        {distancePct != null && (
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-mono">
+            {distancePct > 0 ? "+" : ""}{distancePct.toFixed(1)}%
+          </p>
+        )}
+      </div>
       <div className="text-right">
         {earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
@@ -407,6 +420,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     isSelected={selectedQuote?.strike === q.strike}
                     onSelect={() => setSelectedQuote(q)}
                     assetSymbol={asset.symbol}
+                    spot={spot}
                   />
                 ))}
               </div>
