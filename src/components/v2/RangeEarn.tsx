@@ -93,9 +93,11 @@ export function RangeEarn({
       {/* LEFT: Strike selection + amount */}
       <div className="space-y-5">
         {/* Range explanation */}
-        <p className="text-sm text-[var(--text-secondary)] animate-fade-in-up">
-          Bet that {asset.symbol} stays in a price range. You earn premium from both sides — if the price stays between your two strikes, you keep everything.
-        </p>
+        <div className="rounded-xl bg-[var(--accent)]/5 border border-[var(--accent)]/15 px-4 py-3 animate-fade-in-up">
+          <p className="text-sm text-[var(--bone)]">
+            Earn from both sides. Pick a lower and upper price — if {asset.symbol} stays in range, you keep everything.
+          </p>
+        </div>
 
         {/* Amount input */}
         <div className="animate-fade-in-up">
@@ -119,10 +121,9 @@ export function RangeEarn({
             />
           </div>
           {amount > 0 && spot && (
-            <div className="flex gap-4 mt-1.5 text-xs text-[var(--text-secondary)]">
-              <span>Downside: <span className="font-mono">${putAmountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> USDC</span>
-              <span>Upside: <span className="font-mono">{callAmountEth.toFixed(4)}</span> {asset.symbol}</span>
-            </div>
+            <p className="mt-1.5 text-xs text-[var(--text-secondary)]">
+              Split: <span className="font-mono">${putAmountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> USDC + <span className="font-mono">{callAmountEth.toFixed(4)}</span> {asset.symbol}
+            </p>
           )}
           <p className="text-xs text-[var(--text-secondary)] mt-1">
             Balance: <span className="font-mono">${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
@@ -216,6 +217,20 @@ export function RangeEarn({
           </div>
         </div>
 
+        {/* Range summary */}
+        {putQuote && callQuote && spot && (
+          <div className="flex items-center justify-between rounded-xl bg-[var(--surface)] border border-[var(--border)] px-4 py-3 animate-fade-in-up">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="font-mono font-semibold text-[var(--bone)]">${putQuote.strike.toLocaleString()}</span>
+              <span className="text-[var(--text-secondary)]">—</span>
+              <span className="font-mono font-semibold text-[var(--bone)]">${callQuote.strike.toLocaleString()}</span>
+            </div>
+            <span className="text-xs text-[var(--text-secondary)] font-mono">
+              {(((callQuote.strike - putQuote.strike) / spot) * 100).toFixed(1)}% range
+            </span>
+          </div>
+        )}
+
         {/* Accept button — disabled for Phase 1 */}
         <div className="animate-fade-in-up">
           <button
@@ -225,9 +240,9 @@ export function RangeEarn({
             {!amount
               ? "Enter an amount"
               : !putQuote
-                ? "Select a put strike"
+                ? "Select lower bound"
                 : !callQuote
-                  ? "Select a call strike"
+                  ? "Select upper bound"
                   : "Coming soon"}
           </button>
         </div>
@@ -244,7 +259,7 @@ export function RangeEarn({
               <InfoTooltip title="Combined premium" text="Total premium from both put and call legs. Yours to keep no matter what." />
             </div>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              {Math.round(combinedApr)}% combined APR
+              {Math.round(combinedApr)}% APR
             </p>
           </div>
         )}
