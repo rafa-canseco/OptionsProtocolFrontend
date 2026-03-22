@@ -2,17 +2,24 @@
 
 import { useState } from "react";
 import {
-  parseUnits,
-  encodeFunctionData,
   maxUint256,
+  encodeFunctionData,
   type Address,
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
+import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
 import type { BatchCall } from "@/hooks/useWallet";
-import type { PriceQuote, Position } from "@/lib/api";
+import type { PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
+import {
+  computeAPR,
+  computeCollateral,
+  encodeExecuteOrder,
+  fireAndPoll,
+  readTokenBalance,
+  buildOptimisticPosition,
+} from "@/lib/execution";
 
 interface Props {
   quote: PriceQuote;
@@ -32,170 +39,6 @@ type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
 
-function computeAPR(
-  premium: number,
-  strike: number,
-  expiryDays: number,
-): number {
-  if (strike <= 0 || expiryDays <= 0) return 0;
-  return (premium / strike) * (365 / expiryDays) * 100;
-}
-
-async function pollUntil(
-  check: () => Promise<boolean>,
-  label: string,
-  intervalMs = 2000,
-  maxAttempts = 60,
-) {
-  let consecutiveErrors = 0;
-  for (let i = 0; i < maxAttempts; i++) {
-    try {
-      const done = await check();
-      consecutiveErrors = 0;
-      if (done) {
-        console.log(`[AcceptModal] ${label} confirmed on-chain`);
-        return;
-      }
-    } catch (err) {
-      consecutiveErrors++;
-      console.warn(
-        `[AcceptModal] Poll failed for ${label} (attempt ${i + 1}):`,
-        err,
-      );
-      if (consecutiveErrors >= 5) {
-        throw new Error(
-          "Lost connection while waiting for confirmation. " +
-          "Your transaction may still be processing — " +
-          "check your balance before retrying.",
-        );
-      }
-    }
-    await new Promise((r) => setTimeout(r, intervalMs));
-  }
-  throw new Error(
-    "Timed out waiting for confirmation. " +
-    "Your transaction may still be processing — " +
-    "check your balance before retrying.",
-  );
-}
-
-async function fireAndPoll(
-  fire: () => Promise<unknown>,
-  check: () => Promise<boolean>,
-  label: string,
-): Promise<string | null> {
-  let hash: string | null = null;
-  const txP = fire().then((h) => { hash = h as string; return "tx" as const; });
-  const pollP = pollUntil(check, label).then(() => "poll" as const);
-  const winner = await Promise.race([txP, pollP]);
-  if (winner === "tx") {
-    await pollP;
-  } else {
-    txP.catch((err) => {
-      console.warn(`[AcceptModal] tx rejected after poll confirmed (${label}):`, err);
-    });
-  }
-  return hash;
-}
-
-function truncate(value: number, decimals: number): string {
-  const factor = 10 ** decimals;
-  return (Math.floor(value * factor) / factor).toFixed(decimals);
-}
-
-function computeCollateral(
-  isBuy: boolean,
-  amount: number,
-  strike: number,
-  assetSlug: string,
-): { oTokenAmount: bigint; collateral: bigint; collateralAsset: Address } {
-  if (isBuy) {
-    const ethUnits = amount / strike;
-    const oTokenAmount = parseUnits(truncate(ethUnits, 8), 8);
-    const strikePrice8 = BigInt(Math.round(strike * 1e8));
-    const collateral = (oTokenAmount * strikePrice8) / BigInt(1e10);
-    return { oTokenAmount, collateral, collateralAsset: ADDRESSES.usdc };
-  }
-  const oTokenAmount = parseUnits(truncate(amount, 8), 8);
-  // WETH uses 18 decimals, WBTC uses 8 decimals
-  const isBtc = assetSlug === "btc";
-  const collateral = isBtc ? oTokenAmount : oTokenAmount * BigInt(1e10);
-  const collateralAsset = isBtc ? ADDRESSES.wbtc : ADDRESSES.weth;
-  return { oTokenAmount, collateral, collateralAsset };
-}
-
-function readTokenBalance(token: Address, account: Address) {
-  return publicClient.readContract({
-    address: token, abi: ERC20_ABI,
-    functionName: "balanceOf", args: [account],
-  });
-}
-
-function encodeExecuteOrder(
-  quote: PriceQuote,
-  oTokenAmount: bigint,
-  collateral: bigint,
-): `0x${string}` {
-  const quoteTuple = {
-    oToken: quote.otoken_address as Address,
-    bidPrice: BigInt(quote.bid_price_raw!),
-    deadline: BigInt(quote.deadline!),
-    quoteId: BigInt(quote.quote_id!),
-    maxAmount: BigInt(quote.max_amount_raw!),
-    makerNonce: BigInt(quote.maker_nonce!),
-  };
-  return encodeFunctionData({
-    abi: BATCH_SETTLER_ABI,
-    functionName: "executeOrder",
-    args: [quoteTuple, quote.signature! as `0x${string}`, oTokenAmount, collateral],
-  });
-}
-
-function buildOptimisticPosition(
-  quote: PriceQuote,
-  amount: number,
-  isBuy: boolean,
-  address: Address,
-  assetSlug: string,
-): Position {
-  const optOTokenAmt = isBuy
-    ? (amount / quote.strike) * 1e8
-    : amount * 1e8;
-  // Puts use USDC (6 dec), ETH calls use WETH (18 dec), BTC calls use WBTC (8 dec)
-  const callDecimals = assetSlug === "btc" ? 1e8 : 1e18;
-  const optCollateral = isBuy ? amount * 1e6 : amount * callDecimals;
-  const optPremium = isBuy
-    ? String(((quote.premium * amount) / quote.strike) * 1e6)
-    : String(quote.premium * amount * 1e6);
-  return {
-    id: "opt-" + Date.now(),
-    tx_hash: "",
-    block_number: 0,
-    user_address: address,
-    otoken_address: quote.otoken_address!,
-    amount: optOTokenAmt,
-    premium: optPremium,
-    collateral: optCollateral,
-    vault_id: null as unknown as number,
-    strike_price: quote.strike * 1e8,
-    expiry: quote.expires_at,
-    is_put: isBuy,
-    is_settled: false,
-    settled_at: null,
-    settlement_tx_hash: null,
-    indexed_at: new Date().toISOString(),
-    settlement_type: null,
-    delivered_asset: null,
-    delivered_amount: null,
-    delivery_tx_hash: null,
-    is_itm: null,
-    expiry_price: null,
-    gross_premium: optPremium,
-    net_premium: optPremium,
-    protocol_fee: "0",
-    outcome: null,
-  };
-}
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth" }: Props) {
   const { address, sendBatchTx, isConnected, login } = useWallet();
