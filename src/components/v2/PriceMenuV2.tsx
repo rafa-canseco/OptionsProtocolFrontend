@@ -124,6 +124,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number; txHash: string | null } | null>(null);
+  const [rangeAccepted, setRangeAccepted] = useState<{
+    putStrike: number; callStrike: number;
+    totalPremium: number; combinedApr: number;
+    amount: number; expiryDays: number;
+    putTxHash: string | null; callTxHash: string | null;
+  } | null>(null);
 
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
@@ -264,6 +270,54 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
+  if (rangeAccepted) {
+    const explorerUrl = CHAIN.blockExplorers?.default.url;
+    return (
+      <div className="text-center space-y-5 py-10 animate-fade-in-up">
+        <div>
+          <p className="text-4xl font-bold text-[var(--accent)] font-mono">
+            ${fmtUsd(rangeAccepted.totalPremium)}
+          </p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">earned from both sides. Yours to keep.</p>
+        </div>
+        <p className="text-sm text-[var(--text-secondary)]">
+          {Math.round(rangeAccepted.combinedApr)}% APR
+        </p>
+        <div className="h-px bg-[var(--border)]" />
+        <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+          <p>Range: ${rangeAccepted.putStrike.toLocaleString()} – ${rangeAccepted.callStrike.toLocaleString()}</p>
+          <p>${rangeAccepted.amount.toLocaleString()} committed for {rangeAccepted.expiryDays} days</p>
+        </div>
+        {explorerUrl && (rangeAccepted.putTxHash || rangeAccepted.callTxHash) && (
+          <div className="flex justify-center gap-3 text-sm">
+            {rangeAccepted.putTxHash && (
+              <a href={`${explorerUrl}/tx/${rangeAccepted.putTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                Lower tx ↗
+              </a>
+            )}
+            {rangeAccepted.callTxHash && (
+              <a href={`${explorerUrl}/tx/${rangeAccepted.callTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                Upper tx ↗
+              </a>
+            )}
+          </div>
+        )}
+        <a
+          href="/positions"
+          className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+        >
+          View my positions
+        </a>
+        <button
+          onClick={() => { setRangeAccepted(null); setSide("range"); refresh(); }}
+          className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+        >
+          Set another range
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
@@ -373,6 +427,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           activeExpiry={activeExpiry}
           spot={spot}
           walletBalance={usd}
+          onAccepted={setRangeAccepted}
         />
       )}
 
