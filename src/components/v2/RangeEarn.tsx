@@ -3,8 +3,10 @@
 import { useState, useMemo } from "react";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
+import { RangeAcceptModal } from "./RangeAcceptModal";
 import { fmtUsd } from "@/lib/utils";
 import { computeAPR } from "@/lib/execution";
+import { useWallet } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 
@@ -25,10 +27,13 @@ export function RangeEarn({
   spot,
   walletBalance,
 }: RangeEarnProps) {
+  const { isConnected, login } = useWallet();
   const [putQuote, setPutQuote] = useState<PriceQuote | null>(null);
   const [callQuote, setCallQuote] = useState<PriceQuote | null>(null);
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
+  const [confirming, setConfirming] = useState(false);
+  const [accepted, setAccepted] = useState(false);
 
   const putStrikes = useMemo(() => {
     return prices
@@ -233,22 +238,50 @@ export function RangeEarn({
           </div>
         )}
 
-        {/* Accept button — disabled for Phase 1 */}
+        {/* Accept button */}
         <div className="animate-fade-in-up">
           <button
-            disabled
-            className="w-full rounded-xl py-3.5 text-sm font-semibold bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40 transition-all duration-300"
+            onClick={() => {
+              if (!isConnected) { login(); return; }
+              setConfirming(true);
+            }}
+            disabled={!canAccept && isConnected}
+            className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
+              canAccept
+                ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
+                : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
+            }`}
           >
-            {!amount
-              ? "Enter an amount"
-              : !putQuote
-                ? "Select lower bound"
-                : !callQuote
-                  ? "Select upper bound"
-                  : "Coming soon"}
+            {!isConnected
+              ? "Connect wallet"
+              : !amount
+                ? "Enter an amount"
+                : !putQuote
+                  ? "Select lower bound"
+                  : !callQuote
+                    ? "Select upper bound"
+                    : `Accept: Earn $${fmtUsd(totalPremium)}`}
           </button>
         </div>
       </div>
+
+      {/* RangeAcceptModal */}
+      {confirming && putQuote && callQuote && (
+        <RangeAcceptModal
+          putQuote={putQuote}
+          callQuote={callQuote}
+          putAmountUsd={putAmountUsd}
+          callAmountEth={callAmountEth}
+          totalPremium={totalPremium}
+          assetSymbol={asset.symbol}
+          assetSlug={asset.slug}
+          onClose={() => setConfirming(false)}
+          onAccepted={() => {
+            setConfirming(false);
+            setAccepted(true);
+          }}
+        />
+      )}
 
       {/* RIGHT: Preview */}
       <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
