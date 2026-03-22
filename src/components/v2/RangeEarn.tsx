@@ -6,6 +6,7 @@ import { RangeOutcomeCards } from "./RangeOutcomeCards";
 import { RangeAcceptModal } from "./RangeAcceptModal";
 import { fmtUsd } from "@/lib/utils";
 import { computeAPR } from "@/lib/execution";
+import { CHAIN } from "@/lib/contracts";
 import { useWallet } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
@@ -33,7 +34,10 @@ export function RangeEarn({
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
   const [confirming, setConfirming] = useState(false);
-  const [accepted, setAccepted] = useState(false);
+  const [accepted, setAccepted] = useState<{
+    putTxHash: string | null;
+    callTxHash: string | null;
+  } | null>(null);
 
   const putStrikes = useMemo(() => {
     return prices
@@ -96,6 +100,56 @@ export function RangeEarn({
     : putQuote ? putApr : callApr;
 
   const canAccept = putQuote && callQuote && amount > 0;
+
+  const explorerUrl = CHAIN.blockExplorers?.default.url;
+
+  // Success screen
+  if (accepted && putQuote && callQuote) {
+    return (
+      <div className="text-center space-y-5 py-10 animate-fade-in-up">
+        <div>
+          <p className="text-4xl font-bold text-[var(--accent)] font-mono">
+            ${fmtUsd(totalPremium)}
+          </p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">earned from both sides. Yours to keep.</p>
+        </div>
+        <p className="text-sm text-[var(--text-secondary)]">
+          {Math.round(combinedApr)}% APR
+        </p>
+        <div className="h-px bg-[var(--border)]" />
+        <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+          <p>Range: ${putQuote.strike.toLocaleString()} – ${callQuote.strike.toLocaleString()}</p>
+          <p>${amount.toLocaleString()} committed for {putQuote.expiry_days} days</p>
+        </div>
+        {explorerUrl && (accepted.putTxHash || accepted.callTxHash) && (
+          <div className="flex justify-center gap-3 text-sm">
+            {accepted.putTxHash && (
+              <a href={`${explorerUrl}/tx/${accepted.putTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                Lower tx ↗
+              </a>
+            )}
+            {accepted.callTxHash && (
+              <a href={`${explorerUrl}/tx/${accepted.callTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                Upper tx ↗
+              </a>
+            )}
+          </div>
+        )}
+        <a
+          href="/positions"
+          className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+        >
+          View my positions
+        </a>
+        <button
+          onClick={() => { setAccepted(null); setPutQuote(null); setCallQuote(null); setAmountStr(""); }}
+          className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+        >
+          Set another range
+        </button>
+      </div>
+    );
+  }
 
   // Range is ETH-only for now — BTC collateral logic needs separate handling
   if (asset.slug !== "eth") {
@@ -298,9 +352,9 @@ export function RangeEarn({
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
           onClose={() => setConfirming(false)}
-          onAccepted={() => {
+          onAccepted={({ putTxHash, callTxHash }) => {
             setConfirming(false);
-            setAccepted(true);
+            setAccepted({ putTxHash, callTxHash });
           }}
         />
       )}
