@@ -45,7 +45,7 @@ export const ADDRESSES = {
   usdc:          ADDRESS_ENV.NEXT_PUBLIC_USDC_ADDRESS           as Address,
   weth:          ADDRESS_ENV.NEXT_PUBLIC_WETH_ADDRESS           as Address,
   wbtc:          ADDRESS_ENV.NEXT_PUBLIC_WBTC_ADDRESS           as Address,
-  swapRouter:    (process.env.NEXT_PUBLIC_SWAP_ROUTER_ADDRESS ?? "") as Address,
+  swapRouter:    (process.env.NEXT_PUBLIC_SWAP_ROUTER_ADDRESS || null) as Address | null,
 } as const;
 
 const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;

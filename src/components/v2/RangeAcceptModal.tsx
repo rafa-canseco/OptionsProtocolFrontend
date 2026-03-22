@@ -7,7 +7,6 @@ import {
   type Address,
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
-import { useBalances } from "@/hooks/useBalances";
 import {
   publicClient,
   ADDRESSES,
@@ -37,6 +36,7 @@ interface Props {
   putAmountUsd: number;
   callAmountEth: number;
   totalPremium: number;
+  spotPrice?: number;
   assetSymbol?: string;
   assetSlug?: string;
   onClose: () => void;
@@ -76,6 +76,7 @@ export function RangeAcceptModal({
   putAmountUsd,
   callAmountEth,
   totalPremium,
+  spotPrice,
   assetSymbol = "ETH",
   assetSlug = "eth",
   onClose,
@@ -135,16 +136,17 @@ export function RangeAcceptModal({
       // Determine if we need to swap USDC → WETH for the call side
       const wethNeeded = callCol.collateral;
       const wethAvailable = wethBal + nativeBal;
-      const needsSwap = wethAvailable < wethNeeded && ADDRESSES.swapRouter;
+      const needsSwap = wethAvailable < wethNeeded && ADDRESSES.swapRouter !== null;
 
       if (needsSwap) {
+        const swapRouter = ADDRESSES.swapRouter!;
         // Calculate how much USDC to swap to cover the WETH shortfall
         // We swap enough to cover the gap (WETH needed minus what we have)
         const wethShortfall = wethNeeded - wethAvailable;
         // Convert WETH shortfall to USDC amount (rough estimate with 2% buffer)
-        const spotPrice = putQuote.strike; // approximate; put strike is close enough
+        const priceForSwap = spotPrice ?? putQuote.strike;
         const shortfallEth = Number(wethShortfall) / 1e18;
-        const swapAmountUsdc = BigInt(Math.ceil(shortfallEth * spotPrice * 1.02 * 1e6));
+        const swapAmountUsdc = BigInt(Math.ceil(shortfallEth * priceForSwap * 1.02 * 1e6));
 
         // Check total USDC covers put collateral + swap
         if (usdcBal < putCol.collateral + swapAmountUsdc) {
@@ -164,7 +166,7 @@ export function RangeAcceptModal({
           address: ADDRESSES.usdc,
           abi: ERC20_ABI,
           functionName: "allowance",
-          args: [address, ADDRESSES.swapRouter],
+          args: [address as Address, swapRouter],
         });
 
         const swapCalls: BatchCall[] = [];
@@ -174,19 +176,19 @@ export function RangeAcceptModal({
             data: encodeFunctionData({
               abi: ERC20_ABI,
               functionName: "approve",
-              args: [ADDRESSES.swapRouter, maxUint256],
+              args: [swapRouter, maxUint256],
             }),
           });
         }
 
-        const minOut = computeMinAmountOut(swapAmountUsdc, spotPrice);
+        const minOut = computeMinAmountOut(swapAmountUsdc, priceForSwap);
         swapCalls.push({
-          to: ADDRESSES.swapRouter,
+          to: swapRouter,
           data: encodeSwapExactInput(
             ADDRESSES.usdc,
             ADDRESSES.weth,
             feeTier,
-            address,
+            address as Address,
             swapAmountUsdc,
             minOut,
           ),
@@ -260,7 +262,9 @@ export function RangeAcceptModal({
 
       // Save put optimistic position
       const putPos = buildOptimisticPosition(putQuote, putAmountUsd, true, address, assetSlug);
-      try { saveOptimistic(putPos); } catch {}
+      try { saveOptimistic(putPos); } catch (err) {
+        console.warn("[RangeAcceptModal] Could not save optimistic position (put):", err);
+      }
 
       // === Check call quote deadline before proceeding ===
       if (!deadlineOk(callQuote)) {
@@ -306,7 +310,9 @@ export function RangeAcceptModal({
 
       // Save call optimistic position
       const callPos = buildOptimisticPosition(callQuote, callAmountEth, false, address, assetSlug);
-      try { saveOptimistic(callPos); } catch {}
+      try { saveOptimistic(callPos); } catch (err) {
+        console.warn("[RangeAcceptModal] Could not save optimistic position (call):", err);
+      }
 
       // Done
       updateStep("confirmed");
@@ -316,8 +322,17 @@ export function RangeAcceptModal({
     } catch (err: unknown) {
       console.error("[RangeAcceptModal] Transaction failed:", err);
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("Timed out") || msg.includes("Lost connection")) {
+      if (msg.match(/reject|denied|cancel/i)) {
+        setError("Transaction cancelled.");
+        setStep("idle");
+      } else if (msg.includes("Timed out") || msg.includes("Lost connection")) {
         setError(msg);
+      } else if (lastStep === "swapping") {
+        setError("Swap failed. No funds were moved. Please try again.");
+        setStep("idle");
+      } else if (lastStep === "executing-put" && didSwap) {
+        setError("Lower side failed, but the swap already completed. Your ETH is in your wallet. Please try again.");
+        setStep("idle");
       } else if (lastStep === "executing-put") {
         setError("Lower side failed. No funds were moved. Please try again.");
         setStep("idle");

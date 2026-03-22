@@ -6,8 +6,6 @@ interface RangeOutcomeCardsProps {
   putStrike?: number;
   callStrike?: number;
   totalPremium?: number;
-  putAmountUsd?: number;
-  callAmountEth?: number;
   assetSymbol?: string;
 }
 
@@ -15,7 +13,6 @@ export function RangeOutcomeCards({
   putStrike,
   callStrike,
   totalPremium,
-  callAmountEth,
   assetSymbol = "ETH",
 }: RangeOutcomeCardsProps) {
   const hasPremium = totalPremium !== undefined && totalPremium > 0;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
 import { RangeAcceptModal } from "./RangeAcceptModal";
@@ -59,6 +59,18 @@ export function RangeEarn({
       .sort((a, b) => a.strike - b.strike);
   }, [prices, activeExpiry, spot]);
 
+  // Reset selections when strikes change (e.g. expiry switch)
+  useEffect(() => {
+    setPutQuote((prev) => {
+      if (!prev) return prev;
+      return putStrikes.find((q) => q.strike === prev.strike) ?? null;
+    });
+    setCallQuote((prev) => {
+      if (!prev) return prev;
+      return callStrikes.find((q) => q.strike === prev.strike) ?? null;
+    });
+  }, [putStrikes, callStrikes]);
+
   // 50/50 split
   const putAmountUsd = amount / 2;
   const callAmountEth = spot && spot > 0 ? (amount / 2) / spot : 0;
@@ -84,6 +96,15 @@ export function RangeEarn({
     : putQuote ? putApr : callApr;
 
   const canAccept = putQuote && callQuote && amount > 0;
+
+  // Range is ETH-only for now — BTC collateral logic needs separate handling
+  if (asset.slug !== "eth") {
+    return (
+      <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
+        Range is available for ETH only. Select ETH to use this feature.
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
@@ -273,6 +294,7 @@ export function RangeEarn({
           putAmountUsd={putAmountUsd}
           callAmountEth={callAmountEth}
           totalPremium={totalPremium}
+          spotPrice={spot}
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
           onClose={() => setConfirming(false)}
@@ -302,8 +324,6 @@ export function RangeEarn({
           putStrike={putQuote?.strike}
           callStrike={callQuote?.strike}
           totalPremium={totalPremium > 0 ? totalPremium : undefined}
-          putAmountUsd={putAmountUsd > 0 ? putAmountUsd : undefined}
-          callAmountEth={callAmountEth > 0 ? callAmountEth : undefined}
           assetSymbol={asset.symbol}
         />
       </div>
