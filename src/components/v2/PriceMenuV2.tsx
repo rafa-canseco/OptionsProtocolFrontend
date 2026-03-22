@@ -17,11 +17,8 @@ import { fmtUsd } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import { AssetSelector } from "./AssetSelector";
-
-function computeAPR(premium: number, strike: number, expiryDays: number): number {
-  if (strike <= 0 || expiryDays <= 0) return 0;
-  return (premium / strike) * (365 / expiryDays) * 100;
-}
+import { RangeEarn } from "./RangeEarn";
+import { computeAPR } from "@/lib/execution";
 
 function parseLocalDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -123,10 +120,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
   const initialSide = searchParams.get("side") === "sell" ? "sell" : "buy";
-  const [side, setSide] = useState<"buy" | "sell">(initialSide);
+  const [side, setSide] = useState<"buy" | "sell" | "range">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [accepted, setAccepted] = useState<{ quote: PriceQuote; side: "buy" | "sell"; amount: number; txHash: string | null } | null>(null);
+  const [rangeAccepted, setRangeAccepted] = useState<{
+    putStrike: number; callStrike: number;
+    totalPremium: number; combinedApr: number;
+    amount: number; expiryDays: number;
+    putTxHash: string | null; callTxHash: string | null;
+  } | null>(null);
 
   const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
@@ -267,6 +270,54 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
+  if (rangeAccepted) {
+    const explorerUrl = CHAIN.blockExplorers?.default.url;
+    return (
+      <div className="text-center space-y-5 py-10 animate-fade-in-up">
+        <div>
+          <p className="text-4xl font-bold text-[var(--accent)] font-mono">
+            ${fmtUsd(rangeAccepted.totalPremium)}
+          </p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">earned from both sides. Yours to keep.</p>
+        </div>
+        <p className="text-sm text-[var(--text-secondary)]">
+          {Math.round(rangeAccepted.combinedApr)}% APR
+        </p>
+        <div className="h-px bg-[var(--border)]" />
+        <div className="space-y-2 text-sm text-[var(--text-secondary)]">
+          <p>Range: ${rangeAccepted.putStrike.toLocaleString()} – ${rangeAccepted.callStrike.toLocaleString()}</p>
+          <p>${rangeAccepted.amount.toLocaleString()} committed for {rangeAccepted.expiryDays} days</p>
+        </div>
+        {explorerUrl && (rangeAccepted.putTxHash || rangeAccepted.callTxHash) && (
+          <div className="flex justify-center gap-3 text-sm">
+            {rangeAccepted.putTxHash && (
+              <a href={`${explorerUrl}/tx/${rangeAccepted.putTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                Lower tx ↗
+              </a>
+            )}
+            {rangeAccepted.callTxHash && (
+              <a href={`${explorerUrl}/tx/${rangeAccepted.callTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+                Upper tx ↗
+              </a>
+            )}
+          </div>
+        )}
+        <a
+          href="/positions"
+          className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+        >
+          View my positions
+        </a>
+        <button
+          onClick={() => { setRangeAccepted(null); setSide("range"); refresh(); }}
+          className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+        >
+          Set another range
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
@@ -308,11 +359,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         )}
       </div>
 
-      {/* Two-column: config left, preview right */}
-      <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
-        {/* LEFT: Configuration flow */}
-        <div className="space-y-5">
-          {/* 1. Buy / Sell toggle */}
+      {/* Buy/Sell/Range toggle + content */}
+      <div className="space-y-5">
+        {/* 1. Buy / Sell / Range toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
               onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
@@ -333,6 +382,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               }`}
             >
               I&apos;d sell
+            </button>
+            <button
+              onClick={() => { setSide("range"); setAmountStr(""); setSelectedQuote(null); }}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                side === "range"
+                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              }`}
+            >
+              Range
             </button>
           </div>
 
@@ -358,6 +417,24 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </div>
           )}
 
+        </div>{/* end toggle + duration wrapper */}
+
+      {/* Range mode */}
+      {side === "range" && (
+        <RangeEarn
+          asset={asset}
+          prices={prices}
+          activeExpiry={activeExpiry}
+          spot={spot}
+          walletBalance={usd}
+          onAccepted={setRangeAccepted}
+        />
+      )}
+
+      {/* Buy/Sell mode */}
+      {side !== "range" && (
+      <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
+        <div className="space-y-5">
           {/* 3. Amount input + % shortcuts */}
           <div className="animate-fade-in-up">
             <p className="text-sm text-[var(--text-secondary)] mb-2">
@@ -417,7 +494,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   <StrikeCard
                     key={`${q.strike}-${q.expiry_date}`}
                     quote={q}
-                    side={side}
+                    side={side as "buy" | "sell"}
                     amount={amount}
                     isSelected={selectedQuote?.strike === q.strike}
                     onSelect={() => setSelectedQuote(q)}
@@ -483,7 +560,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </div>
           )}
           <OutcomeCards
-            side={side}
+            side={side as "buy" | "sell"}
             amount={amount > 0 ? amount : undefined}
             strike={selectedQuote?.strike}
             premium={selectedEarnings > 0 ? selectedEarnings : undefined}
@@ -491,12 +568,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           />
         </div>
       </div>
+      )}
 
       {/* AcceptModal — only opens on Accept click, confirmation-only */}
       {confirming && selectedQuote && (
         <AcceptModal
           quote={selectedQuote}
-          side={side}
+          side={side as "buy" | "sell"}
           initialAmount={amountStr}
           confirmOnly
           maxPositionEth={capacity?.max_position}
@@ -505,7 +583,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           onClose={() => setConfirming(false)}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);
-            setAccepted({ quote: selectedQuote, side, amount: amt, txHash: hash });
+            setAccepted({ quote: selectedQuote, side: side as "buy" | "sell", amount: amt, txHash: hash });
           }}
         />
       )}

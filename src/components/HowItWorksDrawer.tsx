@@ -11,7 +11,7 @@ import {
 const STEPS = [
   {
     title: "Set your price.",
-    body: "Pick a price you'd buy ETH at. This is your \"strike price.\" Further from current price = safer, lower premium.",
+    body: "Pick a price you'd buy or sell at. Further from current price = safer, lower premium. Or use Range to set both a lower and upper bound.",
   },
   {
     title: "Get paid upfront.",
@@ -19,26 +19,30 @@ const STEPS = [
   },
   {
     title: "Wait for expiry.",
-    body: "Capital (USDC) is locked for the duration (e.g. 7 days). Track on Positions page.",
+    body: "Your capital is locked for the duration (e.g. 7 days). Track on the Positions page.",
   },
   {
-    title: "Two outcomes.",
-    body: "ETH stays above your price: capital back + keep premium. ETH drops to your price: you buy ETH at that price + keep premium.",
+    title: "Two outcomes (or three with Range).",
+    body: "Buy: price stays above → capital back. Price drops → you buy at your price. Sell: price stays below → asset back. Price rises → you sell at your price. Range: price stays between your bounds → everything back. Either way, you keep the premium.",
   },
 ] as const;
 
 const FAQS = [
   {
     q: "What's a strike price?",
-    a: "The price you agree to buy/sell ETH at. Lower = safer, lower premium. Higher = more premium, closer to current price.",
+    a: "The price you commit to buy or sell at. Further from current price = safer but lower premium.",
   },
   {
     q: "What's premium?",
     a: "Money paid to you upfront by the market maker. Compensation for locking capital. Yours regardless of outcome.",
   },
   {
+    q: "What's Range?",
+    a: "You set a lower and upper price. If the asset stays in range, all your capital comes back and you keep premium from both sides. If it moves out, you either buy (downside) or sell (upside) at the price you chose.",
+  },
+  {
     q: "Can I lose money?",
-    a: "You always keep the premium. If ETH drops to your strike, you buy ETH at that price (which you chose). Effective cost is strike minus premium. Like a limit order that pays you to wait.",
+    a: "You always keep the premium. If you get assigned, you buy or sell at the price you chose. Your effective cost is always better than market because of the premium you earned.",
   },
   {
     q: "Who pays the premium?",
@@ -59,7 +63,7 @@ export function HowItWorksDrawer({
         <SheetHeader>
           <SheetTitle>How does this work?</SheetTitle>
           <SheetDescription>
-            Earn premium by setting a price you&apos;d buy ETH at.
+            Earn premium by setting the price you&apos;d buy or sell at.
           </SheetDescription>
         </SheetHeader>
 
