@@ -26,6 +26,8 @@ import {
   readTokenBalance,
   buildOptimisticPosition,
 } from "@/lib/execution";
+import { encodeSwapExactInput, computeMinAmountOut } from "@/lib/swap";
+import { getAssetConfig } from "@/lib/assets";
 
 const DEADLINE_BUFFER_S = 60;
 
@@ -46,6 +48,7 @@ interface Props {
 
 type RangeStep =
   | "idle"
+  | "swapping"
   | "executing-put"
   | "executing-call"
   | "confirmed"
@@ -83,13 +86,15 @@ export function RangeAcceptModal({
   const [putTxHash, setPutTxHash] = useState<string | null>(null);
   const [callTxHash, setCallTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [didSwap, setDidSwap] = useState(false);
 
-  const loading = step === "executing-put" || step === "executing-call";
+  const loading = step === "swapping" || step === "executing-put" || step === "executing-call";
   const done = step === "confirmed";
   const explorerUrl = CHAIN.blockExplorers?.default.url ?? null;
 
   const stepLabels: Record<RangeStep, string> = {
     "idle": "Accept range",
+    "swapping": "Swapping USDC to ETH...",
     "executing-put": "Executing lower side...",
     "executing-call": "Executing upper side...",
     "confirmed": "Done",
@@ -120,29 +125,92 @@ export function RangeAcceptModal({
       const putCol = computeCollateral(true, putAmountUsd, putQuote.strike, assetSlug);
       const callCol = computeCollateral(false, callAmountEth, callQuote.strike, assetSlug);
 
-      // Check USDC balance for put
-      const usdcBal = await readTokenBalance(ADDRESSES.usdc, address);
-      if (usdcBal < putCol.collateral) {
-        setError("Insufficient USDC balance for the lower side.");
-        return;
-      }
-
-      // Check WETH + native ETH for call
-      const [wethBal, nativeBal] = await Promise.all([
+      // Check balances
+      const [usdcBal, wethBal, nativeBal] = await Promise.all([
+        readTokenBalance(ADDRESSES.usdc, address),
         readTokenBalance(ADDRESSES.weth, address),
         publicClient.getBalance({ address }),
       ]);
-      if (wethBal + nativeBal < callCol.collateral) {
+
+      // Determine if we need to swap USDC → WETH for the call side
+      const wethNeeded = callCol.collateral;
+      const wethAvailable = wethBal + nativeBal;
+      const needsSwap = wethAvailable < wethNeeded && ADDRESSES.swapRouter;
+
+      if (needsSwap) {
+        // Calculate how much USDC to swap to cover the WETH shortfall
+        // We swap enough to cover the gap (WETH needed minus what we have)
+        const wethShortfall = wethNeeded - wethAvailable;
+        // Convert WETH shortfall to USDC amount (rough estimate with 2% buffer)
+        const spotPrice = putQuote.strike; // approximate; put strike is close enough
+        const shortfallEth = Number(wethShortfall) / 1e18;
+        const swapAmountUsdc = BigInt(Math.ceil(shortfallEth * spotPrice * 1.02 * 1e6));
+
+        // Check total USDC covers put collateral + swap
+        if (usdcBal < putCol.collateral + swapAmountUsdc) {
+          setError("Insufficient total balance. Need USDC for both the lower side and the swap.");
+          return;
+        }
+
+        // Get fee tier from asset config
+        const assetConfig = getAssetConfig(assetSlug);
+        const feeTier = assetConfig?.swapFeeTier ?? 3000;
+
+        // Execute swap: USDC → WETH
+        updateStep("swapping");
+
+        // Approve USDC to SwapRouter
+        const swapRouterAllowance = await publicClient.readContract({
+          address: ADDRESSES.usdc,
+          abi: ERC20_ABI,
+          functionName: "allowance",
+          args: [address, ADDRESSES.swapRouter],
+        });
+
+        const swapCalls: BatchCall[] = [];
+        if (swapRouterAllowance < swapAmountUsdc) {
+          swapCalls.push({
+            to: ADDRESSES.usdc,
+            data: encodeFunctionData({
+              abi: ERC20_ABI,
+              functionName: "approve",
+              args: [ADDRESSES.swapRouter, maxUint256],
+            }),
+          });
+        }
+
+        const minOut = computeMinAmountOut(swapAmountUsdc, spotPrice);
+        swapCalls.push({
+          to: ADDRESSES.swapRouter,
+          data: encodeSwapExactInput(
+            ADDRESSES.usdc,
+            ADDRESSES.weth,
+            feeTier,
+            address,
+            swapAmountUsdc,
+            minOut,
+          ),
+        });
+
+        const swapHash = await sendBatchTx(swapCalls) as `0x${string}`;
+        await publicClient.waitForTransactionReceipt({ hash: swapHash });
+        setDidSwap(true);
+      } else if (wethAvailable < wethNeeded) {
+        // No swap router configured and not enough WETH
         setError(`Insufficient ${assetSymbol} balance for the upper side.`);
         return;
+      } else {
+        // Have enough USDC for put?
+        if (usdcBal < putCol.collateral) {
+          setError("Insufficient USDC balance for the lower side.");
+          return;
+        }
       }
 
-      // Wrap ETH if needed for call side
-      let wrapAmount = BigInt(0);
-      if (wethBal < callCol.collateral) {
-        wrapAmount = callCol.collateral - wethBal;
-      }
-      if (wrapAmount > BigInt(0)) {
+      // Wrap native ETH → WETH if needed (after potential swap)
+      const wethBalAfterSwap = await readTokenBalance(ADDRESSES.weth, address);
+      if (wethBalAfterSwap < wethNeeded) {
+        const wrapAmount = wethNeeded - wethBalAfterSwap;
         const wrapHash = await sendBatchTx([{
           to: ADDRESSES.weth,
           data: encodeFunctionData({
@@ -306,15 +374,29 @@ export function RangeAcceptModal({
         {/* Progress stepper */}
         {step !== "idle" && (
           <div className="space-y-2">
+            {/* Swap step — only shown when swapping or after swap completed */}
+            {(step === "swapping" || didSwap) && (
+              <div className="flex items-center gap-2">
+                <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
+                  step === "swapping" ? "bg-[var(--accent)] text-[var(--bg)] animate-pulse" : "bg-[var(--accent)] text-[var(--bg)]"
+                }`}>↔</div>
+                <span className={`text-sm ${step === "swapping" ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}>
+                  {step === "swapping" ? `Swapping USDC → ${assetSymbol}...` : "Swap done"}
+                </span>
+              </div>
+            )}
+
             <div className="flex items-center gap-2">
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
                 step === "executing-put" ? "bg-[var(--accent)] text-[var(--bg)] animate-pulse"
+                : step === "swapping" ? "bg-[var(--border)] text-[var(--text-secondary)]"
                 : "bg-[var(--accent)] text-[var(--bg)]"
               }`}>1</div>
-              <span className={`text-sm ${step === "executing-put" ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}>
-                {step === "executing-put" ? "Executing lower side..." : "Lower side done"}
+              <span className={`text-sm ${step === "executing-put" ? "text-[var(--accent)]" : step === "swapping" ? "text-[var(--text-secondary)] opacity-50" : "text-[var(--text-secondary)]"}`}>
+                {step === "executing-put" ? "Executing lower side..." : step === "swapping" ? "Lower side" : "Lower side done"}
               </span>
             </div>
+
             <div className="flex items-center gap-2">
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold ${
                 step === "executing-call" ? "bg-[var(--accent)] text-[var(--bg)] animate-pulse"

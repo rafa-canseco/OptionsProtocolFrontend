@@ -16,6 +16,8 @@ export interface AssetConfig {
   displayDecimals: number;
   /** If true, asset is shown in selector but not tradeable yet */
   comingSoon?: boolean;
+  /** Uniswap V3 fee tier for USDC↔asset swaps. Must match on-chain config. */
+  swapFeeTier?: number;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -29,6 +31,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.5",
     displayDecimals: 4,
+    swapFeeTier: 3000, // 0.3% — matches on-chain swapFeeTier
   },
   btc: {
     slug: "btc",
@@ -40,6 +43,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.01",
     displayDecimals: 6,
+    swapFeeTier: 500, // 0.05% — matches on-chain assetSwapFeeTier[cbBTC]
   },
   aero: {
     slug: "aero",
