@@ -4,17 +4,9 @@ import { useState, useMemo } from "react";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
 import { fmtUsd } from "@/lib/utils";
+import { computeAPR } from "@/lib/execution";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
-
-function computeAPR(
-  premium: number,
-  strike: number,
-  expiryDays: number,
-): number {
-  if (strike <= 0 || expiryDays <= 0) return 0;
-  return (premium / strike) * (365 / expiryDays) * 100;
-}
 
 const MIN_DISPLAY_APR = 3;
 
