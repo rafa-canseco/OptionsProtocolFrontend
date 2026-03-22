@@ -224,14 +224,19 @@ export function RangeEarn({
 
         {/* Range summary */}
         {putQuote && callQuote && spot && (
-          <div className="flex items-center justify-between rounded-xl bg-[var(--surface)] border border-[var(--border)] px-4 py-3 animate-fade-in-up">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="font-mono font-semibold text-[var(--bone)]">${putQuote.strike.toLocaleString()}</span>
-              <span className="text-[var(--text-secondary)]">—</span>
-              <span className="font-mono font-semibold text-[var(--bone)]">${callQuote.strike.toLocaleString()}</span>
-            </div>
+          <div className="flex items-center justify-center gap-2 rounded-xl bg-[var(--surface)] border border-[var(--border)] px-4 py-3 text-sm animate-fade-in-up">
+            <span className="font-mono font-semibold text-[var(--bone)]">
+              ${putQuote.strike.toLocaleString()}
+            </span>
             <span className="text-xs text-[var(--text-secondary)] font-mono">
-              {(((callQuote.strike - putQuote.strike) / spot) * 100).toFixed(1)}% range
+              ({(((putQuote.strike - spot) / spot) * 100).toFixed(1)}%)
+            </span>
+            <span className="text-[var(--text-secondary)]">—</span>
+            <span className="font-mono font-semibold text-[var(--bone)]">
+              ${callQuote.strike.toLocaleString()}
+            </span>
+            <span className="text-xs text-[var(--text-secondary)] font-mono">
+              (+{(((callQuote.strike - spot) / spot) * 100).toFixed(1)}%)
             </span>
           </div>
         )}
