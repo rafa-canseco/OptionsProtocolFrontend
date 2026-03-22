@@ -92,6 +92,11 @@ export function RangeEarn({
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
       {/* LEFT: Strike selection + amount */}
       <div className="space-y-5">
+        {/* Range explanation */}
+        <p className="text-sm text-[var(--text-secondary)] animate-fade-in-up">
+          Bet that {asset.symbol} stays in a price range. You earn premium from both sides — if the price stays between your two strikes, you keep everything.
+        </p>
+
         {/* Amount input */}
         <div className="animate-fade-in-up">
           <p className="text-sm text-[var(--text-secondary)] mb-2">
@@ -115,8 +120,8 @@ export function RangeEarn({
           </div>
           {amount > 0 && spot && (
             <div className="flex gap-4 mt-1.5 text-xs text-[var(--text-secondary)]">
-              <span>Put side: <span className="font-mono">${putAmountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> USDC</span>
-              <span>Call side: <span className="font-mono">{callAmountEth.toFixed(4)}</span> {asset.symbol}</span>
+              <span>Downside: <span className="font-mono">${putAmountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> USDC</span>
+              <span>Upside: <span className="font-mono">{callAmountEth.toFixed(4)}</span> {asset.symbol}</span>
             </div>
           )}
           <p className="text-xs text-[var(--text-secondary)] mt-1">
@@ -129,8 +134,8 @@ export function RangeEarn({
           {/* Put strikes */}
           <div>
             <p className="text-sm text-[var(--text-secondary)] mb-2 flex items-center">
-              Buy {asset.symbol} if drops to
-              <InfoTooltip title="Put strike" text={`If ${asset.symbol} drops below this price, you buy at this strike and keep the premium.`} />
+              Lower bound
+              <InfoTooltip title="Lower bound" text={`If ${asset.symbol} drops below this price, you buy at this price and keep the premium.`} />
             </p>
             {putStrikes.length > 0 ? (
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
@@ -171,8 +176,8 @@ export function RangeEarn({
           {/* Call strikes */}
           <div>
             <p className="text-sm text-[var(--text-secondary)] mb-2 flex items-center">
-              Sell {asset.symbol} if rises to
-              <InfoTooltip title="Call strike" text={`If ${asset.symbol} rises above this price, you sell at this strike and keep the premium.`} />
+              Upper bound
+              <InfoTooltip title="Upper bound" text={`If ${asset.symbol} rises above this price, you sell at this price and keep the premium.`} />
             </p>
             {callStrikes.length > 0 ? (
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
