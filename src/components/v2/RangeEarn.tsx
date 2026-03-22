@@ -121,9 +121,14 @@ export function RangeEarn({
             />
           </div>
           {amount > 0 && spot && (
-            <p className="mt-1.5 text-xs text-[var(--text-secondary)]">
-              Split: <span className="font-mono">${putAmountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> USDC + <span className="font-mono">{callAmountEth.toFixed(4)}</span> {asset.symbol}
-            </p>
+            <div className="mt-1.5 space-y-0.5">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Split: <span className="font-mono">${putAmountUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> USDC + <span className="font-mono">{callAmountEth.toFixed(4)}</span> {asset.symbol}
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                No need to hold {asset.symbol} — we swap automatically if needed
+              </p>
+            </div>
           )}
           <p className="text-xs text-[var(--text-secondary)] mt-1">
             Balance: <span className="font-mono">${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
