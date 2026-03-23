@@ -3,7 +3,7 @@ import { SWAP_ROUTER_ABI } from "@/lib/contracts";
 
 /**
  * Encode a Uniswap V3 exactInputSingle swap.
- * Used to convert USDC → WETH when user lacks WETH for call side.
+ * Used to convert USDC → WETH/cbBTC when user lacks collateral for call side.
  */
 export function encodeSwapExactInput(
   tokenIn: Address,
@@ -29,20 +29,21 @@ export function encodeSwapExactInput(
 }
 
 /**
- * Compute minimum WETH output for a USDC input, with slippage protection.
+ * Compute minimum output for a USDC input, with slippage protection.
  * @param amountInUsdc - USDC amount in raw units (6 decimals)
- * @param spotPrice - USD per ETH (e.g. 2045.50)
+ * @param spotPrice - USD per asset unit (e.g. 2045.50 for ETH, 84000 for BTC)
  * @param slippageBps - Slippage tolerance in basis points (e.g. 50 = 0.5%)
- * @returns Minimum WETH amount in raw units (18 decimals)
+ * @param outDecimals - Output token decimals (18 for WETH, 8 for cbBTC)
+ * @returns Minimum output amount in raw units
  */
 export function computeMinAmountOut(
   amountInUsdc: bigint,
   spotPrice: number,
   slippageBps = 50,
+  outDecimals = 18,
 ): bigint {
-  // expectedWeth = (amountInUsdc / 1e6) / spotPrice * 1e18
   const usdcFloat = Number(amountInUsdc) / 1e6;
-  const expectedEth = usdcFloat / spotPrice;
-  const expectedWei = BigInt(Math.floor(expectedEth * 1e18));
-  return (expectedWei * BigInt(10000 - slippageBps)) / BigInt(10000);
+  const expectedUnits = usdcFloat / spotPrice;
+  const expectedRaw = BigInt(Math.floor(expectedUnits * (10 ** outDecimals)));
+  return (expectedRaw * BigInt(10000 - slippageBps)) / BigInt(10000);
 }
