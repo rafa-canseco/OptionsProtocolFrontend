@@ -103,15 +103,6 @@ export function RangeEarn({
 
   const canAccept = putQuote && callQuote && amount > 0;
 
-  // Range is ETH-only for now — BTC collateral logic needs separate handling
-  if (asset.slug !== "eth") {
-    return (
-      <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
-        Range is available for ETH only. Select ETH to use this feature.
-      </div>
-    );
-  }
-
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
       {/* LEFT: Strike selection + amount */}
