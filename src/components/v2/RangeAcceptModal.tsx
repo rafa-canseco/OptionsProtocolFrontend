@@ -126,42 +126,38 @@ export function RangeAcceptModal({
       const putCol = computeCollateral(true, putAmountUsd, putQuote.strike, assetSlug);
       const callCol = computeCollateral(false, callAmountEth, callQuote.strike, assetSlug);
 
-      // Check balances
-      const [usdcBal, wethBal, nativeBal] = await Promise.all([
-        readTokenBalance(ADDRESSES.usdc, address),
-        readTokenBalance(ADDRESSES.weth, address),
-        publicClient.getBalance({ address }),
-      ]);
+      // Asset-aware call side: ETH uses WETH (18 dec) + native, BTC uses cbBTC (8 dec)
+      const isBtc = assetSlug === "btc";
+      const callToken = callCol.collateralAsset; // WETH or cbBTC
+      const callDecimals = isBtc ? 8 : 18;
 
-      // Determine if we need to swap USDC → WETH for the call side
-      const wethNeeded = callCol.collateral;
-      const wethAvailable = wethBal + nativeBal;
-      const needsSwap = wethAvailable < wethNeeded && ADDRESSES.swapRouter !== null;
+      // Check balances
+      const usdcBal = await readTokenBalance(ADDRESSES.usdc, address);
+      const callTokenBal = await readTokenBalance(callToken, address);
+      // Only ETH has usable native balance for wrapping
+      const nativeBal = isBtc ? BigInt(0) : await publicClient.getBalance({ address });
+      const callAvailable = callTokenBal + nativeBal;
+      const callNeeded = callCol.collateral;
+
+      const needsSwap = callAvailable < callNeeded && ADDRESSES.swapRouter !== null;
 
       if (needsSwap) {
         const swapRouter = ADDRESSES.swapRouter!;
-        // Calculate how much USDC to swap to cover the WETH shortfall
-        // We swap enough to cover the gap (WETH needed minus what we have)
-        const wethShortfall = wethNeeded - wethAvailable;
-        // Convert WETH shortfall to USDC amount (rough estimate with 2% buffer)
+        const callShortfall = callNeeded - callAvailable;
         const priceForSwap = spotPrice ?? putQuote.strike;
-        const shortfallEth = Number(wethShortfall) / 1e18;
-        const swapAmountUsdc = BigInt(Math.ceil(shortfallEth * priceForSwap * 1.02 * 1e6));
+        const shortfallUnits = Number(callShortfall) / (10 ** callDecimals);
+        const swapAmountUsdc = BigInt(Math.ceil(shortfallUnits * priceForSwap * 1.02 * 1e6));
 
-        // Check total USDC covers put collateral + swap
         if (usdcBal < putCol.collateral + swapAmountUsdc) {
           setError("Insufficient total balance. Need USDC for both the lower side and the swap.");
           return;
         }
 
-        // Get fee tier from asset config
         const assetConfig = getAssetConfig(assetSlug);
         const feeTier = assetConfig?.swapFeeTier ?? 3000;
 
-        // Execute swap: USDC → WETH
         updateStep("swapping");
 
-        // Approve USDC to SwapRouter
         const swapRouterAllowance = await publicClient.readContract({
           address: ADDRESSES.usdc,
           abi: ERC20_ABI,
@@ -181,12 +177,12 @@ export function RangeAcceptModal({
           });
         }
 
-        const minOut = computeMinAmountOut(swapAmountUsdc, priceForSwap);
+        const minOut = computeMinAmountOut(swapAmountUsdc, priceForSwap, 50, callDecimals);
         swapCalls.push({
           to: swapRouter,
           data: encodeSwapExactInput(
             ADDRESSES.usdc,
-            ADDRESSES.weth,
+            callToken,
             feeTier,
             address as Address,
             swapAmountUsdc,
@@ -197,32 +193,32 @@ export function RangeAcceptModal({
         const swapHash = await sendBatchTx(swapCalls) as `0x${string}`;
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
         setDidSwap(true);
-      } else if (wethAvailable < wethNeeded) {
-        // No swap router configured and not enough WETH
+      } else if (callAvailable < callNeeded) {
         setError(`Insufficient ${assetSymbol} balance for the upper side.`);
         return;
       } else {
-        // Have enough USDC for put?
         if (usdcBal < putCol.collateral) {
           setError("Insufficient USDC balance for the lower side.");
           return;
         }
       }
 
-      // Wrap native ETH → WETH if needed (after potential swap)
-      const wethBalAfterSwap = await readTokenBalance(ADDRESSES.weth, address);
-      if (wethBalAfterSwap < wethNeeded) {
-        const wrapAmount = wethNeeded - wethBalAfterSwap;
-        const wrapHash = await sendBatchTx([{
-          to: ADDRESSES.weth,
-          data: encodeFunctionData({
-            abi: WETH_ABI,
-            functionName: "deposit",
-            args: [],
-          }),
-          value: wrapAmount,
-        }]) as `0x${string}`;
-        await publicClient.waitForTransactionReceipt({ hash: wrapHash });
+      // Wrap native ETH → WETH if needed (ETH only, not BTC)
+      if (!isBtc) {
+        const wethBalAfterSwap = await readTokenBalance(callToken, address);
+        if (wethBalAfterSwap < callNeeded) {
+          const wrapAmount = callNeeded - wethBalAfterSwap;
+          const wrapHash = await sendBatchTx([{
+            to: ADDRESSES.weth,
+            data: encodeFunctionData({
+              abi: WETH_ABI,
+              functionName: "deposit",
+              args: [],
+            }),
+            value: wrapAmount,
+          }]) as `0x${string}`;
+          await publicClient.waitForTransactionReceipt({ hash: wrapHash });
+        }
       }
 
       // === Execute put leg ===
