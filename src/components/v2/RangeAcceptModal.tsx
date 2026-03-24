@@ -25,7 +25,7 @@ import {
   readTokenBalance,
   buildOptimisticPosition,
 } from "@/lib/execution";
-import { encodeSwapExactInput, computeMinAmountOut } from "@/lib/swap";
+import { encodeSwapExactOutput } from "@/lib/swap";
 import { getAssetConfig } from "@/lib/assets";
 
 const DEADLINE_BUFFER_S = 60;
@@ -177,16 +177,15 @@ export function RangeAcceptModal({
           });
         }
 
-        const minOut = computeMinAmountOut(swapAmountUsdc, priceForSwap, 50, callDecimals);
         swapCalls.push({
           to: swapRouter,
-          data: encodeSwapExactInput(
+          data: encodeSwapExactOutput(
             ADDRESSES.usdc,
             callToken,
             feeTier,
             address as Address,
+            callShortfall,
             swapAmountUsdc,
-            minOut,
           ),
         });
 

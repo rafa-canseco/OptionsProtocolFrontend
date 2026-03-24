@@ -29,6 +29,33 @@ export function encodeSwapExactInput(
 }
 
 /**
+ * Encode a Uniswap V3 exactOutputSingle swap.
+ * Swaps exactly `amountOut` of tokenOut, spending at most `amountInMaximum` of tokenIn.
+ */
+export function encodeSwapExactOutput(
+  tokenIn: Address,
+  tokenOut: Address,
+  fee: number,
+  recipient: Address,
+  amountOut: bigint,
+  amountInMaximum: bigint,
+): `0x${string}` {
+  return encodeFunctionData({
+    abi: SWAP_ROUTER_ABI,
+    functionName: "exactOutputSingle",
+    args: [{
+      tokenIn,
+      tokenOut,
+      fee,
+      recipient,
+      amountOut,
+      amountInMaximum,
+      sqrtPriceLimitX96: BigInt(0),
+    }],
+  });
+}
+
+/**
  * Compute minimum output for a USDC input, with slippage protection.
  * @param amountInUsdc - USDC amount in raw units (6 decimals)
  * @param spotPrice - USD per asset unit (e.g. 2045.50 for ETH, 84000 for BTC)
