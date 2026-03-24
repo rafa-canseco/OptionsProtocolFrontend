@@ -53,6 +53,8 @@ export interface Position {
   outcome: string | null;
   /** Asset slug (e.g. "eth", "btc"). May be absent on older rows. */
   asset?: string;
+  /** UUID linking range (put+call) pairs. Null for single-leg positions. */
+  group_id?: string | null;
 }
 
 export interface SimulateResult {
@@ -142,4 +144,14 @@ export const api = {
 
   getSpot: (asset: string) =>
     fetchAPI<SpotPrice>(`/spot?asset=${asset}`),
+
+  groupPositions: (groupId: string, txHashes: string[], userAddress: string) =>
+    fetchAPI<{ grouped: number; group_id: string }>("/positions/group", {
+      method: "POST",
+      body: JSON.stringify({
+        group_id: groupId,
+        tx_hashes: txHashes,
+        user_address: userAddress,
+      }),
+    }),
 };

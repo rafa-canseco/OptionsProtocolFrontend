@@ -15,7 +15,7 @@ import {
   WETH_ABI,
 } from "@/lib/contracts";
 import type { BatchCall } from "@/hooks/useWallet";
-import type { PriceQuote } from "@/lib/api";
+import { api, type PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
 import { fmtUsd } from "@/lib/utils";
 import {
@@ -256,8 +256,11 @@ export function RangeAcceptModal({
       );
       if (putHash) setPutTxHash(putHash);
 
+      // Generate group_id for this range pair
+      const groupId = crypto.randomUUID();
+
       // Save put optimistic position
-      const putPos = buildOptimisticPosition(putQuote, putAmountUsd, true, address, assetSlug);
+      const putPos = buildOptimisticPosition(putQuote, putAmountUsd, true, address, assetSlug, groupId);
       try { saveOptimistic(putPos); } catch (err) {
         console.warn("[RangeAcceptModal] Could not save optimistic position (put):", err);
       }
@@ -305,9 +308,32 @@ export function RangeAcceptModal({
       if (callHash) setCallTxHash(callHash);
 
       // Save call optimistic position
-      const callPos = buildOptimisticPosition(callQuote, callAmountEth, false, address, assetSlug);
+      const callPos = buildOptimisticPosition(callQuote, callAmountEth, false, address, assetSlug, groupId);
       try { saveOptimistic(callPos); } catch (err) {
         console.warn("[RangeAcceptModal] Could not save optimistic position (call):", err);
+      }
+
+      // Tag both positions with group_id in the backend (fire-and-retry)
+      const txHashes = [putHash, callHash].filter(Boolean) as string[];
+      if (txHashes.length === 2) {
+        const tagGroup = async (retries = 5) => {
+          for (let i = 0; i < retries; i++) {
+            try {
+              await api.groupPositions(groupId, txHashes, address);
+              console.log("[RangeAcceptModal] Positions grouped:", groupId);
+              return;
+            } catch (err: unknown) {
+              const msg = err instanceof Error ? err.message : "";
+              if (msg.includes("409") && i < retries - 1) {
+                await new Promise((r) => setTimeout(r, 3000 * (i + 1)));
+                continue;
+              }
+              console.warn("[RangeAcceptModal] Could not group positions:", err);
+              return;
+            }
+          }
+        };
+        tagGroup();
       }
 
       // Done
