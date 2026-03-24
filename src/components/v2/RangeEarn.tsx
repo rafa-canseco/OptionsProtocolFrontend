@@ -123,7 +123,10 @@ export function RangeEarn({
             Total to commit
           </p>
           <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--accent)] transition-colors duration-200">
-            <span className="text-[var(--text-secondary)]">$</span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <img src="/usdc.svg" alt="USDC" className="w-5 h-5 rounded-full" />
+              <span className="text-sm font-bold text-[var(--bone)]">USDC</span>
+            </div>
             <input
               type="text"
               inputMode="decimal"
@@ -135,12 +138,8 @@ export function RangeEarn({
                   onAmountChange(raw);
                 }
               }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"
+              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono text-right"
             />
-            <div className="flex items-center gap-1.5 shrink-0">
-              <img src="/usdc.svg" alt="USDC" className="w-5 h-5 rounded-full" />
-              <span className="text-sm font-bold text-[var(--bone)]">USDC</span>
-            </div>
           </div>
           {amount > 0 && spot && (
             <div className="mt-1.5 space-y-0.5">
