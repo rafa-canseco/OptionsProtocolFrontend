@@ -307,7 +307,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                   }}
                   className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
                 />
-                {!isBuy && <span className="text-sm text-[var(--text-secondary)]">{assetSymbol}</span>}
+                <span className="text-xs font-semibold text-[var(--bone)] bg-[var(--border)] px-2 py-1 rounded-md">
+                  {isBuy ? "USDC" : assetSymbol}
+                </span>
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
                 Balance {isBuy

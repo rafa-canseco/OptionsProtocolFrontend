@@ -137,6 +137,9 @@ export function RangeEarn({
               }}
               className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"
             />
+            <span className="text-xs font-semibold text-[var(--bone)] bg-[var(--border)] px-2 py-1 rounded-md">
+              USDC
+            </span>
           </div>
           {amount > 0 && spot && (
             <div className="mt-1.5 space-y-0.5">
