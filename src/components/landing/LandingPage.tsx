@@ -868,7 +868,17 @@ function AgentNativeSection() {
 
   return (
     <section ref={ref} className="py-24 px-6 relative z-[3]">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-16 items-center">
+      <div className="max-w-6xl mx-auto space-y-12">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]"
+        >
+          Same protocol. Any interface.
+        </motion.h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-16 items-center">
         {/* Left: terminal (wider) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -948,6 +958,7 @@ function AgentNativeSection() {
             Every side of the protocol, open to both.
           </p>
         </motion.div>
+        </div>
       </div>
     </section>
   );
