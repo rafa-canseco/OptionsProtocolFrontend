@@ -418,6 +418,23 @@ function MechanismSection({
           >
             Locked until expiry. Only the closing price matters.
           </motion.p>
+
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
+            transition={{ duration: 0.5, delay: 0.45 }}
+            className="pt-4 border-t border-[var(--border)] space-y-2"
+          >
+            <p className="text-sm text-[var(--text-secondary)] uppercase tracking-wider">
+              Where does the money come from?
+            </p>
+            <p className="text-[var(--text-secondary)]">
+              You set a price, someone pays to lock it in. You get paid upfront, every time.
+            </p>
+            <p className="text-sm font-medium text-[var(--accent)]">
+              Not token rewards. Real market income.
+            </p>
+          </motion.div>
         </div>
 
         {/* Right: outcome card */}
@@ -463,42 +480,6 @@ function MechanismSection({
             </p>
           </motion.div>
         </AnimatePresence>
-      </div>
-    </section>
-  );
-}
-
-/* ── Section 2b: Yield Source ── */
-
-function YieldSourceSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-20%" });
-
-  return (
-    <section ref={ref} className="py-24 px-6 relative z-[3]">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-start">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6 }}
-          className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]"
-        >
-          Where does the money come from?
-        </motion.h2>
-
-        <motion.div
-          initial={{ opacity: 0, y: 15 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="lg:pt-2 space-y-4"
-        >
-          <p className="text-lg text-[var(--text-secondary)]">
-            You set a price, someone pays to lock it in. You get paid upfront, every time.
-          </p>
-          <p className="text-lg font-medium text-[var(--accent)]">
-            Not token rewards. Real market income.
-          </p>
-        </motion.div>
       </div>
     </section>
   );
@@ -887,7 +868,17 @@ function AgentNativeSection() {
 
   return (
     <section ref={ref} className="py-24 px-6 relative z-[3]">
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-16 items-center">
+      <div className="max-w-6xl mx-auto space-y-12">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight leading-[1.1]"
+        >
+          Same protocol. Any interface.
+        </motion.h2>
+
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-16 items-center">
         {/* Left: terminal (wider) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -967,6 +958,7 @@ function AgentNativeSection() {
             Every side of the protocol, open to both.
           </p>
         </motion.div>
+        </div>
       </div>
     </section>
   );
@@ -1089,7 +1081,6 @@ export function LandingPage() {
         <ProblemSection />
         <EngineSection />
         <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
-        <YieldSourceSection />
         <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
         <ComparisonSection />
         <AgentNativeSection />
