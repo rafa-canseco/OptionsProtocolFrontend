@@ -12,6 +12,7 @@ import type { AssetConfig } from "@/lib/assets";
 import type { YieldMetric } from "../YieldToggle";
 
 const MIN_DISPLAY_APR = 3;
+const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 
 interface RangeEarnProps {
   asset: AssetConfig;
@@ -165,9 +166,30 @@ export function RangeEarn({
               </p>
             </div>
           )}
-          <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Balance: <span className="font-mono">${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </p>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-xs text-[var(--text-secondary)]">
+              Balance: <span className="font-mono">${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </p>
+            <div className="flex gap-1.5">
+              {PERCENT_SHORTCUTS.map((pct) => (
+                <button
+                  key={pct}
+                  onClick={() => {
+                    const truncated = floorTo(walletBalance * (pct / 100), 2);
+                    onAmountChange(truncated.toString());
+                  }}
+                  disabled={walletBalance <= 0}
+                  className={`text-xs font-medium transition-colors duration-150 px-2 py-1 min-h-[28px] rounded bg-[var(--surface)] focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                    walletBalance > 0
+                      ? "cursor-pointer text-[var(--text-secondary)] hover:text-[var(--accent)] hover:bg-[var(--accent)]/10"
+                      : "text-[var(--text-secondary)] opacity-40 cursor-not-allowed"
+                  }`}
+                >
+                  {pct}%
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Dual strike columns */}
