@@ -5,26 +5,12 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createWalletClient, custom, type Address } from "viem";
 import { useState, useEffect, useCallback } from "react";
 import { CHAIN } from "@/lib/contracts";
-import { Attribution } from "ox/erc8021";
-
-const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
-const DATA_SUFFIX = BUILDER_CODE
-  ? Attribution.toDataSuffix({ codes: [BUILDER_CODE] })
-  : null;
 
 export type BatchCall = {
   to: Address;
   data: `0x${string}`;
   value?: bigint;
 };
-
-function appendSuffix(call: BatchCall): BatchCall {
-  if (!DATA_SUFFIX || !call.data) return call;
-  return {
-    ...call,
-    data: `${call.data}${DATA_SUFFIX.slice(2)}` as `0x${string}`,
-  };
-}
 
 export function useWallet() {
   const { login, logout, authenticated, ready } = usePrivy();
@@ -53,6 +39,11 @@ export function useWallet() {
       });
   }, [primaryWallet]);
 
+  // Builder attribution (ERC-8021 dataSuffix) is handled by the Privy
+  // dataSuffix plugin in providers.tsx — no manual append needed here.
+  // The plugin automatically appends the suffix to EOA tx.data and
+  // ERC-4337 userOp.callData.
+
   const sendBatchTx = useCallback(
     async (calls: BatchCall[]): Promise<unknown> => {
       if (calls.length === 0) {
@@ -73,11 +64,10 @@ export function useWallet() {
         );
         let lastResult: unknown;
         for (const call of calls) {
-          const suffixed = appendSuffix(call);
           lastResult = await walletClient.sendTransaction({
-            to: suffixed.to,
-            data: suffixed.data,
-            value: suffixed.value,
+            to: call.to,
+            data: call.data,
+            value: call.value,
           });
         }
         return lastResult;
@@ -95,7 +85,7 @@ export function useWallet() {
       return client
         .sendTransaction(
           {
-            calls: calls.map(appendSuffix).map((c) => ({
+            calls: calls.map((c) => ({
               to: c.to,
               data: c.data,
               value: c.value,
