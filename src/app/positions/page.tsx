@@ -19,6 +19,13 @@ type DisplayItem =
   | { type: "single"; position: Position }
   | { type: "range"; positions: Position[]; groupId: string };
 
+const PAIR_WINDOW_MS = 60_000;
+
+function inferAsset(pos: Position): string {
+  if (pos.asset) return pos.asset;
+  return pos.strike_price / 1e8 > 10_000 ? "btc" : "eth";
+}
+
 function groupPositions(positions: Position[]): DisplayItem[] {
   const grouped = new Map<string, Position[]>();
   const ungrouped: Position[] = [];
@@ -30,6 +37,36 @@ function groupPositions(positions: Position[]): DisplayItem[] {
       grouped.set(pos.group_id, existing);
     } else {
       ungrouped.push(pos);
+    }
+  }
+
+  // Heuristic: pair ungrouped positions that look like range legs
+  const remaining: Position[] = [];
+  const used = new Set<string>();
+
+  for (const pos of ungrouped) {
+    if (used.has(pos.id)) continue;
+    const posTime = new Date(pos.indexed_at).getTime();
+    const posAsset = inferAsset(pos);
+
+    const match = ungrouped.find((other) => {
+      if (other.id === pos.id || used.has(other.id)) return false;
+      if (other.is_put === pos.is_put) return false;
+      if (other.expiry !== pos.expiry) return false;
+      if (inferAsset(other) !== posAsset) return false;
+      const dt = Math.abs(
+        new Date(other.indexed_at).getTime() - posTime,
+      );
+      return dt <= PAIR_WINDOW_MS;
+    });
+
+    if (match) {
+      used.add(pos.id);
+      used.add(match.id);
+      const syntheticId = `heuristic-${pos.id}-${match.id}`;
+      grouped.set(syntheticId, [pos, match]);
+    } else {
+      remaining.push(pos);
     }
   }
 
@@ -45,7 +82,7 @@ function groupPositions(positions: Position[]): DisplayItem[] {
       }
     }
   }
-  for (const pos of ungrouped) {
+  for (const pos of remaining) {
     items.push({ type: "single", position: pos });
   }
 
