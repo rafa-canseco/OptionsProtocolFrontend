@@ -15,6 +15,14 @@ export function computeAPR(
   return (premium / strike) * (365 / expiryDays) * 100;
 }
 
+export function computeROI(
+  premium: number,
+  strike: number,
+): number {
+  if (strike <= 0) return 0;
+  return (premium / strike) * 100;
+}
+
 export function truncate(value: number, decimals: number): string {
   const factor = 10 ** decimals;
   return (Math.floor(value * factor) / factor).toFixed(decimals);

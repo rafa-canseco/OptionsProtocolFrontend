@@ -2,18 +2,21 @@
 
 import type { PriceQuote } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
-import { computeAPR } from "@/lib/execution";
+import { computeAPR, computeROI } from "@/lib/execution";
+import type { YieldMetric } from "../YieldToggle";
 
 export function StrikeLadder({
   filteredPrices,
   spot,
   side,
   onSelect,
+  yieldMetric = "apr",
 }: {
   filteredPrices: PriceQuote[];
   spot: number;
   side: "buy" | "sell";
   onSelect: (quote: PriceQuote) => void;
+  yieldMetric?: YieldMetric;
 }) {
   if (filteredPrices.length === 0 || !spot) return null;
 
@@ -84,6 +87,10 @@ export function StrikeLadder({
         {filteredPrices.map((q) => {
           const y = priceToY(q.strike);
           const apr = Math.round(computeAPR(q.premium, q.strike, q.expiry_days));
+          const roi = computeROI(q.premium, q.strike);
+          const yieldLabel = yieldMetric === "apr"
+            ? `${apr}% APR`
+            : `${roi.toFixed(1)}% ROI`;
           const earnRaw = q.premium * q.available_amount;
           const earn = fmtUsd(earnRaw);
           const disabled = !q.otoken_address || q.available_amount <= 0;
@@ -124,7 +131,7 @@ export function StrikeLadder({
                 fill="var(--text-secondary)"
                 fontSize={10}
               >
-                Earn ${earn} · {apr}% APR
+                Earn ${earn} · {yieldLabel}
               </text>
               {/* Invisible wider click target */}
               <rect
