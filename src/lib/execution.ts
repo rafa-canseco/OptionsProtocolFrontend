@@ -151,6 +151,7 @@ export function buildOptimisticPosition(
   isBuy: boolean,
   address: Address,
   assetSlug: string,
+  groupId?: string,
 ): Position {
   const optOTokenAmt = isBuy
     ? (amount / quote.strike) * 1e8
@@ -187,5 +188,6 @@ export function buildOptimisticPosition(
     net_premium: optPremium,
     protocol_fee: "0",
     outcome: null,
+    group_id: groupId ?? null,
   };
 }
