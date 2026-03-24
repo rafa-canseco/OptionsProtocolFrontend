@@ -137,9 +137,10 @@ export function RangeEarn({
               }}
               className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"
             />
-            <span className="text-sm font-bold text-[var(--accent)]">
-              USDC
-            </span>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <img src="/usdc.svg" alt="USDC" className="w-5 h-5 rounded-full" />
+              <span className="text-sm font-bold text-[var(--bone)]">USDC</span>
+            </div>
           </div>
           {amount > 0 && spot && (
             <div className="mt-1.5 space-y-0.5">

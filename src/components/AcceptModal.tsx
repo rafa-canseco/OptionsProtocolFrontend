@@ -307,9 +307,16 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                   }}
                   className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
                 />
-                <span className="text-sm font-bold text-[var(--accent)]">
-                  {isBuy ? "USDC" : assetSymbol}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <img
+                    src={isBuy ? "/usdc.svg" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                    alt={isBuy ? "USDC" : assetSymbol}
+                    className="w-5 h-5 rounded-full"
+                  />
+                  <span className="text-sm font-bold text-[var(--bone)]">
+                    {isBuy ? "USDC" : assetSymbol}
+                  </span>
+                </div>
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
                 Balance {isBuy

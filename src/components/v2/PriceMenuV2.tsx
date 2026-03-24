@@ -458,9 +458,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 }}
                 className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"
               />
-              <span className="text-sm font-bold text-[var(--accent)]">
-                {isBuy ? "USDC" : asset.symbol}
-              </span>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <img
+                  src={isBuy ? "/usdc.svg" : `/${asset.slug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                  alt={isBuy ? "USDC" : asset.symbol}
+                  className="w-5 h-5 rounded-full"
+                />
+                <span className="text-sm font-bold text-[var(--bone)]">
+                  {isBuy ? "USDC" : asset.symbol}
+                </span>
+              </div>
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
