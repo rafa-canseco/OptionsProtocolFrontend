@@ -18,6 +18,8 @@ interface RangeEarnProps {
   activeExpiry: string | null;
   spot?: number;
   walletBalance: number;
+  amountStr: string;
+  onAmountChange: (val: string) => void;
   onAccepted: (info: {
     putStrike: number; callStrike: number;
     totalPremium: number; combinedApr: number;
@@ -32,12 +34,13 @@ export function RangeEarn({
   activeExpiry,
   spot,
   walletBalance,
+  amountStr,
+  onAmountChange,
   onAccepted,
 }: RangeEarnProps) {
   const { isConnected, login } = useWallet();
   const [putQuote, setPutQuote] = useState<PriceQuote | null>(null);
   const [callQuote, setCallQuote] = useState<PriceQuote | null>(null);
-  const [amountStr, setAmountStr] = useState("");
   const amount = Number(amountStr) || 0;
   const [confirming, setConfirming] = useState(false);
 
@@ -129,7 +132,7 @@ export function RangeEarn({
               onChange={(e) => {
                 const raw = e.target.value;
                 if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                  setAmountStr(raw);
+                  onAmountChange(raw);
                 }
               }}
               className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"

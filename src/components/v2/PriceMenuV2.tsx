@@ -365,7 +365,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         {/* 1. Range / Buy / Sell toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
-              onClick={() => { setSide("range"); setAmountStr(""); setSelectedQuote(null); }}
+              onClick={() => { setSide("range"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "range"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
@@ -375,7 +375,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               Range
             </button>
             <button
-              onClick={() => { setSide("buy"); setAmountStr(""); setSelectedQuote(null); }}
+              onClick={() => { setSide("buy"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "buy"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
@@ -385,7 +385,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               I&apos;d buy
             </button>
             <button
-              onClick={() => { setSide("sell"); setAmountStr(""); setSelectedQuote(null); }}
+              onClick={() => { setSide("sell"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "sell"
                   ? "bg-[var(--bg)] text-[var(--danger)] shadow-sm"
@@ -428,6 +428,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           activeExpiry={activeExpiry}
           spot={spot}
           walletBalance={usd}
+          amountStr={amountStr}
+          onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}
         />
       )}
