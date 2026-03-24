@@ -13,12 +13,13 @@ import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, floorTo } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import { AssetSelector } from "./AssetSelector";
 import { RangeEarn } from "./RangeEarn";
-import { computeAPR } from "@/lib/execution";
+import { YieldToggle, type YieldMetric } from "../YieldToggle";
+import { computeAPR, computeROI } from "@/lib/execution";
 
 function parseLocalDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -40,6 +41,12 @@ function daysUntil(expiryDate: string): number {
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 const MIN_DISPLAY_APR = 3;
 
+function fmtYield(apr: number, roi: number, metric: YieldMetric): string {
+  return metric === "apr"
+    ? `${Math.round(apr)}% APR`
+    : `${roi.toFixed(1)}% ROI`;
+}
+
 function StrikeCard({
   quote,
   side,
@@ -48,6 +55,7 @@ function StrikeCard({
   onSelect,
   assetSymbol: symbol,
   spot,
+  yieldMetric,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
@@ -56,8 +64,10 @@ function StrikeCard({
   onSelect: () => void;
   assetSymbol: string;
   spot?: number;
+  yieldMetric: YieldMetric;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
+  const roi = computeROI(quote.premium, quote.strike);
   const disabled = !quote.otoken_address || quote.available_amount <= 0;
 
   const isBuy = side === "buy";
@@ -100,11 +110,11 @@ function StrikeCard({
           </span>
         ) : (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
-            {Math.round(apr)}% APR
+            {fmtYield(apr, roi, yieldMetric)}
           </span>
         )}
         {earnings > 0 && (
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{Math.round(apr)}% APR</p>
+          <p className="text-xs text-[var(--text-secondary)] mt-0.5">{fmtYield(apr, roi, yieldMetric)}</p>
         )}
       </div>
     </button>
@@ -136,6 +146,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const amount = Number(amountStr) || 0;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth + weth;
@@ -196,9 +207,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
     if (isBuy) {
-      setAmountStr(Math.min(Math.floor(raw), capUsd).toString());
+      const truncated = floorTo(raw, 2);
+      setAmountStr(Math.min(truncated, capUsd).toString());
     } else {
-      setAmountStr(Math.min(Number(raw.toFixed(4)), capEth).toString());
+      const truncated = floorTo(raw, asset.displayDecimals);
+      setAmountStr(Math.min(truncated, capEth).toString());
     }
   }
 
@@ -227,6 +240,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     const premium = abuy ? (aq.premium * aa) / aq.strike : aq.premium * aa;
     const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ${asset.symbol}`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
+    const roi = computeROI(aq.premium, aq.strike);
     const explorerUrl = CHAIN.blockExplorers?.default.url;
 
     return (
@@ -238,7 +252,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">
-          {Math.round(apr)}% APR
+          {fmtYield(apr, roi, yieldMetric)}
         </p>
         <div className="h-px bg-[var(--border)]" />
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -282,7 +296,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p className="text-base text-[var(--text-secondary)] mt-2">earned from both sides. Yours to keep.</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">
-          {Math.round(rangeAccepted.combinedApr)}% APR
+          {fmtYield(
+            rangeAccepted.combinedApr,
+            rangeAccepted.combinedApr * rangeAccepted.expiryDays / 365,
+            yieldMetric,
+          )}
         </p>
         <div className="h-px bg-[var(--border)]" />
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
@@ -347,17 +365,20 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <AssetSelector current={asset} />
           <LivePrice spot={spot} />
         </div>
-        {capacity && (
-          <span className={`text-xs font-medium ${
-            marketClosed
-              ? "text-[var(--danger)]"
-              : marketDegraded
-                ? "text-amber-400"
-                : "text-[var(--accent)]"
-          }`}>
-            {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
-          </span>
-        )}
+        <div className="flex items-center gap-3">
+          <YieldToggle value={yieldMetric} onChange={setYieldMetric} />
+          {capacity && (
+            <span className={`text-xs font-medium ${
+              marketClosed
+                ? "text-[var(--danger)]"
+                : marketDegraded
+                  ? "text-amber-400"
+                  : "text-[var(--accent)]"
+            }`}>
+              {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Buy/Sell/Range toggle + content */}
@@ -431,6 +452,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           amountStr={amountStr}
           onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}
+          yieldMetric={yieldMetric}
         />
       )}
 
@@ -471,8 +493,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
                 Balance: <span className="font-mono">{isBuy
-                  ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
+                  ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
@@ -511,6 +533,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     onSelect={() => setSelectedQuote(q)}
                     assetSymbol={asset.symbol}
                     spot={spot}
+                    yieldMetric={yieldMetric}
                   />
                 ))}
               </div>
@@ -566,7 +589,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 <InfoTooltip title="Premium" text="Paid to you upfront. Yours to keep no matter what happens with the price." />
               </div>
               <p className="text-sm text-[var(--text-secondary)] mt-1">
-                {Math.round(selectedApr)}% APR · {activeExpiry ? daysUntil(activeExpiry) : 0}d
+                {fmtYield(selectedApr, selectedQuote ? computeROI(selectedQuote.premium, selectedQuote.strike) : 0, yieldMetric)} · {activeExpiry ? daysUntil(activeExpiry) : 0}d
               </p>
             </div>
           )}
@@ -591,6 +614,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           maxPositionEth={capacity?.max_position}
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
+          yieldMetric={yieldMetric}
           onClose={() => setConfirming(false)}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);

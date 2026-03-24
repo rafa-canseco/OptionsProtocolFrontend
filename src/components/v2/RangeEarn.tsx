@@ -4,11 +4,12 @@ import { useState, useMemo, useEffect } from "react";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
 import { RangeAcceptModal } from "./RangeAcceptModal";
-import { fmtUsd } from "@/lib/utils";
-import { computeAPR } from "@/lib/execution";
+import { fmtUsd, floorTo } from "@/lib/utils";
+import { computeAPR, computeROI } from "@/lib/execution";
 import { useWallet } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
+import type { YieldMetric } from "../YieldToggle";
 
 const MIN_DISPLAY_APR = 3;
 
@@ -26,6 +27,13 @@ interface RangeEarnProps {
     amount: number; expiryDays: number;
     putTxHash: string | null; callTxHash: string | null;
   }) => void;
+  yieldMetric: YieldMetric;
+}
+
+function fmtYield(apr: number, roi: number, metric: YieldMetric): string {
+  return metric === "apr"
+    ? `${Math.round(apr)}% APR`
+    : `${roi.toFixed(1)}% ROI`;
 }
 
 export function RangeEarn({
@@ -37,6 +45,7 @@ export function RangeEarn({
   amountStr,
   onAmountChange,
   onAccepted,
+  yieldMetric,
 }: RangeEarnProps) {
   const { isConnected, login } = useWallet();
   const [putQuote, setPutQuote] = useState<PriceQuote | null>(null);
@@ -93,13 +102,18 @@ export function RangeEarn({
     : 0;
   const totalPremium = putPremium + callPremium;
 
-  // Combined APR (weighted average)
+  // Combined APR + ROI (weighted average)
   const putApr = putQuote
     ? computeAPR(putQuote.premium, putQuote.strike, putQuote.expiry_days)
     : 0;
   const callApr = callQuote
     ? computeAPR(callQuote.premium, callQuote.strike, callQuote.expiry_days)
     : 0;
+  const putRoi = putQuote ? computeROI(putQuote.premium, putQuote.strike) : 0;
+  const callRoi = callQuote ? computeROI(callQuote.premium, callQuote.strike) : 0;
+  const combinedRoi = putQuote && callQuote
+    ? (putRoi + callRoi) / 2
+    : putQuote ? putRoi : callRoi;
   const combinedApr = putQuote && callQuote
     ? (putApr + callApr) / 2
     : putQuote ? putApr : callApr;
@@ -152,7 +166,7 @@ export function RangeEarn({
             </div>
           )}
           <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Balance: <span className="font-mono">${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            Balance: <span className="font-mono">${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </p>
         </div>
 
@@ -168,6 +182,7 @@ export function RangeEarn({
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {putStrikes.map((q) => {
                   const apr = computeAPR(q.premium, q.strike, q.expiry_days);
+                  const roi = computeROI(q.premium, q.strike);
                   const selected = putQuote?.strike === q.strike;
                   const disabled = !q.otoken_address || q.available_amount <= 0;
                   const dist = spot ? ((q.strike - spot) / spot * 100) : null;
@@ -186,7 +201,7 @@ export function RangeEarn({
                         ${q.strike.toLocaleString()}
                       </span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-[var(--accent)] font-mono font-bold">{Math.round(apr)}% APR</span>
+                        <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
                           <span className="text-xs text-[var(--text-secondary)] font-mono">{dist.toFixed(1)}%</span>
                         )}
@@ -210,6 +225,7 @@ export function RangeEarn({
               <div className="rounded-xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {callStrikes.map((q) => {
                   const apr = computeAPR(q.premium, q.strike, q.expiry_days);
+                  const roi = computeROI(q.premium, q.strike);
                   const selected = callQuote?.strike === q.strike;
                   const disabled = !q.otoken_address || q.available_amount <= 0;
                   const dist = spot ? ((q.strike - spot) / spot * 100) : null;
@@ -228,7 +244,7 @@ export function RangeEarn({
                         ${q.strike.toLocaleString()}
                       </span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="text-xs text-[var(--accent)] font-mono font-bold">{Math.round(apr)}% APR</span>
+                        <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
                           <span className="text-xs text-[var(--text-secondary)] font-mono">+{dist.toFixed(1)}%</span>
                         )}
@@ -328,7 +344,7 @@ export function RangeEarn({
               <InfoTooltip title="Combined premium" text="Total premium from both put and call legs. Yours to keep no matter what." />
             </div>
             <p className="text-sm text-[var(--text-secondary)] mt-1">
-              {Math.round(combinedApr)}% APR
+              {fmtYield(combinedApr, combinedRoi, yieldMetric)}
             </p>
           </div>
         )}

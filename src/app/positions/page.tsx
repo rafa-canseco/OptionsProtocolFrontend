@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { PositionCard } from "@/components/PositionCard";
+import { RangePositionCard } from "@/components/RangePositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
 import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
@@ -12,6 +13,91 @@ import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
 import { resolvePositionAsset } from "@/lib/assets";
 import type { YieldMetric } from "@/components/YieldToggle";
+import type { Position } from "@/lib/api";
+
+type DisplayItem =
+  | { type: "single"; position: Position }
+  | { type: "range"; positions: Position[]; groupId: string };
+
+const PAIR_WINDOW_MS = 60_000;
+
+function inferAsset(pos: Position): string {
+  if (pos.asset) return pos.asset;
+  return pos.strike_price / 1e8 > 10_000 ? "btc" : "eth";
+}
+
+function groupPositions(positions: Position[]): DisplayItem[] {
+  const grouped = new Map<string, Position[]>();
+  const ungrouped: Position[] = [];
+
+  for (const pos of positions) {
+    if (pos.group_id) {
+      const existing = grouped.get(pos.group_id) || [];
+      existing.push(pos);
+      grouped.set(pos.group_id, existing);
+    } else {
+      ungrouped.push(pos);
+    }
+  }
+
+  // Heuristic: pair ungrouped positions that look like range legs
+  const remaining: Position[] = [];
+  const used = new Set<string>();
+
+  for (const pos of ungrouped) {
+    if (used.has(pos.id)) continue;
+    const posTime = new Date(pos.indexed_at).getTime();
+    const posAsset = inferAsset(pos);
+
+    const match = ungrouped.find((other) => {
+      if (other.id === pos.id || used.has(other.id)) return false;
+      if (other.is_put === pos.is_put) return false;
+      if (other.expiry !== pos.expiry) return false;
+      if (inferAsset(other) !== posAsset) return false;
+      const dt = Math.abs(
+        new Date(other.indexed_at).getTime() - posTime,
+      );
+      return dt <= PAIR_WINDOW_MS;
+    });
+
+    if (match) {
+      used.add(pos.id);
+      used.add(match.id);
+      const syntheticId = `heuristic-${pos.id}-${match.id}`;
+      grouped.set(syntheticId, [pos, match]);
+    } else {
+      remaining.push(pos);
+    }
+  }
+
+  const items: DisplayItem[] = [];
+  for (const [groupId, group] of grouped) {
+    const hasPut = group.some((p) => p.is_put);
+    const hasCall = group.some((p) => !p.is_put);
+    if (hasPut && hasCall) {
+      items.push({ type: "range", positions: group, groupId });
+    } else {
+      for (const pos of group) {
+        items.push({ type: "single", position: pos });
+      }
+    }
+  }
+  for (const pos of remaining) {
+    items.push({ type: "single", position: pos });
+  }
+
+  items.sort((a, b) => {
+    const aTime = a.type === "range"
+      ? Math.max(...a.positions.map((p) => new Date(p.indexed_at).getTime()))
+      : new Date(a.position.indexed_at).getTime();
+    const bTime = b.type === "range"
+      ? Math.max(...b.positions.map((p) => new Date(p.indexed_at).getTime()))
+      : new Date(b.position.indexed_at).getTime();
+    return bTime - aTime;
+  });
+
+  return items;
+}
 
 export default function PositionsPage() {
   const { address, isConnected } = useWallet();
@@ -22,10 +108,14 @@ export default function PositionsPage() {
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
-  const active = allPositions
-    .filter((p) => !p.is_settled)
-    .sort((a, b) => new Date(b.indexed_at).getTime() - new Date(a.indexed_at).getTime());
+  const active = useMemo(
+    () => allPositions.filter((p) => !p.is_settled),
+    [allPositions],
+  );
   const history = allPositions.filter((p) => p.is_settled);
+
+  const activeItems = useMemo(() => groupPositions(active), [active]);
+  const historyItems = useMemo(() => groupPositions(history), [history]);
 
   if (!isConnected) {
     return (
@@ -68,7 +158,6 @@ export default function PositionsPage() {
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Your Positions</h1>
 
-      {/* Portfolio summary — all 5 stats */}
       <PortfolioSummary
         positions={allPositions}
         activity={activity}
@@ -76,14 +165,33 @@ export default function PositionsPage() {
         onYieldMetricChange={setYieldMetric}
       />
 
-      {/* Active positions — promoted above chart */}
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
           Active positions
         </h2>
-        {active.length > 0 ? (
+        {activeItems.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            {active.map((pos) => {
+            {activeItems.map((item) => {
+              if (item.type === "range") {
+                const posAsset = resolvePositionAsset(
+                  item.positions[0].asset,
+                  item.positions[0].strike_price,
+                );
+                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+                return (
+                  <RangePositionCard
+                    key={item.groupId}
+                    positions={item.positions}
+                    spot={posSpot}
+                    earnBase={`/earn/${posAsset.slug}`}
+                    assetSymbol={posAsset.symbol}
+                    assetSlug={posAsset.slug}
+                    optimistic={item.positions.some((p) => p.id.startsWith("opt-"))}
+                    yieldMetric={yieldMetric}
+                  />
+                );
+              }
+              const pos = item.position;
               const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
               const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
               return (
@@ -111,16 +219,37 @@ export default function PositionsPage() {
         )}
       </section>
 
-      {/* Earnings chart */}
       <EarningsChart positions={allPositions} />
 
-      {/* History */}
-      {history.length > 0 && (
+      {historyItems.length > 0 && (
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <TradeLog positions={history} />
+          <div className="space-y-4">
+            {historyItems.map((item) => {
+              if (item.type === "range") {
+                const posAsset = resolvePositionAsset(
+                  item.positions[0].asset,
+                  item.positions[0].strike_price,
+                );
+                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+                return (
+                  <RangePositionCard
+                    key={item.groupId}
+                    positions={item.positions}
+                    spot={posSpot}
+                    earnBase={`/earn/${posAsset.slug}`}
+                    assetSymbol={posAsset.symbol}
+                    assetSlug={posAsset.slug}
+                    yieldMetric={yieldMetric}
+                  />
+                );
+              }
+              return null;
+            })}
+          </div>
+          <TradeLog positions={history.filter((p) => !p.group_id)} />
         </section>
       )}
     </main>
