@@ -1,7 +1,8 @@
 "use client";
 
-import { PrivyProvider } from "@privy-io/react-auth";
+import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
+import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
 
 function getPrivyAppId(): string {
@@ -16,6 +17,11 @@ function getPrivyAppId(): string {
 
 const PRIVY_APP_ID = getPrivyAppId();
 
+const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
+const plugins = BUILDER_CODE
+  ? [dataSuffix(Attribution.toDataSuffix({ codes: [BUILDER_CODE] }))]
+  : [];
+
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <PrivyProvider
@@ -29,8 +35,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultChain: CHAIN,
         supportedChains: [CHAIN],
         embeddedWallets: {
-          createOnLogin: "users-without-wallets",
+          ethereum: {
+            createOnLogin: "users-without-wallets",
+          },
         },
+        plugins,
       }}
     >
       <SmartWalletsProvider>{children}</SmartWalletsProvider>
