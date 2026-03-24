@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
 import { RangeAcceptModal } from "./RangeAcceptModal";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, floorTo } from "@/lib/utils";
 import { computeAPR } from "@/lib/execution";
 import { useWallet } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
@@ -152,7 +152,7 @@ export function RangeEarn({
             </div>
           )}
           <p className="text-xs text-[var(--text-secondary)] mt-1">
-            Balance: <span className="font-mono">${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            Balance: <span className="font-mono">${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </p>
         </div>
 
