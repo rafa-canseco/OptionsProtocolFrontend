@@ -3,6 +3,7 @@
 import type { Position, Activity } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
+import { resolvePositionAsset } from "@/lib/assets";
 
 interface Props {
   positions: Position[];
@@ -15,6 +16,17 @@ function formatUSD(n: number): string {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
   return `$${fmtUsd(n)}`;
+}
+
+function callDecimals(p: Position): number {
+  return resolvePositionAsset(p.asset, p.strike_price).slug === "btc"
+    ? 1e8
+    : 1e18;
+}
+
+function capitalUsd(p: Position): number {
+  if (p.is_put) return p.collateral / 1e6;
+  return (p.collateral / callDecimals(p)) * (p.strike_price / 1e8);
 }
 
 export function PortfolioSummary({
@@ -30,20 +42,15 @@ export function PortfolioSummary({
 
   const activeCapital = positions
     .filter((p) => !p.is_settled)
-    .reduce((sum, p) => {
-      if (p.is_put) return sum + p.collateral / 1e6;
-      return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
-    }, 0);
+    .reduce((sum, p) => sum + capitalUsd(p), 0);
 
-  const totalCapital = positions.reduce((sum, p) => {
-    if (p.is_put) return sum + p.collateral / 1e6;
-    return sum + (p.collateral / 1e18) * (p.strike_price / 1e8);
-  }, 0);
+  const totalCapital = positions.reduce(
+    (sum, p) => sum + capitalUsd(p),
+    0,
+  );
 
   const totalWeightedApr = positions.reduce((sum, p) => {
-    const capital = p.is_put
-      ? p.collateral / 1e6
-      : (p.collateral / 1e18) * (p.strike_price / 1e8);
+    const capital = capitalUsd(p);
     const premium = Number(p.net_premium) / 1e6;
     const indexedTime = new Date(p.indexed_at).getTime();
     const days = Math.max(
