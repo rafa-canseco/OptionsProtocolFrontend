@@ -18,6 +18,10 @@ export interface AssetConfig {
   comingSoon?: boolean;
   /** Uniswap V3 fee tier for USDC↔asset swaps. Must match on-chain config. */
   swapFeeTier?: number;
+  /** Minimum sell amount in asset units (e.g. 0.005 ETH) */
+  minSellAmount: number;
+  /** Minimum buy amount in USD */
+  minBuyAmountUsd: number;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -31,7 +35,9 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.5",
     displayDecimals: 4,
-    swapFeeTier: 3000, // 0.3% — matches on-chain swapFeeTier
+    swapFeeTier: 3000,
+    minSellAmount: 0.005,
+    minBuyAmountUsd: 10,
   },
   btc: {
     slug: "btc",
@@ -43,7 +49,9 @@ export const ASSETS: Record<string, AssetConfig> = {
     maxAmountUsd: 1_000_000,
     amountPlaceholder: "0.01",
     displayDecimals: 6,
-    swapFeeTier: 500, // 0.05% — matches on-chain assetSwapFeeTier[cbBTC]
+    swapFeeTier: 500,
+    minSellAmount: 0.0001,
+    minBuyAmountUsd: 10,
   },
   aero: {
     slug: "aero",
@@ -56,6 +64,8 @@ export const ASSETS: Record<string, AssetConfig> = {
     amountPlaceholder: "0",
     displayDecimals: 2,
     comingSoon: true,
+    minSellAmount: 0,
+    minBuyAmountUsd: 0,
   },
   virtual: {
     slug: "virtual",
@@ -68,6 +78,8 @@ export const ASSETS: Record<string, AssetConfig> = {
     amountPlaceholder: "0",
     displayDecimals: 2,
     comingSoon: true,
+    minSellAmount: 0,
+    minBuyAmountUsd: 0,
   },
 };
 
