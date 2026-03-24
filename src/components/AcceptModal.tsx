@@ -352,6 +352,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           </>
         )}
 
+        {amount > 0 && amount < minAmount && (
+          <p className="text-sm text-[var(--danger)]">
+            Minimum is {isBuy ? `$${minAmount}` : `${minAmount} ${assetSymbol}`}
+          </p>
+        )}
+
         {amount > maxAmount && (
           <p className="text-sm text-[var(--danger)]">
             Exceeds max trade size — enter {isBuy
