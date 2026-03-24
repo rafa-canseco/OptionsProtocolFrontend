@@ -1058,6 +1058,14 @@ export function LandingPage() {
         <HeaderLogo />
         <div className="flex items-center gap-4">
           <a
+            href="https://docs.b1nary.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+          >
+            Docs
+          </a>
+          <a
             href="https://x.com/b1naryapp"
             target="_blank"
             rel="noopener noreferrer"
@@ -1094,15 +1102,25 @@ export function LandingPage() {
         <span className="text-xs text-[var(--text-secondary)] opacity-50 font-mono">
           © {new Date().getFullYear()} b1nary
         </span>
-        <a
-          href="https://x.com/b1naryapp"
-          target="_blank"
-          rel="noopener noreferrer"
-          aria-label="b1nary on X"
-          className="text-[var(--text-secondary)] opacity-50 hover:opacity-100 transition-opacity"
-        >
-          <XIcon className="w-4 h-4" />
-        </a>
+        <div className="flex items-center gap-4">
+          <a
+            href="https://docs.b1nary.app"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs text-[var(--text-secondary)] opacity-50 hover:opacity-100 transition-opacity"
+          >
+            Docs
+          </a>
+          <a
+            href="https://x.com/b1naryapp"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="b1nary on X"
+            className="text-[var(--text-secondary)] opacity-50 hover:opacity-100 transition-opacity"
+          >
+            <XIcon className="w-4 h-4" />
+          </a>
+        </div>
       </footer>
     </div>
   );
