@@ -292,7 +292,16 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             {/* Amount input */}
             <div>
               <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-                {isBuy && <span className="text-[var(--text-secondary)]">$</span>}
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <img
+                    src={isBuy ? "/usdc.svg" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                    alt={isBuy ? "USDC" : assetSymbol}
+                    className="w-5 h-5 rounded-full"
+                  />
+                  <span className="text-sm font-bold text-[var(--bone)]">
+                    {isBuy ? "USDC" : assetSymbol}
+                  </span>
+                </div>
                 <input
                   type="text"
                   inputMode="decimal"
@@ -305,9 +314,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                       setActivePercent(null);
                     }
                   }}
-                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none text-right"
                 />
-                {!isBuy && <span className="text-sm text-[var(--text-secondary)]">{assetSymbol}</span>}
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
                 Balance {isBuy
