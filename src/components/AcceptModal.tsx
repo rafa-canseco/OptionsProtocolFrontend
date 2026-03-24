@@ -21,6 +21,7 @@ import {
   readTokenBalance,
   buildOptimisticPosition,
 } from "@/lib/execution";
+import { floorTo } from "@/lib/utils";
 
 interface Props {
   quote: PriceQuote;
@@ -67,9 +68,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     const raw = walletBalance * (pct / 100);
     setActivePercent(pct);
     if (isBuy) {
-      setAmountStr(Math.floor(raw).toString());
+      setAmountStr(floorTo(raw, 2).toString());
     } else {
-      setAmountStr(Number(raw.toFixed(4)).toString());
+      setAmountStr(floorTo(raw, 4).toString());
     }
   }
 
@@ -319,8 +320,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
                 Balance {isBuy
-                  ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
+                  ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
               </p>
               {amount > 0 && amount < minAmount && (
                 <p className="text-xs text-[var(--danger)] mt-1">

@@ -13,7 +13,7 @@ import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, floorTo } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import { AssetSelector } from "./AssetSelector";
@@ -196,9 +196,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
     if (isBuy) {
-      setAmountStr(Math.min(Math.floor(raw), capUsd).toString());
+      const truncated = floorTo(raw, 2);
+      setAmountStr(Math.min(truncated, capUsd).toString());
     } else {
-      setAmountStr(Math.min(Number(raw.toFixed(4)), capEth).toString());
+      const truncated = floorTo(raw, asset.displayDecimals);
+      setAmountStr(Math.min(truncated, capEth).toString());
     }
   }
 
@@ -471,8 +473,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
                 Balance: <span className="font-mono">{isBuy
-                  ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
+                  ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
