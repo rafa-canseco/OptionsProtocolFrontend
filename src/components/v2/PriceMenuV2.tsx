@@ -458,7 +458,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 }}
                 className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none font-mono"
               />
-              <span className="text-xs font-semibold text-[var(--bone)] bg-[var(--border)] px-2 py-1 rounded-md">
+              <span className="text-sm font-bold text-[var(--accent)]">
                 {isBuy ? "USDC" : asset.symbol}
               </span>
             </div>
