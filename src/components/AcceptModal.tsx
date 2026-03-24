@@ -12,6 +12,7 @@ import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contr
 import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
+import { getAssetConfig } from "@/lib/assets";
 import {
   computeAPR,
   computeCollateral,
@@ -98,7 +99,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           ? "Connect wallet"
           : "Accept";
 
-  const minAmount = isBuy ? 10 : 0.005;
+  const assetConfig = getAssetConfig(assetSlug);
+  const minAmount = isBuy
+    ? (assetConfig?.minBuyAmountUsd ?? 10)
+    : (assetConfig?.minSellAmount ?? 0.005);
 
   async function handleAccept() {
     if (!isConnected || !address) { login(); return; }
@@ -310,6 +314,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                   ? `$${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
                   : `${walletBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
               </p>
+              {amount > 0 && amount < minAmount && (
+                <p className="text-xs text-[var(--danger)] mt-1">
+                  Minimum is {isBuy ? `$${minAmount}` : `${minAmount} ${assetSymbol}`}
+                </p>
+              )}
             </div>
           </>
         )}
