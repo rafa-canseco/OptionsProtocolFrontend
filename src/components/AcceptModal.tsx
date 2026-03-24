@@ -15,6 +15,7 @@ import { saveOptimistic } from "@/lib/optimisticPositions";
 import { getAssetConfig } from "@/lib/assets";
 import {
   computeAPR,
+  computeROI,
   computeCollateral,
   encodeExecuteOrder,
   fireAndPoll,
@@ -22,6 +23,7 @@ import {
   buildOptimisticPosition,
 } from "@/lib/execution";
 import { floorTo } from "@/lib/utils";
+import type { YieldMetric } from "./YieldToggle";
 
 interface Props {
   quote: PriceQuote;
@@ -35,6 +37,7 @@ interface Props {
   assetSymbol?: string;
   /** Asset slug ("eth" | "btc") to pick the right collateral token for calls */
   assetSlug?: string;
+  yieldMetric?: YieldMetric;
 }
 
 type TxStep = "idle" | "executing" | "confirmed";
@@ -42,7 +45,7 @@ type TxStep = "idle" | "executing" | "confirmed";
 const PERCENTAGES = [25, 50, 75, 100] as const;
 
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth" }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
   const { address, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth, weth, wbtc } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
@@ -75,6 +78,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   }
 
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
+  const roi = computeROI(quote.premium, quote.strike);
+  const yieldLabel = yieldMetric === "apr"
+    ? `${Math.round(apr)}% APR`
+    : `${roi.toFixed(1)}% ROI`;
 
   const ethEquiv = isBuy ? (amount / quote.strike).toFixed(2) : String(amount);
 
@@ -261,7 +268,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                 {premiumDisplay}
               </p>
               <p className="text-sm font-semibold text-[var(--accent)] font-mono">
-                {Math.round(apr)}% APR
+                {yieldLabel}
               </p>
             </div>
           )}
