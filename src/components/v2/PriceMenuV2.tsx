@@ -206,9 +206,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const insufficientBalance = isConnected && amount > 0 && amount > walletBalance;
 
   function handleStartTutorial() {
-    const onComplete = () => {
-      localStorage.setItem("b1nary-tutorial-completed", "true");
-    };
+    const onComplete = () => {};
 
     if (side === "range") {
       setTimeout(() => startRangeTour(asset.symbol, onComplete), 150);
@@ -216,7 +214,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     }
 
     // Pre-fill for buy/sell so cards show real numbers
-    setAmountStr(isBuy ? "100" : "0.05");
+    const sellPreFill = String(Number(asset.amountPlaceholder) / 10 || 0.05);
+    setAmountStr(isBuy ? "100" : sellPreFill);
     if (filteredPrices.length > 0) {
       setSelectedQuote(filteredPrices[0]);
     }
@@ -368,7 +367,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
         <button
           onClick={handleStartTutorial}
-          disabled={loading || prices.length === 0}
+          disabled={loading || prices.length === 0 || (side !== "range" && filteredPrices.length === 0)}
           className="cursor-pointer rounded-lg bg-[var(--accent)] text-[var(--bg)] px-4 py-1.5 hover:bg-[var(--accent-hover)] transition-all animate-shimmer-pulse focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:animate-none"
         >
           Guide me through it
@@ -385,7 +384,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             navigator.clipboard.writeText(url).then(() => {
               setCopied(true);
               setTimeout(() => setCopied(false), 2000);
-            });
+            }).catch(() => {});
           }}
           className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         >

@@ -41,9 +41,7 @@ export function OutcomeCards({
     : "+ keep earnings";
 
   const itmDescription = hasStrike
-    ? isBuy
-      ? `Price reaches $${strike.toLocaleString()}`
-      : `Price reaches $${strike.toLocaleString()}`
+    ? `Price reaches $${strike.toLocaleString()}`
     : "Price reaches your target";
 
   const itmAction = hasStrike && hasAmount
