@@ -22,6 +22,7 @@ export interface PriceQuote {
   quote_id: string | null;
   max_amount_raw: number | null;
   maker_nonce: number | null;
+  position_count: number;
 }
 
 export interface Position {

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { InfoTooltip } from "../ui/InfoTooltip";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
 import { RangeAcceptModal } from "./RangeAcceptModal";
 import { fmtUsd, floorTo } from "@/lib/utils";
@@ -212,13 +213,27 @@ export function RangeEarn({
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
-                        ${q.strike.toLocaleString()}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
+                          ${q.strike.toLocaleString()}
+                        </span>
+                        {q.position_count > 0 && (
+                          <span className="text-[10px] text-[var(--text-secondary)]">
+                            {q.position_count}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
-                          <span className="text-xs text-[var(--text-secondary)] font-mono">{dist.toFixed(1)}%</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-[var(--text-secondary)] font-mono cursor-default">{dist.toFixed(1)}%</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Distance from current price</p>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     </button>
@@ -255,13 +270,27 @@ export function RangeEarn({
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
-                        ${q.strike.toLocaleString()}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
+                          ${q.strike.toLocaleString()}
+                        </span>
+                        {q.position_count > 0 && (
+                          <span className="text-[10px] text-[var(--text-secondary)]">
+                            {q.position_count}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
-                          <span className="text-xs text-[var(--text-secondary)] font-mono">+{dist.toFixed(1)}%</span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-xs text-[var(--text-secondary)] font-mono cursor-default">+{dist.toFixed(1)}%</span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Distance from current price</p>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                     </button>
