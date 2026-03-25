@@ -129,7 +129,7 @@ export function PriceSlider({ spot }: { spot: number }) {
               : "text-[var(--text-secondary)] hover:text-[var(--text)]"
           }`}
         >
-          I&apos;d buy
+          I have USD
         </button>
         <button
           onClick={() => handleSideChange("sell")}
@@ -139,7 +139,7 @@ export function PriceSlider({ spot }: { spot: number }) {
               : "text-[var(--text-secondary)] hover:text-[var(--text)]"
           }`}
         >
-          I&apos;d sell
+          I have ETH
         </button>
       </div>
 
