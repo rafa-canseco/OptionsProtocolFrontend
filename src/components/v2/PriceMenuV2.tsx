@@ -58,8 +58,7 @@ function StrikeCard({
   assetSymbol: symbol,
   spot,
   yieldMetric,
-  positionCount,
-  maxPositionCount,
+  isPopular,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
@@ -69,8 +68,7 @@ function StrikeCard({
   assetSymbol: string;
   spot?: number;
   yieldMetric: YieldMetric;
-  positionCount: number;
-  maxPositionCount: number;
+  isPopular: boolean;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const roi = computeROI(quote.premium, quote.strike);
@@ -87,13 +85,11 @@ function StrikeCard({
     ? ((quote.strike - spot) / spot) * 100
     : null;
 
-  const fillPct = maxPositionCount > 0 ? (positionCount / maxPositionCount) * 100 : 0;
-
   return (
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`relative overflow-hidden w-full grid grid-cols-[1fr_auto_1fr] items-center py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+      className={`w-full grid grid-cols-[1fr_auto_1fr] items-center py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
         disabled
           ? "opacity-40 cursor-not-allowed"
           : isSelected
@@ -119,20 +115,12 @@ function StrikeCard({
           </Tooltip>
         )}
       </div>
-      {/* Center: activity badge with tooltip */}
-      <div className="flex items-center justify-center">
-        {positionCount > 0 && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span className="flex items-center gap-1 text-xs font-mono text-[var(--accent)]/50 cursor-default">
-                <span className="w-1 h-1 rounded-full bg-[var(--accent)]/50 inline-block" />
-                {positionCount}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent side="top">
-              <p>{positionCount} positions open at this strike</p>
-            </TooltipContent>
-          </Tooltip>
+      {/* Center: Popular badge */}
+      <div className="flex items-center justify-center px-3">
+        {isPopular && (
+          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-[var(--accent)]/15 text-[var(--accent)]/70">
+            Popular
+          </span>
         )}
       </div>
       {/* Right: earnings / APR */}
@@ -212,9 +200,28 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [prices, side, activeExpiry, spot]);
 
-  const maxPositionCount = filteredPrices.length > 0
-    ? Math.max(...filteredPrices.map(q => q.position_count))
-    : 0;
+  // Level 1: total positions per expiry (for duration pills)
+  const positionCountByExpiry = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of prices) {
+      map.set(p.expiry_date, (map.get(p.expiry_date) ?? 0) + p.position_count);
+    }
+    return map;
+  }, [prices]);
+
+  // Level 2: top 2-3 strikes by position_count in current filtered set
+  const popularStrikes = useMemo(() => {
+    const withCount = filteredPrices.filter(q => q.position_count > 0);
+    if (withCount.length === 0) return new Set<number>();
+    const top = [...withCount].sort((a, b) => b.position_count - a.position_count).slice(0, 3);
+    return new Set(top.map(q => q.strike));
+  }, [filteredPrices]);
+
+  // Level 3: grand total across all prices
+  const grandTotalPositions = useMemo(
+    () => prices.reduce((sum, p) => sum + p.position_count, 0),
+    [prices]
+  );
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
@@ -529,19 +536,22 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <div className="animate-fade-in-up" data-tour="duration">
               <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
               <div className="flex flex-wrap gap-2">
-                {expiries.map((d) => (
-                  <button
-                    key={d}
-                    onClick={() => { setSelectedExpiry(d); }}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
-                      activeExpiry === d
-                        ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
-                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
-                    }`}
-                  >
-                    {expiryLabel(d)} ({daysUntil(d)}d)
-                  </button>
-                ))}
+                {expiries.map((d) => {
+                  const expiryTotal = positionCountByExpiry.get(d) ?? 0;
+                  return (
+                    <button
+                      key={d}
+                      onClick={() => { setSelectedExpiry(d); }}
+                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                        activeExpiry === d
+                          ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
+                          : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
+                      }`}
+                    >
+                      {expiryLabel(d)} ({daysUntil(d)}d){expiryTotal > 0 ? ` · ${expiryTotal}` : ""}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -624,10 +634,17 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
           {/* 4. Strike price cards */}
           <div className="animate-fade-in-up" data-tour="strikes">
-            <p className="text-sm text-[var(--text-secondary)] flex items-center mb-2">
-              {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
-              <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
-            </p>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-sm text-[var(--text-secondary)] flex items-center">
+                {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
+                <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
+              </p>
+              {grandTotalPositions > 0 && (
+                <span className="text-xs text-[var(--text-secondary)]">
+                  {grandTotalPositions} active positions
+                </span>
+              )}
+            </div>
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {filteredPrices.map((q) => (
@@ -641,8 +658,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     assetSymbol={asset.symbol}
                     spot={spot}
                     yieldMetric={yieldMetric}
-                    positionCount={q.position_count}
-                    maxPositionCount={maxPositionCount}
+                    isPopular={popularStrikes.has(q.strike)}
                   />
                 ))}
               </div>

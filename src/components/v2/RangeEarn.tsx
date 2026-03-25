@@ -79,6 +79,14 @@ export function RangeEarn({
       .sort((a, b) => a.strike - b.strike);
   }, [prices, activeExpiry, spot]);
 
+  // Top 2-3 strikes by position_count across both columns for the active expiry
+  const popularStrikes = useMemo(() => {
+    const all = [...putStrikes, ...callStrikes].filter(q => q.position_count > 0);
+    if (all.length === 0) return new Set<number>();
+    const top = [...all].sort((a, b) => b.position_count - a.position_count).slice(0, 3);
+    return new Set(top.map(q => q.strike));
+  }, [putStrikes, callStrikes]);
+
   // Reset selections when strikes change (e.g. expiry switch)
   useEffect(() => {
     setPutQuote((prev) => {
@@ -213,9 +221,16 @@ export function RangeEarn({
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
-                        ${q.strike.toLocaleString()}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
+                          ${q.strike.toLocaleString()}
+                        </span>
+                        {popularStrikes.has(q.strike) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-[var(--accent)]/15 text-[var(--accent)]/70">
+                            Popular
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
@@ -263,9 +278,16 @@ export function RangeEarn({
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
-                        ${q.strike.toLocaleString()}
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
+                          ${q.strike.toLocaleString()}
+                        </span>
+                        {popularStrikes.has(q.strike) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-[var(--accent)]/15 text-[var(--accent)]/70">
+                            Popular
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
