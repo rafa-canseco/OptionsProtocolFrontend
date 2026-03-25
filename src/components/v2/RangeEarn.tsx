@@ -220,8 +220,9 @@ export function RangeEarn({
                         {q.position_count > 0 && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="text-[10px] text-[var(--text-secondary)] cursor-default">
-                                {q.position_count} open
+                              <span className="flex items-center gap-1 cursor-default">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]/60 inline-block" />
+                                <span className="text-[10px] font-mono text-[var(--text-secondary)]">{q.position_count}</span>
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top">
@@ -284,8 +285,9 @@ export function RangeEarn({
                         {q.position_count > 0 && (
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <span className="text-[10px] text-[var(--text-secondary)] cursor-default">
-                                {q.position_count} open
+                              <span className="flex items-center gap-1 cursor-default">
+                                <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]/60 inline-block" />
+                                <span className="text-[10px] font-mono text-[var(--text-secondary)]">{q.position_count}</span>
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top">
