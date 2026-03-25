@@ -75,7 +75,7 @@ export function startBuyTour(
         popover: {
           title: "If the price doesn't hit",
           description:
-            "Your dollars come back, and you keep everything you earned. You can set a new price and do it again. This is the most common outcome.",
+            "When the duration ends and the price didn't reach your target, your dollars come back. Remember: you already collected the earnings the moment you accepted. They're yours no matter what.",
           side: "left" as const,
           align: "start" as const,
         },
@@ -85,9 +85,19 @@ export function startBuyTour(
         popover: {
           title: "If the price hits",
           description:
-            `You buy ${symbol} at the price you chose, and you still keep the earnings. This is not a loss. You got ${symbol} at your price. Now set a sell price above what you paid. You'll earn another payment, and when you sell, you sell higher than you bought.`,
+            `You buy ${symbol} at the price you chose. You already collected the earnings when you accepted, so those are yours too. This is not a loss. You got ${symbol} at your price.`,
           side: "left" as const,
           align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='tab-sell']",
+        popover: {
+          title: "Then come here",
+          description:
+            `After you buy ${symbol}, switch to this tab. Set a sell price above what you paid. You'll collect another payment upfront, and when you sell, you sell higher than you bought. Earnings from both sides + buy low, sell high.`,
+          side: "bottom" as const,
+          align: "center" as const,
         },
       },
       {
@@ -156,7 +166,7 @@ export function startSellTour(
         popover: {
           title: "If the price doesn't hit",
           description:
-            `Your ${symbol} comes back, and you keep everything you earned. Set a new price and do it again.`,
+            `When the duration ends and the price didn't reach your target, your ${symbol} comes back. Remember: you already collected the earnings the moment you accepted. They're yours no matter what.`,
           side: "left" as const,
           align: "start" as const,
         },
@@ -166,9 +176,19 @@ export function startSellTour(
         popover: {
           title: "If the price hits",
           description:
-            `You sell ${symbol} at the price you chose, and you keep the earnings. Now you have dollars. Set a buy price below what you sold at. You'll earn another payment, and when you buy back, you get ${symbol} cheaper than you sold it.`,
+            `You sell ${symbol} at the price you chose. You already collected the earnings when you accepted, so those are yours too. You sold at your price, and now you have dollars.`,
           side: "left" as const,
           align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='tab-buy']",
+        popover: {
+          title: "Then come here",
+          description:
+            `After you sell ${symbol}, switch to this tab. Set a buy price below what you sold at. You'll collect another payment upfront, and when you buy back, you get ${symbol} cheaper than you sold it. Earnings from both sides + sell high, buy low.`,
+          side: "bottom" as const,
+          align: "center" as const,
         },
       },
       {

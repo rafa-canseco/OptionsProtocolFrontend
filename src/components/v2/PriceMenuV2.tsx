@@ -419,6 +419,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         {/* 1. Buy / Sell / Range toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
             <button
+              data-tour="tab-buy"
               onClick={() => { setSide("buy"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "buy"
@@ -429,6 +430,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               I have USD
             </button>
             <button
+              data-tour="tab-sell"
               onClick={() => { setSide("sell"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "sell"
