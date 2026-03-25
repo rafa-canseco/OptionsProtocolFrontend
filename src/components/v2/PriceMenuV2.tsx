@@ -393,17 +393,17 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
-              I&apos;d buy
+              I have USD
             </button>
             <button
               onClick={() => { setSide("sell"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "sell"
-                  ? "bg-[var(--bg)] text-[var(--danger)] shadow-sm"
+                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
-              I&apos;d sell
+              I have {asset.symbol}
             </button>
             <button
               onClick={() => { setSide("range"); setSelectedQuote(null); }}
