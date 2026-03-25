@@ -118,9 +118,16 @@ function StrikeCard({
       {/* Center: position count */}
       <div className="flex items-center justify-center px-3">
         {positionCount > 0 && (
-          <span className="text-xs text-[var(--text-secondary)]">
-            {positionCount} positions
-          </span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="text-xs text-[var(--text-secondary)] cursor-default">
+                {positionCount} positions open
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Total open positions at this strike price</p>
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
       {/* Right: earnings / APR */}

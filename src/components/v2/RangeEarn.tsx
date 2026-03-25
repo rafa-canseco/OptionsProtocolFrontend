@@ -218,9 +218,16 @@ export function RangeEarn({
                           ${q.strike.toLocaleString()}
                         </span>
                         {q.position_count > 0 && (
-                          <span className="text-[10px] text-[var(--text-secondary)]">
-                            {q.position_count}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[10px] text-[var(--text-secondary)] cursor-default">
+                                {q.position_count} open
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Total open positions at this strike price</p>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
@@ -275,9 +282,16 @@ export function RangeEarn({
                           ${q.strike.toLocaleString()}
                         </span>
                         {q.position_count > 0 && (
-                          <span className="text-[10px] text-[var(--text-secondary)]">
-                            {q.position_count}
-                          </span>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="text-[10px] text-[var(--text-secondary)] cursor-default">
+                                {q.position_count} open
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent side="top">
+                              <p>Total open positions at this strike price</p>
+                            </TooltipContent>
+                          </Tooltip>
                         )}
                       </div>
                       <div className="flex items-center gap-2 mt-0.5">
