@@ -369,7 +369,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         <button
           onClick={handleStartTutorial}
           disabled={loading || prices.length === 0}
-          className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
+          className="cursor-pointer rounded-lg bg-[var(--accent)] text-[var(--bg)] px-4 py-1.5 hover:bg-[var(--accent-hover)] transition-all animate-glow focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:animate-none"
         >
           Guide me through it
         </button>
