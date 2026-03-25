@@ -11,6 +11,7 @@ import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
 import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import { fmtUsd, floorTo } from "@/lib/utils";
@@ -57,6 +58,8 @@ function StrikeCard({
   assetSymbol: symbol,
   spot,
   yieldMetric,
+  positionCount,
+  maxPositionCount,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
@@ -66,6 +69,8 @@ function StrikeCard({
   assetSymbol: string;
   spot?: number;
   yieldMetric: YieldMetric;
+  positionCount: number;
+  maxPositionCount: number;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const roi = computeROI(quote.premium, quote.strike);
@@ -82,11 +87,13 @@ function StrikeCard({
     ? ((quote.strike - spot) / spot) * 100
     : null;
 
+  const fillPct = maxPositionCount > 0 ? (positionCount / maxPositionCount) * 100 : 0;
+
   return (
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+      className={`relative overflow-hidden w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
         disabled
           ? "opacity-40 cursor-not-allowed"
           : isSelected
@@ -94,17 +101,37 @@ function StrikeCard({
             : "hover:bg-[var(--surface)] hover:pl-6 cursor-pointer active:bg-[var(--surface)]"
       }`}
     >
-      <div>
+      {/* Activity fill */}
+      {fillPct > 0 && (
+        <div
+          className="absolute inset-y-0 left-0 bg-[var(--accent)]/12 pointer-events-none"
+          style={{ width: `${fillPct}%` }}
+        />
+      )}
+      {/* Center positions text */}
+      {positionCount > 0 && (
+        <span className="absolute left-1/2 -translate-x-1/2 text-xs text-[var(--text-secondary)] pointer-events-none">
+          {positionCount} positions
+        </span>
+      )}
+      <div className="relative z-10">
         <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
           ${quote.strike.toLocaleString()}/{symbol}
         </span>
         {distancePct != null && (
-          <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-mono">
-            {distancePct > 0 ? "+" : ""}{distancePct.toFixed(1)}%
-          </p>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <p className="text-xs text-[var(--text-secondary)] mt-0.5 font-mono cursor-default">
+                {distancePct > 0 ? "+" : ""}{distancePct.toFixed(1)}%
+              </p>
+            </TooltipTrigger>
+            <TooltipContent side="top">
+              <p>Distance from current price</p>
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
-      <div className="text-right">
+      <div className="relative z-10 text-right">
         {earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
             ${fmtUsd(earnings)}
@@ -179,6 +206,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       )
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [prices, side, activeExpiry, spot]);
+
+  const maxPositionCount = filteredPrices.length > 0
+    ? Math.max(...filteredPrices.map(q => q.position_count))
+    : 0;
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
@@ -605,6 +636,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     assetSymbol={asset.symbol}
                     spot={spot}
                     yieldMetric={yieldMetric}
+                    positionCount={q.position_count}
+                    maxPositionCount={maxPositionCount}
                   />
                 ))}
               </div>
