@@ -93,7 +93,7 @@ function StrikeCard({
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`relative overflow-hidden w-full flex items-center justify-between py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+      className={`relative overflow-hidden w-full grid grid-cols-[1fr_auto_1fr] items-center py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
         disabled
           ? "opacity-40 cursor-not-allowed"
           : isSelected
@@ -101,20 +101,13 @@ function StrikeCard({
             : "hover:bg-[var(--surface)] hover:pl-6 cursor-pointer active:bg-[var(--surface)]"
       }`}
     >
-      {/* Activity fill */}
-      {fillPct > 0 && (
-        <div
-          className="absolute inset-y-0 left-0 bg-[var(--accent)]/12 pointer-events-none"
-          style={{ width: `${fillPct}%` }}
-        />
-      )}
-      {/* Center positions text */}
-      {positionCount > 0 && (
-        <span className="absolute left-1/2 -translate-x-1/2 text-xs text-[var(--text-secondary)] pointer-events-none">
-          {positionCount} positions
-        </span>
-      )}
-      <div className="relative z-10">
+      {/* Bottom heat bar */}
+      <div
+        className="absolute bottom-0 left-0 h-[2px] bg-[var(--accent)] pointer-events-none transition-[width] duration-500 ease-out"
+        style={{ width: `${fillPct}%`, opacity: fillPct > 0 ? 0.6 : 0 }}
+      />
+      {/* Left: strike + distance */}
+      <div>
         <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
           ${quote.strike.toLocaleString()}/{symbol}
         </span>
@@ -131,7 +124,17 @@ function StrikeCard({
           </Tooltip>
         )}
       </div>
-      <div className="relative z-10 text-right">
+      {/* Center: activity dot + count */}
+      <div className="flex items-center justify-center">
+        {positionCount > 0 && (
+          <span className="flex items-center gap-1 text-xs font-mono text-[var(--accent)]/50">
+            <span className="w-1 h-1 rounded-full bg-[var(--accent)]/50 inline-block" />
+            {positionCount}
+          </span>
+        )}
+      </div>
+      {/* Right: earnings / APR */}
+      <div className="text-right">
         {earnings > 0 ? (
           <span className="text-base font-bold text-[var(--accent)] font-mono">
             ${fmtUsd(earnings)}

@@ -219,12 +219,10 @@ export function RangeEarn({
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      {fillPct > 0 && (
-                        <div
-                          className="absolute inset-y-0 left-0 bg-[var(--accent)]/12 pointer-events-none"
-                          style={{ width: `${fillPct}%` }}
-                        />
-                      )}
+                      <div
+                        className="absolute bottom-0 left-0 h-[2px] bg-[var(--accent)] pointer-events-none transition-[width] duration-500 ease-out"
+                        style={{ width: `${fillPct}%`, opacity: fillPct > 0 ? 0.6 : 0 }}
+                      />
                       <span className={`relative z-10 font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
                         ${q.strike.toLocaleString()}
                       </span>
@@ -241,9 +239,6 @@ export function RangeEarn({
                           </Tooltip>
                         )}
                       </div>
-                      {q.position_count > 0 && (
-                        <p className="relative z-10 text-xs text-[var(--text-secondary)] mt-0.5">{q.position_count} positions</p>
-                      )}
                     </button>
                   );
                 })}
@@ -279,12 +274,10 @@ export function RangeEarn({
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      {fillPct > 0 && (
-                        <div
-                          className="absolute inset-y-0 left-0 bg-[var(--accent)]/12 pointer-events-none"
-                          style={{ width: `${fillPct}%` }}
-                        />
-                      )}
+                      <div
+                        className="absolute bottom-0 left-0 h-[2px] bg-[var(--accent)] pointer-events-none transition-[width] duration-500 ease-out"
+                        style={{ width: `${fillPct}%`, opacity: fillPct > 0 ? 0.6 : 0 }}
+                      />
                       <span className={`relative z-10 font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
                         ${q.strike.toLocaleString()}
                       </span>
@@ -301,9 +294,6 @@ export function RangeEarn({
                           </Tooltip>
                         )}
                       </div>
-                      {q.position_count > 0 && (
-                        <p className="relative z-10 text-xs text-[var(--text-secondary)] mt-0.5">{q.position_count} positions</p>
-                      )}
                     </button>
                   );
                 })}
