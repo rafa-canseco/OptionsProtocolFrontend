@@ -326,17 +326,17 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
-        I&apos;d buy
+        I have USD
       </button>
       <button
         onClick={() => onSideChange("sell")}
         className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
           side === "sell"
-            ? "bg-[var(--border)] text-[var(--danger)] shadow-sm"
+            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
-        I&apos;d sell
+        I have ETH
       </button>
     </div>
   );
