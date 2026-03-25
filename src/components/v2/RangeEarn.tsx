@@ -79,11 +79,6 @@ export function RangeEarn({
       .sort((a, b) => a.strike - b.strike);
   }, [prices, activeExpiry, spot]);
 
-  const maxPositionCount = useMemo(() => {
-    const all = [...putStrikes, ...callStrikes];
-    return all.length > 0 ? Math.max(...all.map(q => q.position_count)) : 0;
-  }, [putStrikes, callStrikes]);
-
   // Reset selections when strikes change (e.g. expiry switch)
   useEffect(() => {
     setPutQuote((prev) => {
@@ -207,26 +202,21 @@ export function RangeEarn({
                   const selected = putQuote?.strike === q.strike;
                   const disabled = !q.otoken_address || q.available_amount <= 0;
                   const dist = spot ? ((q.strike - spot) / spot * 100) : null;
-                  const fillPct = maxPositionCount > 0 ? (q.position_count / maxPositionCount) * 100 : 0;
                   return (
                     <button
                       key={q.strike}
                       onClick={() => setPutQuote(q)}
                       disabled={disabled}
-                      className={`relative overflow-hidden w-full py-3 px-3 text-left text-sm transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                      className={`w-full py-3 px-3 text-left text-sm transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                         disabled ? "opacity-40 cursor-not-allowed"
                         : selected ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)]"
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      <div
-                        className="absolute bottom-0 left-0 h-[2px] bg-[var(--accent)] pointer-events-none transition-[width] duration-500 ease-out"
-                        style={{ width: `${fillPct}%`, opacity: fillPct > 0 ? 0.6 : 0 }}
-                      />
-                      <span className={`relative z-10 font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
+                      <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
                         ${q.strike.toLocaleString()}
                       </span>
-                      <div className="relative z-10 flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
                           <Tooltip>
@@ -262,26 +252,21 @@ export function RangeEarn({
                   const selected = callQuote?.strike === q.strike;
                   const disabled = !q.otoken_address || q.available_amount <= 0;
                   const dist = spot ? ((q.strike - spot) / spot * 100) : null;
-                  const fillPct = maxPositionCount > 0 ? (q.position_count / maxPositionCount) * 100 : 0;
                   return (
                     <button
                       key={q.strike}
                       onClick={() => setCallQuote(q)}
                       disabled={disabled}
-                      className={`relative overflow-hidden w-full py-3 px-3 text-left text-sm transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                      className={`w-full py-3 px-3 text-left text-sm transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                         disabled ? "opacity-40 cursor-not-allowed"
                         : selected ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)]"
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
                       }`}
                     >
-                      <div
-                        className="absolute bottom-0 left-0 h-[2px] bg-[var(--accent)] pointer-events-none transition-[width] duration-500 ease-out"
-                        style={{ width: `${fillPct}%`, opacity: fillPct > 0 ? 0.6 : 0 }}
-                      />
-                      <span className={`relative z-10 font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
+                      <span className={`font-mono font-semibold ${selected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
                         ${q.strike.toLocaleString()}
                       </span>
-                      <div className="relative z-10 flex items-center gap-2 mt-0.5">
+                      <div className="flex items-center gap-2 mt-0.5">
                         <span className="text-xs text-[var(--accent)] font-mono font-bold">{fmtYield(apr, roi, yieldMetric)}</span>
                         {dist != null && (
                           <Tooltip>
