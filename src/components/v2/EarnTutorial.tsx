@@ -35,7 +35,7 @@ export function startBuyTour(
         popover: {
           title: `Buy ${symbol} cheaper`,
           description:
-            `Here you can get ${symbol} at a price you choose, below market. While you wait, a trader pays you upfront just for setting that price. Let's walk through it.`,
+            `Here you can get ${symbol} at a price you choose, below market. While you wait, a market maker pays you upfront just for setting that price. Let's walk through it.`,
           side: "bottom" as const,
           align: "start" as const,
         },
@@ -126,7 +126,7 @@ export function startSellTour(
         popover: {
           title: `Sell ${symbol} higher`,
           description:
-            `Already holding ${symbol}? Set a sell price above market. A trader pays you upfront for that commitment. If the price never gets there, you keep your ${symbol} and the payment. Let's walk through it.`,
+            `Already holding ${symbol}? Set a sell price above market. A market maker pays you upfront for that commitment. If the price never gets there, you keep your ${symbol} and the payment. Let's walk through it.`,
           side: "bottom" as const,
           align: "start" as const,
         },

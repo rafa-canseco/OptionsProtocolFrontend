@@ -252,6 +252,8 @@ body {
   font-weight: 500;
   cursor: pointer;
   transition: border-color 0.15s, color 0.15s;
+  outline: none;
+  box-shadow: none;
 }
 .driver-popover.b1nary-tour .driver-popover-prev-btn:hover {
   border-color: var(--text-secondary);
@@ -269,6 +271,8 @@ body {
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.15s;
+  outline: none;
+  box-shadow: none;
 }
 .driver-popover.b1nary-tour .driver-popover-next-btn:hover,
 .driver-popover.b1nary-tour button.driver-popover-done-btn:hover {

@@ -421,7 +421,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <button
               data-tour="tab-buy"
               onClick={() => { setSide("buy"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+              className={`flex-1 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "buy"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -432,7 +432,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <button
               data-tour="tab-sell"
               onClick={() => { setSide("sell"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+              className={`flex-1 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "sell"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -442,7 +442,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </button>
             <button
               onClick={() => { setSide("range"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+              className={`flex-1 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
                 side === "range"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -460,7 +460,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Buy {asset.symbol} cheaper.
                 </p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Set a price you&apos;d buy {asset.symbol} at. A trader pays you for that commitment.
+                  Set a price you&apos;d buy {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
                 </p>
               </>
@@ -471,7 +471,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Sell {asset.symbol} higher.
                 </p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Set a price you&apos;d sell {asset.symbol} at. A trader pays you for that commitment.
+                  Set a price you&apos;d sell {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
                 </p>
               </>
@@ -662,6 +662,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               </div>
               <p className="text-sm text-[var(--text-secondary)] mt-1">
                 {fmtYield(selectedApr, selectedQuote ? computeROI(selectedQuote.premium, selectedQuote.strike) : 0, yieldMetric)} · {activeExpiry ? daysUntil(activeExpiry) : 0}d
+              </p>
+            </div>
+          )}
+          {activeExpiry && (
+            <div className="text-center animate-fade-in-up">
+              <p className="text-xs font-medium text-[var(--text-secondary)]">
+                Settlement: <span className="font-mono text-[var(--bone)]">{parseLocalDate(activeExpiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · 8:00 AM UTC</span>
+              </p>
+              <p className="text-[10px] text-[var(--text-secondary)] mt-0.5">
+                The exact price at that moment decides the outcome.
               </p>
             </div>
           )}
