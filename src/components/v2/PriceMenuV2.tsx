@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
 import { usePrices } from "@/hooks/usePrices";
 import { useSpot } from "@/hooks/useSpot";
@@ -20,7 +20,7 @@ import { AssetSelector } from "./AssetSelector";
 import { RangeEarn } from "./RangeEarn";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
 import { computeAPR, computeROI } from "@/lib/execution";
-import { useEarnTutorial } from "./EarnTutorial";
+import { startEarnTour } from "./EarnTutorial";
 
 function parseLocalDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -148,7 +148,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
-  const [tutorialActive, setTutorialActive] = useState(false);
 
   const isBuy = side === "buy";
   const walletBalance = isBuy ? usd : eth + weth;
@@ -206,24 +205,25 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
   const insufficientBalance = isConnected && amount > 0 && amount > walletBalance;
 
-  const handleTutorialPreFill = useCallback(() => {
+  function handleStartTutorial() {
     if (side === "range") setSide("buy");
-    setAmountStr(isBuy ? "100" : "0.05");
+    const tutorialSide = side === "range" ? "buy" : side;
+    const tutorialIsBuy = tutorialSide === "buy";
+    setAmountStr(tutorialIsBuy ? "100" : "0.05");
     if (filteredPrices.length > 0) {
       setSelectedQuote(filteredPrices[0]);
     }
-  }, [isBuy, filteredPrices, side]);
-
-  useEarnTutorial({
-    active: tutorialActive,
-    side: side === "range" ? "buy" : (side as "buy" | "sell"),
-    assetSymbol: asset.symbol,
-    onComplete: () => {
-      setTutorialActive(false);
-      localStorage.setItem("b1nary-tutorial-completed", "true");
-    },
-    onPreFill: handleTutorialPreFill,
-  });
+    // Delay so React renders the pre-filled state before tour starts
+    setTimeout(() => {
+      startEarnTour({
+        isBuy: tutorialIsBuy,
+        assetSymbol: asset.symbol,
+        onComplete: () => {
+          localStorage.setItem("b1nary-tutorial-completed", "true");
+        },
+      });
+    }, 200);
+  }
 
   function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
@@ -362,7 +362,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     <div className="space-y-6">
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
         <button
-          onClick={() => setTutorialActive(true)}
+          onClick={handleStartTutorial}
           disabled={loading || filteredPrices.length === 0}
           className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
         >
