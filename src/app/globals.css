@@ -208,3 +208,56 @@ body {
     animation: none !important;
   }
 }
+
+/* driver.js dark theme overrides */
+.driver-popover.b1nary-tour {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+.driver-popover.b1nary-tour .driver-popover-title {
+  color: var(--bone);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 14px;
+  font-weight: 600;
+}
+.driver-popover.b1nary-tour .driver-popover-description {
+  color: var(--text-secondary);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.driver-popover.b1nary-tour .driver-popover-progress-text {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.driver-popover.b1nary-tour .driver-popover-prev-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  border-radius: 8px;
+  font-size: 13px;
+}
+.driver-popover.b1nary-tour .driver-popover-next-btn,
+.driver-popover.b1nary-tour .driver-popover-close-btn-inside {
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.driver-popover.b1nary-tour .driver-popover-arrow-side-left {
+  border-left-color: var(--surface);
+}
+.driver-popover.b1nary-tour .driver-popover-arrow-side-right {
+  border-right-color: var(--surface);
+}
+.driver-popover.b1nary-tour .driver-popover-arrow-side-top {
+  border-top-color: var(--surface);
+}
+.driver-popover.b1nary-tour .driver-popover-arrow-side-bottom {
+  border-bottom-color: var(--surface);
+}

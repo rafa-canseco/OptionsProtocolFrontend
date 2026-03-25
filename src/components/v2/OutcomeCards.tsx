@@ -73,7 +73,7 @@ export function OutcomeCards({
   return (
     <div className="grid grid-cols-2 gap-3">
       {/* OTM outcome — collateral back + keep premium */}
-      <div className={cardClass}>
+      <div className={cardClass} data-tour="outcome-otm">
         <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-[var(--accent)]/10 blur-xl" />
         <div className="relative">
           <div className="flex items-center gap-1.5 mb-1">
@@ -105,7 +105,7 @@ export function OutcomeCards({
       </div>
 
       {/* ITM outcome — order fills + keep premium + next step */}
-      <div className={cardClass}>
+      <div className={cardClass} data-tour="outcome-itm">
         <div className="absolute -top-6 -right-6 w-20 h-20 rounded-full bg-[var(--accent)]/10 blur-xl" />
         <div className="relative">
           <div className="flex items-center gap-1.5 mb-1">
