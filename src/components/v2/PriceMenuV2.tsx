@@ -58,7 +58,7 @@ function StrikeCard({
   assetSymbol: symbol,
   spot,
   yieldMetric,
-  isPopular,
+  positionCount,
 }: {
   quote: PriceQuote;
   side: "buy" | "sell";
@@ -68,7 +68,7 @@ function StrikeCard({
   assetSymbol: string;
   spot?: number;
   yieldMetric: YieldMetric;
-  isPopular: boolean;
+  positionCount: number;
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const roi = computeROI(quote.premium, quote.strike);
@@ -115,11 +115,11 @@ function StrikeCard({
           </Tooltip>
         )}
       </div>
-      {/* Center: Popular badge */}
+      {/* Center: position count */}
       <div className="flex items-center justify-center px-3">
-        {isPopular && (
-          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold tracking-wide uppercase bg-[var(--accent)]/15 text-[var(--accent)]/70">
-            Popular
+        {positionCount > 0 && (
+          <span className="text-xs text-[var(--text-secondary)]">
+            {positionCount} positions
           </span>
         )}
       </div>
@@ -209,19 +209,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     return map;
   }, [prices]);
 
-  // Level 2: top 2-3 strikes by position_count in current filtered set
-  const popularStrikes = useMemo(() => {
-    const withCount = filteredPrices.filter(q => q.position_count > 0);
-    if (withCount.length === 0) return new Set<number>();
-    const top = [...withCount].sort((a, b) => b.position_count - a.position_count).slice(0, 3);
-    return new Set(top.map(q => q.strike));
-  }, [filteredPrices]);
-
-  // Level 3: grand total across all prices
-  const grandTotalPositions = useMemo(
-    () => prices.reduce((sum, p) => sum + p.position_count, 0),
-    [prices]
-  );
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
@@ -634,17 +621,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
           {/* 4. Strike price cards */}
           <div className="animate-fade-in-up" data-tour="strikes">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-sm text-[var(--text-secondary)] flex items-center">
-                {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
-                <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
-              </p>
-              {grandTotalPositions > 0 && (
-                <span className="text-xs text-[var(--text-secondary)]">
-                  {grandTotalPositions} active positions
-                </span>
-              )}
-            </div>
+            <p className="text-sm text-[var(--text-secondary)] flex items-center mb-2">
+              {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
+              <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
+            </p>
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {filteredPrices.map((q) => (
@@ -658,7 +638,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     assetSymbol={asset.symbol}
                     spot={spot}
                     yieldMetric={yieldMetric}
-                    isPopular={popularStrikes.has(q.strike)}
+                    positionCount={q.position_count}
                   />
                 ))}
               </div>
