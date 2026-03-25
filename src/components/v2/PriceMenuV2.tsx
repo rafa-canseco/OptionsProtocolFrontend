@@ -125,7 +125,7 @@ function StrikeCard({
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
-              <p>{positionCount} users currently have open positions at this strike</p>
+              <p>Total open positions at this strike price</p>
             </TooltipContent>
           </Tooltip>
         )}

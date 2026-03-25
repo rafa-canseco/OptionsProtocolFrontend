@@ -225,7 +225,7 @@ export function RangeEarn({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                              <p>{q.position_count} users have open positions at this strike</p>
+                              <p>Total open positions at this strike price</p>
                             </TooltipContent>
                           </Tooltip>
                         )}
@@ -289,7 +289,7 @@ export function RangeEarn({
                               </span>
                             </TooltipTrigger>
                             <TooltipContent side="top">
-                              <p>{q.position_count} users have open positions at this strike</p>
+                              <p>Total open positions at this strike price</p>
                             </TooltipContent>
                           </Tooltip>
                         )}
