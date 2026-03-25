@@ -417,6 +417,43 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </button>
           </div>
 
+          {/* Context line — explains the benefit and why you get paid */}
+          <div className="animate-fade-in-up space-y-1">
+            {side === "buy" && (
+              <>
+                <p className="text-sm font-semibold text-[var(--bone)]">
+                  Buy {asset.symbol} cheaper.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Set a price you&apos;d buy {asset.symbol} at. A trader pays you for that commitment.
+                  Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
+                </p>
+              </>
+            )}
+            {side === "sell" && (
+              <>
+                <p className="text-sm font-semibold text-[var(--bone)]">
+                  Sell {asset.symbol} higher.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Set a price you&apos;d sell {asset.symbol} at. A trader pays you for that commitment.
+                  Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
+                </p>
+              </>
+            )}
+            {side === "range" && (
+              <>
+                <p className="text-sm font-semibold text-[var(--bone)]">
+                  Earn from both sides.
+                </p>
+                <p className="text-sm text-[var(--text-secondary)]">
+                  Set a buy price and a sell price. You earn from both commitments.
+                  If {asset.symbol} stays in your range, everything comes back. You keep both payments.
+                </p>
+              </>
+            )}
+          </div>
+
           {/* 2. Duration — button group */}
           {expiries.length > 0 && (
             <div className="animate-fade-in-up">

@@ -125,13 +125,6 @@ export function RangeEarn({
     <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
       {/* LEFT: Strike selection + amount */}
       <div className="space-y-5">
-        {/* Range explanation */}
-        <div className="rounded-xl bg-[var(--accent)]/5 border border-[var(--accent)]/15 px-4 py-3 animate-fade-in-up">
-          <p className="text-sm text-[var(--bone)]">
-            Earn from both sides. Pick a lower and upper price — if {asset.symbol} stays in range, you keep everything.
-          </p>
-        </div>
-
         {/* Amount input */}
         <div className="animate-fade-in-up">
           <p className="text-sm text-[var(--text-secondary)] mb-2">
