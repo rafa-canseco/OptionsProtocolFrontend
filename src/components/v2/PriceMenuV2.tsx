@@ -130,7 +130,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
-  const initialSide = sideParam === "sell" ? "sell" : sideParam === "buy" ? "buy" : "range";
+  const initialSide = sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
   const [side, setSide] = useState<"buy" | "sell" | "range">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -383,18 +383,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
       {/* Buy/Sell/Range toggle + content */}
       <div className="space-y-5">
-        {/* 1. Range / Buy / Sell toggle */}
+        {/* 1. Buy / Sell / Range toggle */}
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
-            <button
-              onClick={() => { setSide("range"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
-                side === "range"
-                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              }`}
-            >
-              Range
-            </button>
             <button
               onClick={() => { setSide("buy"); setSelectedQuote(null); }}
               className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
@@ -414,6 +404,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               }`}
             >
               I&apos;d sell
+            </button>
+            <button
+              onClick={() => { setSide("range"); setSelectedQuote(null); }}
+              className={`flex-1 py-2.5 text-sm font-medium rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                side === "range"
+                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              }`}
+            >
+              Range
             </button>
           </div>
 
