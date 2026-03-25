@@ -120,8 +120,9 @@ function StrikeCard({
         {positionCount > 0 && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <span className="text-xs text-[var(--text-secondary)] cursor-default">
-                {positionCount} positions open
+              <span className="flex items-center gap-1.5 cursor-default">
+                <span className="w-2 h-2 rounded-full bg-[var(--accent)]/60 inline-block" />
+                <span className="text-xs font-mono text-[var(--text-secondary)]">{positionCount}</span>
               </span>
             </TooltipTrigger>
             <TooltipContent side="top">
