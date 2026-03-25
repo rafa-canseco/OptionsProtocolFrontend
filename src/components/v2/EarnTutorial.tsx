@@ -1,39 +1,51 @@
 "use client";
 
-import { driver } from "driver.js";
+import { driver, type DriveStep } from "driver.js";
 import "driver.js/dist/driver.css";
 
-interface StartTourOptions {
-  isBuy: boolean;
-  assetSymbol: string;
-  onComplete: () => void;
-}
-
-export function startEarnTour({
-  isBuy,
-  assetSymbol,
-  onComplete,
-}: StartTourOptions) {
+function runTour(steps: DriveStep[], onComplete: () => void) {
   const tour = driver({
     showProgress: true,
     animate: true,
     allowClose: true,
     overlayColor: "rgba(0, 0, 0, 0.75)",
-    stagePadding: 8,
+    stagePadding: 10,
     stageRadius: 12,
     popoverClass: "b1nary-tour",
-    disableActiveInteraction: true,
+    nextBtnText: "Next",
+    prevBtnText: "Back",
+    doneBtnText: "Got it!",
     onDestroyStarted: () => {
       tour.destroy();
       onComplete();
     },
-    steps: [
+    steps,
+  });
+  tour.drive();
+}
+
+export function startBuyTour(
+  symbol: string,
+  onComplete: () => void,
+) {
+  runTour(
+    [
+      {
+        element: "[data-tour='context-line']",
+        popover: {
+          title: `Buy ${symbol} cheaper`,
+          description:
+            `Here you can get ${symbol} at a price you choose, below market. While you wait, a trader pays you upfront just for setting that price. Let's walk through it.`,
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
       {
         element: "[data-tour='duration']",
         popover: {
-          title: "Duration",
+          title: "Pick a duration",
           description:
-            "How long do you commit? Shorter = sooner you get your money back.",
+            "How long are you willing to wait? At the end of this period, one of two things happens (both are good).",
           side: "bottom" as const,
           align: "start" as const,
         },
@@ -41,10 +53,9 @@ export function startEarnTour({
       {
         element: "[data-tour='amount']",
         popover: {
-          title: "Amount",
-          description: isBuy
-            ? "How much USD do you want to put to work? You get this back if the price doesn't hit your target."
-            : `How much ${assetSymbol} do you want to put to work? You get this back if the price doesn't hit your target.`,
+          title: "How much?",
+          description:
+            "Enter how much USD you want to put to work. This is what you're committing. If the price doesn't hit your target, you get it all back.",
           side: "bottom" as const,
           align: "start" as const,
         },
@@ -52,10 +63,9 @@ export function startEarnTour({
       {
         element: "[data-tour='strikes']",
         popover: {
-          title: "Your price",
-          description: isBuy
-            ? `Pick the price you'd buy ${assetSymbol} at. Closer to market = more earnings. Further away = safer.`
-            : `Pick the price you'd sell ${assetSymbol} at. Closer to market = more earnings. Further away = safer.`,
+          title: "Pick your price",
+          description:
+            `At what price would you buy ${symbol}? Closer to market pays more but is more likely to execute. Further away is safer but pays less.`,
           side: "bottom" as const,
           align: "start" as const,
         },
@@ -63,10 +73,9 @@ export function startEarnTour({
       {
         element: "[data-tour='outcome-otm']",
         popover: {
-          title: "Outcome A",
-          description: isBuy
-            ? "Price didn't hit your target? Your dollars come back. You keep the earnings. Set a new price and earn again next week."
-            : `Price didn't hit your target? Your ${assetSymbol} comes back. You keep the earnings. Set a new price and earn again next week.`,
+          title: "If the price doesn't hit",
+          description:
+            "Your dollars come back, and you keep everything you earned. You can set a new price and do it again. This is the most common outcome.",
           side: "left" as const,
           align: "start" as const,
         },
@@ -74,10 +83,9 @@ export function startEarnTour({
       {
         element: "[data-tour='outcome-itm']",
         popover: {
-          title: "Outcome B",
-          description: isBuy
-            ? `Price hit? You just bought ${assetSymbol} at the price you chose. You keep the earnings. Now set a sell price higher than what you paid. You earn another premium, and when you sell, you sell higher than you bought. Premiums + buy low, sell high.`
-            : `Price hit? You just sold ${assetSymbol} at the price you chose. You keep the earnings. Now set a buy price lower than what you sold at. You earn another premium, and when you buy back, you buy cheaper. Premiums + sell high, buy low.`,
+          title: "If the price hits",
+          description:
+            `You buy ${symbol} at the price you chose, and you still keep the earnings. This is not a loss. You got ${symbol} at your price. Now set a sell price above what you paid. You'll earn another payment, and when you sell, you sell higher than you bought.`,
           side: "left" as const,
           align: "start" as const,
         },
@@ -85,14 +93,156 @@ export function startEarnTour({
       {
         element: "[data-tour='accept']",
         popover: {
-          title: "Accept",
-          description: "Ready. Hit accept to start earning.",
+          title: "You're ready",
+          description:
+            "Pick your values above and hit Accept to start earning.",
           side: "top" as const,
           align: "center" as const,
         },
       },
     ],
-  });
+    onComplete,
+  );
+}
 
-  tour.drive();
+export function startSellTour(
+  symbol: string,
+  onComplete: () => void,
+) {
+  runTour(
+    [
+      {
+        element: "[data-tour='context-line']",
+        popover: {
+          title: `Sell ${symbol} higher`,
+          description:
+            `Already holding ${symbol}? Set a sell price above market. A trader pays you upfront for that commitment. If the price never gets there, you keep your ${symbol} and the payment. Let's walk through it.`,
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='duration']",
+        popover: {
+          title: "Pick a duration",
+          description:
+            "How long are you willing to wait? At the end, one of two things happens (both are good).",
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='amount']",
+        popover: {
+          title: "How much?",
+          description:
+            `Enter how much ${symbol} you want to put to work. If the price doesn't hit your target, your ${symbol} comes right back.`,
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='strikes']",
+        popover: {
+          title: "Pick your sell price",
+          description:
+            `At what price would you sell ${symbol}? Closer to market pays more. Further away is safer. You decide.`,
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='outcome-otm']",
+        popover: {
+          title: "If the price doesn't hit",
+          description:
+            `Your ${symbol} comes back, and you keep everything you earned. Set a new price and do it again.`,
+          side: "left" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='outcome-itm']",
+        popover: {
+          title: "If the price hits",
+          description:
+            `You sell ${symbol} at the price you chose, and you keep the earnings. Now you have dollars. Set a buy price below what you sold at. You'll earn another payment, and when you buy back, you get ${symbol} cheaper than you sold it.`,
+          side: "left" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='accept']",
+        popover: {
+          title: "You're ready",
+          description:
+            "Pick your values above and hit Accept to start earning.",
+          side: "top" as const,
+          align: "center" as const,
+        },
+      },
+    ],
+    onComplete,
+  );
+}
+
+export function startRangeTour(
+  symbol: string,
+  onComplete: () => void,
+) {
+  runTour(
+    [
+      {
+        element: "[data-tour='context-line']",
+        popover: {
+          title: "Earn from both sides",
+          description:
+            `Set a buy price and a sell price around ${symbol}. You get paid from both commitments. If ${symbol} stays in your range, everything comes back and you keep both payments. Let's set it up.`,
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='range-amount']",
+        popover: {
+          title: "How much?",
+          description:
+            "Enter the total USD you want to commit. We split it automatically between the buy side and sell side.",
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='range-strikes']",
+        popover: {
+          title: "Pick your range",
+          description:
+            `Choose a lower price (where you'd buy ${symbol}) and an upper price (where you'd sell). Wider range = safer. Tighter range = more earnings.`,
+          side: "bottom" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='range-outcomes']",
+        popover: {
+          title: "Three outcomes, all earn",
+          description:
+            `If ${symbol} stays in range: everything back + keep both payments. If it drops: you buy ${symbol} cheap, keep the payments, then sell it higher. If it rises: you sell ${symbol} at your price, keep the payments, then buy it back cheaper.`,
+          side: "left" as const,
+          align: "start" as const,
+        },
+      },
+      {
+        element: "[data-tour='range-accept']",
+        popover: {
+          title: "You're ready",
+          description:
+            "Pick your range above and hit Accept to start earning from both sides.",
+          side: "top" as const,
+          align: "center" as const,
+        },
+      },
+    ],
+    onComplete,
+  );
 }

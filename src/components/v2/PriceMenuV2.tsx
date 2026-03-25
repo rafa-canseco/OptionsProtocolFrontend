@@ -20,7 +20,7 @@ import { AssetSelector } from "./AssetSelector";
 import { RangeEarn } from "./RangeEarn";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
 import { computeAPR, computeROI } from "@/lib/execution";
-import { startEarnTour } from "./EarnTutorial";
+import { startBuyTour, startSellTour, startRangeTour } from "./EarnTutorial";
 
 function parseLocalDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -206,22 +206,27 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const insufficientBalance = isConnected && amount > 0 && amount > walletBalance;
 
   function handleStartTutorial() {
-    if (side === "range") setSide("buy");
-    const tutorialSide = side === "range" ? "buy" : side;
-    const tutorialIsBuy = tutorialSide === "buy";
-    setAmountStr(tutorialIsBuy ? "100" : "0.05");
+    const onComplete = () => {
+      localStorage.setItem("b1nary-tutorial-completed", "true");
+    };
+
+    if (side === "range") {
+      setTimeout(() => startRangeTour(asset.symbol, onComplete), 150);
+      return;
+    }
+
+    // Pre-fill for buy/sell so cards show real numbers
+    setAmountStr(isBuy ? "100" : "0.05");
     if (filteredPrices.length > 0) {
       setSelectedQuote(filteredPrices[0]);
     }
-    // Delay so React renders the pre-filled state before tour starts
+
     setTimeout(() => {
-      startEarnTour({
-        isBuy: tutorialIsBuy,
-        assetSymbol: asset.symbol,
-        onComplete: () => {
-          localStorage.setItem("b1nary-tutorial-completed", "true");
-        },
-      });
+      if (side === "sell") {
+        startSellTour(asset.symbol, onComplete);
+      } else {
+        startBuyTour(asset.symbol, onComplete);
+      }
     }, 200);
   }
 
@@ -363,7 +368,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
         <button
           onClick={handleStartTutorial}
-          disabled={loading || filteredPrices.length === 0}
+          disabled={loading || prices.length === 0}
           className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed"
         >
           Guide me through it
@@ -446,7 +451,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           </div>
 
           {/* Context line — explains the benefit and why you get paid */}
-          <div className="animate-fade-in-up space-y-1">
+          <div className="animate-fade-in-up space-y-1" data-tour="context-line">
             {side === "buy" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">

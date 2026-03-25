@@ -126,7 +126,7 @@ export function RangeEarn({
       {/* LEFT: Strike selection + amount */}
       <div className="space-y-5">
         {/* Amount input */}
-        <div className="animate-fade-in-up">
+        <div className="animate-fade-in-up" data-tour="range-amount">
           <p className="text-sm text-[var(--text-secondary)] mb-2">
             Total to commit
           </p>
@@ -186,7 +186,7 @@ export function RangeEarn({
         </div>
 
         {/* Dual strike columns */}
-        <div className="grid grid-cols-2 gap-3 animate-fade-in-up">
+        <div className="grid grid-cols-2 gap-3 animate-fade-in-up" data-tour="range-strikes">
           {/* Put strikes */}
           <div>
             <p className="text-sm text-[var(--text-secondary)] mb-2 flex items-center">
@@ -294,7 +294,7 @@ export function RangeEarn({
         )}
 
         {/* Accept button */}
-        <div className="animate-fade-in-up">
+        <div className="animate-fade-in-up" data-tour="range-accept">
           <button
             onClick={() => {
               if (!isConnected) { login(); return; }
@@ -363,12 +363,14 @@ export function RangeEarn({
             </p>
           </div>
         )}
-        <RangeOutcomeCards
-          putStrike={putQuote?.strike}
-          callStrike={callQuote?.strike}
-          totalPremium={totalPremium > 0 ? totalPremium : undefined}
-          assetSymbol={asset.symbol}
-        />
+        <div data-tour="range-outcomes">
+          <RangeOutcomeCards
+            putStrike={putQuote?.strike}
+            callStrike={callQuote?.strike}
+            totalPremium={totalPremium > 0 ? totalPremium : undefined}
+            assetSymbol={asset.symbol}
+          />
+        </div>
       </div>
     </div>
   );
