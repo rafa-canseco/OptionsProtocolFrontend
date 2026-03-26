@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
@@ -214,6 +214,20 @@ export function RangePositionCard({
               )}
             </div>
           )}
+
+          <a
+            href={buildCalendarUrl(
+              putLeg,
+              assetSymbol,
+              assetSlug,
+              `b1nary: ${assetSymbol} range expiry ($${putStrike.toLocaleString("en-US")}–$${callStrike.toLocaleString("en-US")})`,
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+          >
+            📅 Add to calendar
+          </a>
         </>
       )}
 

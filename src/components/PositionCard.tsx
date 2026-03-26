@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd, fmtAsset } from "@/lib/utils";
+import { fmtUsd, fmtAsset, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
 import { ExpiryCountdown } from "./ExpiryCountdown";
@@ -160,6 +160,15 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
               Open tx
             </a>
           )}
+
+          <a
+            href={buildCalendarUrl(position, assetSymbol, assetSlug)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+          >
+            📅 Add to calendar
+          </a>
         </>
       )}
 
