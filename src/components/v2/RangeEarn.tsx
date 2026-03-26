@@ -120,6 +120,13 @@ export function RangeEarn({
     ? (putApr + callApr) / 2
     : putQuote ? putApr : callApr;
 
+  // Total open positions for this expiry (puts + calls)
+  const totalRangePositions = useMemo(() => {
+    return prices
+      .filter(p => p.expiry_date === activeExpiry)
+      .reduce((sum, p) => sum + p.position_count, 0);
+  }, [prices, activeExpiry]);
+
   const canAccept = putQuote && callQuote && amount > 0;
 
   return (
@@ -187,6 +194,22 @@ export function RangeEarn({
         </div>
 
         {/* Dual strike columns */}
+        {totalRangePositions > 0 && (
+          <div className="flex justify-end animate-fade-in-up">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="flex items-center gap-1.5 cursor-default">
+                  <span className="w-2 h-2 rounded-full bg-[var(--accent)]/60 inline-block" />
+                  <span className="text-xs font-mono text-[var(--text-secondary)]">{totalRangePositions}</span>
+                  <span className="text-xs text-[var(--text-secondary)]">open positions</span>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                <p>Open positions at this expiry</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+        )}
         <div className="grid grid-cols-2 gap-3 animate-fade-in-up" data-tour="range-strikes">
           {/* Put strikes */}
           <div>
