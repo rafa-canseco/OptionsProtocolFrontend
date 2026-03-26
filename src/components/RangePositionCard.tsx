@@ -134,25 +134,27 @@ export function RangePositionCard({
                   spot={spot}
                 />
               </div>
-              <div className="flex justify-between text-xs text-[var(--text-secondary)] font-mono">
-                <span>
-                  ${putStrike.toLocaleString()}
-                  {putDistPct != null && (
-                    <span className="ml-1">
-                      ({putDistPct > 0 ? "+" : ""}
-                      {putDistPct.toFixed(1)}%)
-                    </span>
-                  )}
-                </span>
-                <span>
-                  ${callStrike.toLocaleString()}
-                  {callDistPct != null && (
-                    <span className="ml-1">
-                      (+{callDistPct!.toFixed(1)}%)
-                    </span>
-                  )}
-                </span>
-              </div>
+              {(() => {
+                const putItmNow = spot < putStrike;
+                const callItmNow = spot > callStrike;
+                const putCommittedDisplay = `$${putLeg.collateral / 1e6 > 0 ? (putLeg.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "0"}`;
+                return (
+                  <div className="space-y-0.5 mt-1">
+                    <p className="text-sm font-medium text-[var(--text)]">
+                      {callItmNow ? (
+                        <>You&apos;ll sell {assetSymbol} at <span className="font-mono">${callStrike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(totalPremium)}</span> earned</>
+                      ) : putItmNow ? (
+                        <>You&apos;ll buy {assetSymbol} at <span className="font-mono">${putStrike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(totalPremium)}</span> earned</>
+                      ) : (
+                        <>You keep {putCommittedDisplay} + <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(totalPremium)}</span> earned</>
+                      )}
+                    </p>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      {assetSymbol} now: <span className="font-mono">${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
           )}
 

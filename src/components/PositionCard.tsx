@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd, fmtAsset, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
-import { DistanceIndicator } from "./v2/DistanceIndicator";
+
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
@@ -140,16 +140,26 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             </span>
           </p>
 
-          {/* Full-width distance bar */}
-          {spot && (
-            <DistanceIndicator
-              strike={strike}
-              spot={spot}
-              isPut={isBuy}
-              isSettled={false}
-              size="full"
-            />
-          )}
+          {/* Outcome text */}
+          {spot != null && (() => {
+            const isItmNow = isBuy ? spot < strike : spot > strike;
+            return (
+              <div className="space-y-0.5">
+                <p className="text-sm font-medium text-[var(--text)]">
+                  {isItmNow ? (
+                    isBuy
+                      ? <>You&apos;ll buy {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                      : <>You&apos;ll sell {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                  ) : (
+                    <>You keep {committedDisplay} + <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                  )}
+                </p>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  {assetSymbol} now: <span className="font-mono">${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                </p>
+              </div>
+            );
+          })()}
 
           <p className="text-xs text-[var(--text-secondary)]">
             Committed {committedDisplay}
