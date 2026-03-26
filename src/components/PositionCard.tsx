@@ -143,21 +143,18 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {/* Outcome text */}
           {spot != null && (() => {
             const isItmNow = isBuy ? spot < strike : spot > strike;
+            const spotFmt = spot.toLocaleString(undefined, { maximumFractionDigits: 0 });
             return (
-              <div className="space-y-0.5">
-                <p className="text-sm font-medium text-[var(--text)]">
-                  {isItmNow ? (
-                    isBuy
-                      ? <>You&apos;ll buy {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
-                      : <>You&apos;ll sell {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
-                  ) : (
-                    <>You keep {committedDisplay} + <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
-                  )}
-                </p>
-                <p className="text-xs text-[var(--text-secondary)]">
-                  {assetSymbol} now: <span className="font-mono">${spot.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                </p>
-              </div>
+              <p className="text-sm font-medium text-[var(--text)]">
+                <span className="text-[var(--text-secondary)]">{assetSymbol} now <span className="font-mono">${spotFmt}</span> · </span>
+                {isItmNow ? (
+                  isBuy
+                    ? <>currently buying {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                    : <>currently selling {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                ) : (
+                  <>currently keeping {committedDisplay} + <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                )}
+              </p>
             );
           })()}
 
