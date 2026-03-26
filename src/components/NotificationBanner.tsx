@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -31,16 +31,21 @@ export function NotificationBanner({ walletAddress, status }: Props) {
     (user?.linkedAccounts as Array<{ type: string; address?: string }> | undefined)
       ?.find((a) => a.type === "email")?.address ?? "";
 
-  const initialState: BannerState =
-    status.verified && !status.unsubscribed ? "verified" : "idle";
-
-  const [state, setState] = useState<BannerState>(initialState);
+  const [state, setState] = useState<BannerState>("idle");
+  const [initialized, setInitialized] = useState(false);
   const [email, setEmail] = useState(privyEmail);
   const [code, setCode] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-  if (status.error || status.loading) return null;
+  useEffect(() => {
+    if (!initialized && !status.loading && !status.error) {
+      setState(status.verified && !status.unsubscribed ? "verified" : "idle");
+      setInitialized(true);
+    }
+  }, [initialized, status.loading, status.error, status.verified, status.unsubscribed]);
+
+  if (!initialized || status.error) return null;
 
   // Cancel target: go back to verified if they already have a verified email
   const cancelTarget: BannerState =
@@ -233,9 +238,9 @@ export function NotificationBanner({ walletAddress, status }: Props) {
                 Notifications on
               </span>
             </div>
-            {email && (
-              <p className="text-xs text-[var(--text-secondary)] mt-0.5">{email}</p>
-            )}
+            <p className="text-xs text-[var(--text-secondary)] mt-0.5">
+              {email || "Reminders are active"}
+            </p>
           </div>
           <CollapsibleTrigger asChild>
             <Button variant="outline" size="sm">
