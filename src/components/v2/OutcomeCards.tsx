@@ -1,6 +1,6 @@
 "use client";
 
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, fmtAsset } from "@/lib/utils";
 
 interface OutcomeCardsProps {
   side: "buy" | "sell";
@@ -46,7 +46,7 @@ export function OutcomeCards({
 
   const itmAction = hasStrike && hasAmount
     ? isBuy
-      ? `You buy ${(amount / strike).toFixed(2)} ${assetSymbol} at $${strike.toLocaleString()}`
+      ? `You buy ${fmtAsset(amount / strike)} ${assetSymbol} at $${strike.toLocaleString()}`
       : `You sell ${assetSymbol} at $${strike.toLocaleString()}`
     : hasAmount
       ? isBuy

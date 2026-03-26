@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, fmtAsset } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { DistanceIndicator } from "./v2/DistanceIndicator";
 import { ExpiryCountdown } from "./ExpiryCountdown";
@@ -43,7 +43,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
     : (position.collateral / callDec) * strike;
   const committedDisplay = isBuy
     ? `$${(position.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(position.collateral / callDec).toFixed(2)} ${assetSymbol}`;
+    : `${fmtAsset(position.collateral / callDec)} ${assetSymbol}`;
 
   // Premium in LUSD base units (6 decimals)
   const premiumUsd = Number(position.net_premium) / 1e6;
@@ -51,7 +51,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
   // oToken amount (8 decimals)
   const ethAmount = position.amount / 1e8;
-  const ethAmountDisplay = ethAmount.toFixed(2);
+  const ethAmountDisplay = fmtAsset(ethAmount);
 
   // Expiry: total duration from indexed_at to expiry
   const indexedTime = new Date(position.indexed_at).getTime();
