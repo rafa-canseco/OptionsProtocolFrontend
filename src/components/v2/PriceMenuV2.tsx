@@ -208,7 +208,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [prices, side, activeExpiry, spot]);
 
-
+  // Total open positions for this expiry (puts in buy, calls in sell)
+  const totalPositionsForExpiry = useMemo(() => {
+    const optionType = side === "buy" ? "put" : "call";
+    return prices
+      .filter(p => p.expiry_date === activeExpiry && p.option_type === optionType)
+      .reduce((sum, p) => sum + p.position_count, 0);
+  }, [prices, activeExpiry, side]);
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
@@ -618,10 +624,26 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
           {/* 4. Strike price cards */}
           <div className="animate-fade-in-up" data-tour="strikes">
-            <p className="text-sm text-[var(--text-secondary)] flex items-center mb-2">
-              {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
-              <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
-            </p>
+            <div className="text-sm text-[var(--text-secondary)] flex items-center justify-between mb-2">
+              <span className="flex items-center">
+                {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
+                <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
+              </span>
+              {totalPositionsForExpiry > 0 && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="flex items-center gap-1.5 cursor-default">
+                      <span className="w-2 h-2 rounded-full bg-[var(--accent)]/60 inline-block" />
+                      <span className="text-xs font-mono">{totalPositionsForExpiry}</span>
+                      <span className="text-xs text-[var(--text-secondary)]">open positions</span>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="top">
+                    <p>Open positions at this expiry</p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {filteredPrices.map((q) => (
