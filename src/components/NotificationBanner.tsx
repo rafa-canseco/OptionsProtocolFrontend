@@ -112,7 +112,7 @@ export function NotificationBanner({ walletAddress, status }: Props) {
           <div>
             <p className="text-sm font-semibold text-[var(--bone)]">Get expiry reminders</p>
             <p className="text-xs text-[var(--text-secondary)]">
-              Email 24h before each expiry + result after settlement
+              Get notified when each position settles
             </p>
           </div>
         </div>

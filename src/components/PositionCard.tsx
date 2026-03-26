@@ -155,20 +155,21 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             Committed {committedDisplay}
           </p>
 
-          {EXPLORER && position.tx_hash && (
-            <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
-              Open tx
+          <div className="flex items-center gap-4">
+            {EXPLORER && position.tx_hash && (
+              <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
+                Open tx
+              </a>
+            )}
+            <a
+              href={buildCalendarUrl(position, assetSymbol, assetSlug)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            >
+              📅 Add to calendar
             </a>
-          )}
-
-          <a
-            href={buildCalendarUrl(position, assetSymbol, assetSlug)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
-          >
-            📅 Add to calendar
-          </a>
+          </div>
         </>
       )}
 
