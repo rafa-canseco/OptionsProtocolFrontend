@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, fmtAsset } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { resolvePositionAsset } from "@/lib/assets";
 
@@ -128,7 +128,7 @@ function TradeRow({
   const collateralDecimals = posAsset.slug === "btc" ? 1e8 : 1e18;
   const committedDisplay = isBuy
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(p.collateral / collateralDecimals).toFixed(2)} ${assetSymbol}`;
+    : `${fmtAsset(p.collateral / collateralDecimals)} ${assetSymbol}`;
 
   const totalCols = 9;
 
@@ -204,7 +204,7 @@ function TradeRow({
                     <span className="font-mono font-medium text-[var(--text)]">${costBasis.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</span>
                   </p>
                   <p>
-                    {isBuy ? "Bought" : "Sold"} {ethAmount.toFixed(2)} {assetSymbol}
+                    {isBuy ? "Bought" : "Sold"} {fmtAsset(ethAmount)} {assetSymbol}
                   </p>
                 </>
               ) : (

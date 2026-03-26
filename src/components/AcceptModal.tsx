@@ -22,7 +22,7 @@ import {
   readTokenBalance,
   buildOptimisticPosition,
 } from "@/lib/execution";
-import { floorTo } from "@/lib/utils";
+import { floorTo, fmtAsset } from "@/lib/utils";
 import type { YieldMetric } from "./YieldToggle";
 
 interface Props {
@@ -83,7 +83,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     ? `${Math.round(apr)}% APR`
     : `${roi.toFixed(1)}% ROI`;
 
-  const ethEquiv = isBuy ? (amount / quote.strike).toFixed(2) : String(amount);
+  const ethEquiv = isBuy ? fmtAsset(amount / quote.strike) : String(amount);
 
   const scaledPremium = isBuy
     ? (quote.premium * amount) / quote.strike
@@ -130,7 +130,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     if (amount > maxAmount) {
       const label = isBuy
         ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-        : `${maxAmount.toFixed(2)} ${assetSymbol}`;
+        : `${fmtAsset(maxAmount)} ${assetSymbol}`;
       setError(`Exceeds max trade size. Enter ${label} or less.`);
       return;
     }
@@ -378,7 +378,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           <p className="text-sm text-[var(--danger)]">
             Exceeds max trade size — enter {isBuy
               ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-              : `${maxAmount.toFixed(2)} ${assetSymbol}`} or less.
+              : `${fmtAsset(maxAmount)} ${assetSymbol}`} or less.
           </p>
         )}
 
