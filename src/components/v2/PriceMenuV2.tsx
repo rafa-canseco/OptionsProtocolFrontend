@@ -208,14 +208,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [prices, side, activeExpiry, spot]);
 
-  // Level 1: total positions per expiry (for duration pills)
-  const positionCountByExpiry = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const p of prices) {
-      map.set(p.expiry_date, (map.get(p.expiry_date) ?? 0) + p.position_count);
-    }
-    return map;
-  }, [prices]);
 
 
   // When filters change, try to keep the same strike selected
@@ -531,22 +523,19 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <div className="animate-fade-in-up" data-tour="duration">
               <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
               <div className="flex flex-wrap gap-2">
-                {expiries.map((d) => {
-                  const expiryTotal = positionCountByExpiry.get(d) ?? 0;
-                  return (
-                    <button
-                      key={d}
-                      onClick={() => { setSelectedExpiry(d); }}
-                      className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
-                        activeExpiry === d
-                          ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
-                          : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
-                      }`}
-                    >
-                      {expiryLabel(d)} ({daysUntil(d)}d){expiryTotal > 0 ? ` · ${expiryTotal}` : ""}
-                    </button>
-                  );
-                })}
+                {expiries.map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => { setSelectedExpiry(d); }}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                      activeExpiry === d
+                        ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
+                        : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
+                    }`}
+                  >
+                    {expiryLabel(d)} ({daysUntil(d)}d)
+                  </button>
+                ))}
               </div>
             </div>
           )}
