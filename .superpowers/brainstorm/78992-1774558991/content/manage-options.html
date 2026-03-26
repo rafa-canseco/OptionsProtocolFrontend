@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Manage action</title>
+<script src="/helper.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #0a0a0a; color: #e8e4d8;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    padding: 32px 24px; min-height: 100vh;
+  }
+  h1 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  .subtitle { color: #888; font-size: 13px; margin-bottom: 32px; }
+
+  .options-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+
+  .option-wrapper {
+    border: 2px solid #222; border-radius: 16px; overflow: hidden;
+    cursor: pointer; transition: border-color 0.2s;
+  }
+  .option-wrapper:hover { border-color: #3fba78; }
+  .option-wrapper.selected { border-color: #3fba78; box-shadow: 0 0 0 1px #3fba78; }
+
+  .option-header {
+    background: #111; padding: 11px 14px;
+    border-bottom: 1px solid #1e1e1e;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .opt-letter {
+    width: 20px; height: 20px; background: #1e1e1e; border: 1px solid #2a2a2a;
+    border-radius: 5px; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 700; color: #666;
+  }
+  .opt-title { font-size: 12px; font-weight: 600; }
+  .opt-rec { font-size: 10px; color: #3fba78; margin-left: auto; }
+
+  .mockup { padding: 14px; background: #0d0d0d; }
+
+  /* Verified banner */
+  .banner {
+    background: rgba(63,186,120,0.07); border: 1px solid rgba(63,186,120,0.22);
+    border-radius: 11px; padding: 12px 13px;
+  }
+  .banner-row { display: flex; align-items: center; justify-content: space-between; }
+  .verified-badge { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #3fba78; }
+  .dot { width: 7px; height: 7px; background: #3fba78; border-radius: 50%; }
+  .verified-sub { font-size: 11px; color: #555; margin-top: 2px; }
+  .btn-manage { font-size: 11px; color: #555; border: 1px solid #222; border-radius: 6px; padding: 5px 10px; }
+
+  /* A: inline expand */
+  .expand-body {
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid rgba(63,186,120,0.12);
+    display: flex; gap: 8px;
+  }
+  .btn-change {
+    flex: 1; padding: 7px; text-align: center;
+    background: #141414; border: 1px solid #222; border-radius: 7px;
+    font-size: 11px; color: #888;
+  }
+  .btn-disable {
+    flex: 1; padding: 7px; text-align: center;
+    background: rgba(224,90,90,0.07); border: 1px solid rgba(224,90,90,0.2); border-radius: 7px;
+    font-size: 11px; color: #e05a5a;
+  }
+
+  /* B: dropdown */
+  .dropdown-wrap { position: relative; }
+  .dropdown {
+    position: absolute; right: 0; top: calc(100% + 4px);
+    background: #161616; border: 1px solid #2a2a2a; border-radius: 9px;
+    min-width: 160px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+    z-index: 10;
+  }
+  .dd-item {
+    padding: 10px 13px; font-size: 12px; cursor: pointer;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .dd-item:hover { background: #1e1e1e; }
+  .dd-item.danger { color: #e05a5a; }
+  .dd-item:not(:last-child) { border-bottom: 1px solid #1e1e1e; }
+
+  /* C: separate page note */
+  .page-note {
+    background: #111; border: 1px solid #1e1e1e; border-radius: 10px;
+    padding: 20px; text-align: center; margin-top: 10px;
+  }
+  .page-icon { font-size: 24px; margin-bottom: 8px; }
+  .page-title { font-size: 13px; font-weight: 600; color: #e8e4d8; margin-bottom: 4px; }
+  .page-sub { font-size: 11px; color: #555; }
+  .page-url { font-size: 10px; color: #3fba78; font-family: monospace; margin-top: 8px; }
+</style>
+</head>
+<body>
+
+<h1>¿Qué hace el botón "Manage"?</h1>
+<p class="subtitle">Cuando el email ya está verificado</p>
+
+<div class="options-grid">
+
+  <!-- A: Inline expand -->
+  <div class="option-wrapper" data-choice="a" onclick="toggleSelect(this)">
+    <div class="option-header">
+      <div class="opt-letter">A</div>
+      <div class="opt-title">Expande el banner inline</div>
+      <div class="opt-rec">Recomendado</div>
+    </div>
+    <div class="mockup">
+      <div class="banner">
+        <div class="banner-row">
+          <div>
+            <div class="verified-badge"><div class="dot"></div> Notifications on</div>
+            <div class="verified-sub">you@example.com</div>
+          </div>
+          <div class="btn-manage" style="color:#3fba78;border-color:rgba(63,186,120,0.3)">Manage ∧</div>
+        </div>
+        <div class="expand-body">
+          <div class="btn-change">Change email</div>
+          <div class="btn-disable">Turn off</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B: Dropdown -->
+  <div class="option-wrapper" data-choice="b" onclick="toggleSelect(this)">
+    <div class="option-header">
+      <div class="opt-letter">B</div>
+      <div class="opt-title">Dropdown sobre el botón</div>
+    </div>
+    <div class="mockup">
+      <div class="banner">
+        <div class="banner-row">
+          <div>
+            <div class="verified-badge"><div class="dot"></div> Notifications on</div>
+            <div class="verified-sub">you@example.com</div>
+          </div>
+          <div class="dropdown-wrap">
+            <div class="btn-manage" style="color:#3fba78;border-color:rgba(63,186,120,0.3)">Manage ▾</div>
+            <div class="dropdown">
+              <div class="dd-item">✏️ Change email</div>
+              <div class="dd-item danger">🔕 Turn off</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C: Settings page -->
+  <div class="option-wrapper" data-choice="c" onclick="toggleSelect(this)">
+    <div class="option-header">
+      <div class="opt-letter">C</div>
+      <div class="opt-title">Página de configuración</div>
+    </div>
+    <div class="mockup">
+      <div class="banner">
+        <div class="banner-row">
+          <div>
+            <div class="verified-badge"><div class="dot"></div> Notifications on</div>
+            <div class="verified-sub">you@example.com</div>
+          </div>
+          <div class="btn-manage">Manage →</div>
+        </div>
+      </div>
+      <div class="page-note">
+        <div class="page-icon">⚙️</div>
+        <div class="page-title">Notification Settings</div>
+        <div class="page-sub">Página separada con opciones de email y preferencias</div>
+        <div class="page-url">/settings/notifications</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

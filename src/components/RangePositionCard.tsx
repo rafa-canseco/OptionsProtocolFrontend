@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
@@ -134,25 +134,24 @@ export function RangePositionCard({
                   spot={spot}
                 />
               </div>
-              <div className="flex justify-between text-xs text-[var(--text-secondary)] font-mono">
-                <span>
-                  ${putStrike.toLocaleString()}
-                  {putDistPct != null && (
-                    <span className="ml-1">
-                      ({putDistPct > 0 ? "+" : ""}
-                      {putDistPct.toFixed(1)}%)
-                    </span>
-                  )}
-                </span>
-                <span>
-                  ${callStrike.toLocaleString()}
-                  {callDistPct != null && (
-                    <span className="ml-1">
-                      (+{callDistPct!.toFixed(1)}%)
-                    </span>
-                  )}
-                </span>
-              </div>
+              {(() => {
+                const putItmNow = spot < putStrike;
+                const callItmNow = spot > callStrike;
+                const putCommittedDisplay = `$${putLeg.collateral / 1e6 > 0 ? (putLeg.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 }) : "0"}`;
+                const spotFmt = spot.toLocaleString(undefined, { maximumFractionDigits: 0 });
+                return (
+                  <p className="text-sm font-medium text-[var(--text)] mt-1">
+                    <span className="text-[var(--text-secondary)]">{assetSymbol} now <span className="font-mono">${spotFmt}</span> · </span>
+                    {callItmNow ? (
+                      <>currently selling {assetSymbol} at <span className="font-mono">${callStrike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(totalPremium)}</span> earned</>
+                    ) : putItmNow ? (
+                      <>currently buying {assetSymbol} at <span className="font-mono">${putStrike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(totalPremium)}</span> earned</>
+                    ) : (
+                      <>currently keeping {putCommittedDisplay} + <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(totalPremium)}</span> earned</>
+                    )}
+                  </p>
+                );
+              })()}
             </div>
           )}
 
@@ -214,6 +213,20 @@ export function RangePositionCard({
               )}
             </div>
           )}
+
+          <a
+            href={buildCalendarUrl(
+              putLeg,
+              assetSymbol,
+              assetSlug,
+              `b1nary: ${assetSymbol} range expiry ($${putStrike.toLocaleString("en-US")}–$${callStrike.toLocaleString("en-US")})`,
+            )}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+          >
+            📅 Add to calendar
+          </a>
         </>
       )}
 

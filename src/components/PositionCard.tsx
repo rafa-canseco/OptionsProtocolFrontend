@@ -3,9 +3,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import { fmtUsd, fmtAsset, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
-import { DistanceIndicator } from "./v2/DistanceIndicator";
+
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
@@ -43,7 +43,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
     : (position.collateral / callDec) * strike;
   const committedDisplay = isBuy
     ? `$${(position.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
-    : `${(position.collateral / callDec).toFixed(2)} ${assetSymbol}`;
+    : `${fmtAsset(position.collateral / callDec)} ${assetSymbol}`;
 
   // Premium in LUSD base units (6 decimals)
   const premiumUsd = Number(position.net_premium) / 1e6;
@@ -51,7 +51,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
   // oToken amount (8 decimals)
   const ethAmount = position.amount / 1e8;
-  const ethAmountDisplay = ethAmount.toFixed(2);
+  const ethAmountDisplay = fmtAsset(ethAmount);
 
   // Expiry: total duration from indexed_at to expiry
   const indexedTime = new Date(position.indexed_at).getTime();
@@ -140,26 +140,43 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             </span>
           </p>
 
-          {/* Full-width distance bar */}
-          {spot && (
-            <DistanceIndicator
-              strike={strike}
-              spot={spot}
-              isPut={isBuy}
-              isSettled={false}
-              size="full"
-            />
-          )}
+          {/* Outcome text */}
+          {spot != null && (() => {
+            const isItmNow = isBuy ? spot < strike : spot > strike;
+            const spotFmt = spot.toLocaleString(undefined, { maximumFractionDigits: 0 });
+            return (
+              <p className="text-sm font-medium text-[var(--text)]">
+                <span className="text-[var(--text-secondary)]">{assetSymbol} now <span className="font-mono">${spotFmt}</span> · </span>
+                {isItmNow ? (
+                  isBuy
+                    ? <>currently buying {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                    : <>currently selling {assetSymbol} at <span className="font-mono">${strike.toLocaleString()}</span> · <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                ) : (
+                  <>currently keeping {committedDisplay} + <span className="text-[var(--accent)] font-semibold font-mono">${fmtUsd(premiumUsd)}</span> earned</>
+                )}
+              </p>
+            );
+          })()}
 
           <p className="text-xs text-[var(--text-secondary)]">
             Committed {committedDisplay}
           </p>
 
-          {EXPLORER && position.tx_hash && (
-            <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
-              Open tx
+          <div className="flex items-center gap-4">
+            {EXPLORER && position.tx_hash && (
+              <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
+                Open tx
+              </a>
+            )}
+            <a
+              href={buildCalendarUrl(position, assetSymbol, assetSlug)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            >
+              📅 Add to calendar
             </a>
-          )}
+          </div>
         </>
       )}
 
