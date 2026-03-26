@@ -10,7 +10,7 @@ export function useSpot(asset: string, pollInterval = 10_000) {
   const refresh = useCallback(async () => {
     try {
       const data = await api.getSpot(asset);
-      setSpot(data.price);
+      setSpot(data.spot);
     } catch {
       // Spot endpoint may not exist yet; fall silent
     } finally {

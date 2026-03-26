@@ -90,8 +90,8 @@ export interface Capacity {
 
 export interface SpotPrice {
   asset: string;
-  price: number;
-  timestamp: number;
+  spot: number;
+  updated_at: number;
 }
 
 export interface AnalyticsEvent {
