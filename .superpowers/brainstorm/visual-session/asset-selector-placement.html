@@ -1,0 +1,161 @@
+<h2>Where should the asset selector live?</h2>
+<p class="subtitle">The user needs to pick which asset to trade (ETH, BTC, SOL...). Where does this choice happen?</p>
+
+<div class="cards">
+  <!-- Option A: Inline Tabs -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;color:#e0e0e0;">
+        <div style="display:flex;gap:8px;margin-bottom:16px;padding:4px;background:#111;border-radius:6px;">
+          <div style="background:#2563eb;color:white;padding:6px 16px;border-radius:4px;font-weight:bold;">ETH</div>
+          <div style="padding:6px 16px;color:#888;">BTC</div>
+          <div style="padding:6px 16px;color:#888;">SOL</div>
+          <div style="padding:6px 16px;color:#888;">LINK</div>
+          <div style="padding:6px 16px;color:#888;">ARB</div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;background:#111;border-radius:6px;padding:12px;">
+            <div style="color:#888;font-size:10px;margin-bottom:8px;">SELL OPTIONS ON ETH</div>
+            <div style="background:#222;height:20px;border-radius:3px;margin-bottom:6px;"></div>
+            <div style="background:#222;height:20px;border-radius:3px;margin-bottom:6px;"></div>
+            <div style="background:#222;height:40px;border-radius:3px;"></div>
+          </div>
+          <div style="flex:1;background:#111;border-radius:6px;padding:12px;">
+            <div style="color:#888;font-size:10px;margin-bottom:8px;">PREVIEW</div>
+            <div style="background:#222;height:80px;border-radius:3px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. Tabs above the trading panel</h3>
+      <p>Horizontal tab bar at the top of /earn. One click to switch. All assets visible at once. Scales with scrollable tabs.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Zero navigation, instant switch</li><li>Always see what's available</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Gets cramped at 8+ assets</li><li>No room for asset details (price, IV)</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Sidebar / Left Rail -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;color:#e0e0e0;">
+        <div style="display:flex;gap:12px;">
+          <div style="width:100px;background:#111;border-radius:6px;padding:10px;">
+            <div style="color:#888;font-size:10px;margin-bottom:8px;">ASSETS</div>
+            <div style="background:#2563eb;padding:6px;border-radius:4px;margin-bottom:4px;text-align:center;font-weight:bold;">ETH</div>
+            <div style="background:#222;padding:6px;border-radius:4px;margin-bottom:4px;text-align:center;color:#888;">BTC</div>
+            <div style="background:#222;padding:6px;border-radius:4px;margin-bottom:4px;text-align:center;color:#888;">SOL</div>
+            <div style="background:#222;padding:6px;border-radius:4px;margin-bottom:4px;text-align:center;color:#888;">LINK</div>
+            <div style="background:#222;padding:6px;border-radius:4px;margin-bottom:4px;text-align:center;color:#888;">ARB</div>
+            <div style="background:#222;padding:6px;border-radius:4px;text-align:center;color:#888;">AAVE</div>
+          </div>
+          <div style="flex:1;">
+            <div style="display:flex;gap:8px;">
+              <div style="flex:1;background:#111;border-radius:6px;padding:12px;">
+                <div style="color:#888;font-size:10px;margin-bottom:8px;">SELL OPTIONS ON ETH</div>
+                <div style="background:#222;height:20px;border-radius:3px;margin-bottom:6px;"></div>
+                <div style="background:#222;height:20px;border-radius:3px;margin-bottom:6px;"></div>
+                <div style="background:#222;height:40px;border-radius:3px;"></div>
+              </div>
+              <div style="flex:1;background:#111;border-radius:6px;padding:12px;">
+                <div style="color:#888;font-size:10px;margin-bottom:8px;">PREVIEW</div>
+                <div style="background:#222;height:80px;border-radius:3px;"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. Asset sidebar / left rail</h3>
+      <p>Vertical list of assets on the left. Main trading panel stays to the right. Each asset can show price/IV inline. Scales infinitely by scrolling.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Scales to many assets</li><li>Room for price/change next to each</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Eats horizontal space</li><li>3-column layout on mobile is tight</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: Dropdown in header -->
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;color:#e0e0e0;">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:6px;background:#111;padding:8px 14px;border-radius:6px;border:1px solid #333;">
+            <div style="width:18px;height:18px;background:#627eea;border-radius:50%;"></div>
+            <span style="font-weight:bold;">ETH</span>
+            <span style="color:#888;font-size:10px;">▼</span>
+          </div>
+          <div style="color:#4ade80;">$1,842.50</div>
+          <div style="color:#888;font-size:10px;">IV 62.3%</div>
+        </div>
+        <div style="display:flex;gap:12px;">
+          <div style="flex:1;background:#111;border-radius:6px;padding:12px;">
+            <div style="color:#888;font-size:10px;margin-bottom:8px;">SELL OPTIONS ON ETH</div>
+            <div style="background:#222;height:20px;border-radius:3px;margin-bottom:6px;"></div>
+            <div style="background:#222;height:20px;border-radius:3px;margin-bottom:6px;"></div>
+            <div style="background:#222;height:40px;border-radius:3px;"></div>
+          </div>
+          <div style="flex:1;background:#111;border-radius:6px;padding:12px;">
+            <div style="color:#888;font-size:10px;margin-bottom:8px;">PREVIEW</div>
+            <div style="background:#222;height:80px;border-radius:3px;"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C. Dropdown selector above the panel</h3>
+      <p>Compact dropdown showing current asset + live price. Opens a searchable list on click. Minimal footprint, all space goes to trading.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Maximum space for trading UI</li><li>Scales infinitely (searchable list)</li><li>Room for price/IV next to selector</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Hides available assets (extra click)</li><li>Less discoverable for new users</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option D: Separate asset page -->
+  <div class="card" data-choice="d" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:16px;font-family:monospace;font-size:12px;color:#e0e0e0;">
+        <div style="text-align:center;margin-bottom:12px;">
+          <div style="color:#888;font-size:10px;margin-bottom:8px;">SELECT AN ASSET TO TRADE</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+          <div style="background:#111;border:1px solid #2563eb;border-radius:6px;padding:10px;text-align:center;">
+            <div style="width:24px;height:24px;background:#627eea;border-radius:50%;margin:0 auto 6px;"></div>
+            <div style="font-weight:bold;">ETH</div>
+            <div style="color:#4ade80;font-size:10px;">$1,842</div>
+          </div>
+          <div style="background:#111;border:1px solid #333;border-radius:6px;padding:10px;text-align:center;">
+            <div style="width:24px;height:24px;background:#f7931a;border-radius:50%;margin:0 auto 6px;"></div>
+            <div style="font-weight:bold;">BTC</div>
+            <div style="color:#4ade80;font-size:10px;">$67,420</div>
+          </div>
+          <div style="background:#111;border:1px solid #333;border-radius:6px;padding:10px;text-align:center;">
+            <div style="width:24px;height:24px;background:#9945ff;border-radius:50%;margin:0 auto 6px;"></div>
+            <div style="font-weight:bold;">SOL</div>
+            <div style="color:#ef4444;font-size:10px;">$142</div>
+          </div>
+          <div style="background:#111;border:1px solid #333;border-radius:6px;padding:10px;text-align:center;">
+            <div style="width:24px;height:24px;background:#2b6def;border-radius:50%;margin:0 auto 6px;"></div>
+            <div style="font-weight:bold;">LINK</div>
+            <div style="color:#4ade80;font-size:10px;">$14.80</div>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:8px;color:#555;font-size:10px;">→ clicking takes you to /earn/eth</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D. Dedicated asset selection page</h3>
+      <p>A /markets or landing page showing all assets as cards with price/IV. Click one to go to /earn/[asset]. URL-driven routing.</p>
+      <div class="pros-cons" style="margin-top:8px;">
+        <div class="pros"><h4>Pros</h4><ul><li>Rich info per asset (price, IV, volume)</li><li>Clean separation of concerns</li><li>Great for 10+ assets</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Extra navigation step to switch</li><li>More pages to build and maintain</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p class="subtitle" style="margin-top:24px;text-align:center;">Click one to select your preference, then tell me in the terminal.</p>
