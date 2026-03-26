@@ -155,4 +155,27 @@ export const api = {
         user_address: userAddress,
       }),
     }),
+
+  getNotificationStatus: (wallet: string) =>
+    fetchAPI<{ has_email: boolean; verified: boolean; unsubscribed: boolean }>(
+      `/notifications/status?wallet=${wallet}`,
+    ),
+
+  submitEmail: (wallet: string, email: string) =>
+    fetchAPI<{ ok: boolean }>("/notifications/email", {
+      method: "POST",
+      body: JSON.stringify({ wallet_address: wallet, email }),
+    }),
+
+  verifyCode: (wallet: string, code: string) =>
+    fetchAPI<{ ok: boolean }>("/notifications/verify", {
+      method: "POST",
+      body: JSON.stringify({ wallet_address: wallet, code }),
+    }),
+
+  unsubscribe: (wallet: string) =>
+    fetchAPI<{ ok: boolean }>("/notifications/unsubscribe", {
+      method: "POST",
+      body: JSON.stringify({ wallet_address: wallet }),
+    }),
 };
