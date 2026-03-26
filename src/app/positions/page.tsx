@@ -11,7 +11,9 @@ import { usePositions } from "@/hooks/usePositions";
 import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
+import { useNotificationStatus } from "@/hooks/useNotificationStatus";
 import { resolvePositionAsset } from "@/lib/assets";
+import { NotificationBanner } from "@/components/NotificationBanner";
 import type { YieldMetric } from "@/components/YieldToggle";
 import type { Position } from "@/lib/api";
 
@@ -107,6 +109,7 @@ export default function PositionsPage() {
   const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
+  const notifStatus = useNotificationStatus(address);
 
   const active = useMemo(
     () => allPositions.filter((p) => !p.is_settled),
@@ -164,6 +167,10 @@ export default function PositionsPage() {
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
       />
+
+      {address && (
+        <NotificationBanner walletAddress={address} status={notifStatus} />
+      )}
 
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
