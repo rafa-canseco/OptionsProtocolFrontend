@@ -24,12 +24,8 @@ export function TradeLog({ items }: Props) {
 
   const sorted = [...items].sort((a, b) => {
     const getTime = (item: DisplayItem) => {
-      if (item.type === "range") {
-        const p = item.positions[0];
-        return p.settled_at ? new Date(p.settled_at).getTime() : new Date(p.indexed_at).getTime();
-      }
-      const p = item.position;
-      return p.settled_at ? new Date(p.settled_at).getTime() : new Date(p.indexed_at).getTime();
+      const p = item.type === "range" ? item.positions[0] : item.position;
+      return new Date(p.indexed_at).getTime();
     };
     return getTime(b) - getTime(a);
   });

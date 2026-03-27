@@ -58,3 +58,21 @@ export function buildCalendarUrl(
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+export function buildTweetUrl(
+  apr: number,
+  assetSymbol: string,
+  mode: "buy" | "sell" | "range",
+): string {
+  const rounded = Math.round(apr);
+  let text: string;
+  if (mode === "buy") {
+    text = `Set the price I'd buy ${assetSymbol} at. ${rounded}% APR on my USDC.\n@b1naryprotocol b1nary.app`;
+  } else if (mode === "sell") {
+    text = `Set the price I'd sell ${assetSymbol} at. ${rounded}% APR on my ${assetSymbol}.\n@b1naryprotocol b1nary.app`;
+  } else {
+    const article = /^[aeiouAEIOU]/.test(assetSymbol) ? "an" : "a";
+    text = `Got paid to set ${article} ${assetSymbol} range. ${rounded}% APR on my USDC.\n@b1naryprotocol b1nary.app`;
+  }
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+}
