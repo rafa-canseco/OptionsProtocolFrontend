@@ -420,7 +420,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         <button
           onClick={() =>
             window.open(
-              buildTweetUrl(rangeAccepted.combinedApr, asset.symbol),
+              buildTweetUrl(rangeAccepted.combinedApr, "USDC"),
               "_blank",
               "noopener,noreferrer",
             )
