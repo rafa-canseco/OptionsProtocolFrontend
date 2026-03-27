@@ -196,17 +196,17 @@ function RangeTradeRow({
               {/* Lower leg (put) */}
               <p>
                 {putItm ? (
-                  <>Lower: bought {putAmount} {assetSymbol} at <span className="font-mono">${putStrike.toLocaleString()}</span> · <span className="font-mono text-[var(--accent)]">+${fmtUsd(putPremium)} earned</span></>
+                  <>Lower: committed {putCommittedDisplay} → bought {putAmount} {assetSymbol} at <span className="font-mono">${putStrike.toLocaleString()}</span> +{" "}<span className="font-mono text-[var(--accent)]">${fmtUsd(putPremium)} earned</span></>
                 ) : (
-                  <>Lower: committed {putCommittedDisplay} → returned {putCommittedDisplay} + <span className="font-mono text-[var(--accent)]">+${fmtUsd(putPremium)} earned</span></>
+                  <>Lower: committed {putCommittedDisplay} → returned {putCommittedDisplay} +{" "}<span className="font-mono text-[var(--accent)]">${fmtUsd(putPremium)} earned</span></>
                 )}
               </p>
               {/* Upper leg (call) */}
               <p>
                 {callItm ? (
-                  <>Upper: sold {callAmount} {assetSymbol} at <span className="font-mono">${callStrike.toLocaleString()}</span> · <span className="font-mono text-[var(--accent)]">+${fmtUsd(callPremium)} earned</span></>
+                  <>Upper: committed {callCommittedDisplay} → sold {callAmount} {assetSymbol} at <span className="font-mono">${callStrike.toLocaleString()}</span> +{" "}<span className="font-mono text-[var(--accent)]">${fmtUsd(callPremium)} earned</span></>
                 ) : (
-                  <>Upper: committed {callCommittedDisplay} → returned {callCommittedDisplay} + <span className="font-mono text-[var(--accent)]">+${fmtUsd(callPremium)} earned</span></>
+                  <>Upper: committed {callCommittedDisplay} → returned {callCommittedDisplay} +{" "}<span className="font-mono text-[var(--accent)]">${fmtUsd(callPremium)} earned</span></>
                 )}
               </p>
               {expiryPriceUsd != null && (
