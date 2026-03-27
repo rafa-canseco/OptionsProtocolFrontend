@@ -58,3 +58,8 @@ export function buildCalendarUrl(
 
   return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }
+
+export function buildTweetUrl(apr: number, assetSymbol: string): string {
+  const text = `Just locked in ${Math.round(apr)}% APR on my ${assetSymbol} using @b1naryprotocol\n\nb1nary.app`;
+  return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
+}
