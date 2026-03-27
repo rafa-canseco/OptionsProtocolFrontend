@@ -66,4 +66,10 @@ describe("buildTweetUrl", () => {
       expect(decoded.toLowerCase()).not.toContain("option");
     }
   });
+
+  it("range — uses correct article for cbBTC (non-vowel symbol)", () => {
+    const decoded = decodeURIComponent(buildTweetUrl(80, "cbBTC", "range"));
+    expect(decoded).toContain("Got paid to set a cbBTC range.");
+    expect(decoded).not.toContain("an cbBTC");
+  });
 });

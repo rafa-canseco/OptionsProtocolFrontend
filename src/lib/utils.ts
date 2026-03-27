@@ -71,7 +71,8 @@ export function buildTweetUrl(
   } else if (mode === "sell") {
     text = `Set the price I'd sell ${assetSymbol} at. ${rounded}% APR on my ${assetSymbol}.\n@b1naryprotocol b1nary.app`;
   } else {
-    text = `Got paid to set an ${assetSymbol} range. ${rounded}% APR on my USDC.\n@b1naryprotocol b1nary.app`;
+    const article = /^[aeiouAEIOU]/.test(assetSymbol) ? "an" : "a";
+    text = `Got paid to set ${article} ${assetSymbol} range. ${rounded}% APR on my USDC.\n@b1naryprotocol b1nary.app`;
   }
   return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}`;
 }
