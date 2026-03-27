@@ -10,18 +10,28 @@ import { resolvePositionAsset } from "@/lib/assets";
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
 const DEFAULT_VISIBLE = 5;
 
+type DisplayItem =
+  | { type: "single"; position: Position }
+  | { type: "range"; positions: Position[]; groupId: string };
+
 interface Props {
-  positions: Position[];
+  items: DisplayItem[];
 }
 
-export function TradeLog({ positions }: Props) {
+export function TradeLog({ items }: Props) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 
-  const sorted = [...positions].sort((a, b) => {
-    const tA = a.settled_at ? new Date(a.settled_at).getTime() : new Date(a.indexed_at).getTime();
-    const tB = b.settled_at ? new Date(b.settled_at).getTime() : new Date(b.indexed_at).getTime();
-    return tB - tA;
+  const sorted = [...items].sort((a, b) => {
+    const getTime = (item: DisplayItem) => {
+      if (item.type === "range") {
+        const p = item.positions[0];
+        return p.settled_at ? new Date(p.settled_at).getTime() : new Date(p.indexed_at).getTime();
+      }
+      const p = item.position;
+      return p.settled_at ? new Date(p.settled_at).getTime() : new Date(p.indexed_at).getTime();
+    };
+    return getTime(b) - getTime(a);
   });
 
   const visible = showAll ? sorted : sorted.slice(0, DEFAULT_VISIBLE);
@@ -53,14 +63,27 @@ export function TradeLog({ positions }: Props) {
           </tr>
         </thead>
         <tbody>
-          {visible.map((p) => (
-            <TradeRow
-              key={p.id}
-              position={p}
-              isExpanded={expanded.has(p.id)}
-              onToggle={() => toggle(p.id)}
-            />
-          ))}
+          {visible.map((item) => {
+            if (item.type === "range") {
+              return (
+                <RangeTradeRow
+                  key={item.groupId}
+                  positions={item.positions}
+                  groupId={item.groupId}
+                  isExpanded={expanded.has(item.groupId)}
+                  onToggle={() => toggle(item.groupId)}
+                />
+              );
+            }
+            return (
+              <TradeRow
+                key={item.position.id}
+                position={item.position}
+                isExpanded={expanded.has(item.position.id)}
+                onToggle={() => toggle(item.position.id)}
+              />
+            );
+          })}
         </tbody>
       </table>
 
@@ -73,6 +96,133 @@ export function TradeLog({ positions }: Props) {
         </button>
       )}
     </div>
+  );
+}
+
+function RangeTradeRow({
+  positions,
+  groupId: _groupId,
+  isExpanded,
+  onToggle,
+}: {
+  positions: Position[];
+  groupId: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  const putLeg = positions.find((p) => p.is_put);
+  const callLeg = positions.find((p) => !p.is_put);
+  if (!putLeg || !callLeg) return null;
+
+  const posAsset = resolvePositionAsset(putLeg.asset, putLeg.strike_price);
+  const assetSymbol = posAsset.symbol;
+  const earnBase = `/earn/${posAsset.slug}`;
+
+  const putStrike = putLeg.strike_price / 1e8;
+  const callStrike = callLeg.strike_price / 1e8;
+
+  const putPremium = Number(putLeg.net_premium) / 1e6;
+  const callPremium = Number(callLeg.net_premium) / 1e6;
+  const totalPremium = putPremium + callPremium;
+
+  const date = new Date(putLeg.indexed_at);
+  const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
+
+  const indexedTime = date.getTime();
+  const expiryDays = Math.max(1, Math.floor((putLeg.expiry * 1000 - indexedTime) / 86_400_000));
+
+  const expiryPriceUsd = putLeg.expiry_price != null ? putLeg.expiry_price / 1e8 : null;
+
+  const putItm = putLeg.is_itm === true;
+  const callItm = callLeg.is_itm === true;
+  const outcome = putItm || callItm ? "Assigned" : "Earned";
+
+  const totalCols = 9;
+
+  return (
+    <>
+      <tr
+        onClick={onToggle}
+        className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface)] cursor-pointer transition-colors"
+      >
+        <td className="py-3 px-2 text-center text-[var(--text-secondary)]">
+          <span className={`inline-block transition-transform duration-200 text-xs ${isExpanded ? "rotate-90" : ""}`}>
+            &#9654;
+          </span>
+        </td>
+        <td className="py-3 px-4 font-mono text-[var(--text)]">{dateStr}</td>
+        <td className="py-3 px-4 text-[var(--text)]">Range</td>
+        <td className="py-3 px-4 text-right font-mono text-[var(--text)]">
+          ${putStrike.toLocaleString()} — ${callStrike.toLocaleString()}
+        </td>
+        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
+          {expiryDays}d
+        </td>
+        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
+          {expiryPriceUsd != null
+            ? `$${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+            : "—"}
+        </td>
+        <td className="py-3 px-4">
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full text-[var(--accent)] bg-[var(--accent)]/10">
+            {outcome}
+          </span>
+        </td>
+        <td className="py-3 px-4 text-right font-mono text-[var(--accent)]">
+          +${fmtUsd(totalPremium)}
+        </td>
+        <td className="py-3 px-4 text-right">
+          <Link
+            href={`${earnBase}?side=range`}
+            onClick={(e) => e.stopPropagation()}
+            className="text-xs font-medium text-[var(--accent)] hover:underline"
+          >
+            Set range &rarr;
+          </Link>
+        </td>
+      </tr>
+
+      {isExpanded && (
+        <tr className="bg-[var(--surface)]">
+          <td colSpan={totalCols} className="px-4 py-4">
+            <div className="space-y-2 text-xs text-[var(--text-secondary)]">
+              <div className="flex justify-between">
+                <span>Lower (buy at ${putStrike.toLocaleString()}): {putItm ? "Assigned" : "OTM"}</span>
+                <span className="font-mono text-[var(--accent)]">+${fmtUsd(putPremium)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>Upper (sell at ${callStrike.toLocaleString()}): {callItm ? "Assigned" : "OTM"}</span>
+                <span className="font-mono text-[var(--accent)]">+${fmtUsd(callPremium)}</span>
+              </div>
+              {EXPLORER_BASE && (
+                <div className="flex gap-3">
+                  {putLeg.tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${putLeg.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Lower tx
+                    </a>
+                  )}
+                  {callLeg.tx_hash && (
+                    <a href={`${EXPLORER_BASE}/tx/${callLeg.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                      Upper tx
+                    </a>
+                  )}
+                  {(putLeg.settlement_tx_hash ?? callLeg.settlement_tx_hash) && (
+                    <a
+                      href={`${EXPLORER_BASE}/tx/${(putLeg.settlement_tx_hash ?? callLeg.settlement_tx_hash)!}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-mono text-[var(--accent)] hover:underline"
+                    >
+                      Settle tx
+                    </a>
+                  )}
+                </div>
+              )}
+            </div>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }
 
