@@ -233,30 +233,7 @@ export default function PositionsPage() {
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             History
           </h2>
-          <div className="space-y-4">
-            {historyItems.map((item) => {
-              if (item.type === "range") {
-                const posAsset = resolvePositionAsset(
-                  item.positions[0].asset,
-                  item.positions[0].strike_price,
-                );
-                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
-                return (
-                  <RangePositionCard
-                    key={item.groupId}
-                    positions={item.positions}
-                    spot={posSpot}
-                    earnBase={`/earn/${posAsset.slug}`}
-                    assetSymbol={posAsset.symbol}
-                    assetSlug={posAsset.slug}
-                    yieldMetric={yieldMetric}
-                  />
-                );
-              }
-              return null;
-            })}
-          </div>
-          <TradeLog positions={history.filter((p) => !p.group_id)} />
+          <TradeLog items={historyItems} />
         </section>
       )}
     </main>
