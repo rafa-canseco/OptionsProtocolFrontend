@@ -416,6 +416,20 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         >
           Set another range
         </button>
+        {/* Share on X */}
+        <button
+          onClick={() =>
+            window.open(
+              buildTweetUrl(rangeAccepted.combinedApr, asset.symbol),
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
+          className="flex items-center justify-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors mx-auto"
+        >
+          <XIcon />
+          Share
+        </button>
       </div>
     );
   }
