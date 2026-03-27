@@ -404,6 +404,20 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             )}
           </div>
         )}
+        {/* Share on X — primary shareability CTA */}
+        <button
+          onClick={() =>
+            window.open(
+              buildTweetUrl(rangeAccepted.combinedApr, asset.symbol, "range"),
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
+          className="flex items-center justify-center gap-2 mx-auto max-w-xs w-full rounded-xl border border-[var(--border)] py-3.5 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+        >
+          <XIcon />
+          Share on X
+        </button>
         <a
           href="/positions"
           className="block mx-auto max-w-xs rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
@@ -415,20 +429,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
         >
           Set another range
-        </button>
-        {/* Share on X */}
-        <button
-          onClick={() =>
-            window.open(
-              buildTweetUrl(rangeAccepted.combinedApr, "USDC"),
-              "_blank",
-              "noopener,noreferrer",
-            )
-          }
-          className="flex items-center justify-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors mx-auto"
-        >
-          <XIcon />
-          Share
         </button>
       </div>
     );
