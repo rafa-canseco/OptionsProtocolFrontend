@@ -14,7 +14,7 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { fmtUsd, floorTo } from "@/lib/utils";
+import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import { AssetSelector } from "./AssetSelector";
@@ -22,6 +22,14 @@ import { RangeEarn } from "./RangeEarn";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
 import { computeAPR, computeROI } from "@/lib/execution";
 import { startBuyTour, startSellTour, startRangeTour } from "./EarnTutorial";
+
+function XIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.747l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
 
 function parseLocalDate(isoDate: string): Date {
   const [year, month, day] = isoDate.split("-").map(Number);
@@ -341,6 +349,20 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
         >
           Accept another price
+        </button>
+        {/* Share on X */}
+        <button
+          onClick={() =>
+            window.open(
+              buildTweetUrl(apr, abuy ? "USDC" : asset.symbol),
+              "_blank",
+              "noopener,noreferrer",
+            )
+          }
+          className="flex items-center justify-center gap-1.5 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors mx-auto"
+        >
+          <XIcon />
+          Share
         </button>
       </div>
     );
