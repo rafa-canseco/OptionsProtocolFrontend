@@ -137,6 +137,13 @@ function RangeTradeRow({
   const callItm = callLeg.is_itm === true;
   const outcome = putItm || callItm ? "Assigned" : "Earned";
 
+  const isBtc = posAsset.slug === "btc";
+  const callDec = isBtc ? 1e8 : 1e18;
+  const putCommittedDisplay = `$${(putLeg.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
+  const callCommittedDisplay = `${fmtAsset(callLeg.collateral / callDec)} ${assetSymbol}`;
+  const putAmount = fmtAsset(putLeg.amount / 1e8);
+  const callAmount = fmtAsset(callLeg.amount / 1e8);
+
   const totalCols = 9;
 
   return (
@@ -186,14 +193,25 @@ function RangeTradeRow({
         <tr className="bg-[var(--surface)]">
           <td colSpan={totalCols} className="px-4 py-4">
             <div className="space-y-2 text-xs text-[var(--text-secondary)]">
-              <div className="flex justify-between">
-                <span>Lower (buy at ${putStrike.toLocaleString()}): {putItm ? "Assigned" : "OTM"}</span>
-                <span className="font-mono text-[var(--accent)]">+${fmtUsd(putPremium)}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>Upper (sell at ${callStrike.toLocaleString()}): {callItm ? "Assigned" : "OTM"}</span>
-                <span className="font-mono text-[var(--accent)]">+${fmtUsd(callPremium)}</span>
-              </div>
+              {/* Lower leg (put) */}
+              <p>
+                {putItm ? (
+                  <>Lower: bought {putAmount} {assetSymbol} at <span className="font-mono">${putStrike.toLocaleString()}</span> · <span className="font-mono text-[var(--accent)]">+${fmtUsd(putPremium)} earned</span></>
+                ) : (
+                  <>Lower: committed {putCommittedDisplay} → returned {putCommittedDisplay} + <span className="font-mono text-[var(--accent)]">+${fmtUsd(putPremium)} earned</span></>
+                )}
+              </p>
+              {/* Upper leg (call) */}
+              <p>
+                {callItm ? (
+                  <>Upper: sold {callAmount} {assetSymbol} at <span className="font-mono">${callStrike.toLocaleString()}</span> · <span className="font-mono text-[var(--accent)]">+${fmtUsd(callPremium)} earned</span></>
+                ) : (
+                  <>Upper: committed {callCommittedDisplay} → returned {callCommittedDisplay} + <span className="font-mono text-[var(--accent)]">+${fmtUsd(callPremium)} earned</span></>
+                )}
+              </p>
+              {expiryPriceUsd != null && (
+                <p>Maturity price: ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</p>
+              )}
               {EXPLORER_BASE && (
                 <div className="flex gap-3">
                   {putLeg.tx_hash && (
