@@ -98,6 +98,20 @@ export function useWallet() {
     [fundingWallet],
   );
 
+  const disconnect = useCallback(async () => {
+    // Disconnect each wallet via its EIP-1193 provider
+    for (const w of wallets) {
+      try {
+        const provider = await w.getEthereumProvider();
+        await provider.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
+      } catch {
+        // Not all providers support revokePermissions; fall through
+      }
+    }
+    // Clear any Privy auth state
+    try { await logout(); } catch {}
+  }, [wallets, logout]);
+
   return {
     address,
     fundingAddress,
@@ -107,6 +121,6 @@ export function useWallet() {
     isConnected: !!fundingAddress,
     isReady: ready,
     connectWallet,
-    logout,
+    disconnect,
   };
 }

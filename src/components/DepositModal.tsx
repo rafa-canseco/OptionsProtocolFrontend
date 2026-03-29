@@ -34,7 +34,7 @@ function truncate(addr: string): string {
 }
 
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
-  const { address, fundingAddress, sendBatchTx, sendFundingTx, logout } = useWallet();
+  const { address, fundingAddress, sendBatchTx, sendFundingTx, disconnect } = useWallet();
   const smartBalances = useBalances(address);
   const eoaBalances = useBalances(fundingAddress);
 
@@ -261,7 +261,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
         {/* Disconnect */}
         <button
-          onClick={() => { onClose(); logout(); }}
+          onClick={async () => { await disconnect(); onClose(); }}
           disabled={isPending}
           className="w-full text-center text-xs text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:opacity-40"
         >
