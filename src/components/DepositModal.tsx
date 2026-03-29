@@ -131,19 +131,34 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const isDone = status === "done";
   const needsActivation = !address;
 
-  // After loginOrLink(), Privy loads the smart wallet asynchronously.
-  // When address appears, transition out of "activating" state.
+  // After loginOrLink(), Privy creates the embedded wallet (signer) and
+  // then the smart wallet asynchronously. When address appears,
+  // transition out of "activating" state.
   useEffect(() => {
     if (address && status === "activating") {
+      console.log("[DepositModal] Smart wallet ready:", address);
       setStatus("idle");
     }
   }, [address, status]);
+
+  // Timeout: if smart wallet doesn't appear within 15s, show error
+  useEffect(() => {
+    if (status !== "activating") return;
+    const timer = setTimeout(() => {
+      console.error("[DepositModal] Smart wallet activation timed out. address:", address);
+      setError("Activation is taking longer than expected. Please refresh the page and try again.");
+      setStatus("idle");
+    }, 15_000);
+    return () => clearTimeout(timer);
+  }, [status, address]);
 
   const handleActivate = useCallback(async () => {
     setError(null);
     setStatus("activating");
     try {
+      console.log("[DepositModal] Calling activateSmartWallet (loginOrLink)...");
       await activateSmartWallet();
+      console.log("[DepositModal] loginOrLink resolved. Waiting for smart wallet...");
       // Don't set status to "idle" here. The effect above will do it
       // when the smart wallet address becomes available.
     } catch (err) {
