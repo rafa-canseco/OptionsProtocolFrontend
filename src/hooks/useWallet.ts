@@ -1,6 +1,6 @@
 "use client";
 
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useConnectWallet } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createWalletClient, custom, type Address } from "viem";
 import { useState, useEffect, useCallback } from "react";
@@ -13,7 +13,8 @@ export type BatchCall = {
 };
 
 export function useWallet() {
-  const { login, logout, authenticated, ready } = usePrivy();
+  const { logout, authenticated, ready } = usePrivy();
+  const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const [chainError, setChainError] = useState<string | null>(null);
@@ -103,9 +104,9 @@ export function useWallet() {
     sendBatchTx,
     sendFundingTx,
     chainError,
-    isConnected: authenticated && !!fundingAddress,
+    isConnected: !!fundingAddress,
     isReady: ready,
-    login,
+    connectWallet,
     logout,
   };
 }

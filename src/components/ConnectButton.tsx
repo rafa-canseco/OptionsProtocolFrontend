@@ -6,7 +6,7 @@ import { useBalances } from "@/hooks/useBalances";
 import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
-  const { address, isConnected, isReady, login } = useWallet();
+  const { address, isConnected, isReady, connectWallet } = useWallet();
   const { usd, loading: balancesLoading } = useBalances(address);
   const [showDeposit, setShowDeposit] = useState(false);
 
@@ -39,7 +39,7 @@ export function ConnectButton() {
 
   return (
     <button
-      onClick={login}
+      onClick={connectWallet}
       className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
     >
       Connect
