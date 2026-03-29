@@ -27,6 +27,7 @@ import {
 } from "@/lib/execution";
 import { encodeSwapExactOutput } from "@/lib/swap";
 import { getAssetConfig } from "@/lib/assets";
+import { DepositModal } from "@/components/DepositModal";
 
 const DEADLINE_BUFFER_S = 60;
 
@@ -82,12 +83,14 @@ export function RangeAcceptModal({
   onClose,
   onAccepted,
 }: Props) {
-  const { address, sendBatchTx, isConnected, login } = useWallet();
+  const { address, sendBatchTx, isAuthenticated, login } = useWallet();
   const [step, setStep] = useState<RangeStep>("idle");
   const [putTxHash, setPutTxHash] = useState<string | null>(null);
   const [callTxHash, setCallTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [didSwap, setDidSwap] = useState(false);
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc">("usdc");
 
   const loading = step === "swapping" || step === "executing-put" || step === "executing-call";
   const done = step === "confirmed";
@@ -103,7 +106,8 @@ export function RangeAcceptModal({
   };
 
   async function handleAccept() {
-    if (!isConnected || !address) { login(); return; }
+    if (!isAuthenticated) { login(); return; }
+    if (!address) { return; }
 
     // Validate both quotes
     if (!quoteIsValid(putQuote) || !quoteIsValid(callQuote)) {
@@ -149,8 +153,7 @@ export function RangeAcceptModal({
         const swapAmountUsdc = BigInt(Math.ceil(shortfallUnits * priceForSwap * 1.02 * 1e6));
 
         if (usdcBal < putCol.collateral + swapAmountUsdc) {
-          setError("Insufficient total balance. Need USDC for both the lower side and the swap.");
-          return;
+          setDepositToken("usdc"); setShowDeposit(true); return;
         }
 
         const assetConfig = getAssetConfig(assetSlug);
@@ -193,12 +196,10 @@ export function RangeAcceptModal({
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
         setDidSwap(true);
       } else if (callAvailable < callNeeded) {
-        setError(`Insufficient ${assetSymbol} balance for the upper side.`);
-        return;
+        setDepositToken(isBtc ? "btc" : "eth"); setShowDeposit(true); return;
       } else {
         if (usdcBal < putCol.collateral) {
-          setError("Insufficient USDC balance for the lower side.");
-          return;
+          setDepositToken("usdc"); setShowDeposit(true); return;
         }
       }
 
@@ -482,6 +483,14 @@ export function RangeAcceptModal({
         >
           {stepLabels[step]}
         </button>
+
+        {showDeposit && (
+          <DepositModal
+            requiredToken={depositToken}
+            onClose={() => setShowDeposit(false)}
+            onComplete={() => setShowDeposit(false)}
+          />
+        )}
       </div>
     </div>
   );
