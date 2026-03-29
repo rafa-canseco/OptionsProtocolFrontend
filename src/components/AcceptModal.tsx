@@ -106,7 +106,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       ? "Executing order..."
       : step === "confirmed"
         ? "Done"
-        : !isConnected
+        : !isAuthenticated
           ? "Connect wallet"
           : "Accept";
 

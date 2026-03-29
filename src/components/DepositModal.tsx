@@ -25,8 +25,6 @@ interface Props {
   onClose: () => void;
   /** Pre-select a token when opened from a trade interception */
   requiredToken?: Token;
-  /** Show a contextual message about why deposit is needed */
-  requiredAmount?: number;
   /** Called after a successful deposit */
   onComplete?: () => void;
 }

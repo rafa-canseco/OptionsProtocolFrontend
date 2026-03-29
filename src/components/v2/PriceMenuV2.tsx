@@ -163,7 +163,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
-  const { address, isConnected, login } = useWallet();
+  const { address, isConnected, isAuthenticated, login } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
@@ -708,7 +708,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
-                if (!isConnected) { login(); return; }
+                if (!isAuthenticated) { login(); return; }
                 setConfirming(true);
               }}
               disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
@@ -775,7 +775,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="lg:hidden space-y-2 animate-fade-in-up">
             <button
               onClick={() => {
-                if (!isConnected) { login(); return; }
+                if (!isAuthenticated) { login(); return; }
                 setConfirming(true);
               }}
               disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
