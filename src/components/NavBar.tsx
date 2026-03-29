@@ -17,7 +17,7 @@ const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
 
 export function NavBar() {
   const pathname = usePathname();
-  const { address, sendBatchTx, chainError, isConnected } = useWallet();
+  const { address, fundingAddress, sendBatchTx, sendFundingTx, chainError, isConnected } = useWallet();
   const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
@@ -79,8 +79,16 @@ export function NavBar() {
               )}
             </div>
           )}
-          {SHOW_FAUCET && isConnected && !balLoading && address && (
-            <FaucetButton address={address} sendBatchTx={sendBatchTx} refetch={refetch} />
+          {SHOW_FAUCET && isConnected && !balLoading && fundingAddress && (
+            <FaucetButton
+              address={fundingAddress}
+              sendBatchTx={async (calls) => {
+                let last: unknown;
+                for (const c of calls) last = await sendFundingTx(c);
+                return last;
+              }}
+              refetch={refetch}
+            />
           )}
           <ConnectButton />
         </div>
