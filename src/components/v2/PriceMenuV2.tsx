@@ -464,7 +464,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </button>
       </div>
 
-      <div className="flex items-center justify-between animate-fade-in-up">
+      <div className="flex flex-wrap items-center justify-between gap-y-3 animate-fade-in-up">
         <div className="flex items-center gap-4">
           <AssetSelector current={asset} />
           <LivePrice spot={spot} />
@@ -704,8 +704,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             )}
           </div>
 
-          {/* 5. Accept button — glows when ready */}
-          <div className="space-y-2 animate-fade-in-up" data-tour="accept">
+          {/* 5. Accept button — desktop only (mobile renders after outcome cards) */}
+          <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
                 if (!isConnected) { login(); return; }
@@ -770,6 +770,39 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             premium={selectedEarnings > 0 ? selectedEarnings : undefined}
             assetSymbol={asset.symbol}
           />
+
+          {/* Accept button — mobile only, after outcome cards */}
+          <div className="lg:hidden space-y-2 animate-fade-in-up">
+            <button
+              onClick={() => {
+                if (!isConnected) { login(); return; }
+                setConfirming(true);
+              }}
+              disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
+              className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
+                !marketClosed && canAccept && !insufficientBalance
+                  ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
+                  : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
+              }`}
+            >
+              {marketClosed
+                ? "Market temporarily closed"
+                : !isConnected
+                  ? "Connect wallet"
+                  : !amount
+                    ? "Enter an amount"
+                    : insufficientBalance
+                      ? "Insufficient balance"
+                      : !selectedQuote
+                        ? "Select a strike price"
+                        : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+            </button>
+            {marketClosed && (
+              <p className="text-xs text-center text-[var(--text-secondary)]">
+                The MM is at capacity. Check back soon.
+              </p>
+            )}
+          </div>
         </div>
       </div>
       )}

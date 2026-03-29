@@ -200,7 +200,7 @@ function HeroSection() {
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.8, delay: 1.0 }}
-          className="mt-8 font-mono text-[clamp(0.7rem,1.2vw,0.85rem)] text-[var(--accent)] tracking-[0.15em] uppercase"
+          className="mt-8 font-mono text-[clamp(0.75rem,1.2vw,0.85rem)] text-[var(--accent)] tracking-[0.15em] uppercase"
         >
           humans use the app{" "}
           <span className="text-[var(--text-secondary)] opacity-40 mx-1">/</span>{" "}
@@ -285,7 +285,7 @@ function ProblemSection() {
       </div>
 
       {/* Auto-scrolling marquee */}
-      <div className="relative">
+      <div className="relative overflow-hidden">
         <div className="flex gap-5 marquee-track">
           {[...PAIN_CARDS, ...PAIN_CARDS, ...PAIN_CARDS].map((card, i) => (
             <div
@@ -320,7 +320,7 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
     <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit">
       <button
         onClick={() => onSideChange("buy")}
-        className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
           side === "buy"
             ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -330,7 +330,7 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
       </button>
       <button
         onClick={() => onSideChange("sell")}
-        className={`px-5 py-2 text-sm font-medium rounded-lg transition-all ${
+        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
           side === "sell"
             ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -445,7 +445,7 @@ function MechanismSection({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -15 }}
             transition={{ duration: 0.4 }}
-            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-8 space-y-6"
+            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-5 sm:p-8 space-y-6"
           >
             <div className="space-y-1">
               <p className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">Price {side === "buy" ? "drops" : "rises"}</p>
@@ -604,7 +604,7 @@ const LoopSection = memo(function LoopSection({
           </h2>
         </FadeBlock>
 
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/50 p-10 min-h-[160px] flex items-center justify-center">
+        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/50 p-5 sm:p-10 min-h-[160px] flex items-center justify-center">
           <AnimatePresence mode="wait">
             <motion.div
               key={`${side}-${frameIndex}`}
@@ -832,7 +832,7 @@ const SocialProofSection = memo(function SocialProofSection() {
           Fully collateralized. No margin. No liquidations.
         </motion.h2>
 
-        <div className="grid grid-cols-3 gap-6">
+        <div className="grid grid-cols-3 gap-3 sm:gap-6">
           {STATS.map((stat, i) => (
             <motion.div
               key={stat.label}
@@ -841,7 +841,7 @@ const SocialProofSection = memo(function SocialProofSection() {
               transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
               className="text-center"
             >
-              <p className="text-2xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
+              <p className="text-xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
               <p className="text-sm text-[var(--text-secondary)] opacity-60 mt-1">{stat.label}</p>
             </motion.div>
           ))}
@@ -892,7 +892,7 @@ function AgentNativeSection() {
             <span className="w-2.5 h-2.5 rounded-full bg-[var(--text-secondary)] opacity-30" />
           </div>
 
-          <div className="px-5 sm:px-6 py-6 font-mono text-[clamp(0.75rem,1.3vw,0.9rem)] leading-relaxed space-y-4">
+          <div className="px-5 sm:px-6 py-6 font-mono text-[clamp(0.75rem,1.3vw,0.9rem)] leading-relaxed space-y-4 overflow-x-auto scrollbar-hide">
             <motion.div
               initial={{ opacity: 0 }}
               animate={inView ? { opacity: 1 } : { opacity: 0 }}
@@ -1053,7 +1053,7 @@ export function LandingPage() {
             href="https://docs.b1nary.app"
             target="_blank"
             rel="noopener noreferrer"
-            className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            className="flex items-center py-3 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
           >
             Docs
           </a>
@@ -1062,13 +1062,13 @@ export function LandingPage() {
             target="_blank"
             rel="noopener noreferrer"
             aria-label="b1nary on X"
-            className="text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            className="p-2.5 text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
           >
             <XIcon className="w-4 h-4" />
           </a>
           <Link
             href="/earn"
-            className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
+            className="rounded-lg px-4 py-3 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
           >
             Launch App &rarr;
           </Link>
