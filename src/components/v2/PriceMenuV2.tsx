@@ -167,6 +167,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { usd, eth, weth, wbtc } = useBalances(address);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
+  const amountParam = searchParams.get("amount");
   const initialSide = sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
   const [side, setSide] = useState<"buy" | "sell" | "range">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
@@ -179,7 +180,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     putTxHash: string | null; callTxHash: string | null;
   } | null>(null);
 
-  const [amountStr, setAmountStr] = useState("");
+  const [amountStr, setAmountStr] = useState(amountParam ?? "");
   const amount = Number(amountStr) || 0;
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [copied, setCopied] = useState(false);
