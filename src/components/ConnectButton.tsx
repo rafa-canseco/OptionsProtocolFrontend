@@ -6,12 +6,17 @@ import { useBalances } from "@/hooks/useBalances";
 import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
-  const { address, isConnected, isReady, login } = useWallet();
+  const { address, isConnected, isAuthenticated, isReady, login } = useWallet();
   const { usd, loading: balancesLoading } = useBalances(address);
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
     return <div className="h-9 w-24 animate-pulse rounded-full bg-[var(--surface)]" />;
+  }
+
+  // Authenticated but smart wallet client still initializing
+  if (isAuthenticated && !isConnected) {
+    return <div className="h-9 w-28 animate-pulse rounded-full bg-[var(--surface)]" />;
   }
 
   if (isConnected && address) {
