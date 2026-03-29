@@ -320,8 +320,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             className="block w-full text-center rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
             {isBuy
-              ? `Earn more: sell ${assetSymbol} at a higher price`
-              : `Earn more: buy ${assetSymbol} at a lower price`}
+              ? `Earn on your new ${assetSymbol}`
+              : "Earn on your USD"}
           </Link>
         </div>
       )}

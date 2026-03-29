@@ -264,7 +264,7 @@ function TradeRow({
   const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
 
   // Type
-  const type = isBuy ? "Sell put" : "Sell call";
+  const type = isBuy ? "Earned on USD" : `Earned on ${assetSymbol}`;
 
   // Expiry duration
   const indexedTime = date.getTime();
@@ -281,7 +281,7 @@ function TradeRow({
   let nextLabel: string;
   let nextSide: string;
   if (isItm) {
-    nextLabel = isBuy ? "Sell call" : "Buy put";
+    nextLabel = isBuy ? `Earn on your ${assetSymbol}` : "Earn on your USD";
     nextSide = isBuy ? "sell" : "buy";
   } else {
     nextLabel = "Earn again";
@@ -347,7 +347,7 @@ function TradeRow({
         {/* Next Step */}
         <td className="py-3 px-4 text-right">
           <Link
-            href={`${earnBase}?side=${nextSide}`}
+            href={`${earnBase}?side=${nextSide}${isItm ? `&amount=${ethAmount}` : ""}`}
             onClick={(e) => e.stopPropagation()}
             className="text-xs font-medium text-[var(--accent)] hover:underline"
           >
