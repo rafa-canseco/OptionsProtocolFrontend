@@ -164,7 +164,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
   const { address, isConnected, connectWallet } = useWallet();
-  const { usd, eth, weth } = useBalances(address);
+  const { usd, eth, weth, wbtc } = useBalances(address);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const initialSide = sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
@@ -186,7 +186,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const isBuy = side === "buy";
-  const walletBalance = isBuy ? usd : eth + weth;
+  const isBtc = asset.slug === "btc";
+  const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
