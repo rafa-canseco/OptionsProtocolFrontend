@@ -118,7 +118,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   async function handleAccept() {
     if (!isConnected) { connectWallet(); return; }
     if (!address) {
-      setError("Your trading account is still loading. Please try again in a moment.");
+      setDepositToken(isBuy ? "usdc" : isBtc ? "btc" : "eth");
+      setShowDeposit(true);
       return;
     }
 

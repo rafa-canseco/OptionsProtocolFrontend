@@ -98,6 +98,13 @@ export function useWallet() {
     [fundingWallet],
   );
 
+  // Authenticate the connected wallet to create a smart wallet.
+  // Called once when the user first deposits or trades.
+  const activateSmartWallet = useCallback(async () => {
+    if (!fundingWallet) throw new Error("No wallet connected");
+    await fundingWallet.loginOrLink();
+  }, [fundingWallet]);
+
   const disconnect = useCallback(async () => {
     // Disconnect each wallet via its EIP-1193 provider
     for (const w of wallets) {
@@ -121,6 +128,7 @@ export function useWallet() {
     isConnected: !!fundingAddress,
     isReady: ready,
     connectWallet,
+    activateSmartWallet,
     disconnect,
   };
 }

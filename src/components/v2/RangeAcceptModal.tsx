@@ -108,7 +108,8 @@ export function RangeAcceptModal({
   async function handleAccept() {
     if (!isConnected) { connectWallet(); return; }
     if (!address) {
-      setError("Your trading account is still loading. Please try again in a moment.");
+      setDepositToken("usdc");
+      setShowDeposit(true);
       return;
     }
 
