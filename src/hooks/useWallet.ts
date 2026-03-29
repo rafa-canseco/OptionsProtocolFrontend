@@ -13,7 +13,7 @@ export type BatchCall = {
 };
 
 export function useWallet() {
-  const { logout, ready } = usePrivy();
+  const { ready } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -106,21 +106,21 @@ export function useWallet() {
   }, [fundingWallet]);
 
   const disconnect = useCallback(async () => {
-    // Disconnect each wallet via its EIP-1193 provider
+    // Revoke wallet permissions (visual disconnect) but keep the
+    // Privy session alive so the smart wallet is restored instantly
+    // on reconnect without requiring a new SIWE signature.
     for (const w of wallets) {
       try {
         const provider = await w.getEthereumProvider();
-        await provider.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
+        await provider.request({
+          method: "wallet_revokePermissions",
+          params: [{ eth_accounts: {} }],
+        });
       } catch (err) {
         console.warn("[disconnect] Could not revoke permissions:", err);
       }
     }
-    try {
-      await logout();
-    } catch (err) {
-      console.error("[disconnect] logout failed:", err);
-    }
-  }, [wallets, logout]);
+  }, [wallets]);
 
   return {
     address,
