@@ -288,9 +288,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             </div>
 
             {/* Withdraw gas note */}
-            {tab === "withdraw" && (
+            {tab === "withdraw" && fundingAddress && (
               <p className="text-xs text-[var(--text-secondary)]">
-                Withdrawals are free. Gas is sponsored.
+                Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
               </p>
             )}
 
