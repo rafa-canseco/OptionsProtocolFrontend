@@ -47,7 +47,7 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, sendBatchTx, isConnected, isAuthenticated, login } = useWallet();
+  const { address, sendBatchTx, isConnected, login } = useWallet();
   const { usd, eth, weth, wbtc } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
@@ -106,7 +106,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       ? "Executing order..."
       : step === "confirmed"
         ? "Done"
-        : !isAuthenticated
+        : !isConnected
           ? "Connect wallet"
           : "Accept";
 
@@ -116,8 +116,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     : (assetConfig?.minSellAmount ?? 0.005);
 
   async function handleAccept() {
-    if (!isAuthenticated) { login(); return; }
-    if (!address) { return; }
+    if (!isConnected) { login(); return; }
+    if (!address) {
+      setError("Your trading account is still loading. Please try again in a moment.");
+      return;
+    }
 
     if (!quote.otoken_address || !quote.signature || !quote.bid_price_raw
         || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null

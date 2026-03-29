@@ -83,7 +83,7 @@ export function RangeAcceptModal({
   onClose,
   onAccepted,
 }: Props) {
-  const { address, sendBatchTx, isAuthenticated, login } = useWallet();
+  const { address, sendBatchTx, isConnected, login } = useWallet();
   const [step, setStep] = useState<RangeStep>("idle");
   const [putTxHash, setPutTxHash] = useState<string | null>(null);
   const [callTxHash, setCallTxHash] = useState<string | null>(null);
@@ -106,8 +106,11 @@ export function RangeAcceptModal({
   };
 
   async function handleAccept() {
-    if (!isAuthenticated) { login(); return; }
-    if (!address) { return; }
+    if (!isConnected) { login(); return; }
+    if (!address) {
+      setError("Your trading account is still loading. Please try again in a moment.");
+      return;
+    }
 
     // Validate both quotes
     if (!quoteIsValid(putQuote) || !quoteIsValid(callQuote)) {
