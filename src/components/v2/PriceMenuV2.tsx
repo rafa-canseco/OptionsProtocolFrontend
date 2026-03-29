@@ -163,7 +163,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
-  const { address, isConnected, login } = useWallet();
+  const { address, isConnected, connectWallet } = useWallet();
   const { usd, eth, weth } = useBalances(address);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
@@ -247,7 +247,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     : 0;
 
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
-  const insufficientBalance = isConnected && amount > 0 && amount > walletBalance;
 
   function handleStartTutorial() {
     const onComplete = () => {};
@@ -708,12 +707,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
-                if (!isConnected) { login(); return; }
+                if (!isConnected) { connectWallet(); return; }
                 setConfirming(true);
               }}
-              disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
+              disabled={marketClosed || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept && !insufficientBalance
+                !marketClosed && canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -724,11 +723,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
-                    : insufficientBalance
-                      ? "Insufficient balance"
-                      : !selectedQuote
-                        ? "Select a strike price"
-                        : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+                    : !selectedQuote
+                      ? "Select a strike price"
+                      : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
@@ -775,12 +772,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="lg:hidden space-y-2 animate-fade-in-up">
             <button
               onClick={() => {
-                if (!isConnected) { login(); return; }
+                if (!isConnected) { connectWallet(); return; }
                 setConfirming(true);
               }}
-              disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
+              disabled={marketClosed || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept && !insufficientBalance
+                !marketClosed && canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -791,11 +788,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
-                    : insufficientBalance
-                      ? "Insufficient balance"
-                      : !selectedQuote
-                        ? "Select a strike price"
-                        : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+                    : !selectedQuote
+                      ? "Select a strike price"
+                      : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">

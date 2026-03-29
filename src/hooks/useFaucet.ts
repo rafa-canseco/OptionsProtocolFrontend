@@ -1,97 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { parseUnits, encodeFunctionData, type Address } from "viem";
-import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
-import type { BatchCall } from "@/hooks/useWallet";
+import type { Address } from "viem";
 
-const MINT_USD = parseUnits("100000", 6);   // 100,000 LUSD
-const MINT_ETH = parseUnits("50", 18);      // 50 LETH
-const MINT_BTC = parseUnits("2", 8);        // 2 LBTC
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-type SendBatchTx = (calls: BatchCall[]) => Promise<unknown>;
-
-export function useFaucet(
-  address: Address | undefined,
-  sendBatchTx: SendBatchTx | undefined,
-  onComplete?: () => void,
-) {
+export function useFaucet(address: Address | undefined, onComplete?: () => void) {
   const [minting, setMinting] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function mint() {
-    if (!address) return;
-    if (!sendBatchTx) {
-      setError("Wallet is still initializing. Please wait a moment and try again.");
+    if (!address) {
+      console.warn("[useFaucet] mint called without address");
       return;
     }
     setMinting(true);
     setError(null);
 
     try {
-      // Snapshot balance before minting
-      const usdBefore = await publicClient.readContract({
-        address: ADDRESSES.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [address],
+      const res = await fetch(`${API_BASE}/faucet`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ address }),
       });
 
-      const usdData = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "mint",
-        args: [address, MINT_USD],
-      });
-      const ethData = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "mint",
-        args: [address, MINT_ETH],
-      });
-      const btcData = encodeFunctionData({
-        abi: ERC20_ABI,
-        functionName: "mint",
-        args: [address, MINT_BTC],
-      });
-
-      // Batch all mints into a single UserOperation
-      await sendBatchTx([
-        { to: ADDRESSES.usdc, data: usdData },
-        { to: ADDRESSES.weth, data: ethData },
-        { to: ADDRESSES.wbtc, data: btcData },
-      ]);
-
-      // Poll until USD balance increases (proves mints landed)
-      let confirmed = false;
-      let consecutiveErrors = 0;
-      for (let i = 0; i < 30; i++) {
-        await new Promise((r) => setTimeout(r, 2000));
+      if (!res.ok) {
+        let detail: string | undefined;
         try {
-          const usdNow = await publicClient.readContract({
-            address: ADDRESSES.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [address],
-          });
-          consecutiveErrors = 0;
-          if (usdNow > usdBefore) {
-            confirmed = true;
-            break;
-          }
-        } catch (err) {
-          consecutiveErrors++;
-          console.warn(`[useFaucet] Balance poll failed (attempt ${i + 1}):`, err);
-          if (consecutiveErrors >= 5) {
-            throw new Error("Lost connection while checking balance. Your tokens may still arrive — refresh the page.");
-          }
+          const body = await res.json();
+          detail = body.detail;
+        } catch {
+          const text = await res.text().catch(() => "");
+          console.error("[useFaucet] Non-JSON error response:", text);
         }
+        throw new Error(detail || `Faucet error (${res.status})`);
       }
 
-      if (confirmed) {
-        setShowNotification(true);
-        setTimeout(() => setShowNotification(false), 5000);
-      } else {
-        setError("Tokens are taking longer than expected. Check your balance in a moment.");
-      }
+      setShowNotification(true);
+      setTimeout(() => setShowNotification(false), 5000);
       window.dispatchEvent(new Event("balance:refetch"));
       await onComplete?.();
     } catch (err) {
       console.error("[useFaucet] Mint failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to mint test tokens. Try again.");
+      setError(err instanceof Error ? err.message : "Failed to get test tokens. Try again.");
     } finally {
       setMinting(false);
     }
