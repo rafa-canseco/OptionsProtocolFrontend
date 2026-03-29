@@ -94,6 +94,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       await publicClient.waitForTransactionReceipt({ hash });
       setStatus("done");
       window.dispatchEvent(new Event("balance:refetch"));
+      setTimeout(() => window.dispatchEvent(new Event("balance:refetch")), 2000);
       onComplete?.();
     } catch (err) {
       console.error("[DepositModal] deposit failed:", err);
@@ -128,6 +129,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       await publicClient.waitForTransactionReceipt({ hash });
       setStatus("done");
       window.dispatchEvent(new Event("balance:refetch"));
+      setTimeout(() => window.dispatchEvent(new Event("balance:refetch")), 2000);
     } catch (err) {
       console.error("[DepositModal] withdraw failed:", err);
       setError(err instanceof Error ? err.message : "Transaction failed. Please try again.");
