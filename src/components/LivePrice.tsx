@@ -103,11 +103,13 @@ export function LivePrice({ spot, className = "" }: { spot: number | undefined; 
   return (
     <div className={`flex items-center gap-4 ${className}`}>
       <div>
-        <p className={`text-4xl font-bold text-[var(--bone)] font-mono tabular-nums ${flash ? "price-flash" : ""}`}>
+        <p className={`text-2xl sm:text-4xl font-bold text-[var(--bone)] font-mono tabular-nums ${flash ? "price-flash" : ""}`}>
           <AnimatedNumber value={spot} prefix="$" />
         </p>
       </div>
-      <Sparkline prices={history} />
+      <div className="hidden sm:block">
+        <Sparkline prices={history} />
+      </div>
     </div>
   );
 }
