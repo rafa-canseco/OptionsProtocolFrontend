@@ -711,9 +711,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 if (!isConnected) { login(); return; }
                 setConfirming(true);
               }}
-              disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
+              disabled={marketClosed || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept && !insufficientBalance
+                !marketClosed && canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -724,11 +724,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
-                    : insufficientBalance
-                      ? "Insufficient balance"
-                      : !selectedQuote
-                        ? "Select a strike price"
-                        : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+                    : !selectedQuote
+                      ? "Select a strike price"
+                      : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
@@ -778,9 +776,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 if (!isConnected) { login(); return; }
                 setConfirming(true);
               }}
-              disabled={marketClosed || insufficientBalance || (!canAccept && isConnected)}
+              disabled={marketClosed || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept && !insufficientBalance
+                !marketClosed && canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -791,11 +789,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
-                    : insufficientBalance
-                      ? "Insufficient balance"
-                      : !selectedQuote
-                        ? "Select a strike price"
-                        : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+                    : !selectedQuote
+                      ? "Select a strike price"
+                      : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
