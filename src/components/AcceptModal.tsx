@@ -24,6 +24,7 @@ import {
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
 import type { YieldMetric } from "./YieldToggle";
+import { DepositModal } from "@/components/DepositModal";
 
 interface Props {
   quote: PriceQuote;
@@ -46,12 +47,14 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, sendBatchTx, isConnected, login } = useWallet();
+  const { address, sendBatchTx, isConnected, isAuthenticated, login } = useWallet();
   const { usd, eth, weth, wbtc } = useBalances(address);
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
+  const [showDeposit, setShowDeposit] = useState(false);
+  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc">("usdc");
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
@@ -113,7 +116,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     : (assetConfig?.minSellAmount ?? 0.005);
 
   async function handleAccept() {
-    if (!isConnected || !address) { login(); return; }
+    if (!isAuthenticated) { login(); return; }
+    if (!address) { return; }
 
     if (!quote.otoken_address || !quote.signature || !quote.bid_price_raw
         || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null
@@ -143,19 +147,21 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       const { oTokenAmount, collateral, collateralAsset } =
         computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
-      // On-chain balance check
+      // On-chain balance check — redirect to deposit if smart wallet is underfunded
       let wrapAmount = BigInt(0);
       if (isBuy) {
         const usdcBal = await readTokenBalance(ADDRESSES.usdc, address);
         if (usdcBal < collateral) {
-          setError("Insufficient USD balance.");
+          setDepositToken("usdc");
+          setShowDeposit(true);
           return;
         }
       } else if (isBtc) {
         // BTC calls: cbBTC is already ERC20, no wrapping needed
         const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
         if (wbtcBal < collateral) {
-          setError(`Insufficient ${assetSymbol} balance.`);
+          setDepositToken("btc");
+          setShowDeposit(true);
           return;
         }
       } else {
@@ -165,7 +171,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           publicClient.getBalance({ address }),
         ]);
         if (wethBal + nativeBal < collateral) {
-          setError(`Insufficient ${assetSymbol} balance.`);
+          setDepositToken("eth");
+          setShowDeposit(true);
           return;
         }
         if (wethBal < collateral) {
@@ -403,6 +410,14 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           </a>
         )}
       </div>
+
+        {showDeposit && (
+          <DepositModal
+            requiredToken={depositToken}
+            onClose={() => setShowDeposit(false)}
+            onComplete={() => setShowDeposit(false)}
+          />
+        )}
     </div>
   );
 }
