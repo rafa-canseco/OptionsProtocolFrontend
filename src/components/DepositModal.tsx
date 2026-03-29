@@ -208,14 +208,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         ) : (
           /* Normal deposit/withdraw flow */
           <>
-            {/* Route indicator */}
-            {fundingAddress && (
-              <p className="text-xs text-[var(--text-secondary)]">
-                {tab === "deposit"
-                  ? `${truncate(fundingAddress)} → ${truncate(address)}`
-                  : `${truncate(address)} → ${truncate(fundingAddress)}`}
-              </p>
-            )}
 
             {/* Tabs */}
             <div className="flex rounded-xl bg-[var(--surface)] p-1 gap-1">
