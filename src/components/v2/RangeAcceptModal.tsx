@@ -157,7 +157,9 @@ export function RangeAcceptModal({
         const swapAmountUsdc = BigInt(Math.ceil(shortfallUnits * priceForSwap * 1.02 * 1e6));
 
         if (usdcBal < putCol.collateral + swapAmountUsdc) {
-          setDepositToken("usdc"); setShowDeposit(true); return;
+          setDepositToken("usdc");
+          setShowDeposit(true);
+          return;
         }
 
         const assetConfig = getAssetConfig(assetSlug);
@@ -200,10 +202,14 @@ export function RangeAcceptModal({
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
         setDidSwap(true);
       } else if (callAvailable < callNeeded) {
-        setDepositToken(isBtc ? "btc" : "eth"); setShowDeposit(true); return;
+        setDepositToken(isBtc ? "btc" : "eth");
+        setShowDeposit(true);
+        return;
       } else {
         if (usdcBal < putCol.collateral) {
-          setDepositToken("usdc"); setShowDeposit(true); return;
+          setDepositToken("usdc");
+          setShowDeposit(true);
+          return;
         }
       }
 

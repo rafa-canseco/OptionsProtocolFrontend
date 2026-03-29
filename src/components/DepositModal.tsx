@@ -69,9 +69,21 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [rawBalance, meta.decimals]);
 
   const handleDeposit = useCallback(async () => {
-    if (!address || !fundingAddress) return;
-    const amount = parseUnits(amountStr, meta.decimals);
-    if (amount === BigInt(0)) return;
+    if (!address || !fundingAddress) {
+      setError("Wallet not ready. Please reconnect.");
+      return;
+    }
+    let amount: bigint;
+    try {
+      amount = parseUnits(amountStr, meta.decimals);
+    } catch {
+      setError("Invalid amount.");
+      return;
+    }
+    if (amount === BigInt(0)) {
+      setError("Enter an amount.");
+      return;
+    }
 
     setError(null);
     setStatus("pending");
@@ -104,9 +116,21 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [address, fundingAddress, amountStr, meta.decimals, token, sendFundingTx, onComplete]);
 
   const handleWithdraw = useCallback(async () => {
-    if (!address || !fundingAddress) return;
-    const amount = parseUnits(amountStr, meta.decimals);
-    if (amount === BigInt(0)) return;
+    if (!address || !fundingAddress) {
+      setError("Wallet not ready. Please reconnect.");
+      return;
+    }
+    let amount: bigint;
+    try {
+      amount = parseUnits(amountStr, meta.decimals);
+    } catch {
+      setError("Invalid amount.");
+      return;
+    }
+    if (amount === BigInt(0)) {
+      setError("Enter an amount.");
+      return;
+    }
 
     setError(null);
     setStatus("pending");
@@ -117,14 +141,18 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         : token === "eth" ? ADDRESSES.weth
         : ADDRESSES.wbtc;
 
-      const hash = await sendBatchTx([{
+      const result = await sendBatchTx([{
         to: tokenAddress,
         data: encodeFunctionData({
           abi: ERC20_ABI,
           functionName: "transfer",
           args: [fundingAddress, amount],
         }),
-      }]) as `0x${string}`;
+      }]);
+      if (typeof result !== "string" || !result.startsWith("0x")) {
+        throw new Error("Unexpected response from smart wallet");
+      }
+      const hash = result as `0x${string}`;
 
       await publicClient.waitForTransactionReceipt({ hash });
       setStatus("done");
@@ -313,7 +341,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             ) : (
               <button
                 onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
-                disabled={isPending || !amountStr || Number(amountStr) <= 0}
+                disabled={isPending || !amountStr || !(Number(amountStr) > 0)}
                 className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
               >
                 {isPending

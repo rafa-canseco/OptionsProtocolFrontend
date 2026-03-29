@@ -13,7 +13,7 @@ export type BatchCall = {
 };
 
 export function useWallet() {
-  const { logout, authenticated, ready } = usePrivy();
+  const { logout, ready } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -111,12 +111,15 @@ export function useWallet() {
       try {
         const provider = await w.getEthereumProvider();
         await provider.request({ method: "wallet_revokePermissions", params: [{ eth_accounts: {} }] });
-      } catch {
-        // Not all providers support revokePermissions; fall through
+      } catch (err) {
+        console.warn("[disconnect] Could not revoke permissions:", err);
       }
     }
-    // Clear any Privy auth state
-    try { await logout(); } catch {}
+    try {
+      await logout();
+    } catch (err) {
+      console.error("[disconnect] logout failed:", err);
+    }
   }, [wallets, logout]);
 
   return {

@@ -11,7 +11,10 @@ export function useFaucet(address: Address | undefined, onComplete?: () => void)
   const [error, setError] = useState<string | null>(null);
 
   async function mint() {
-    if (!address) return;
+    if (!address) {
+      console.warn("[useFaucet] mint called without address");
+      return;
+    }
     setMinting(true);
     setError(null);
 
@@ -23,8 +26,15 @@ export function useFaucet(address: Address | undefined, onComplete?: () => void)
       });
 
       if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        throw new Error(body.detail || `Faucet error (${res.status})`);
+        let detail: string | undefined;
+        try {
+          const body = await res.json();
+          detail = body.detail;
+        } catch {
+          const text = await res.text().catch(() => "");
+          console.error("[useFaucet] Non-JSON error response:", text);
+        }
+        throw new Error(detail || `Faucet error (${res.status})`);
       }
 
       setShowNotification(true);

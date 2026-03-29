@@ -247,7 +247,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     : 0;
 
   const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
-  const insufficientBalance = isConnected && amount > 0 && amount > walletBalance;
 
   function handleStartTutorial() {
     const onComplete = () => {};
