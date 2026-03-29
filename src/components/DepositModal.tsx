@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { encodeFunctionData, parseUnits } from "viem";
+import { encodeFunctionData, formatUnits, parseUnits } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
@@ -55,10 +55,18 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       : token === "eth" ? smartBalances.weth
       : smartBalances.wbtc;
 
+  // Use raw bigint balance for Max to avoid float precision issues
+  const rawBalance = tab === "deposit"
+    ? token === "usdc" ? eoaBalances.usdRaw
+      : token === "eth" ? eoaBalances.ethRaw
+      : eoaBalances.wbtcRaw
+    : token === "usdc" ? smartBalances.usdRaw
+      : token === "eth" ? smartBalances.wethRaw
+      : smartBalances.wbtcRaw;
+
   const handleMax = useCallback(() => {
-    const decimals = meta.decimals === 6 ? 2 : meta.decimals === 8 ? 6 : 4;
-    setAmountStr(availableBalance.toFixed(decimals));
-  }, [availableBalance, meta.decimals]);
+    setAmountStr(formatUnits(rawBalance, meta.decimals));
+  }, [rawBalance, meta.decimals]);
 
   const handleDeposit = useCallback(async () => {
     if (!address || !fundingAddress) return;
