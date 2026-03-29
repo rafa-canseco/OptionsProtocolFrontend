@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { encodeFunctionData, parseUnits, type Address } from "viem";
+import { encodeFunctionData, parseUnits } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
@@ -231,7 +231,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         {/* Withdraw gas note */}
         {tab === "withdraw" && (
           <p className="text-xs text-[var(--text-secondary)]">
-            Withdrawals are free — gas is sponsored.
+            Withdrawals are free. Gas is sponsored.
           </p>
         )}
 
