@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { encodeFunctionData, parseUnits } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
@@ -131,17 +131,29 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const isDone = status === "done";
   const needsActivation = !address;
 
+  // After loginOrLink(), Privy loads the smart wallet asynchronously.
+  // When address appears, transition out of "activating" state.
+  useEffect(() => {
+    if (address && status === "activating") {
+      setStatus("idle");
+    }
+  }, [address, status]);
+
   const handleActivate = useCallback(async () => {
     setError(null);
     setStatus("activating");
     try {
       await activateSmartWallet();
-      // After loginOrLink(), Privy authenticates and the smart wallet
-      // client loads asynchronously. address will update via React state.
-      setStatus("idle");
+      // Don't set status to "idle" here. The effect above will do it
+      // when the smart wallet address becomes available.
     } catch (err) {
       console.error("[DepositModal] activation failed:", err);
-      setError(err instanceof Error ? err.message : "Activation failed. Please try again.");
+      const msg = err instanceof Error ? err.message : "";
+      if (msg.match(/reject|denied|cancel/i)) {
+        setError("Signature cancelled.");
+      } else {
+        setError("Activation failed. Please try again.");
+      }
       setStatus("idle");
     }
   }, [activateSmartWallet]);
@@ -167,7 +179,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           /* Smart wallet not set up yet — one-time activation */
           <>
             <p className="text-sm text-[var(--text-secondary)]">
-              Sign once to activate your trading account. After this, all trades are gasless.
+              Activate your self-custodial trading account with a one-time signature. After this, you can deposit funds and trade with zero gas fees.
             </p>
             {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
             <button
