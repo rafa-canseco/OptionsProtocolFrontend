@@ -103,6 +103,7 @@ export function useWallet() {
     sendBatchTx,
     sendFundingTx,
     chainError,
+    isAuthenticated: authenticated,
     isConnected: authenticated && !!address,
     isReady: ready,
     login,
