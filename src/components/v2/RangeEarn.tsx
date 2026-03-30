@@ -49,7 +49,7 @@ export function RangeEarn({
   onAccepted,
   yieldMetric,
 }: RangeEarnProps) {
-  const { isConnected, login } = useWallet();
+  const { isConnected, connectWallet } = useWallet();
   const [putQuote, setPutQuote] = useState<PriceQuote | null>(null);
   const [callQuote, setCallQuote] = useState<PriceQuote | null>(null);
   const amount = Number(amountStr) || 0;
@@ -365,7 +365,7 @@ export function RangeEarn({
         <div className="animate-fade-in-up" data-tour="range-accept">
           <button
             onClick={() => {
-              if (!isConnected) { login(); return; }
+              if (!isConnected) { connectWallet(); return; }
               setConfirming(true);
             }}
             disabled={!canAccept && isConnected}

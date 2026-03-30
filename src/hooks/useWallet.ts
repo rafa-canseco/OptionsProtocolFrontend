@@ -1,16 +1,10 @@
 "use client";
 
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useWallets, useConnectWallet } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import { createWalletClient, custom, type Address } from "viem";
 import { useState, useEffect, useCallback } from "react";
 import { CHAIN } from "@/lib/contracts";
-import { Attribution } from "ox/erc8021";
-
-const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
-const DATA_SUFFIX = BUILDER_CODE
-  ? Attribution.toDataSuffix({ codes: [BUILDER_CODE] })
-  : null;
 
 export type BatchCall = {
   to: Address;
@@ -18,31 +12,26 @@ export type BatchCall = {
   value?: bigint;
 };
 
-function appendSuffix(call: BatchCall): BatchCall {
-  if (!DATA_SUFFIX || !call.data) return call;
-  return {
-    ...call,
-    data: `${call.data}${DATA_SUFFIX.slice(2)}` as `0x${string}`,
-  };
-}
-
 export function useWallet() {
-  const { login, logout, authenticated, ready } = usePrivy();
+  const { logout, ready } = usePrivy();
+  const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const [chainError, setChainError] = useState<string | null>(null);
 
   const externalWallet = wallets.find((w) => w.walletClientType !== "privy");
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
-  const primaryWallet = externalWallet ?? embeddedWallet;
+  const fundingWallet = externalWallet ?? embeddedWallet;
 
-  const address = (externalWallet?.address ??
-    client?.account?.address ??
-    embeddedWallet?.address) as Address | undefined;
+  // Trading address: always the smart wallet (gas-sponsored, batched)
+  const address = client?.account?.address as Address | undefined;
+
+  // Funding address: the connected EOA (for deposits, withdrawals, legacy positions)
+  const fundingAddress = fundingWallet?.address as Address | undefined;
 
   useEffect(() => {
-    if (!primaryWallet) return;
-    primaryWallet
+    if (!fundingWallet) return;
+    fundingWallet
       .switchChain(CHAIN.id)
       .then(() => setChainError(null))
       .catch((err) => {
@@ -51,42 +40,14 @@ export function useWallet() {
           "Failed to switch to the required chain. Transactions will fail.",
         );
       });
-  }, [primaryWallet]);
+  }, [fundingWallet]);
 
-  // Builder attribution (ERC-8021 dataSuffix) for smart wallets is
-  // handled by the Privy dataSuffix plugin in providers.tsx.
-  // EOA transactions bypass the plugin, so we append manually.
-
+  // All trades execute through the smart wallet — gas sponsored by Privy paymaster
   const sendBatchTx = useCallback(
     async (calls: BatchCall[]): Promise<unknown> => {
       if (calls.length === 0) {
         throw new Error("sendBatchTx requires at least one call");
       }
-
-      if (externalWallet) {
-        const provider = await externalWallet.getEthereumProvider();
-        const walletClient = createWalletClient({
-          account: externalWallet.address as Address,
-          chain: CHAIN,
-          transport: custom(provider),
-        });
-        console.log(
-          "[sendBatchTx] External wallet: sending",
-          calls.length,
-          "call(s) sequentially",
-        );
-        let lastResult: unknown;
-        for (const call of calls) {
-          const suffixed = appendSuffix(call);
-          lastResult = await walletClient.sendTransaction({
-            to: suffixed.to,
-            data: suffixed.data,
-            value: suffixed.value,
-          });
-        }
-        return lastResult;
-      }
-
       if (!client) {
         throw new Error("Smart wallet not ready");
       }
@@ -112,16 +73,67 @@ export function useWallet() {
           throw err;
         });
     },
-    [externalWallet, client],
+    [client],
   );
+
+  // Deposit/withdraw only — single tx from the user's EOA
+  const sendFundingTx = useCallback(
+    async (call: BatchCall): Promise<`0x${string}`> => {
+      if (!fundingWallet) {
+        throw new Error("No funding wallet connected");
+      }
+      const provider = await fundingWallet.getEthereumProvider();
+      const walletClient = createWalletClient({
+        account: fundingWallet.address as Address,
+        chain: CHAIN,
+        transport: custom(provider),
+      });
+      console.log("[sendFundingTx] EOA sending tx to", call.to);
+      return walletClient.sendTransaction({
+        to: call.to,
+        data: call.data,
+        value: call.value,
+      });
+    },
+    [fundingWallet],
+  );
+
+  // Authenticate the connected wallet to create a smart wallet.
+  // Called once when the user first deposits or trades.
+  const activateSmartWallet = useCallback(async () => {
+    if (!fundingWallet) throw new Error("No wallet connected");
+    await fundingWallet.loginOrLink();
+  }, [fundingWallet]);
+
+  const disconnect = useCallback(async () => {
+    for (const w of wallets) {
+      try {
+        const provider = await w.getEthereumProvider();
+        await provider.request({
+          method: "wallet_revokePermissions",
+          params: [{ eth_accounts: {} }],
+        });
+      } catch (err) {
+        console.warn("[disconnect] Could not revoke permissions:", err);
+      }
+    }
+    try {
+      await logout();
+    } catch (err) {
+      console.error("[disconnect] logout failed:", err);
+    }
+  }, [wallets, logout]);
 
   return {
     address,
+    fundingAddress,
     sendBatchTx,
+    sendFundingTx,
     chainError,
-    isConnected: authenticated && !!address,
+    isConnected: !!fundingAddress,
     isReady: ready,
-    login,
-    logout,
+    connectWallet,
+    activateSmartWallet,
+    disconnect,
   };
 }

@@ -1,69 +1,45 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState } from "react";
 import { useWallet } from "@/hooks/useWallet";
+import { useBalances } from "@/hooks/useBalances";
+import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
-  const { address, isConnected, isReady, login, logout } = useWallet();
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const { address, isConnected, isReady, connectWallet } = useWallet();
+  const { usd, loading: balancesLoading } = useBalances(address);
+  const [showDeposit, setShowDeposit] = useState(false);
 
-  // Close dropdown on outside click
-  useEffect(() => {
-    if (!open) return;
-    function handleClick(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, [open]);
+  if (!isReady) {
+    return <div className="h-9 w-24 animate-pulse rounded-full bg-[var(--surface)]" />;
+  }
 
-  if (!isReady) return <div className="h-9 w-24 animate-pulse rounded-full bg-[var(--surface)]" />;
-
-  if (isConnected && address) {
-    const short = `${address.slice(0, 6)}...${address.slice(-4)}`;
+  if (isConnected) {
+    const hasBalance = usd > 0;
+    const balanceLabel = hasBalance
+      ? `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      : "Deposit";
 
     return (
-      <div ref={ref} className="relative">
+      <>
         <button
-          onClick={() => setOpen((o) => !o)}
+          onClick={() => setShowDeposit(true)}
           className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors flex items-center gap-1.5"
         >
           <img src="/base.svg" alt="Base" className="w-4 h-4" />
-          {short}
+          {balancesLoading ? "..." : balanceLabel}
         </button>
 
-        {open && (
-          <div className="absolute right-0 top-full mt-2 w-48 rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-lg overflow-hidden z-50">
-            <button
-              onClick={() => {
-                navigator.clipboard.writeText(address);
-                setOpen(false);
-              }}
-              className="w-full px-4 py-2.5 text-left text-sm text-[var(--text-secondary)] hover:bg-[var(--surface)] hover:text-[var(--text)] transition-colors"
-            >
-              Copy address
-            </button>
-            <button
-              onClick={() => {
-                setOpen(false);
-                logout();
-              }}
-              className="w-full px-4 py-2.5 text-left text-sm text-[var(--danger)] hover:bg-[var(--surface)] transition-colors"
-            >
-              Disconnect
-            </button>
-          </div>
+        {showDeposit && (
+          <DepositModal onClose={() => setShowDeposit(false)} />
         )}
-      </div>
+      </>
     );
   }
 
   return (
     <button
-      onClick={login}
+      onClick={connectWallet}
       className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
     >
       Connect

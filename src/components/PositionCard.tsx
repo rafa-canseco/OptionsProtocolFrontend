@@ -107,7 +107,8 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   // CTA link helpers
   const nextSide = isBuy ? "sell" : "buy";
   const sameSide = isBuy ? "buy" : "sell";
-  const ctaEarnHref = (side: string) => `${earnBase}?side=${side}`;
+  const ctaEarnHref = (side: string, amount?: number) =>
+    amount ? `${earnBase}?side=${side}&amount=${amount}` : `${earnBase}?side=${side}`;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
@@ -224,7 +225,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           {/* CTA: Earn again */}
           <Link
-            href={ctaEarnHref(sameSide)}
+            href={ctaEarnHref(sameSide, ethAmount)}
             className="block w-full text-center rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 py-3 text-sm font-semibold text-[var(--accent)] hover:bg-[var(--accent)]/20 transition-colors"
           >
             Earn again
@@ -315,12 +316,12 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           {/* CTA: Next step */}
           <Link
-            href={ctaEarnHref(nextSide)}
+            href={ctaEarnHref(nextSide, ethAmount)}
             className="block w-full text-center rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
             {isBuy
-              ? `Earn more: sell ${assetSymbol} at a higher price`
-              : `Earn more: buy ${assetSymbol} at a lower price`}
+              ? `Earn on your new ${assetSymbol}`
+              : "Earn on your USD"}
           </Link>
         </div>
       )}
