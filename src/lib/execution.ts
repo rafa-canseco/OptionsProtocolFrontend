@@ -128,20 +128,17 @@ export async function fireAndPoll(
   let hash: string | null = null;
   const txP = fire().then((h) => {
     hash = h as string;
-    return "tx" as const;
   });
-  const pollP = pollUntil(check, label).then(() => "poll" as const);
-  const winner = await Promise.race([txP, pollP]);
-  if (winner === "tx") {
-    await pollP;
-  } else {
-    txP.catch((err) => {
-      console.warn(
-        `[execution] tx rejected after poll confirmed (${label}):`,
-        err,
-      );
-    });
-  }
+  const pollP = pollUntil(check, label);
+
+  // Succeed if EITHER the tx hash returns OR the on-chain poll
+  // confirms. Only fail if both fail.
+  await Promise.any([txP, pollP]);
+
+  // Suppress unhandled rejection from the loser
+  txP.catch(() => {});
+  pollP.catch(() => {});
+
   return hash;
 }
 
