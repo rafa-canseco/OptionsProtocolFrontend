@@ -176,7 +176,9 @@ export function RangeEarn({
                 <button
                   key={pct}
                   onClick={() => {
-                    const truncated = floorTo(walletBalance * (pct / 100), 2);
+                    // Reserve 1% for swap slippage on the call side half
+                    const effective = walletBalance / 1.01;
+                    const truncated = floorTo(effective * (pct / 100), 2);
                     onAmountChange(truncated.toString());
                   }}
                   disabled={walletBalance <= 0}
