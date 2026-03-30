@@ -221,7 +221,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           <div>
             <h2 className="text-base font-semibold text-[var(--text)]">Your trading account</h2>
             {address && (
-              <p className="text-xs text-[var(--text-secondary)] font-mono mt-0.5">{truncate(address)}</p>
+              <button
+                onClick={() => navigator.clipboard.writeText(address)}
+                className="text-xs text-[var(--text-secondary)] font-mono mt-0.5 hover:text-[var(--text)] transition-colors cursor-pointer break-all text-left"
+                title="Copy address"
+              >
+                {address}
+              </button>
             )}
           </div>
           <button
