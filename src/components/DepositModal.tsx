@@ -218,7 +218,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--text)]">Your trading account</h2>
+          <div>
+            <h2 className="text-base font-semibold text-[var(--text)]">Your trading account</h2>
+            {address && (
+              <p className="text-xs text-[var(--text-secondary)] font-mono mt-0.5">{truncate(address)}</p>
+            )}
+          </div>
           <button
             onClick={onClose}
             disabled={isPending}
@@ -346,7 +351,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               >
                 {isPending
                   ? tab === "deposit" ? "Depositing..." : "Withdrawing..."
-                  : tab === "deposit" ? `Deposit ${meta.label}` : `Withdraw ${meta.label}`}
+                  : tab === "deposit" ? `Deposit ${meta.label} on Base` : `Withdraw ${meta.label}`}
               </button>
             )}
           </>
