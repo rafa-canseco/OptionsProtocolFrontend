@@ -18,7 +18,7 @@ interface TokenConfig {
 const TOKEN_META: Record<Token, TokenConfig> = {
   usdc: { label: "USDC", icon: "/usdc.svg", decimals: 6 },
   eth: { label: "ETH", icon: "/eth.png", decimals: 18 },
-  weth: { label: "WETH", icon: "/eth.png", decimals: 18 },
+  weth: { label: "WETH", icon: "/weth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
 };
 
