@@ -4,6 +4,7 @@ import type { Position, Activity } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { resolvePositionAsset } from "@/lib/assets";
+import { InfoTooltip } from "./ui/InfoTooltip";
 
 interface Props {
   positions: Position[];
@@ -83,7 +84,7 @@ export function PortfolioSummary({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
             Total Earned
@@ -125,6 +126,20 @@ export function PortfolioSummary({
           <p className="text-xs text-[var(--text-secondary)]">Total Traded</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
             {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
+          </p>
+        </div>
+        <div>
+          <div className="flex items-center mb-0.5">
+            <p className="text-xs text-[var(--text-secondary)]">Earning Rate</p>
+            <InfoTooltip
+              title="Earning Rate"
+              text="Premium earned per dollar committed. Higher = better capital efficiency. This is your score in the Earnings Challenge."
+            />
+          </div>
+          <p className="text-xl font-bold text-[var(--accent)] font-mono">
+            {activity && activity.earningRate > 0
+              ? `${(activity.earningRate * 100).toFixed(1)}%`
+              : "0%"}
           </p>
         </div>
       </div>
