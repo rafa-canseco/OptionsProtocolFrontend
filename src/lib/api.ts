@@ -73,6 +73,9 @@ export interface SimulateResult {
 export interface Activity {
   totalVolume: number;
   totalPremiumEarned: number;
+  totalPremiumUsd: number;
+  totalCollateralUsd: number;
+  earningRate: number;
   positionCount: number;
   activeDays: number;
   daysSinceFirst: number;
@@ -137,8 +140,12 @@ export const api = {
   getWaitlistCount: () =>
     fetchAPI<{ count: number }>("/waitlist/count"),
 
-  getActivity: (address: string) =>
-    fetchAPI<Activity>(`/activity/${address}`),
+  getActivity: (address: string, alsoAddress?: string) =>
+    fetchAPI<Activity>(
+      alsoAddress
+        ? `/activity/${address}?also=${alsoAddress}`
+        : `/activity/${address}`,
+    ),
 
   getCapacity: (asset?: string) =>
     fetchAPI<Capacity>(asset ? `/capacity?asset=${asset}` : "/capacity"),
