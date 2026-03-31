@@ -7,7 +7,7 @@ import { useBalances } from "@/hooks/useBalances";
 import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
 
 type Tab = "deposit" | "withdraw";
-type Token = "usdc" | "eth" | "btc";
+type Token = "usdc" | "eth" | "weth" | "btc";
 
 interface TokenConfig {
   label: string;
@@ -18,6 +18,7 @@ interface TokenConfig {
 const TOKEN_META: Record<Token, TokenConfig> = {
   usdc: { label: "USDC", icon: "/usdc.svg", decimals: 6 },
   eth: { label: "ETH", icon: "/eth.png", decimals: 18 },
+  weth: { label: "WETH", icon: "/eth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
 };
 
@@ -50,18 +51,20 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const availableBalance = tab === "deposit"
     ? token === "usdc" ? eoaBalances.usd
       : token === "eth" ? eoaBalances.eth
+      : token === "weth" ? eoaBalances.weth
       : eoaBalances.wbtc
     : token === "usdc" ? smartBalances.usd
-      : token === "eth" ? smartBalances.weth
+      : token === "eth" || token === "weth" ? smartBalances.weth
       : smartBalances.wbtc;
 
   // Use raw bigint balance for Max to avoid float precision issues
   const rawBalance = tab === "deposit"
     ? token === "usdc" ? eoaBalances.usdRaw
       : token === "eth" ? eoaBalances.ethRaw
+      : token === "weth" ? eoaBalances.wethRaw
       : eoaBalances.wbtcRaw
     : token === "usdc" ? smartBalances.usdRaw
-      : token === "eth" ? smartBalances.wethRaw
+      : token === "eth" || token === "weth" ? smartBalances.wethRaw
       : smartBalances.wbtcRaw;
 
   const handleMax = useCallback(() => {
@@ -93,7 +96,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         // Native ETH: send value directly to smart wallet
         hash = await sendFundingTx({ to: address, data: "0x", value: amount });
       } else {
-        const tokenAddress = token === "usdc" ? ADDRESSES.usdc : ADDRESSES.wbtc;
+        const tokenAddress = token === "usdc" ? ADDRESSES.usdc
+          : token === "weth" ? ADDRESSES.weth
+          : ADDRESSES.wbtc;
         hash = await sendFundingTx({
           to: tokenAddress,
           data: encodeFunctionData({
@@ -138,7 +143,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       // Withdraw: transfer from smart wallet back to EOA
       // ETH/WETH option withdraws WETH token
       const tokenAddress = token === "usdc" ? ADDRESSES.usdc
-        : token === "eth" ? ADDRESSES.weth
+        : token === "eth" || token === "weth" ? ADDRESSES.weth
         : ADDRESSES.wbtc;
 
       const result = await sendBatchTx([{
@@ -278,7 +283,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
             {/* Token selector */}
             <div className="flex gap-2">
-              {(["usdc", "eth", "btc"] as Token[]).map((t) => (
+              {(["usdc", "eth", "weth", "btc"] as Token[]).map((t) => (
                 <button
                   key={t}
                   onClick={() => { setToken(t); setAmountStr(""); setError(null); }}
