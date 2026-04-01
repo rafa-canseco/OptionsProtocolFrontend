@@ -5,8 +5,8 @@ import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import type { LeaderboardTrack1Entry, LeaderboardTrack2Entry } from "@/lib/api";
 
-// Competition: Apr 1 – Apr 15 2025 UTC
-const COMPETITION_END_MS = 1744761599 * 1000;
+// Competition: Apr 1 – Apr 15 2026 UTC
+const COMPETITION_END_MS = 1776297599 * 1000;
 
 type Tab = "track1" | "track2";
 
@@ -129,13 +129,43 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
   return (
     <div className="space-y-4">
       {/* Description */}
-      <div className="space-y-1">
+      <div className="space-y-3">
         <h2 className="text-lg font-bold text-[var(--bone)]">Earnings Challenge</h2>
         <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
           Two weeks, two tracks. Set your price, collect premium, and see how you rank.
           The seller with the best earning rate wins $100. The seller with the longest
           run without getting assigned wins $50. Apr 1–15, 2026.
         </p>
+        <div className="flex flex-wrap gap-4 text-xs text-[var(--text-secondary)]">
+          <span className="inline-flex items-center gap-1">
+            Earning Rate
+            <InfoTooltip
+              title="Earning Rate"
+              text="Total premium collected divided by capital committed. The higher the rate, the more you're getting paid per dollar locked. Bonuses from the Wheel and Perfect Week multiply your premium."
+            />
+          </span>
+          <span className="inline-flex items-center gap-1">
+            Wheel Bonus ↺
+            <InfoTooltip
+              title="Wheel Bonus (1.5×)"
+              text="When a position gets assigned and you immediately open a new one on the other side (within 24h), both positions earn 1.5× premium. Turn an assignment into a new opportunity."
+            />
+          </span>
+          <span className="inline-flex items-center gap-1">
+            Perfect Week
+            <InfoTooltip
+              title="Perfect Week (1.5×)"
+              text="If none of your positions get assigned in a full calendar week, all positions that expire safely that week earn 1.5× premium. Both bonuses can't stack — Wheel takes priority."
+            />
+          </span>
+          <span className="inline-flex items-center gap-1">
+            Safe Streak
+            <InfoTooltip
+              title="Safe Streak"
+              text="Longest run of consecutive positions that expired without assignment. A position expires safely when the price stays on your side and you keep the full premium."
+            />
+          </span>
+        </div>
       </div>
 
       {/* Banner */}
