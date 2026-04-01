@@ -84,10 +84,6 @@ function LeaderboardRow({
           ? `${(entry.earning_rate * 100).toFixed(2)}%`
           : "—"}
       </td>
-      <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
-        {streak > 0 ? streak : "—"}
-      </td>
-
       {mine ? (
         <>
           <td className="py-3 px-3 text-sm text-[var(--bone)] text-right hidden sm:table-cell">
@@ -113,6 +109,10 @@ function LeaderboardRow({
           <td className="py-3 px-3 hidden md:table-cell" />
         </>
       )}
+
+      <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
+        {streak > 0 ? streak : "—"}
+      </td>
     </tr>
   );
 }
@@ -233,6 +233,8 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                       <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
                       <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
                       <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Rate</th>
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
                       <th className="py-2 px-3 text-right hidden sm:table-cell">
                         <span className="inline-flex items-center justify-end gap-0.5 text-xs text-[var(--text-secondary)]">
                           Streak
@@ -242,8 +244,6 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                           />
                         </span>
                       </th>
-                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
-                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
                     </tr>
                   </thead>
                   <tbody>
