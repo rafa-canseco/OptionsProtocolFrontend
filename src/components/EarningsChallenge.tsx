@@ -147,7 +147,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
             Wheel Bonus ↺
             <InfoTooltip
               title="Wheel Bonus (1.5×)"
-              text="When a position gets assigned and you immediately open a new one on the other side (within 24h), both positions earn 1.5× premium. Turn an assignment into a new opportunity."
+              text="The Wheel is the full cycle: sell a put, get assigned (you receive the asset), sell a covered call, get assigned again (you deliver the asset). Each leg earns premium. Complete the cycle and every position in it earns 1.5×."
             />
           </span>
           <span className="inline-flex items-center gap-1">
