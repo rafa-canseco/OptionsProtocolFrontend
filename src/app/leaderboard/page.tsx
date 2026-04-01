@@ -38,6 +38,7 @@ function YourProgress({ address }: { address: string | undefined }) {
   if (!address) return null;
 
   const earningRate = data?.earning_rate ?? null;
+  const earned = data?.total_earned_usd ?? 0;
   const collateral = data?.total_collateral_usd ?? 0;
   const activeDays = data?.active_days ?? 0;
   const collateralOk = collateral >= MIN_COLLATERAL;
@@ -57,9 +58,14 @@ function YourProgress({ address }: { address: string | undefined }) {
             <p className="text-xs text-[var(--text-secondary)]">Earning Rate</p>
             <p className="text-2xl font-bold text-[var(--accent)] font-mono">
               {earningRate !== null && earningRate > 0
-                ? `${(earningRate * 100).toFixed(1)}%`
+                ? `${(earningRate * 100).toFixed(2)}%`
                 : "—"}
             </p>
+            {earned > 0 && (
+              <p className="text-xs text-[var(--text-secondary)] font-mono mt-0.5">
+                ${earned.toFixed(2)} earned
+              </p>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5 ml-auto">
