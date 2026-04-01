@@ -97,10 +97,9 @@ function LeaderboardRow({
         <td colSpan={2} className="py-3 px-3 hidden sm:table-cell">
           <div className="flex items-center gap-2 justify-end">
             <span className="text-xs text-[var(--text-secondary)]">
-              ${Math.round(entry.total_collateral_usd * entry.progress.collateral_pct)}/500 ·{" "}
-              {Math.round(entry.active_days * entry.progress.days_pct)}/8d
+              ${Math.round(entry.total_collateral_usd * entry.progress.collateral_pct)}/500
             </span>
-            <ProgressBar pct={(entry.progress.collateral_pct + entry.progress.days_pct) / 2} />
+            <ProgressBar pct={entry.progress.collateral_pct} />
           </div>
         </td>
       ) : (
@@ -262,7 +261,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
             <div className="px-4 py-2 border-t border-[var(--border)]">
               <p className="text-xs text-[var(--text-secondary)]">
-                {data.meta.qualified_participants} qualified · {data.meta.total_participants} total · $500+ committed &amp; 8+ active days to qualify
+                {data.meta.qualified_participants} qualified · {data.meta.total_participants} total · $500+ committed to qualify
               </p>
             </div>
           </>

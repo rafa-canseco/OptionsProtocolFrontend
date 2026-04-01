@@ -11,7 +11,6 @@ const COMPETITION_START = 1775001600;
 const COMPETITION_END = 1776297599;
 
 const MIN_COLLATERAL = 500;
-const MIN_ACTIVE_DAYS = 8;
 
 function useLeaderboardMe(address: string | undefined) {
   const [data, setData] = useState<LeaderboardMe | null>(null);
@@ -40,9 +39,7 @@ function YourProgress({ address }: { address: string | undefined }) {
   const earningRate = data?.earning_rate ?? null;
   const earned = data?.total_earned_usd ?? 0;
   const collateral = data?.total_collateral_usd ?? 0;
-  const activeDays = data?.active_days ?? 0;
   const collateralOk = collateral >= MIN_COLLATERAL;
-  const daysOk = activeDays >= MIN_ACTIVE_DAYS;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-4 space-y-3">
@@ -77,16 +74,6 @@ function YourProgress({ address }: { address: string | undefined }) {
               <InfoTooltip
                 title="$500 committed"
                 text="Total collateral locked across all your positions in the competition period must reach $500 to qualify for prizes."
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <span className={`w-2 h-2 rounded-full shrink-0 ${daysOk ? "bg-[var(--accent)]" : "bg-[var(--border)]"}`} />
-              <span className={`text-xs ${daysOk ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"}`}>
-                {activeDays} / 8 active days
-              </span>
-              <InfoTooltip
-                title="8 active days"
-                text="A day counts as active if you have any open position with an expiry after the start of that day. Keep positions open across multiple days to accumulate active days."
               />
             </div>
           </div>
