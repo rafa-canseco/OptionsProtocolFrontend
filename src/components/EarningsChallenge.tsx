@@ -1,14 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { InfoTooltip } from "./ui/InfoTooltip";
-import type { LeaderboardTrack1Entry, LeaderboardTrack2Entry } from "@/lib/api";
+import type { LeaderboardTrack1Entry } from "@/lib/api";
 
 // Competition: Apr 1 – Apr 15 2026 UTC
 const COMPETITION_END_MS = 1776297599 * 1000;
-
-type Tab = "track1" | "track2";
 
 function truncateWallet(addr: string): string {
   return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
@@ -48,12 +46,14 @@ function ProgressBar({ pct }: { pct: number }) {
   );
 }
 
-function Track1Row({
+function LeaderboardRow({
   entry,
   address,
+  streak,
 }: {
   entry: LeaderboardTrack1Entry;
   address: string | undefined;
+  streak: number;
 }) {
   const mine = isCurrentUser(entry.wallet, address);
   const qualified = entry.qualified;
@@ -84,22 +84,21 @@ function Track1Row({
           ? `${(entry.earning_rate * 100).toFixed(2)}%`
           : "—"}
       </td>
+      <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
+        {streak > 0 ? streak : "—"}
+      </td>
 
-      {/* Full detail only for current user, progress for non-qualified others */}
       {mine ? (
         <>
           <td className="py-3 px-3 text-sm text-[var(--bone)] text-right hidden sm:table-cell">
             ${entry.total_earned_usd.toFixed(2)}
-          </td>
-          <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
-            {entry.position_count}
           </td>
           <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden md:table-cell">
             {entry.wheel_count > 0 ? `${entry.wheel_count} ↺` : "—"}
           </td>
         </>
       ) : !qualified ? (
-        <td colSpan={3} className="py-3 px-3 hidden sm:table-cell">
+        <td colSpan={2} className="py-3 px-3 hidden sm:table-cell">
           <div className="flex items-center gap-2 justify-end">
             <span className="text-xs text-[var(--text-secondary)]">
               ${Math.round(entry.total_collateral_usd * entry.progress.collateral_pct)}/500 ·{" "}
@@ -111,60 +110,8 @@ function Track1Row({
       ) : (
         <>
           <td className="py-3 px-3 hidden sm:table-cell" />
-          <td className="py-3 px-3 hidden sm:table-cell" />
           <td className="py-3 px-3 hidden md:table-cell" />
         </>
-      )}
-    </tr>
-  );
-}
-
-function Track2Row({
-  entry,
-  address,
-}: {
-  entry: LeaderboardTrack2Entry;
-  address: string | undefined;
-}) {
-  const mine = isCurrentUser(entry.wallet, address);
-  const qualified = entry.qualified;
-
-  return (
-    <tr
-      className={`border-b border-[var(--border)] transition-colors ${
-        mine
-          ? "bg-[var(--accent)]/10 border-l-2 border-l-[var(--accent)]"
-          : qualified
-          ? "hover:bg-[var(--surface)]"
-          : "opacity-40 hover:opacity-60"
-      }`}
-    >
-      <td className="py-3 px-3 text-sm font-mono text-[var(--text-secondary)] w-8">
-        {entry.rank ?? "—"}
-      </td>
-      <td className="py-3 px-3 text-sm font-mono text-[var(--text)]">
-        {truncateWallet(entry.wallet)}
-        {mine && (
-          <span className="ml-1.5 text-[10px] font-semibold text-[var(--accent)] uppercase tracking-wide">
-            you
-          </span>
-        )}
-      </td>
-      <td className="py-3 px-3 text-sm font-semibold text-[var(--accent)] text-right">
-        {entry.otm_streak}
-      </td>
-      {mine ? (
-        <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
-          {entry.position_count}
-        </td>
-      ) : !qualified ? (
-        <td className="py-3 px-3 hidden sm:table-cell">
-          <div className="flex items-center gap-2 justify-end">
-            <ProgressBar pct={(entry.progress.collateral_pct + entry.progress.days_pct) / 2} />
-          </div>
-        </td>
-      ) : (
-        <td className="py-3 px-3 hidden sm:table-cell" />
       )}
     </tr>
   );
@@ -173,9 +120,11 @@ function Track2Row({
 export function EarningsChallenge({ address }: { address: string | undefined }) {
   const { data, loading, error } = useLeaderboard();
   const countdown = useCountdown(COMPETITION_END_MS);
-  const [tab, setTab] = useState<Tab>("track1");
-
   const week = data?.meta.current_week ?? 1;
+
+  // Build streak lookup from track2
+  const streakByWallet = new Map<string, number>();
+  data?.track2.forEach((e) => streakByWallet.set(e.wallet.toLowerCase(), e.otm_streak));
 
   return (
     <div className="space-y-4">
@@ -221,16 +170,14 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
       {/* Banner */}
       <div className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold">
-              <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
-              Week {week} of 2
-            </span>
-            <span className="text-xs text-[var(--text-secondary)] font-mono">
-              ends in {countdown}
-            </span>
-          </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold">
+            <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
+            Week {week} of 2
+          </span>
+          <span className="text-xs text-[var(--text-secondary)] font-mono">
+            ends in {countdown}
+          </span>
         </div>
         <div className="flex gap-4 shrink-0 text-xs">
           <div className="text-center">
@@ -258,30 +205,6 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
       {/* Leaderboard card */}
       <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] overflow-hidden">
-        {/* Tabs */}
-        <div className="flex border-b border-[var(--border)]">
-          <button
-            onClick={() => setTab("track1")}
-            className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-              tab === "track1"
-                ? "text-[var(--accent)] border-b-2 border-[var(--accent)]"
-                : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-            }`}
-          >
-            Earning Rate
-          </button>
-          <button
-            onClick={() => setTab("track2")}
-            className={`flex-1 py-3 text-sm font-semibold transition-colors ${
-              tab === "track2"
-                ? "text-[var(--accent)] border-b-2 border-[var(--accent)]"
-                : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-            }`}
-          >
-            Safe Streak
-          </button>
-        </div>
-
         {loading && (
           <div className="space-y-2 p-4">
             {[1, 2, 3].map((i) => (
@@ -298,59 +221,44 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
         {!loading && !error && data && (
           <>
-            {tab === "track1" && (
-              <div className="overflow-x-auto">
-                {data.track1.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)] text-center py-8">
-                    No entries yet.
-                  </p>
-                ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[var(--border)]">
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Rate</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Pos</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.track1.map((entry) => (
-                        <Track1Row key={entry.wallet} entry={entry} address={address} />
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
-
-            {tab === "track2" && (
-              <div className="overflow-x-auto">
-                {data.track2.length === 0 ? (
-                  <p className="text-sm text-[var(--text-secondary)] text-center py-8">
-                    No entries yet.
-                  </p>
-                ) : (
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-[var(--border)]">
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Streak</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Pos</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {data.track2.map((entry) => (
-                        <Track2Row key={entry.wallet} entry={entry} address={address} />
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            )}
+            <div className="overflow-x-auto">
+              {data.track1.length === 0 ? (
+                <p className="text-sm text-[var(--text-secondary)] text-center py-8">
+                  No entries yet.
+                </p>
+              ) : (
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-[var(--border)]">
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Rate</th>
+                      <th className="py-2 px-3 text-right hidden sm:table-cell">
+                        <span className="inline-flex items-center justify-end gap-0.5 text-xs text-[var(--text-secondary)]">
+                          Streak
+                          <InfoTooltip
+                            title="Safe Streak"
+                            text="Longest run of consecutive positions that expired without assignment."
+                          />
+                        </span>
+                      </th>
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
+                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {data.track1.map((entry) => (
+                      <LeaderboardRow
+                        key={entry.wallet}
+                        entry={entry}
+                        address={address}
+                        streak={streakByWallet.get(entry.wallet.toLowerCase()) ?? 0}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
 
             <div className="px-4 py-2 border-t border-[var(--border)]">
               <p className="text-xs text-[var(--text-secondary)]">
