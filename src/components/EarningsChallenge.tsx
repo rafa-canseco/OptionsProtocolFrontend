@@ -5,7 +5,7 @@ import { useLeaderboard } from "@/hooks/useLeaderboard";
 import type { LeaderboardTrack1Entry, LeaderboardTrack2Entry } from "@/lib/api";
 
 // Competition end: Apr 12 2026 23:59:59 UTC
-const COMPETITION_END_MS = 1744502399 * 1000;
+const COMPETITION_END_MS = 1776038399 * 1000;
 
 type Tab = "track1" | "track2";
 
