@@ -70,9 +70,67 @@ export interface SimulateResult {
   };
 }
 
+export interface LeaderboardMe {
+  wallet: string;
+  position_count: number;
+  total_collateral_usd: number;
+  total_earned_usd: number;
+  earning_rate: number | null;
+  active_days: number;
+  wheel_count: number;
+  otm_streak: number;
+  qualifies: boolean;
+}
+
+export interface LeaderboardProgress {
+  collateral_pct: number;
+  days_pct: number;
+}
+
+export interface LeaderboardTrack1Entry {
+  rank: number | null;
+  wallet: string;
+  qualified: boolean;
+  progress: LeaderboardProgress;
+  earning_rate: number | null;
+  total_earned_usd: number;
+  total_collateral_usd: number;
+  position_count: number;
+  wheel_count: number;
+  active_days: number;
+}
+
+export interface LeaderboardTrack2Entry {
+  rank: number | null;
+  wallet: string;
+  qualified: boolean;
+  progress: LeaderboardProgress;
+  otm_streak: number;
+  position_count: number;
+  earning_rate: number | null;
+}
+
+export interface LeaderboardMeta {
+  competition_start: number;
+  competition_end: number;
+  total_participants: number;
+  qualified_participants: number;
+  total_volume_usd: number;
+  current_week: number;
+}
+
+export interface Leaderboard {
+  track1: LeaderboardTrack1Entry[];
+  track2: LeaderboardTrack2Entry[];
+  meta: LeaderboardMeta;
+}
+
 export interface Activity {
   totalVolume: number;
   totalPremiumEarned: number;
+  totalPremiumUsd: number;
+  totalCollateralUsd: number;
+  earningRate: number;
   positionCount: number;
   activeDays: number;
   daysSinceFirst: number;
@@ -137,8 +195,12 @@ export const api = {
   getWaitlistCount: () =>
     fetchAPI<{ count: number }>("/waitlist/count"),
 
-  getActivity: (address: string) =>
-    fetchAPI<Activity>(`/activity/${address}`),
+  getActivity: (address: string, alsoAddress?: string) =>
+    fetchAPI<Activity>(
+      alsoAddress
+        ? `/activity/${address}?also=${alsoAddress}`
+        : `/activity/${address}`,
+    ),
 
   getCapacity: (asset?: string) =>
     fetchAPI<Capacity>(asset ? `/capacity?asset=${asset}` : "/capacity"),
@@ -178,4 +240,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ wallet_address: wallet }),
     }),
+
+  getLeaderboard: (start: number, end: number) =>
+    fetchAPI<Leaderboard>(`/leaderboard?start=${start}&end=${end}`),
+
+  getLeaderboardMe: (address: string, start: number, end: number) =>
+    fetchAPI<LeaderboardMe>(
+      `/leaderboard/me?address=${address}&start=${start}&end=${end}`,
+    ),
 };

@@ -3,7 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { api, type Activity } from "@/lib/api";
 
-export function useActivity(address: string | undefined) {
+export function useActivity(
+  address: string | undefined,
+  alsoAddress?: string | undefined,
+) {
   const [activity, setActivity] = useState<Activity | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -15,7 +18,7 @@ export function useActivity(address: string | undefined) {
       return;
     }
     try {
-      const data = await api.getActivity(address);
+      const data = await api.getActivity(address, alsoAddress);
       setActivity(data);
       setError(null);
     } catch (e) {
@@ -23,7 +26,7 @@ export function useActivity(address: string | undefined) {
     } finally {
       setLoading(false);
     }
-  }, [address]);
+  }, [address, alsoAddress]);
 
   useEffect(() => {
     refresh();

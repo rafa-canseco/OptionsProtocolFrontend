@@ -104,7 +104,7 @@ function groupPositions(positions: Position[]): DisplayItem[] {
 export default function PositionsPage() {
   const { address, fundingAddress, isConnected } = useWallet();
   const { positions, loading, refresh } = usePositions(address, fundingAddress);
-  const { activity } = useActivity(address);
+  const { activity } = useActivity(address, fundingAddress ?? undefined);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions);
