@@ -70,6 +70,18 @@ export interface SimulateResult {
   };
 }
 
+export interface LeaderboardMe {
+  wallet: string;
+  position_count: number;
+  total_collateral_usd: number;
+  total_earned_usd: number;
+  earning_rate: number | null;
+  active_days: number;
+  wheel_count: number;
+  otm_streak: number;
+  qualifies: boolean;
+}
+
 export interface LeaderboardTrack1Entry {
   rank: number;
   wallet: string;
@@ -221,4 +233,9 @@ export const api = {
 
   getLeaderboard: (start: number, end: number) =>
     fetchAPI<Leaderboard>(`/leaderboard?start=${start}&end=${end}`),
+
+  getLeaderboardMe: (address: string, start: number, end: number) =>
+    fetchAPI<LeaderboardMe>(
+      `/leaderboard/me?address=${address}&start=${start}&end=${end}`,
+    ),
 };
