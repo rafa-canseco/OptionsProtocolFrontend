@@ -5,8 +5,8 @@ import { useLeaderboard } from "@/hooks/useLeaderboard";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import type { LeaderboardTrack1Entry, LeaderboardTrack2Entry } from "@/lib/api";
 
-// Competition: Apr 1 – Apr 15 2026 UTC
-const COMPETITION_END_MS = 1776297599 * 1000;
+// Competition: Apr 1 – Apr 15 2025 UTC
+const COMPETITION_END_MS = 1744761599 * 1000;
 
 type Tab = "track1" | "track2";
 
