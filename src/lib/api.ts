@@ -70,6 +70,39 @@ export interface SimulateResult {
   };
 }
 
+export interface LeaderboardTrack1Entry {
+  rank: number;
+  wallet: string;
+  earning_rate: number | null;
+  total_earned_usd: number;
+  total_collateral_usd: number;
+  position_count: number;
+  wheel_count: number;
+  active_days: number;
+}
+
+export interface LeaderboardTrack2Entry {
+  rank: number;
+  wallet: string;
+  otm_streak: number;
+  position_count: number;
+  earning_rate: number | null;
+}
+
+export interface LeaderboardMeta {
+  competition_start: number;
+  competition_end: number;
+  total_participants: number;
+  total_volume_usd: number;
+  current_week: number;
+}
+
+export interface Leaderboard {
+  track1: LeaderboardTrack1Entry[];
+  track2: LeaderboardTrack2Entry[];
+  meta: LeaderboardMeta;
+}
+
 export interface Activity {
   totalVolume: number;
   totalPremiumEarned: number;
@@ -185,4 +218,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ wallet_address: wallet }),
     }),
+
+  getLeaderboard: (start: number, end: number) =>
+    fetchAPI<Leaderboard>(`/leaderboard?start=${start}&end=${end}`),
 };
