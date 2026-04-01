@@ -82,9 +82,16 @@ export interface LeaderboardMe {
   qualifies: boolean;
 }
 
+export interface LeaderboardProgress {
+  collateral_pct: number;
+  days_pct: number;
+}
+
 export interface LeaderboardTrack1Entry {
-  rank: number;
+  rank: number | null;
   wallet: string;
+  qualified: boolean;
+  progress: LeaderboardProgress;
   earning_rate: number | null;
   total_earned_usd: number;
   total_collateral_usd: number;
@@ -94,8 +101,10 @@ export interface LeaderboardTrack1Entry {
 }
 
 export interface LeaderboardTrack2Entry {
-  rank: number;
+  rank: number | null;
   wallet: string;
+  qualified: boolean;
+  progress: LeaderboardProgress;
   otm_streak: number;
   position_count: number;
   earning_rate: number | null;
@@ -105,6 +114,7 @@ export interface LeaderboardMeta {
   competition_start: number;
   competition_end: number;
   total_participants: number;
+  qualified_participants: number;
   total_volume_usd: number;
   current_week: number;
 }

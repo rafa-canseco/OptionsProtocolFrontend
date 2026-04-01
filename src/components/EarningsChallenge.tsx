@@ -37,6 +37,17 @@ function isCurrentUser(wallet: string, address: string | undefined): boolean {
   return wallet.toLowerCase() === address.toLowerCase();
 }
 
+function ProgressBar({ pct }: { pct: number }) {
+  return (
+    <div className="w-16 h-1 rounded-full bg-[var(--border)] overflow-hidden">
+      <div
+        className="h-full rounded-full bg-[var(--text-secondary)]"
+        style={{ width: `${Math.min(pct * 100, 100)}%` }}
+      />
+    </div>
+  );
+}
+
 function Track1Row({
   entry,
   address,
@@ -45,16 +56,20 @@ function Track1Row({
   address: string | undefined;
 }) {
   const mine = isCurrentUser(entry.wallet, address);
+  const qualified = entry.qualified;
+
   return (
     <tr
       className={`border-b border-[var(--border)] transition-colors ${
         mine
           ? "bg-[var(--accent)]/10 border-l-2 border-l-[var(--accent)]"
-          : "hover:bg-[var(--surface)]"
+          : qualified
+          ? "hover:bg-[var(--surface)]"
+          : "opacity-40 hover:opacity-60"
       }`}
     >
       <td className="py-3 px-3 text-sm font-mono text-[var(--text-secondary)] w-8">
-        {entry.rank}
+        {entry.rank ?? "—"}
       </td>
       <td className="py-3 px-3 text-sm font-mono text-[var(--text)]">
         {truncateWallet(entry.wallet)}
@@ -65,19 +80,41 @@ function Track1Row({
         )}
       </td>
       <td className="py-3 px-3 text-sm font-semibold text-[var(--accent)] text-right">
-        {entry.earning_rate !== null
-          ? `${(entry.earning_rate * 100).toFixed(1)}%`
+        {entry.earning_rate !== null && entry.earning_rate > 0
+          ? `${(entry.earning_rate * 100).toFixed(2)}%`
           : "—"}
       </td>
-      <td className="py-3 px-3 text-sm text-[var(--bone)] text-right hidden sm:table-cell">
-        ${entry.total_earned_usd.toFixed(2)}
-      </td>
-      <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
-        {entry.position_count}
-      </td>
-      <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden md:table-cell">
-        {entry.wheel_count > 0 ? `${entry.wheel_count} ↺` : "—"}
-      </td>
+
+      {/* Full detail only for current user, progress for non-qualified others */}
+      {mine ? (
+        <>
+          <td className="py-3 px-3 text-sm text-[var(--bone)] text-right hidden sm:table-cell">
+            ${entry.total_earned_usd.toFixed(2)}
+          </td>
+          <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
+            {entry.position_count}
+          </td>
+          <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden md:table-cell">
+            {entry.wheel_count > 0 ? `${entry.wheel_count} ↺` : "—"}
+          </td>
+        </>
+      ) : !qualified ? (
+        <td colSpan={3} className="py-3 px-3 hidden sm:table-cell">
+          <div className="flex items-center gap-2 justify-end">
+            <span className="text-xs text-[var(--text-secondary)]">
+              ${Math.round(entry.total_collateral_usd * entry.progress.collateral_pct)}/500 ·{" "}
+              {Math.round(entry.active_days * entry.progress.days_pct)}/8d
+            </span>
+            <ProgressBar pct={(entry.progress.collateral_pct + entry.progress.days_pct) / 2} />
+          </div>
+        </td>
+      ) : (
+        <>
+          <td className="py-3 px-3 hidden sm:table-cell" />
+          <td className="py-3 px-3 hidden sm:table-cell" />
+          <td className="py-3 px-3 hidden md:table-cell" />
+        </>
+      )}
     </tr>
   );
 }
@@ -90,16 +127,20 @@ function Track2Row({
   address: string | undefined;
 }) {
   const mine = isCurrentUser(entry.wallet, address);
+  const qualified = entry.qualified;
+
   return (
     <tr
       className={`border-b border-[var(--border)] transition-colors ${
         mine
           ? "bg-[var(--accent)]/10 border-l-2 border-l-[var(--accent)]"
-          : "hover:bg-[var(--surface)]"
+          : qualified
+          ? "hover:bg-[var(--surface)]"
+          : "opacity-40 hover:opacity-60"
       }`}
     >
       <td className="py-3 px-3 text-sm font-mono text-[var(--text-secondary)] w-8">
-        {entry.rank}
+        {entry.rank ?? "—"}
       </td>
       <td className="py-3 px-3 text-sm font-mono text-[var(--text)]">
         {truncateWallet(entry.wallet)}
@@ -112,9 +153,19 @@ function Track2Row({
       <td className="py-3 px-3 text-sm font-semibold text-[var(--accent)] text-right">
         {entry.otm_streak}
       </td>
-      <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
-        {entry.position_count}
-      </td>
+      {mine ? (
+        <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
+          {entry.position_count}
+        </td>
+      ) : !qualified ? (
+        <td className="py-3 px-3 hidden sm:table-cell">
+          <div className="flex items-center gap-2 justify-end">
+            <ProgressBar pct={(entry.progress.collateral_pct + entry.progress.days_pct) / 2} />
+          </div>
+        </td>
+      ) : (
+        <td className="py-3 px-3 hidden sm:table-cell" />
+      )}
     </tr>
   );
 }
@@ -234,10 +285,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
         {loading && (
           <div className="space-y-2 p-4">
             {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-10 animate-pulse rounded-xl bg-[var(--surface)]"
-              />
+              <div key={i} className="h-10 animate-pulse rounded-xl bg-[var(--surface)]" />
             ))}
           </div>
         )}
@@ -254,7 +302,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
               <div className="overflow-x-auto">
                 {data.track1.length === 0 ? (
                   <p className="text-sm text-[var(--text-secondary)] text-center py-8">
-                    No qualifying entries yet.
+                    No entries yet.
                   </p>
                 ) : (
                   <table className="w-full">
@@ -262,26 +310,10 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                       <tr className="border-b border-[var(--border)]">
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
-                        <th className="py-2 px-3 text-left">
-                          <span className="inline-flex items-center text-xs text-[var(--text-secondary)]">
-                            Rate
-                            <InfoTooltip
-                              title="Earning Rate"
-                              text="Total premium earned divided by capital committed. Higher means you're getting more premium per dollar locked. Bonuses (Wheel, Perfect Week) increase your adjusted premium."
-                            />
-                          </span>
-                        </th>
+                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Rate</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Pos</th>
-                        <th className="py-2 px-3 text-right hidden md:table-cell">
-                          <span className="inline-flex items-center justify-end text-xs text-[var(--text-secondary)]">
-                            Wheel ↺
-                            <InfoTooltip
-                              title="Wheel Bonus (1.5×)"
-                              text="When a position gets assigned and you immediately open a new one on the other side (within 24h), both positions earn 1.5× premium. This is the Wheel — turning an assignment into a new opportunity."
-                            />
-                          </span>
-                        </th>
+                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -298,7 +330,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
               <div className="overflow-x-auto">
                 {data.track2.length === 0 ? (
                   <p className="text-sm text-[var(--text-secondary)] text-center py-8">
-                    No qualifying entries yet.
+                    No entries yet.
                   </p>
                 ) : (
                   <table className="w-full">
@@ -306,15 +338,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                       <tr className="border-b border-[var(--border)]">
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
-                        <th className="py-2 px-3 text-left">
-                          <span className="inline-flex items-center text-xs text-[var(--text-secondary)]">
-                            Streak
-                            <InfoTooltip
-                              title="Safe Streak"
-                              text="Longest run of consecutive positions that expired without assignment. A position expires safely when the price stays on your side and you keep the full premium."
-                            />
-                          </span>
-                        </th>
+                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Streak</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Pos</th>
                       </tr>
                     </thead>
@@ -330,7 +354,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
             <div className="px-4 py-2 border-t border-[var(--border)]">
               <p className="text-xs text-[var(--text-secondary)]">
-                Qualifies at $500+ committed &amp; 8+ active days
+                {data.meta.qualified_participants} qualified · {data.meta.total_participants} total · $500+ committed &amp; 8+ active days to qualify
               </p>
             </div>
           </>
