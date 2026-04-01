@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useLeaderboard } from "@/hooks/useLeaderboard";
+import { InfoTooltip } from "./ui/InfoTooltip";
 import type { LeaderboardTrack1Entry, LeaderboardTrack2Entry } from "@/lib/api";
 
-// Competition end: Apr 12 2026 23:59:59 UTC
-const COMPETITION_END_MS = 1776038399 * 1000;
+// Competition: Apr 1 – Apr 15 2026 UTC
+const COMPETITION_END_MS = 1776297599 * 1000;
 
 type Tab = "track1" | "track2";
 
@@ -130,7 +131,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
       {/* Banner */}
       <div className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
               Earnings Challenge · Week {week} of 2
@@ -140,18 +141,17 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
             </span>
           </div>
           <p className="text-xs text-[var(--text-secondary)]">
-            Sell options, earn premium, climb the leaderboard. Top earner rate wins $50.
-            Longest OTM streak wins $15.
+            Set your price, earn premium, climb the leaderboard. Apr 1–15.
           </p>
         </div>
-        <div className="flex gap-3 shrink-0 text-xs">
+        <div className="flex gap-4 shrink-0 text-xs">
           <div className="text-center">
-            <p className="text-[var(--text-secondary)]">Track 1</p>
-            <p className="font-semibold text-[var(--bone)]">$50 / $25</p>
+            <p className="text-[var(--text-secondary)]">Best rate</p>
+            <p className="font-semibold text-[var(--bone)]">$100</p>
           </div>
           <div className="text-center">
-            <p className="text-[var(--text-secondary)]">Track 2</p>
-            <p className="font-semibold text-[var(--bone)]">$15</p>
+            <p className="text-[var(--text-secondary)]">Perfect run</p>
+            <p className="font-semibold text-[var(--bone)]">$50</p>
           </div>
         </div>
       </div>
@@ -178,7 +178,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                 : "text-[var(--text-secondary)] hover:text-[var(--text)]"
             }`}
           >
-            OTM Streak
+            Safe Streak
           </button>
         </div>
 
@@ -213,10 +213,26 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                       <tr className="border-b border-[var(--border)]">
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Rate</th>
+                        <th className="py-2 px-3 text-left">
+                          <span className="inline-flex items-center text-xs text-[var(--text-secondary)]">
+                            Rate
+                            <InfoTooltip
+                              title="Earning Rate"
+                              text="Total premium earned divided by capital committed. Higher means you're getting more premium per dollar locked. Bonuses (Wheel, Perfect Week) increase your adjusted premium."
+                            />
+                          </span>
+                        </th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Pos</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
+                        <th className="py-2 px-3 text-right hidden md:table-cell">
+                          <span className="inline-flex items-center justify-end text-xs text-[var(--text-secondary)]">
+                            Wheel ↺
+                            <InfoTooltip
+                              title="Wheel Bonus (1.5×)"
+                              text="When a position gets assigned and you immediately open a new one on the other side (within 24h), both positions earn 1.5× premium. This is the Wheel — turning an assignment into a new opportunity."
+                            />
+                          </span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>
@@ -241,7 +257,15 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                       <tr className="border-b border-[var(--border)]">
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
-                        <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Streak</th>
+                        <th className="py-2 px-3 text-left">
+                          <span className="inline-flex items-center text-xs text-[var(--text-secondary)]">
+                            Streak
+                            <InfoTooltip
+                              title="Safe Streak"
+                              text="Longest run of consecutive positions that expired without assignment. A position expires safely when the price stays on your side and you keep the full premium."
+                            />
+                          </span>
+                        </th>
                         <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Pos</th>
                       </tr>
                     </thead>
@@ -257,11 +281,7 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
             <div className="px-4 py-2 border-t border-[var(--border)]">
               <p className="text-xs text-[var(--text-secondary)]">
-                {data.meta.total_participants} participants ·{" "}
-                ${data.meta.total_volume_usd.toLocaleString(undefined, {
-                  maximumFractionDigits: 0,
-                })}{" "}
-                total collateral · Qualifies at $500+ committed &amp; 8+ active days
+                Qualifies at $500+ committed &amp; 8+ active days
               </p>
             </div>
           </>
