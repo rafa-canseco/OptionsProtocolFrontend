@@ -35,17 +35,6 @@ function isCurrentUser(wallet: string, address: string | undefined): boolean {
   return wallet.toLowerCase() === address.toLowerCase();
 }
 
-function ProgressBar({ pct }: { pct: number }) {
-  return (
-    <div className="w-16 h-1 rounded-full bg-[var(--border)] overflow-hidden">
-      <div
-        className="h-full rounded-full bg-[var(--text-secondary)]"
-        style={{ width: `${Math.min(pct * 100, 100)}%` }}
-      />
-    </div>
-  );
-}
-
 function LeaderboardRow({
   entry,
   address,
@@ -84,31 +73,6 @@ function LeaderboardRow({
           ? `${(entry.earning_rate * 100).toFixed(2)}%`
           : "—"}
       </td>
-      {mine ? (
-        <>
-          <td className="py-3 px-3 text-sm text-[var(--bone)] text-right hidden sm:table-cell">
-            ${entry.total_earned_usd.toFixed(2)}
-          </td>
-          <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden md:table-cell">
-            {entry.wheel_count > 0 ? `${entry.wheel_count} ↺` : "—"}
-          </td>
-        </>
-      ) : !qualified ? (
-        <td colSpan={2} className="py-3 px-3 hidden sm:table-cell">
-          <div className="flex items-center gap-2 justify-end">
-            <span className="text-xs text-[var(--text-secondary)]">
-              ${Math.round(entry.total_collateral_usd * entry.progress.collateral_pct)}/500
-            </span>
-            <ProgressBar pct={entry.progress.collateral_pct} />
-          </div>
-        </td>
-      ) : (
-        <>
-          <td className="py-3 px-3 hidden sm:table-cell" />
-          <td className="py-3 px-3 hidden md:table-cell" />
-        </>
-      )}
-
       <td className="py-3 px-3 text-sm text-[var(--text-secondary)] text-right hidden sm:table-cell">
         {streak > 0 ? streak : "—"}
       </td>
@@ -232,8 +196,6 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
                       <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left w-8">#</th>
                       <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-left">Wallet</th>
                       <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right">Rate</th>
-                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden sm:table-cell">Earned</th>
-                      <th className="py-2 px-3 text-xs text-[var(--text-secondary)] text-right hidden md:table-cell">Wheels</th>
                       <th className="py-2 px-3 text-right hidden sm:table-cell">
                         <span className="inline-flex items-center justify-end gap-0.5 text-xs text-[var(--text-secondary)]">
                           Streak
