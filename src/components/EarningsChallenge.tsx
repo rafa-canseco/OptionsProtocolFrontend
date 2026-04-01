@@ -128,29 +128,48 @@ export function EarningsChallenge({ address }: { address: string | undefined }) 
 
   return (
     <div className="space-y-4">
+      {/* Description */}
+      <div className="space-y-1">
+        <h2 className="text-lg font-bold text-[var(--bone)]">Earnings Challenge</h2>
+        <p className="text-sm text-[var(--text-secondary)] leading-relaxed">
+          Two weeks, two tracks. Set your price, collect premium, and see how you rank.
+          The seller with the best earning rate wins $100. The seller with the longest
+          run without getting assigned wins $50. Apr 1–15, 2026.
+        </p>
+      </div>
+
       {/* Banner */}
       <div className="rounded-2xl border border-[var(--accent)]/30 bg-[var(--accent)]/5 p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="space-y-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-[var(--accent)]/20 text-[var(--accent)] text-xs font-semibold">
               <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)] animate-pulse" />
-              Earnings Challenge · Week {week} of 2
+              Week {week} of 2
             </span>
             <span className="text-xs text-[var(--text-secondary)] font-mono">
               ends in {countdown}
             </span>
           </div>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Set your price, earn premium, climb the leaderboard. Apr 1–15.
-          </p>
         </div>
         <div className="flex gap-4 shrink-0 text-xs">
           <div className="text-center">
-            <p className="text-[var(--text-secondary)]">Best rate</p>
+            <div className="flex items-center justify-center gap-0.5 text-[var(--text-secondary)]">
+              <p>Earning Rate</p>
+              <InfoTooltip
+                title="Earning Rate"
+                text="Total premium collected divided by capital committed. The higher the rate, the more you're getting paid per dollar locked. Bonuses from the Wheel and Perfect Week multiply your premium."
+              />
+            </div>
             <p className="font-semibold text-[var(--bone)]">$100</p>
           </div>
           <div className="text-center">
-            <p className="text-[var(--text-secondary)]">Perfect run</p>
+            <div className="flex items-center justify-center gap-0.5 text-[var(--text-secondary)]">
+              <p>Perfect Run</p>
+              <InfoTooltip
+                title="Perfect Run"
+                text="Complete two full weeks without a single assignment. Every position you open must expire safely — price stays on your side and you keep all the premium. One full week without assignment also earns a 1.5× bonus on that week's premium."
+              />
+            </div>
             <p className="font-semibold text-[var(--bone)]">$50</p>
           </div>
         </div>
