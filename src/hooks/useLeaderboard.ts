@@ -4,8 +4,8 @@ import { useState, useEffect } from "react";
 import { api, type Leaderboard } from "@/lib/api";
 
 // Competition window: Mar 30 – Apr 12 2026 UTC
-const COMPETITION_START = 1743292800;
-const COMPETITION_END = 1744502399;
+const COMPETITION_START = 1774828800;
+const COMPETITION_END = 1776038399;
 
 export function useLeaderboard() {
   const [data, setData] = useState<Leaderboard | null>(null);

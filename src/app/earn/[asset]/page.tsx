@@ -3,9 +3,7 @@
 import { use } from "react";
 import { redirect } from "next/navigation";
 import { PriceMenuV2 } from "@/components/v2/PriceMenuV2";
-import { EarningsChallenge } from "@/components/EarningsChallenge";
 import { getAssetConfig, DEFAULT_ASSET } from "@/lib/assets";
-import { useWallet } from "@/hooks/useWallet";
 
 export default function EarnAssetPage({
   params,
@@ -14,7 +12,6 @@ export default function EarnAssetPage({
 }) {
   const { asset } = use(params);
   const config = getAssetConfig(asset);
-  const { address } = useWallet();
 
   if (!config) {
     redirect(`/earn/${DEFAULT_ASSET}`);
@@ -24,7 +21,6 @@ export default function EarnAssetPage({
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">Earn Premium on {config.symbol}</h1>
       <PriceMenuV2 asset={config} />
-      <EarningsChallenge address={address} />
     </main>
   );
 }
