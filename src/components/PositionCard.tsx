@@ -5,7 +5,7 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd, fmtAsset, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
-import { formatApr, estimateYieldUsd } from "@/lib/yield";
+import { formatApr } from "@/lib/yield";
 import type { AaveRates } from "@/hooks/useAaveRates";
 import { YieldExplainer } from "./yield/YieldExplainer";
 
@@ -18,6 +18,7 @@ interface YieldInfo {
   asset: string;
   deposited_at: string;
   is_active: boolean;
+  estimated_yield: number;
 }
 
 interface Props {
@@ -123,7 +124,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const ctaEarnHref = (side: string, amount?: number) =>
     amount ? `${earnBase}?side=${side}&amount=${amount}` : `${earnBase}?side=${side}`;
 
-  // Aave yield tracking for this position
+  // Aave yield tracking for this position (from backend)
   const yieldInfo = yieldByVault?.get(position.vault_id);
   const collateralAsset = isBuy ? "usdc" : assetSlug;
   const aaveApr = aaveRates?.[collateralAsset] ?? 0;
@@ -136,8 +137,9 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
         ),
       )
     : null;
-  const estYieldUsd = yieldDays != null
-    ? estimateYieldUsd(position.collateral, collateralAsset, yieldDays, aaveApr, spot)
+  // estimated_yield is in native asset units from the backend (real contract data)
+  const estYieldUsd = yieldInfo
+    ? yieldInfo.estimated_yield * (collateralAsset === "usdc" ? 1 : (spot ?? 0))
     : null;
 
   return (
