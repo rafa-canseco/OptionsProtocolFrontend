@@ -1,6 +1,6 @@
 "use client";
 
-import type { Position, Activity, YieldAssetSummary } from "@/lib/api";
+import type { Position, Activity, YieldAssetSummary, YieldPositionTotal } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { InfoTooltip } from "./ui/InfoTooltip";
@@ -12,6 +12,7 @@ interface Props {
   yieldMetric: YieldMetric;
   onYieldMetricChange: (metric: YieldMetric) => void;
   yieldAssets?: YieldAssetSummary[];
+  yieldPositionTotals?: YieldPositionTotal[];
   ethSpot: number | undefined;
   btcSpot: number | undefined;
 }
@@ -51,6 +52,7 @@ export function PortfolioSummary({
   yieldMetric,
   onYieldMetricChange,
   yieldAssets,
+  yieldPositionTotals,
   ethSpot,
   btcSpot,
 }: Props) {
@@ -86,14 +88,18 @@ export function PortfolioSummary({
 
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
-  // Yield from backend — real contract data
+  // Yield from backend — use position totals (same source as card data)
   let accruingYieldUsd = 0;
+  if (yieldPositionTotals) {
+    for (const t of yieldPositionTotals) {
+      accruingYieldUsd += toUsd(
+        t.estimated_yield, t.asset, ethSpot, btcSpot,
+      );
+    }
+  }
   let deliveredYieldUsd = 0;
   if (yieldAssets) {
     for (const a of yieldAssets) {
-      accruingYieldUsd += toUsd(
-        a.estimated_accruing, a.asset, ethSpot, btcSpot,
-      );
       deliveredYieldUsd += toUsd(a.delivered, a.asset, ethSpot, btcSpot);
     }
   }
