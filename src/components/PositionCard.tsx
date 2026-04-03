@@ -11,6 +11,12 @@ import type { YieldMetric } from "./YieldToggle";
 
 const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
 
+interface YieldInfo {
+  asset: string;
+  deposited_at: string;
+  is_active: boolean;
+}
+
 interface Props {
   position: Position;
   onSettled?: () => void;
@@ -26,9 +32,11 @@ interface Props {
   assetSymbol?: string;
   /** Asset slug for collateral logic, e.g. "eth", "btc" */
   assetSlug?: string;
+  /** Yield position data keyed by vault_id */
+  yieldByVault?: Map<number, YieldInfo>;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth" }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth", yieldByVault }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -110,6 +118,18 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const ctaEarnHref = (side: string, amount?: number) =>
     amount ? `${earnBase}?side=${side}&amount=${amount}` : `${earnBase}?side=${side}`;
 
+  // Aave yield tracking for this position
+  const yieldInfo = yieldByVault?.get(position.vault_id);
+  const yieldDays = yieldInfo
+    ? Math.max(
+        1,
+        Math.round(
+          (Date.now() - new Date(yieldInfo.deposited_at).getTime()) /
+            86_400_000,
+        ),
+      )
+    : null;
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
       {/* ── ACTIVE POSITION ── */}
@@ -162,6 +182,13 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           <p className="text-xs text-[var(--text-secondary)]">
             Committed {committedDisplay}
           </p>
+
+          {yieldInfo && (
+            <p className="text-xs text-amber-400 flex items-center gap-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              Earning Aave yield · {yieldDays}d accruing
+            </p>
+          )}
 
           <div className="flex items-center gap-4">
             {EXPLORER && position.tx_hash && (

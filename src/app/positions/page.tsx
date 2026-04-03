@@ -113,7 +113,19 @@ export default function PositionsPage() {
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
   const notifStatus = useNotificationStatus(address);
-  const { summary: yieldSummary, history: yieldHistory } = useYield(address);
+  const {
+    summary: yieldSummary,
+    positions: yieldPositions,
+    history: yieldHistory,
+  } = useYield(address);
+
+  const yieldByVault = useMemo(() => {
+    const map = new Map<number, { asset: string; deposited_at: string; is_active: boolean }>();
+    for (const yp of yieldPositions?.positions ?? []) {
+      map.set(yp.vault_id, yp);
+    }
+    return map;
+  }, [yieldPositions]);
 
   const active = useMemo(
     () => allPositions.filter((p) => !p.is_settled),
@@ -172,13 +184,12 @@ export default function PositionsPage() {
         onYieldMetricChange={setYieldMetric}
       />
 
-      {yieldSummary?.assets?.some((a) => a.total > 0) && (
-        <YieldSummaryCard
-          assets={yieldSummary.assets}
-          ethSpot={ethSpot}
-          btcSpot={btcSpot}
-        />
-      )}
+      <YieldSummaryCard
+        assets={yieldSummary?.assets ?? []}
+        ethSpot={ethSpot}
+        btcSpot={btcSpot}
+        hasPositions={allPositions.length > 0}
+      />
 
       {address && (
         <NotificationBanner walletAddress={address} status={notifStatus} />
@@ -207,6 +218,7 @@ export default function PositionsPage() {
                     assetSlug={posAsset.slug}
                     optimistic={item.positions.some((p) => p.id.startsWith("opt-"))}
                     yieldMetric={yieldMetric}
+                    yieldByVault={yieldByVault}
                   />
                 );
               }
@@ -224,6 +236,7 @@ export default function PositionsPage() {
                   assetSlug={posAsset.slug}
                   optimistic={pos.id.startsWith("opt-")}
                   yieldMetric={yieldMetric}
+                  yieldByVault={yieldByVault}
                 />
               );
             })}
