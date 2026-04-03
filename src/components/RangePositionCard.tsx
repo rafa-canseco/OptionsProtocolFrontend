@@ -10,6 +10,12 @@ import type { YieldMetric } from "./YieldToggle";
 
 const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
 
+interface YieldInfo {
+  asset: string;
+  deposited_at: string;
+  is_active: boolean;
+}
+
 interface Props {
   positions: Position[];
   spot?: number;
@@ -18,6 +24,7 @@ interface Props {
   yieldMetric?: YieldMetric;
   assetSymbol?: string;
   assetSlug?: string;
+  yieldByVault?: Map<number, YieldInfo>;
 }
 
 export function RangePositionCard({
@@ -28,6 +35,7 @@ export function RangePositionCard({
   yieldMetric = "apr",
   assetSymbol = "ETH",
   assetSlug = "eth",
+  yieldByVault,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -160,6 +168,18 @@ export function RangePositionCard({
               maximumFractionDigits: 0,
             })}
           </p>
+
+          {(() => {
+            const yp = yieldByVault?.get(putLeg.vault_id) ?? yieldByVault?.get(callLeg.vault_id);
+            if (!yp) return null;
+            const days = Math.max(1, Math.round((Date.now() - new Date(yp.deposited_at).getTime()) / 86_400_000));
+            return (
+              <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Earning Aave yield · {days}d accruing
+              </p>
+            );
+          })()}
 
           {/* Expandable leg details */}
           <button
