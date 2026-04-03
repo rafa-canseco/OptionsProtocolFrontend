@@ -5,8 +5,6 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
-import { formatApr, estimateYieldUsd } from "@/lib/yield";
-import type { AaveRates } from "@/hooks/useAaveRates";
 import { YieldExplainer } from "./yield/YieldExplainer";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
@@ -17,6 +15,7 @@ interface YieldInfo {
   asset: string;
   deposited_at: string;
   is_active: boolean;
+  estimated_yield: number;
 }
 
 interface Props {
@@ -28,7 +27,6 @@ interface Props {
   assetSymbol?: string;
   assetSlug?: string;
   yieldByVault?: Map<number, YieldInfo>;
-  aaveRates?: AaveRates;
 }
 
 export function RangePositionCard({
@@ -40,7 +38,6 @@ export function RangePositionCard({
   assetSymbol = "ETH",
   assetSlug = "eth",
   yieldByVault,
-  aaveRates,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -175,14 +172,14 @@ export function RangePositionCard({
           </p>
 
           {(() => {
-            const yp = yieldByVault?.get(putLeg.vault_id) ?? yieldByVault?.get(callLeg.vault_id);
-            if (!yp) return null;
+            const putYp = yieldByVault?.get(putLeg.vault_id);
+            const callYp = yieldByVault?.get(callLeg.vault_id);
+            if (!putYp && !callYp) return null;
+            const yp = putYp ?? callYp!;
             const days = Math.max(1, Math.round((Date.now() - new Date(yp.deposited_at).getTime()) / 86_400_000));
-            const putApr = aaveRates?.usdc ?? 0;
-            const callApr = aaveRates?.[assetSlug] ?? 0;
-            const putYield = estimateYieldUsd(putLeg.collateral, "usdc", days, putApr);
-            const callYield = estimateYieldUsd(callLeg.collateral, assetSlug, days, callApr, spot);
-            const totalEstYield = putYield + callYield;
+            const putYieldUsd = (putYp?.estimated_yield ?? 0);
+            const callYieldUsd = (callYp?.estimated_yield ?? 0) * (spot ?? 0);
+            const totalEstYield = putYieldUsd + callYieldUsd;
             return (
               <p className="text-xs text-amber-400 flex items-center gap-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />

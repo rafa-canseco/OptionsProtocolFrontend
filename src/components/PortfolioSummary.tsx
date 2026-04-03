@@ -2,17 +2,9 @@
 
 import type { Position, Activity, YieldAssetSummary } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
-import { estimateYieldUsd } from "@/lib/yield";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import { resolvePositionAsset } from "@/lib/assets";
-import type { AaveRates } from "@/hooks/useAaveRates";
-
-interface YieldInfo {
-  asset: string;
-  deposited_at: string;
-  is_active: boolean;
-}
 
 interface Props {
   positions: Position[];
@@ -20,8 +12,6 @@ interface Props {
   yieldMetric: YieldMetric;
   onYieldMetricChange: (metric: YieldMetric) => void;
   yieldAssets?: YieldAssetSummary[];
-  aaveRates: AaveRates;
-  yieldByVault: Map<number, YieldInfo>;
   ethSpot: number | undefined;
   btcSpot: number | undefined;
 }
@@ -61,8 +51,6 @@ export function PortfolioSummary({
   yieldMetric,
   onYieldMetricChange,
   yieldAssets,
-  aaveRates,
-  yieldByVault,
   ethSpot,
   btcSpot,
 }: Props) {
@@ -98,40 +86,19 @@ export function PortfolioSummary({
 
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
-  // Delivered yield from backend
+  // Yield from backend — real contract data
+  let accruingYieldUsd = 0;
   let deliveredYieldUsd = 0;
   if (yieldAssets) {
     for (const a of yieldAssets) {
+      accruingYieldUsd += toUsd(
+        a.estimated_accruing, a.asset, ethSpot, btcSpot,
+      );
       deliveredYieldUsd += toUsd(a.delivered, a.asset, ethSpot, btcSpot);
     }
   }
 
-  // Estimated accruing yield — sum across active positions with yield data
   const hasActivePositions = positions.some((p) => !p.is_settled);
-  let estimatedYieldUsd = 0;
-  for (const p of positions) {
-    if (p.is_settled) continue;
-    const yp = yieldByVault.get(p.vault_id);
-    if (!yp) continue;
-    const days = Math.max(
-      1,
-      Math.round(
-        (Date.now() - new Date(yp.deposited_at).getTime()) / 86_400_000,
-      ),
-    );
-    const slug = resolvePositionAsset(p.asset, p.strike_price).slug;
-    const collateralAsset = p.is_put ? "usdc" : slug;
-    const apr = aaveRates[collateralAsset] ?? 0;
-    const spot = slug === "btc" ? btcSpot : ethSpot;
-    estimatedYieldUsd += estimateYieldUsd(
-      p.collateral,
-      collateralAsset,
-      days,
-      apr,
-      spot,
-    );
-  }
-
   const nextMondayStr = getNextMonday().toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -213,7 +180,7 @@ export function PortfolioSummary({
                 />
               </div>
               <p className="text-xl font-bold text-amber-400 font-mono">
-                ${fmtYieldUsd(estimatedYieldUsd)}
+                ${fmtYieldUsd(accruingYieldUsd)}
               </p>
             </div>
             <div>

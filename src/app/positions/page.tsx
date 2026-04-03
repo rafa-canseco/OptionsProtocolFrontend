@@ -121,7 +121,12 @@ export default function PositionsPage() {
   const { rates: aaveRates } = useAaveRates();
 
   const yieldByVault = useMemo(() => {
-    const map = new Map<number, { asset: string; deposited_at: string; is_active: boolean }>();
+    const map = new Map<number, {
+      asset: string;
+      deposited_at: string;
+      is_active: boolean;
+      estimated_yield: number;
+    }>();
     for (const yp of yieldPositions?.positions ?? []) {
       map.set(yp.vault_id, yp);
     }
@@ -184,8 +189,6 @@ export default function PositionsPage() {
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
         yieldAssets={yieldSummary?.assets}
-        aaveRates={aaveRates}
-        yieldByVault={yieldByVault}
         ethSpot={ethSpot}
         btcSpot={btcSpot}
       />
@@ -218,7 +221,6 @@ export default function PositionsPage() {
                     optimistic={item.positions.some((p) => p.id.startsWith("opt-"))}
                     yieldMetric={yieldMetric}
                     yieldByVault={yieldByVault}
-                    aaveRates={aaveRates}
                   />
                 );
               }
