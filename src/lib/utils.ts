@@ -11,6 +11,24 @@ export function fmtUsd(n: number): string {
   return Math.round(n).toLocaleString();
 }
 
+export function fmtYieldUsd(n: number): string {
+  if (n === 0) return "0.00";
+  if (n >= 100) return Math.round(n).toLocaleString();
+  if (n >= 0.01) return n.toFixed(2);
+  const magnitude = Math.floor(Math.log10(Math.abs(n)));
+  return n.toFixed(Math.abs(magnitude) + 2);
+}
+
+export function getNextMonday(): Date {
+  const now = new Date();
+  const day = now.getUTCDay();
+  const daysUntil = day === 0 ? 1 : 8 - day;
+  const next = new Date(now);
+  next.setUTCDate(now.getUTCDate() + daysUntil);
+  next.setUTCHours(0, 0, 0, 0);
+  return next;
+}
+
 export function fmtAsset(n: number): string {
   if (n === 0) return "0";
   if (n >= 0.01) return n.toFixed(2);

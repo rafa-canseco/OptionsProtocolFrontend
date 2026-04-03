@@ -125,6 +125,68 @@ export interface Leaderboard {
   meta: LeaderboardMeta;
 }
 
+export interface YieldAssetSummary {
+  asset: string;
+  pending_raw: number;
+  pending: number;
+  delivered_raw: number;
+  delivered: number;
+  total_raw: number;
+  total: number;
+}
+
+export interface YieldUserSummary {
+  wallet: string;
+  assets: YieldAssetSummary[];
+}
+
+export interface YieldPosition {
+  id: string;
+  vault_id: number;
+  asset: string;
+  collateral_amount: number;
+  deposited_at: string;
+  settled_at: string | null;
+  is_active: boolean;
+}
+
+export interface YieldUserPositions {
+  wallet: string;
+  positions: YieldPosition[];
+}
+
+export interface YieldDistribution {
+  id: string;
+  distribution_id: string;
+  asset: string;
+  amount_raw: number;
+  amount: number;
+  status: "pending" | "delivered";
+  airdrop_tx_hash: string | null;
+  created_at: string;
+}
+
+export interface YieldUserHistory {
+  wallet: string;
+  history: YieldDistribution[];
+}
+
+export interface YieldStatsAsset {
+  asset: string;
+  total_yield_raw: number;
+  total_yield: number;
+  total_fees_raw: number;
+  total_fees: number;
+  total_distributed: number;
+  distributions: number;
+  current_accrued_raw: number;
+  current_accrued: number;
+}
+
+export interface YieldStats {
+  assets: YieldStatsAsset[];
+}
+
 export interface Activity {
   totalVolume: number;
   totalPremiumEarned: number;
@@ -248,4 +310,16 @@ export const api = {
     fetchAPI<LeaderboardMe>(
       `/leaderboard/me?address=${address}&start=${start}&end=${end}`,
     ),
+
+  getYieldSummary: (address: string) =>
+    fetchAPI<YieldUserSummary>(`/yield/user/${address}`),
+
+  getYieldPositions: (address: string) =>
+    fetchAPI<YieldUserPositions>(`/yield/user/${address}/positions`),
+
+  getYieldHistory: (address: string) =>
+    fetchAPI<YieldUserHistory>(`/yield/user/${address}/history`),
+
+  getYieldStats: () =>
+    fetchAPI<YieldStats>("/yield/stats"),
 };
