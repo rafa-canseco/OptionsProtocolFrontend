@@ -2,9 +2,8 @@
 
 import type { Position, Activity, YieldAssetSummary } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
-import { formatApr } from "@/lib/yield";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
-import { YieldExplainer } from "./yield/YieldExplainer";
+import { InfoTooltip } from "./ui/InfoTooltip";
 import { resolvePositionAsset } from "@/lib/assets";
 import type { AaveRates } from "@/hooks/useAaveRates";
 
@@ -91,13 +90,12 @@ export function PortfolioSummary({
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
   // Yield totals
-  const hasYield = yieldAssets?.some((a) => a.total > 0) ?? false;
   let totalYieldUsd = 0;
-  let pendingYieldUsd = 0;
+  let deliveredYieldUsd = 0;
   if (yieldAssets) {
     for (const a of yieldAssets) {
       totalYieldUsd += toUsd(a.total, a.asset, ethSpot, btcSpot);
-      pendingYieldUsd += toUsd(a.pending, a.asset, ethSpot, btcSpot);
+      deliveredYieldUsd += toUsd(a.delivered, a.asset, ethSpot, btcSpot);
     }
   }
 
@@ -177,87 +175,32 @@ export function PortfolioSummary({
               <p className="text-xs text-[var(--text-secondary)]">
                 Aave Yield
               </p>
-              <YieldExplainer />
+              <InfoTooltip
+                title="Aave Yield"
+                text={`Your collateral earns yield in Aave V3 while your position is open. Distributed every Monday via airdrop. Next: ${nextMondayStr}.`}
+              />
             </div>
-            {hasYield ? (
+            <div className="flex items-baseline gap-3">
               <div>
-                <p className="text-xl font-bold text-amber-400 font-mono">
-                  ${fmtYieldUsd(totalYieldUsd)}
+                <p className="text-xl font-bold text-amber-400 font-mono flex items-center gap-1.5">
+                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                  {totalYieldUsd > 0
+                    ? `$${fmtYieldUsd(totalYieldUsd)}`
+                    : "Accruing"}
                 </p>
-                {pendingYieldUsd > 0 && (
-                  <span className="text-[10px] font-medium text-amber-400">
-                    ${fmtYieldUsd(pendingYieldUsd)} pending
-                  </span>
-                )}
               </div>
-            ) : (
-              <p className="text-xl font-bold text-amber-400 font-mono flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                Accruing
-              </p>
-            )}
-            <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">
-              {formatApr(aaveRates.usdc ?? 0)} USDC · {formatApr(aaveRates.eth ?? 0)} WETH
-            </p>
+              <div>
+                <p className="text-xs text-[var(--text-secondary)]">
+                  Distributed
+                </p>
+                <p className="text-sm font-bold text-emerald-400 font-mono">
+                  ${fmtYieldUsd(deliveredYieldUsd)}
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>
-
-      {/* Aave Yield section */}
-      {hasActivePositions && (
-        <div className="border-t border-[var(--border)] pt-3 space-y-2">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-                Aave Yield
-              </span>
-              <YieldExplainer />
-            </div>
-            <span className="text-xs text-[var(--text-secondary)]">
-              Next distribution: {nextMondayStr}
-            </span>
-          </div>
-
-          {hasYield ? (
-            <div className="flex items-center gap-4">
-              <div>
-                <span className="text-xs text-[var(--text-secondary)]">
-                  Accrued{" "}
-                </span>
-                <span className="text-sm font-bold text-[var(--accent)] font-mono">
-                  ${fmtYieldUsd(totalYieldUsd)}
-                </span>
-              </div>
-              {pendingYieldUsd > 0 && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400">
-                  ${fmtYieldUsd(pendingYieldUsd)} pending
-                </span>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-2">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              <span className="text-xs text-amber-400 font-medium">
-                Accruing
-              </span>
-            </div>
-          )}
-
-          <div className="flex gap-3 text-xs text-[var(--text-secondary)] font-mono">
-            <span>
-              USDC {formatApr(aaveRates.usdc ?? 0)}
-            </span>
-            <span className="opacity-40">·</span>
-            <span>
-              WETH {formatApr(aaveRates.eth ?? 0)}
-            </span>
-            <span className="opacity-40">·</span>
-            <span>
-              cbBTC {formatApr(aaveRates.btc ?? 0)}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
