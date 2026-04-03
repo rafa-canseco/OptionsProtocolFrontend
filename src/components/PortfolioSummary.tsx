@@ -2,10 +2,17 @@
 
 import type { Position, Activity, YieldAssetSummary } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
+import { estimateYieldUsd } from "@/lib/yield";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import { resolvePositionAsset } from "@/lib/assets";
 import type { AaveRates } from "@/hooks/useAaveRates";
+
+interface YieldInfo {
+  asset: string;
+  deposited_at: string;
+  is_active: boolean;
+}
 
 interface Props {
   positions: Position[];
@@ -14,6 +21,7 @@ interface Props {
   onYieldMetricChange: (metric: YieldMetric) => void;
   yieldAssets?: YieldAssetSummary[];
   aaveRates: AaveRates;
+  yieldByVault: Map<number, YieldInfo>;
   ethSpot: number | undefined;
   btcSpot: number | undefined;
 }
@@ -54,6 +62,7 @@ export function PortfolioSummary({
   onYieldMetricChange,
   yieldAssets,
   aaveRates,
+  yieldByVault,
   ethSpot,
   btcSpot,
 }: Props) {
@@ -89,17 +98,40 @@ export function PortfolioSummary({
 
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
-  // Yield totals
-  let totalYieldUsd = 0;
+  // Delivered yield from backend
   let deliveredYieldUsd = 0;
   if (yieldAssets) {
     for (const a of yieldAssets) {
-      totalYieldUsd += toUsd(a.total, a.asset, ethSpot, btcSpot);
       deliveredYieldUsd += toUsd(a.delivered, a.asset, ethSpot, btcSpot);
     }
   }
 
+  // Estimated accruing yield — sum across active positions with yield data
   const hasActivePositions = positions.some((p) => !p.is_settled);
+  let estimatedYieldUsd = 0;
+  for (const p of positions) {
+    if (p.is_settled) continue;
+    const yp = yieldByVault.get(p.vault_id);
+    if (!yp) continue;
+    const days = Math.max(
+      1,
+      Math.round(
+        (Date.now() - new Date(yp.deposited_at).getTime()) / 86_400_000,
+      ),
+    );
+    const slug = resolvePositionAsset(p.asset, p.strike_price).slug;
+    const collateralAsset = p.is_put ? "usdc" : slug;
+    const apr = aaveRates[collateralAsset] ?? 0;
+    const spot = slug === "btc" ? btcSpot : ethSpot;
+    estimatedYieldUsd += estimateYieldUsd(
+      p.collateral,
+      collateralAsset,
+      days,
+      apr,
+      spot,
+    );
+  }
+
   const nextMondayStr = getNextMonday().toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -123,7 +155,7 @@ export function PortfolioSummary({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
             Total Earned
@@ -168,37 +200,31 @@ export function PortfolioSummary({
           </p>
         </div>
 
-        {/* Aave Yield — inline stat */}
         {hasActivePositions && (
-          <div>
-            <div className="flex items-center gap-1.5">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Aave Yield
-              </p>
-              <InfoTooltip
-                title="Aave Yield"
-                text={`Your collateral earns yield in Aave V3 while your position is open. Distributed every Monday via airdrop. Next: ${nextMondayStr}.`}
-              />
-            </div>
-            <div className="flex items-baseline gap-3">
-              <div>
-                <p className="text-xl font-bold text-amber-400 font-mono flex items-center gap-1.5">
-                  <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                  {totalYieldUsd > 0
-                    ? `$${fmtYieldUsd(totalYieldUsd)}`
-                    : "Accruing"}
-                </p>
-              </div>
-              <div>
+          <>
+            <div>
+              <div className="flex items-center gap-1.5">
                 <p className="text-xs text-[var(--text-secondary)]">
-                  Distributed
+                  Aave Yield
                 </p>
-                <p className="text-sm font-bold text-emerald-400 font-mono">
-                  ${fmtYieldUsd(deliveredYieldUsd)}
-                </p>
+                <InfoTooltip
+                  title="Aave Yield"
+                  text={`Your collateral earns yield in Aave V3 while your position is open. Distributed every Monday via airdrop. Next: ${nextMondayStr}.`}
+                />
               </div>
+              <p className="text-xl font-bold text-amber-400 font-mono">
+                ${fmtYieldUsd(estimatedYieldUsd)}
+              </p>
             </div>
-          </div>
+            <div>
+              <p className="text-xs text-[var(--text-secondary)]">
+                Distributed
+              </p>
+              <p className="text-xl font-bold text-[var(--bone)] font-mono">
+                ${fmtYieldUsd(deliveredYieldUsd)}
+              </p>
+            </div>
+          </>
         )}
       </div>
     </div>
