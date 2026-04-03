@@ -131,6 +131,8 @@ export interface YieldAssetSummary {
   pending: number;
   delivered_raw: number;
   delivered: number;
+  estimated_accruing_raw: number;
+  estimated_accruing: number;
   total_raw: number;
   total: number;
 }
@@ -148,11 +150,19 @@ export interface YieldPosition {
   deposited_at: string;
   settled_at: string | null;
   is_active: boolean;
+  estimated_yield: number;
+  estimated_yield_raw: number;
+}
+
+export interface YieldPositionTotal {
+  asset: string;
+  estimated_yield: number;
 }
 
 export interface YieldUserPositions {
   wallet: string;
   positions: YieldPosition[];
+  totals: YieldPositionTotal[];
 }
 
 export interface YieldDistribution {
