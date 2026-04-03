@@ -13,9 +13,9 @@ import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
 import { useNotificationStatus } from "@/hooks/useNotificationStatus";
 import { useYield } from "@/hooks/useYield";
+import { useAaveRates } from "@/hooks/useAaveRates";
 import { resolvePositionAsset } from "@/lib/assets";
 import { NotificationBanner } from "@/components/NotificationBanner";
-import { YieldSummaryCard } from "@/components/yield/YieldSummaryCard";
 import { DistributionHistory } from "@/components/yield/DistributionHistory";
 import type { YieldMetric } from "@/components/YieldToggle";
 import type { Position } from "@/lib/api";
@@ -118,6 +118,7 @@ export default function PositionsPage() {
     positions: yieldPositions,
     history: yieldHistory,
   } = useYield(address);
+  const { rates: aaveRates } = useAaveRates();
 
   const yieldByVault = useMemo(() => {
     const map = new Map<number, { asset: string; deposited_at: string; is_active: boolean }>();
@@ -182,13 +183,10 @@ export default function PositionsPage() {
         activity={activity}
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
-      />
-
-      <YieldSummaryCard
-        assets={yieldSummary?.assets ?? []}
+        yieldAssets={yieldSummary?.assets}
+        aaveRates={aaveRates}
         ethSpot={ethSpot}
         btcSpot={btcSpot}
-        hasPositions={allPositions.length > 0}
       />
 
       {address && (
@@ -219,6 +217,7 @@ export default function PositionsPage() {
                     optimistic={item.positions.some((p) => p.id.startsWith("opt-"))}
                     yieldMetric={yieldMetric}
                     yieldByVault={yieldByVault}
+                    aaveRates={aaveRates}
                   />
                 );
               }
@@ -237,6 +236,7 @@ export default function PositionsPage() {
                   optimistic={pos.id.startsWith("opt-")}
                   yieldMetric={yieldMetric}
                   yieldByVault={yieldByVault}
+                  aaveRates={aaveRates}
                 />
               );
             })}

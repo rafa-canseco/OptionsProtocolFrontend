@@ -18,6 +18,9 @@ import type { BatchCall } from "@/hooks/useWallet";
 import { api, type PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
 import { fmtUsd } from "@/lib/utils";
+import { formatApr } from "@/lib/yield";
+import { useAaveRates } from "@/hooks/useAaveRates";
+import { YieldExplainer } from "@/components/yield/YieldExplainer";
 import {
   computeCollateral,
   encodeExecuteOrder,
@@ -84,6 +87,7 @@ export function RangeAcceptModal({
   onAccepted,
 }: Props) {
   const { address, sendBatchTx, isConnected, connectWallet } = useWallet();
+  const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<RangeStep>("idle");
   const [putTxHash, setPutTxHash] = useState<string | null>(null);
   const [callTxHash, setCallTxHash] = useState<string | null>(null);
@@ -417,6 +421,11 @@ export function RangeAcceptModal({
             {callAmountEth.toFixed(4)} {assetSymbol} at ${callQuote.strike.toLocaleString()}/{assetSymbol}
           </p>
         </div>
+
+        <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
+          Collateral earns Aave yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[assetSlug] ?? 0)} on {assetSymbol}
+          <YieldExplainer />
+        </p>
 
         {/* Progress stepper */}
         {step !== "idle" && (
