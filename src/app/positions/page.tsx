@@ -12,8 +12,11 @@ import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
 import { useNotificationStatus } from "@/hooks/useNotificationStatus";
+import { useYield } from "@/hooks/useYield";
 import { resolvePositionAsset } from "@/lib/assets";
 import { NotificationBanner } from "@/components/NotificationBanner";
+import { YieldSummaryCard } from "@/components/yield/YieldSummaryCard";
+import { DistributionHistory } from "@/components/yield/DistributionHistory";
 import type { YieldMetric } from "@/components/YieldToggle";
 import type { Position } from "@/lib/api";
 
@@ -110,6 +113,7 @@ export default function PositionsPage() {
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
   const notifStatus = useNotificationStatus(address);
+  const { summary: yieldSummary, history: yieldHistory } = useYield(address);
 
   const active = useMemo(
     () => allPositions.filter((p) => !p.is_settled),
@@ -167,6 +171,14 @@ export default function PositionsPage() {
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
       />
+
+      {yieldSummary?.assets?.some((a) => a.total > 0) && (
+        <YieldSummaryCard
+          assets={yieldSummary.assets}
+          ethSpot={ethSpot}
+          btcSpot={btcSpot}
+        />
+      )}
 
       {address && (
         <NotificationBanner walletAddress={address} status={notifStatus} />
@@ -227,6 +239,14 @@ export default function PositionsPage() {
       </section>
 
       <EarningsChart positions={allPositions} />
+
+      {(yieldHistory?.history?.length ?? 0) > 0 && (
+        <DistributionHistory
+          history={yieldHistory!.history}
+          ethSpot={ethSpot}
+          btcSpot={btcSpot}
+        />
+      )}
 
       {historyItems.length > 0 && (
         <section className="space-y-4">
