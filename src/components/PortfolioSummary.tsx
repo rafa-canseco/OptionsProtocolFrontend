@@ -1,15 +1,22 @@
 "use client";
 
-import type { Position, Activity } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import type { Position, Activity, YieldAssetSummary } from "@/lib/api";
+import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
+import { formatApr } from "@/lib/yield";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
+import { YieldExplainer } from "./yield/YieldExplainer";
 import { resolvePositionAsset } from "@/lib/assets";
+import type { AaveRates } from "@/hooks/useAaveRates";
 
 interface Props {
   positions: Position[];
   activity: Activity | null;
   yieldMetric: YieldMetric;
   onYieldMetricChange: (metric: YieldMetric) => void;
+  yieldAssets?: YieldAssetSummary[];
+  aaveRates: AaveRates;
+  ethSpot: number | undefined;
+  btcSpot: number | undefined;
 }
 
 function formatUSD(n: number): string {
@@ -29,11 +36,27 @@ function capitalUsd(p: Position): number {
   return (p.collateral / callDecimals(p)) * (p.strike_price / 1e8);
 }
 
+function toUsd(
+  amount: number,
+  asset: string,
+  ethSpot: number | undefined,
+  btcSpot: number | undefined,
+): number {
+  if (asset === "usdc") return amount;
+  if (asset === "eth") return amount * (ethSpot ?? 0);
+  if (asset === "btc") return amount * (btcSpot ?? 0);
+  return 0;
+}
+
 export function PortfolioSummary({
   positions,
   activity,
   yieldMetric,
   onYieldMetricChange,
+  yieldAssets,
+  aaveRates,
+  ethSpot,
+  btcSpot,
 }: Props) {
   const premiumEarned = positions.reduce(
     (sum, p) => sum + Number(p.net_premium) / 1e6,
@@ -67,6 +90,25 @@ export function PortfolioSummary({
 
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
+  // Yield totals
+  const hasYield = yieldAssets?.some((a) => a.total > 0) ?? false;
+  let totalYieldUsd = 0;
+  let pendingYieldUsd = 0;
+  if (yieldAssets) {
+    for (const a of yieldAssets) {
+      totalYieldUsd += toUsd(a.total, a.asset, ethSpot, btcSpot);
+      pendingYieldUsd += toUsd(a.pending, a.asset, ethSpot, btcSpot);
+    }
+  }
+
+  const hasActivePositions = positions.some((p) => !p.is_settled);
+  const nextMondayStr = getNextMonday().toLocaleDateString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-4">
       {/* Status badge */}
@@ -83,7 +125,7 @@ export function PortfolioSummary({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
             Total Earned
@@ -127,7 +169,95 @@ export function PortfolioSummary({
             {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
           </p>
         </div>
+
+        {/* Aave Yield — inline stat */}
+        {hasActivePositions && (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Aave Yield
+              </p>
+              <YieldExplainer />
+            </div>
+            {hasYield ? (
+              <div>
+                <p className="text-xl font-bold text-amber-400 font-mono">
+                  ${fmtYieldUsd(totalYieldUsd)}
+                </p>
+                {pendingYieldUsd > 0 && (
+                  <span className="text-[10px] font-medium text-amber-400">
+                    ${fmtYieldUsd(pendingYieldUsd)} pending
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xl font-bold text-amber-400 font-mono flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Accruing
+              </p>
+            )}
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">
+              {formatApr(aaveRates.usdc ?? 0)} USDC · {formatApr(aaveRates.eth ?? 0)} WETH
+            </p>
+          </div>
+        )}
       </div>
+
+      {/* Aave Yield section */}
+      {hasActivePositions && (
+        <div className="border-t border-[var(--border)] pt-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+                Aave Yield
+              </span>
+              <YieldExplainer />
+            </div>
+            <span className="text-xs text-[var(--text-secondary)]">
+              Next distribution: {nextMondayStr}
+            </span>
+          </div>
+
+          {hasYield ? (
+            <div className="flex items-center gap-4">
+              <div>
+                <span className="text-xs text-[var(--text-secondary)]">
+                  Accrued{" "}
+                </span>
+                <span className="text-sm font-bold text-[var(--accent)] font-mono">
+                  ${fmtYieldUsd(totalYieldUsd)}
+                </span>
+              </div>
+              {pendingYieldUsd > 0 && (
+                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400">
+                  ${fmtYieldUsd(pendingYieldUsd)} pending
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-xs text-amber-400 font-medium">
+                Accruing
+              </span>
+            </div>
+          )}
+
+          <div className="flex gap-3 text-xs text-[var(--text-secondary)] font-mono">
+            <span>
+              USDC {formatApr(aaveRates.usdc ?? 0)}
+            </span>
+            <span className="opacity-40">·</span>
+            <span>
+              WETH {formatApr(aaveRates.eth ?? 0)}
+            </span>
+            <span className="opacity-40">·</span>
+            <span>
+              cbBTC {formatApr(aaveRates.btc ?? 0)}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

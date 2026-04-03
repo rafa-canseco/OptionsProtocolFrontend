@@ -3,12 +3,21 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd, buildCalendarUrl } from "@/lib/utils";
+import { fmtUsd, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
+import { formatApr, estimateYieldUsd } from "@/lib/yield";
+import type { AaveRates } from "@/hooks/useAaveRates";
+import { YieldExplainer } from "./yield/YieldExplainer";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
 const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
+
+interface YieldInfo {
+  asset: string;
+  deposited_at: string;
+  is_active: boolean;
+}
 
 interface Props {
   positions: Position[];
@@ -18,6 +27,8 @@ interface Props {
   yieldMetric?: YieldMetric;
   assetSymbol?: string;
   assetSlug?: string;
+  yieldByVault?: Map<number, YieldInfo>;
+  aaveRates?: AaveRates;
 }
 
 export function RangePositionCard({
@@ -28,6 +39,8 @@ export function RangePositionCard({
   yieldMetric = "apr",
   assetSymbol = "ETH",
   assetSlug = "eth",
+  yieldByVault,
+  aaveRates,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -160,6 +173,29 @@ export function RangePositionCard({
               maximumFractionDigits: 0,
             })}
           </p>
+
+          {(() => {
+            const yp = yieldByVault?.get(putLeg.vault_id) ?? yieldByVault?.get(callLeg.vault_id);
+            if (!yp) return null;
+            const days = Math.max(1, Math.round((Date.now() - new Date(yp.deposited_at).getTime()) / 86_400_000));
+            const putApr = aaveRates?.usdc ?? 0;
+            const callApr = aaveRates?.[assetSlug] ?? 0;
+            const putYield = estimateYieldUsd(putLeg.collateral, "usdc", days, putApr);
+            const callYield = estimateYieldUsd(callLeg.collateral, assetSlug, days, callApr, spot);
+            const totalEstYield = putYield + callYield;
+            return (
+              <p className="text-xs text-amber-400 flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Earning Aave yield
+                {totalEstYield > 0 && (
+                  <span className="font-mono">
+                    · ~${fmtYieldUsd(totalEstYield)} accrued ({days}d)
+                  </span>
+                )}
+                <YieldExplainer />
+              </p>
+            );
+          })()}
 
           {/* Expandable leg details */}
           <button
