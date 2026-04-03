@@ -11,7 +11,6 @@ import { DEFAULT_ASSET } from "@/lib/assets";
 const LINKS = [
   { href: "/earn", label: "Earn" },
   { href: "/positions", label: "My earnings" },
-  { href: "/yield", label: "Yield" },
   { href: "/leaderboard", label: "Leaderboard" },
 ];
 
