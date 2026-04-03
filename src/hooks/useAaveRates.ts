@@ -1,11 +1,25 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { type Address } from "viem";
-import { publicClient, ADDRESSES } from "@/lib/contracts";
+import { type Address, createPublicClient, http } from "viem";
+import { base } from "viem/chains";
 
-const AAVE_POOL_ADDRESS = (process.env.NEXT_PUBLIC_AAVE_POOL_ADDRESS ??
-  null) as Address | null;
+// Always read Aave rates from Base mainnet — rates are the same
+// regardless of which environment (staging/production) the app runs on.
+const AAVE_POOL: Address = "0xA238Dd80C259a72e81d7e4664a9801593F98d1c5";
+
+// Mainnet token addresses for rate lookups
+const MAINNET_USDC: Address = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913";
+const MAINNET_WETH: Address = "0x4200000000000000000000000000000000000006";
+const MAINNET_WBTC: Address = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
+
+const mainnetClient = createPublicClient({
+  chain: base,
+  transport: http(
+    process.env.NEXT_PUBLIC_MAINNET_RPC_URL ??
+      "https://mainnet.base.org",
+  ),
+});
 
 const AAVE_POOL_ABI = [
   {
@@ -38,18 +52,16 @@ const AAVE_POOL_ABI = [
   },
 ] as const;
 
-// RAY = 1e27 in Aave
 const RAY = BigInt("1000000000000000000000000000");
 
 const ASSET_MAP: Record<string, Address> = {
-  usdc: ADDRESSES.usdc,
-  eth: ADDRESSES.weth,
-  btc: ADDRESSES.wbtc,
+  usdc: MAINNET_USDC,
+  eth: MAINNET_WETH,
+  btc: MAINNET_WBTC,
 };
 
 export type AaveRates = Record<string, number>;
 
-// Fallback rates if on-chain read fails
 const FALLBACK_RATES: AaveRates = {
   usdc: 0.0274,
   eth: 0.0155,
@@ -57,15 +69,13 @@ const FALLBACK_RATES: AaveRates = {
 };
 
 async function fetchRate(asset: Address): Promise<number> {
-  if (!AAVE_POOL_ADDRESS) return 0;
-  const data = await publicClient.readContract({
-    address: AAVE_POOL_ADDRESS,
+  const data = await mainnetClient.readContract({
+    address: AAVE_POOL,
     abi: AAVE_POOL_ABI,
     functionName: "getReserveData",
     args: [asset],
   });
-  const liquidityRate = data.currentLiquidityRate;
-  return Number(liquidityRate) / Number(RAY);
+  return Number(data.currentLiquidityRate) / Number(RAY);
 }
 
 export function useAaveRates() {
@@ -73,10 +83,6 @@ export function useAaveRates() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!AAVE_POOL_ADDRESS) {
-      setLoading(false);
-      return;
-    }
     let cancelled = false;
 
     Promise.all(
