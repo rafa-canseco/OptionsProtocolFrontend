@@ -3,6 +3,8 @@
 import type { YieldAssetSummary } from "@/lib/api";
 import { ASSETS } from "@/lib/assets";
 import { fmtYieldUsd, getNextMonday, fmtAsset } from "@/lib/utils";
+import { formatApr } from "@/lib/yield";
+import { YieldExplainer } from "./YieldExplainer";
 
 function assetLabel(slug: string): string {
   if (slug === "usdc") return "USDC";
@@ -26,6 +28,7 @@ interface Props {
   ethSpot: number | undefined;
   btcSpot: number | undefined;
   hasPositions: boolean;
+  aaveRates?: Record<string, number>;
 }
 
 export function YieldSummaryCard({
@@ -33,6 +36,7 @@ export function YieldSummaryCard({
   ethSpot,
   btcSpot,
   hasPositions,
+  aaveRates,
 }: Props) {
   const nextMonday = getNextMonday();
   const nextMondayStr = nextMonday.toLocaleDateString("en-US", {
@@ -59,9 +63,12 @@ export function YieldSummaryCard({
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-          Aave Yield
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
+            Aave Yield
+          </h2>
+          <YieldExplainer />
+        </div>
         <span className="text-xs text-[var(--text-secondary)]">
           Next distribution: {nextMondayStr}
         </span>
@@ -111,6 +118,9 @@ export function YieldSummaryCard({
                       <span className="font-mono text-[var(--text-secondary)] text-xs">
                         ${fmtYieldUsd(usd)}
                       </span>
+                      <span className="font-mono text-[var(--text-secondary)] text-xs">
+                        {formatApr(aaveRates?.[a.asset] ?? 0)} APR
+                      </span>
                       <div className="flex gap-1.5">
                         {a.pending > 0 && (
                           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-amber-500/10 text-amber-400">
@@ -131,17 +141,23 @@ export function YieldSummaryCard({
           )}
         </>
       ) : (
-        <div className="flex items-center gap-3">
-          <span className="flex items-center gap-1.5">
-            <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
-            <span className="text-sm text-amber-400 font-medium">
-              Accruing
+        <div className="space-y-2">
+          <div className="flex items-center gap-3">
+            <span className="flex items-center gap-1.5">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-sm text-amber-400 font-medium">
+                Accruing
+              </span>
             </span>
-          </span>
-          <span className="text-sm text-[var(--text-secondary)]">
-            Your collateral is earning Aave yield. First distribution
-            on {nextMondayStr}.
-          </span>
+            <span className="text-sm text-[var(--text-secondary)]">
+              Your collateral is earning Aave yield. First distribution
+              on {nextMondayStr}.
+            </span>
+          </div>
+          <p className="text-xs text-[var(--text-secondary)] font-mono">
+            USDC {formatApr(aaveRates?.usdc ?? 0)} · WETH {formatApr(aaveRates?.eth ?? 0)} · cbBTC{" "}
+            {formatApr(aaveRates?.btc ?? 0)}
+          </p>
         </div>
       )}
     </div>

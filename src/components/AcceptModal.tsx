@@ -23,7 +23,10 @@ import {
   buildOptimisticPosition,
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
+import { formatApr } from "@/lib/yield";
+import { useAaveRates } from "@/hooks/useAaveRates";
 import type { YieldMetric } from "./YieldToggle";
+import { YieldExplainer } from "./yield/YieldExplainer";
 import { DepositModal } from "@/components/DepositModal";
 
 interface Props {
@@ -49,6 +52,7 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
   const { address, sendBatchTx, isConnected, connectWallet } = useWallet();
   const { usd, eth, weth, wbtc } = useBalances(address);
+  const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -356,6 +360,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             <div className="h-px bg-[var(--border)]" />
             <p className="text-sm text-[var(--text)]">
               You commit {commitDisplay} for {quote.expiry_days} days
+            </p>
+
+            <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
+              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via Aave while open
+              <YieldExplainer />
             </p>
 
             {renderExtra ? (

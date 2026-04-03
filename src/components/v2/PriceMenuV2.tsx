@@ -15,6 +15,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
+import { formatApr } from "@/lib/yield";
+import { useAaveRates } from "@/hooks/useAaveRates";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import { AssetSelector } from "./AssetSelector";
@@ -160,6 +162,7 @@ function StrikeCard({
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices(asset.slug);
+  const { rates: aaveRates } = useAaveRates();
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
@@ -535,6 +538,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Set a price you&apos;d buy {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
                 </p>
+                <p className="text-xs text-amber-400/80 mt-1">
+                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via Aave while committed
+                </p>
               </>
             )}
             {side === "sell" && (
@@ -546,6 +552,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Set a price you&apos;d sell {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
                 </p>
+                <p className="text-xs text-amber-400/80 mt-1">
+                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via Aave while committed
+                </p>
               </>
             )}
             {side === "range" && (
@@ -556,6 +565,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 <p className="text-sm text-[var(--text-secondary)]">
                   Set a buy price and a sell price. You earn from both commitments.
                   If {asset.symbol} stays in your range, everything comes back. You keep both payments.
+                </p>
+                <p className="text-xs text-amber-400/80 mt-1">
+                  Collateral earns Aave yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
                 </p>
               </>
             )}
