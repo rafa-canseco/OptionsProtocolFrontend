@@ -185,6 +185,7 @@ export default function PositionsPage() {
         onYieldMetricChange={setYieldMetric}
         yieldAssets={yieldSummary?.assets}
         aaveRates={aaveRates}
+        yieldByVault={yieldByVault}
         ethSpot={ethSpot}
         btcSpot={btcSpot}
       />
