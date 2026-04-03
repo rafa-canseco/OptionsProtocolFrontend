@@ -125,7 +125,7 @@ export function PortfolioSummary({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
             Total Earned
@@ -169,6 +169,38 @@ export function PortfolioSummary({
             {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
           </p>
         </div>
+
+        {/* Aave Yield — inline stat */}
+        {hasActivePositions && (
+          <div>
+            <div className="flex items-center gap-1.5">
+              <p className="text-xs text-[var(--text-secondary)]">
+                Aave Yield
+              </p>
+              <YieldExplainer />
+            </div>
+            {hasYield ? (
+              <div>
+                <p className="text-xl font-bold text-amber-400 font-mono">
+                  ${fmtYieldUsd(totalYieldUsd)}
+                </p>
+                {pendingYieldUsd > 0 && (
+                  <span className="text-[10px] font-medium text-amber-400">
+                    ${fmtYieldUsd(pendingYieldUsd)} pending
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xl font-bold text-amber-400 font-mono flex items-center gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                Accruing
+              </p>
+            )}
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-0.5">
+              {formatApr(aaveRates.usdc ?? 0)} USDC · {formatApr(aaveRates.eth ?? 0)} WETH
+            </p>
+          </div>
+        )}
       </div>
 
       {/* Aave Yield section */}
