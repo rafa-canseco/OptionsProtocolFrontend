@@ -8,6 +8,8 @@ import {
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
+import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
 import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
@@ -50,11 +52,14 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, sendBatchTx, isConnected, connectWallet } = useWallet();
-  const { usd, eth, weth, wbtc } = useBalances(address);
+  const { address, solanaAddress, sendBatchTx, isConnected, connectWallet } = useWallet();
+  const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw } = useBalances(address);
+  const { solanaUsdcRaw } = useSolanaBalance(solanaAddress);
+  const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
   const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [chainExecuted, setChainExecuted] = useState<"base" | "solana" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
   const [showDeposit, setShowDeposit] = useState(false);
@@ -152,6 +157,44 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     const updateStep = (s: TxStep) => { currentStep = s; setStep(s); };
 
     try {
+      // --- Cross-chain bridge detection (B1N-260) ---
+      if (quote.chain && quote.chain !== "base") {
+        const deficit = checkDeficit(
+          quote, amount, isBuy, assetSlug, baseUsdcRaw, solanaUsdcRaw,
+        );
+
+        if (deficit.needsBridge && deficit.sourceChain) {
+          updateStep("executing");
+          const result = await executeBridgeAndTrade({
+            quote, amount, isBuy, assetSlug,
+            sourceChain: deficit.sourceChain,
+            deficit: deficit.deficit,
+          });
+
+          if (result.success) {
+            setTxHash(result.txHash ?? null);
+            setChainExecuted(result.chainExecuted ?? null);
+            updateStep("confirmed");
+            onAccepted({ amount, txHash: result.txHash ?? null });
+            window.dispatchEvent(new Event("balance:refetch"));
+
+            const pos = buildOptimisticPosition(
+              quote, amount, isBuy, address!, assetSlug,
+            );
+            try { saveOptimistic(pos); } catch (err) {
+              console.warn("[AcceptModal] Could not save optimistic position:", err);
+            }
+          } else {
+            setError(
+              result.error ??
+                "Bridge-and-trade failed. Check your balance before retrying.",
+            );
+            setStep("idle");
+          }
+          return;
+        }
+      }
+
       const { oTokenAmount, collateral, collateralAsset } =
         computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
@@ -237,6 +280,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       );
       if (resultHash) setTxHash(resultHash);
 
+      setChainExecuted(quote.chain ?? "base");
       updateStep("confirmed");
       onAccepted({ amount, txHash: resultHash });
       window.dispatchEvent(new Event("balance:refetch"));
@@ -411,6 +455,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         >
           {buttonLabel}
         </button>
+
+        {step === "confirmed" && chainExecuted && (
+          <p className="text-center text-xs text-[var(--text-secondary)]">
+            Executed on {chainExecuted === "solana" ? "Solana" : "Base"}
+          </p>
+        )}
 
         {step === "confirmed" && txHash && CHAIN.blockExplorers?.default.url && (
           <a

@@ -5,6 +5,7 @@ import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
   useWallets as useSolanaWallets,
   useSignAndSendTransaction,
+  useSignTransaction as useSolanaSignTransaction,
 } from "@privy-io/react-auth/solana";
 import { createWalletClient, custom, type Address } from "viem";
 import { useState, useEffect, useCallback, useMemo } from "react";
@@ -56,6 +57,7 @@ export function useWallet() {
   const { client } = useSmartWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
+  const { signTransaction: privySignSolanaTx } = useSolanaSignTransaction();
   const [chainError, setChainError] = useState<string | null>(null);
 
   // --- EVM wallets ---
@@ -260,6 +262,21 @@ export function useWallet() {
     [solanaAddress, solanaWallets, signAndSendTransaction],
   );
 
+  // Sign a Solana transaction without broadcasting (for bridge pre-signing)
+  const signSolanaTransaction = useCallback(
+    async (serializedTx: Uint8Array): Promise<Uint8Array> => {
+      if (!solanaEmbedded) {
+        throw new Error("Solana embedded wallet not ready");
+      }
+      const result = await privySignSolanaTx({
+        transaction: serializedTx,
+        wallet: solanaEmbedded,
+      });
+      return result.signedTransaction;
+    },
+    [solanaEmbedded, privySignSolanaTx],
+  );
+
   // Authenticate the connected wallet to create a smart wallet.
   const activateSmartWallet = useCallback(async () => {
     if (!fundingWallet) throw new Error("No wallet connected");
@@ -293,6 +310,7 @@ export function useWallet() {
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
+    signSolanaTransaction,
     chainError,
     isConnected: !!fundingAddress,
     isReady: ready,

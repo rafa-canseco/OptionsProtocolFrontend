@@ -1,0 +1,343 @@
+"use client";
+
+import { useCallback } from "react";
+import { usePrivy } from "@privy-io/react-auth";
+import { useWallet } from "@/hooks/useWallet";
+import {
+  api,
+  type PriceQuote,
+  type BridgeJob,
+  type BridgeJobStatus,
+} from "@/lib/api";
+import { computeCollateral } from "@/lib/execution";
+import {
+  DOMAIN_BASE,
+  DOMAIN_SOLANA,
+  buildEvmBurnCalls,
+  buildSolanaBurnTransaction,
+  evmToBytes32,
+  solanaToBytes32,
+} from "@/lib/cctp";
+import {
+  buildEvmTradeCalls,
+  buildSolanaTradeTransaction,
+} from "@/lib/bridgeTx";
+import { toPublicKey } from "@/lib/solana";
+
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+export type ChainId = "base" | "solana";
+
+export interface DeficitResult {
+  needsBridge: boolean;
+  sourceChain: ChainId | null;
+  deficit: bigint;
+}
+
+export interface BridgeAndTradeResult {
+  success: boolean;
+  jobId: string;
+  chainExecuted?: ChainId;
+  txHash?: string;
+  error?: string;
+}
+
+// Terminal states — stop polling when we hit one of these
+const TERMINAL_STATUSES: BridgeJobStatus[] = [
+  "completed",
+  "failed",
+  "mint_completed",
+  "mint_completed_trade_failed",
+];
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
+
+/**
+ * Bridge-and-trade orchestration.
+ *
+ * **Base → Solana** (backend submits trade):
+ *   1. Smart wallet burns USDC on Base (send)
+ *   2. Solana wallet signs trade tx (no send)
+ *   3. POST with signedTradeTx
+ *   4. Poll until "completed"
+ *
+ * **Solana → Base** (frontend executes trade after mint):
+ *   1. Solana wallet burns USDC (send)
+ *   2. POST with signedTradeTx: null
+ *   3. Poll until "mint_completed"
+ *   4. Frontend: sendBatchTx(approve + executeOrder)
+ */
+export function useBridgeAndTrade() {
+  const { user } = usePrivy();
+  const {
+    address,
+    solanaAddress,
+    sendBatchTx,
+    signSolanaTransaction,
+  } = useWallet();
+
+  const checkDeficit = useCallback(
+    (
+      quote: PriceQuote,
+      amount: number,
+      isBuy: boolean,
+      assetSlug: string,
+      baseUsdcRaw: bigint,
+      solanaUsdcRaw: bigint,
+    ): DeficitResult => {
+      if (!quote.chain) {
+        throw new Error(
+          "Quote is missing the `chain` field. " +
+            "This is a bug — all quotes must specify their chain.",
+        );
+      }
+
+      const { collateral } = computeCollateral(
+        isBuy, amount, quote.strike, assetSlug,
+      );
+
+      const targetBalance =
+        quote.chain === "base" ? baseUsdcRaw : solanaUsdcRaw;
+
+      if (targetBalance >= collateral) {
+        return { needsBridge: false, sourceChain: null, deficit: BigInt(0) };
+      }
+
+      const deficit = collateral - targetBalance;
+      const sourceChain: ChainId =
+        quote.chain === "base" ? "solana" : "base";
+
+      return { needsBridge: true, sourceChain, deficit };
+    },
+    [],
+  );
+
+  const executeBridgeAndTrade = useCallback(
+    async (params: {
+      quote: PriceQuote;
+      amount: number;
+      isBuy: boolean;
+      assetSlug: string;
+      sourceChain: ChainId;
+      deficit: bigint;
+    }): Promise<BridgeAndTradeResult> => {
+      const { quote, amount, isBuy, assetSlug, sourceChain, deficit } =
+        params;
+      const destChain: ChainId =
+        sourceChain === "base" ? "solana" : "base";
+
+      if (!address) throw new Error("Smart wallet not connected");
+      if (!solanaAddress) throw new Error("Solana wallet not ready");
+      if (!user?.id) throw new Error("Privy user not authenticated");
+
+      // 1. Fetch bridge fee
+      const sourceDomain =
+        sourceChain === "base" ? DOMAIN_BASE : DOMAIN_SOLANA;
+      const destDomain =
+        destChain === "base" ? DOMAIN_BASE : DOMAIN_SOLANA;
+
+      const { fee } = await api.getBridgeFee(
+        sourceDomain, destDomain, deficit.toString(),
+      );
+      const maxFee = BigInt(fee);
+
+      if (sourceChain === "base") {
+        return executeBaseToSolana(
+          quote, amount, isBuy, assetSlug, deficit, maxFee,
+          address, solanaAddress, user.id,
+        );
+      }
+      return executeSolanaToBase(
+        quote, amount, isBuy, assetSlug, deficit, maxFee,
+        address, solanaAddress, user.id,
+      );
+    },
+    [address, solanaAddress, user, sendBatchTx, signSolanaTransaction],
+  );
+
+  // -----------------------------------------------------------------------
+  // Base → Solana: backend submits pre-signed Solana trade tx
+  // -----------------------------------------------------------------------
+  async function executeBaseToSolana(
+    quote: PriceQuote,
+    amount: number,
+    isBuy: boolean,
+    assetSlug: string,
+    deficit: bigint,
+    maxFee: bigint,
+    smartWalletAddr: string,
+    solanaAddr: string,
+    userId: string,
+  ): Promise<BridgeAndTradeResult> {
+    const solanaPk = toPublicKey(solanaAddr, "Solana wallet");
+    const recipient = solanaToBytes32(solanaPk);
+
+    // 2a. Burn USDC on Base via smart wallet
+    const burnCalls = buildEvmBurnCalls(deficit, recipient, maxFee);
+    const burnTxHash = (await sendBatchTx(burnCalls)) as string;
+
+    // 2b. Sign Solana trade tx (no send)
+    const tradeTx = await buildSolanaTradeTransaction(
+      quote, amount, isBuy, assetSlug, solanaPk,
+    );
+    const serialized = tradeTx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    });
+    const signed = await signSolanaTransaction(serialized);
+    const signedTradeTx = Buffer.from(signed).toString("base64");
+
+    // 3. POST to backend
+    const { job_id: jobId } = await api.bridgeAndTrade({
+      burnTxHash,
+      signedTradeTx,
+      quoteId: quote.quote_id!,
+      sourceChain: "base",
+      destChain: "solana",
+      userId,
+      mintRecipient: solanaAddr,
+      burnAmount: deficit.toString(),
+    });
+
+    // 4. Poll until terminal
+    const job = await pollBridgeStatus(jobId);
+    return jobToResult(jobId, job);
+  }
+
+  // -----------------------------------------------------------------------
+  // Solana → Base: frontend executes Base trade after backend mints
+  // -----------------------------------------------------------------------
+  async function executeSolanaToBase(
+    quote: PriceQuote,
+    amount: number,
+    isBuy: boolean,
+    assetSlug: string,
+    deficit: bigint,
+    maxFee: bigint,
+    smartWalletAddr: string,
+    solanaAddr: string,
+    userId: string,
+  ): Promise<BridgeAndTradeResult> {
+    const solanaPk = toPublicKey(solanaAddr, "Solana wallet");
+    const evmRecipient = evmToBytes32(
+      smartWalletAddr as `0x${string}`,
+    );
+
+    // 2. Burn USDC on Solana
+    const burnTx = await buildSolanaBurnTransaction(
+      solanaPk, deficit, evmRecipient, maxFee,
+    );
+    const serialized = burnTx.serialize({
+      requireAllSignatures: false,
+      verifySignatures: false,
+    });
+    await signSolanaTransaction(serialized);
+    const burnTxHash = burnTx.signature
+      ? Buffer.from(burnTx.signature).toString("hex")
+      : "";
+
+    if (!burnTxHash) {
+      throw new Error("Solana burn transaction did not return a hash");
+    }
+
+    // 3. POST to backend (signedTradeTx: null — frontend executes)
+    const { job_id: jobId } = await api.bridgeAndTrade({
+      burnTxHash,
+      signedTradeTx: null,
+      quoteId: quote.quote_id!,
+      sourceChain: "solana",
+      destChain: "base",
+      userId,
+      mintRecipient: smartWalletAddr,
+      burnAmount: deficit.toString(),
+    });
+
+    // 4. Poll until mint_completed (USDC on Base)
+    const job = await pollBridgeStatus(jobId);
+
+    if (job.status === "failed") {
+      return jobToResult(jobId, job);
+    }
+
+    if (
+      job.status === "mint_completed" ||
+      job.status === "mint_completed_trade_failed"
+    ) {
+      // 5. USDC arrived on Base — execute trade via smart wallet
+      const tradeCalls = buildEvmTradeCalls(
+        quote, amount, isBuy, assetSlug,
+      );
+      const tradeTxHash = (await sendBatchTx(tradeCalls)) as string;
+
+      return {
+        success: true,
+        jobId,
+        chainExecuted: "base",
+        txHash: tradeTxHash,
+      };
+    }
+
+    // completed (shouldn't happen without signedTradeTx, but handle)
+    return jobToResult(jobId, job);
+  }
+
+  return { checkDeficit, executeBridgeAndTrade };
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function jobToResult(
+  jobId: string,
+  job: BridgeJob,
+): BridgeAndTradeResult {
+  return {
+    success: job.status === "completed",
+    jobId,
+    chainExecuted: job.dest_chain,
+    txHash: job.trade_tx_hash ?? job.mint_tx_hash ?? undefined,
+    error: job.error_message ?? undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Status polling (2s interval per backend recommendation)
+// ---------------------------------------------------------------------------
+
+const POLL_INTERVAL_MS = 2_000;
+const MAX_POLL_ATTEMPTS = 180; // 6 minutes max
+
+async function pollBridgeStatus(jobId: string): Promise<BridgeJob> {
+  for (let i = 0; i < MAX_POLL_ATTEMPTS; i++) {
+    const job = await api.getBridgeStatus(jobId);
+
+    if (TERMINAL_STATUSES.includes(job.status)) {
+      return job;
+    }
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+  }
+
+  return {
+    id: jobId,
+    status: "failed",
+    source_chain: "base",
+    dest_chain: "solana",
+    burn_tx_hash: "",
+    burn_amount: "",
+    mint_recipient: "",
+    quote_id: "",
+    mint_tx_hash: null,
+    trade_tx_hash: null,
+    error_message:
+      "Timed out waiting for bridge completion. " +
+      "Your funds may still be in transit — check your balance before retrying.",
+    created_at: "",
+    updated_at: "",
+  };
+}
