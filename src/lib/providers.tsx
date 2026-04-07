@@ -38,6 +38,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
           ethereum: {
             createOnLogin: "all-users",
           },
+          solana: {
+            createOnLogin: "all-users",
+          },
         },
         plugins,
       }}
