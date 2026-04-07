@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
+import { useSpot } from "@/hooks/useSpot";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
 import { DEFAULT_ASSET } from "@/lib/assets";
@@ -19,7 +20,17 @@ const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
 export function NavBar() {
   const pathname = usePathname();
   const { address, fundingAddress, chainError, isConnected } = useWallet();
-  const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
+  const { usd, eth, weth, wbtc, loading: balLoading, refetch } = useBalances(address);
+  const { spot: ethSpot } = useSpot("eth");
+  const { spot: btcSpot } = useSpot("btc");
+
+  const totalUsd = usd
+    + (eth + weth) * (ethSpot ?? 0)
+    + wbtc * (btcSpot ?? 0);
+  const totalFormatted = totalUsd.toLocaleString(
+    undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 },
+  );
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
 
@@ -59,7 +70,7 @@ export function NavBar() {
           {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
               <img src="/usdc.svg" alt="USDC" className="w-4 h-4 inline" />
-              <span>${usdFormatted}</span>
+              <span>${totalFormatted}</span>
               {currentAsset === "eth" && (
                 <>
                   <span className="opacity-40">·</span>

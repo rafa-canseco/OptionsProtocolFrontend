@@ -3,11 +3,14 @@
 import { useState } from "react";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
+import { useSpot } from "@/hooks/useSpot";
 import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
   const { address, isConnected, isReady, connectWallet } = useWallet();
-  const { usd, loading: balancesLoading } = useBalances(address);
+  const { usd, eth, weth, wbtc, loading: balancesLoading } = useBalances(address);
+  const { spot: ethSpot } = useSpot("eth");
+  const { spot: btcSpot } = useSpot("btc");
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
@@ -15,9 +18,12 @@ export function ConnectButton() {
   }
 
   if (isConnected) {
-    const hasBalance = usd > 0;
+    const totalUsd = usd
+      + (eth + weth) * (ethSpot ?? 0)
+      + wbtc * (btcSpot ?? 0);
+    const hasBalance = totalUsd > 0;
     const balanceLabel = hasBalance
-      ? `$${usd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+      ? `$${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
       : "Deposit";
 
     return (
