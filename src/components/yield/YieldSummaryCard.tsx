@@ -3,24 +3,13 @@
 import type { YieldAssetSummary } from "@/lib/api";
 import { ASSETS } from "@/lib/assets";
 import { fmtYieldUsd, getNextMonday, fmtAsset } from "@/lib/utils";
+import { toUsd } from "@/lib/pricing";
 import { formatApr } from "@/lib/yield";
 import { YieldExplainer } from "./YieldExplainer";
 
 function assetLabel(slug: string): string {
   if (slug === "usdc") return "USDC";
   return ASSETS[slug]?.wrappedSymbol ?? slug.toUpperCase();
-}
-
-function toUsd(
-  amount: number,
-  asset: string,
-  ethSpot: number | undefined,
-  btcSpot: number | undefined,
-): number {
-  if (asset === "usdc") return amount;
-  if (asset === "eth") return amount * (ethSpot ?? 0);
-  if (asset === "btc") return amount * (btcSpot ?? 0);
-  return 0;
 }
 
 interface Props {

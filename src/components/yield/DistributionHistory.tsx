@@ -5,6 +5,7 @@ import type { YieldDistribution } from "@/lib/api";
 import { ASSETS } from "@/lib/assets";
 import { CHAIN } from "@/lib/contracts";
 import { fmtYieldUsd, fmtAsset } from "@/lib/utils";
+import { toUsd } from "@/lib/pricing";
 
 const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
 const INITIAL_SHOW = 10;
@@ -19,18 +20,6 @@ const FILTER_OPTIONS = [
 function assetLabel(slug: string): string {
   if (slug === "usdc") return "USDC";
   return ASSETS[slug]?.wrappedSymbol ?? slug.toUpperCase();
-}
-
-function toUsd(
-  amount: number,
-  asset: string,
-  ethSpot: number | undefined,
-  btcSpot: number | undefined,
-): number {
-  if (asset === "usdc") return amount;
-  if (asset === "eth") return amount * (ethSpot ?? 0);
-  if (asset === "btc") return amount * (btcSpot ?? 0);
-  return 0;
 }
 
 function truncateHash(hash: string): string {
