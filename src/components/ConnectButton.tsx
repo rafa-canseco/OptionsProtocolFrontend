@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSpot } from "@/hooks/useSpot";
+import { toUsd } from "@/lib/pricing";
 import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
@@ -18,9 +19,9 @@ export function ConnectButton() {
   }
 
   if (isConnected) {
-    const totalUsd = usd
-      + (eth + weth) * (ethSpot ?? 0)
-      + wbtc * (btcSpot ?? 0);
+    const totalUsd = toUsd(usd, "usdc", ethSpot, btcSpot)
+      + toUsd(eth + weth, "eth", ethSpot, btcSpot)
+      + toUsd(wbtc, "btc", ethSpot, btcSpot);
     const hasBalance = totalUsd > 0;
     const balanceLabel = hasBalance
       ? `$${totalUsd.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
