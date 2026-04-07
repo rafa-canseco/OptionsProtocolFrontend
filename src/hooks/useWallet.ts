@@ -17,10 +17,12 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { CHAIN } from "@/lib/contracts";
-
-const SOLANA_RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
-const USDC_MINT = process.env.NEXT_PUBLIC_SOLANA_USDC_MINT ?? "";
+import {
+  SOLANA_RPC_URL,
+  SOLANA_USDC_MINT,
+  SOLANA_CHAIN,
+  toPublicKey,
+} from "@/lib/solana";
 
 export type BatchCall = {
   to: Address;
@@ -177,8 +179,10 @@ export function useWallet() {
       if (!solanaAddress) {
         throw new Error("Solana embedded wallet not ready");
       }
-      if (!USDC_MINT) {
-        throw new Error("NEXT_PUBLIC_SOLANA_USDC_MINT not configured");
+      if (!SOLANA_USDC_MINT || !SOLANA_RPC_URL) {
+        throw new Error(
+          "Solana USDC mint or RPC URL not configured",
+        );
       }
 
       const sourceWallet = solanaWallets.find(
@@ -189,9 +193,9 @@ export function useWallet() {
       }
 
       const conn = new Connection(SOLANA_RPC_URL);
-      const mint = new PublicKey(USDC_MINT);
-      const sender = new PublicKey(fromAddress);
-      const receiver = new PublicKey(solanaAddress);
+      const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+      const sender = toPublicKey(fromAddress, "sender");
+      const receiver = toPublicKey(solanaAddress, "receiver");
 
       const sourceAta = await getAssociatedTokenAddress(
         mint, sender, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -199,6 +203,15 @@ export function useWallet() {
       const destAta = await getAssociatedTokenAddress(
         mint, receiver, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
       );
+
+      // Verify source token account exists and has enough balance
+      const sourceAccount = await conn.getAccountInfo(sourceAta);
+      if (!sourceAccount) {
+        throw new Error(
+          "No USDC token account found for this wallet. " +
+            "Send USDC to this wallet first.",
+        );
+      }
 
       const tx = new Transaction();
 
@@ -241,7 +254,7 @@ export function useWallet() {
       await signAndSendTransaction({
         transaction: serialized,
         wallet: sourceWallet,
-        chain: "solana:devnet",
+        chain: SOLANA_CHAIN as `solana:${string}`,
       });
     },
     [solanaAddress, solanaWallets, signAndSendTransaction],

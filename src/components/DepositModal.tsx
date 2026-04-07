@@ -85,7 +85,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [selectedWallet, token]);
 
-  const chain = selectedWallet?.chain ?? "base";
+  // Withdraw is always Base-only; deposit uses the selected wallet's chain
+  const chain = tab === "withdraw" ? "base" : (selectedWallet?.chain ?? "base");
   const meta = TOKEN_META[token];
   const availableTokens = TOKENS_BY_CHAIN[chain];
 
@@ -140,7 +141,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     let amount: bigint;
     try {
       amount = parseUnits(amountStr, meta.decimals);
-    } catch {
+    } catch (err) {
+      console.error("[DepositModal] parseUnits failed:", err);
       setError("Invalid amount.");
       return;
     }
@@ -200,7 +202,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     let amount: bigint;
     try {
       amount = parseUnits(amountStr, 6); // USDC always 6 decimals
-    } catch {
+    } catch (err) {
+      console.error("[DepositModal] parseUnits failed:", err);
       setError("Invalid amount.");
       return;
     }
@@ -222,9 +225,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       onComplete?.();
     } catch (err) {
       console.error("[DepositModal] solana deposit failed:", err);
-      setError(
-        err instanceof Error ? err.message : "Transaction failed.",
-      );
+      const msg = err instanceof Error ? err.message : "";
+      if (/reject|denied|cancel/i.test(msg)) {
+        setError("Transaction cancelled.");
+      } else {
+        setError(msg || "Transaction failed.");
+      }
       setStatus("idle");
     }
   }, [selectedWallet, amountStr, sendSolanaDeposit, onComplete]);
@@ -241,7 +247,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     let amount: bigint;
     try {
       amount = parseUnits(amountStr, meta.decimals);
-    } catch {
+    } catch (err) {
+      console.error("[DepositModal] parseUnits failed:", err);
       setError("Invalid amount.");
       return;
     }
@@ -320,11 +327,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     try {
       await activateSmartWallet();
     } catch (err) {
+      console.error("[DepositModal] activation failed:", err);
       const msg = err instanceof Error ? err.message : "";
-      if (msg.match(/reject|denied|cancel/i)) {
+      if (/reject|denied|cancel/i.test(msg)) {
         setError("Signature cancelled.");
       } else {
-        setError("Activation failed. Please try again.");
+        setError(msg || "Activation failed. Please try again.");
       }
       setStatus("idle");
     }
@@ -610,7 +618,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         {/* Disconnect */}
         <button
           onClick={async () => {
-            await disconnect();
+            try {
+              await disconnect();
+            } catch (err) {
+              console.error("[DepositModal] disconnect failed:", err);
+            }
             onClose();
           }}
           disabled={isPending}

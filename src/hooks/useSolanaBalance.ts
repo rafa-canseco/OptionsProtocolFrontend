@@ -1,24 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Connection, PublicKey } from "@solana/web3.js";
-
-const SOLANA_RPC_URL =
-  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.devnet.solana.com";
-const USDC_MINT = process.env.NEXT_PUBLIC_SOLANA_USDC_MINT ?? "";
-
-const connection = new Connection(SOLANA_RPC_URL);
+import {
+  solanaConnection,
+  SOLANA_USDC_MINT,
+  toPublicKey,
+} from "@/lib/solana";
 
 interface SolanaBalance {
   solanaUsdcRaw: bigint;
   solanaUsdc: number;
   loading: boolean;
+  error: string | null;
 }
 
 const ZERO: SolanaBalance = {
   solanaUsdcRaw: BigInt(0),
   solanaUsdc: 0,
   loading: true,
+  error: null,
 };
 
 export function useSolanaBalance(
@@ -28,16 +28,17 @@ export function useSolanaBalance(
   const [balance, setBalance] = useState<SolanaBalance>(ZERO);
 
   const refetch = useCallback(async () => {
-    if (!address || !USDC_MINT) {
+    if (!address || !SOLANA_USDC_MINT || !solanaConnection) {
       setBalance({ ...ZERO, loading: false });
       return;
     }
     try {
-      const owner = new PublicKey(address);
-      const mint = new PublicKey(USDC_MINT);
-      const resp = await connection.getParsedTokenAccountsByOwner(owner, {
-        mint,
-      });
+      const owner = toPublicKey(address, "wallet address");
+      const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+      const resp =
+        await solanaConnection.getParsedTokenAccountsByOwner(owner, {
+          mint,
+        });
       let raw = BigInt(0);
       for (const { account } of resp.value) {
         const info = account.data.parsed?.info;
@@ -45,12 +46,20 @@ export function useSolanaBalance(
           raw += BigInt(info.tokenAmount.amount);
         }
       }
-      // USDC is 6 decimals
       const usdc = Number(raw) / 1e6;
-      setBalance({ solanaUsdcRaw: raw, solanaUsdc: usdc, loading: false });
+      setBalance({
+        solanaUsdcRaw: raw,
+        solanaUsdc: usdc,
+        loading: false,
+        error: null,
+      });
     } catch (err) {
       console.error("[useSolanaBalance] Failed to fetch:", err);
-      setBalance((prev) => ({ ...prev, loading: false }));
+      setBalance((prev) => ({
+        ...prev,
+        loading: false,
+        error: "Failed to fetch Solana balance",
+      }));
     }
   }, [address]);
 
