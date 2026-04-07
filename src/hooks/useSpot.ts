@@ -11,8 +11,8 @@ export function useSpot(asset: string, pollInterval = 10_000) {
     try {
       const data = await api.getSpot(asset);
       setSpot(data.spot);
-    } catch {
-      // Spot endpoint may not exist yet; fall silent
+    } catch (err) {
+      console.error(`[useSpot] Failed to fetch ${asset} spot price:`, err);
     } finally {
       setLoading(false);
     }

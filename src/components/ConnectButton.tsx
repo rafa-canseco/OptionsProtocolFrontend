@@ -9,8 +9,8 @@ import { DepositModal } from "@/components/DepositModal";
 export function ConnectButton() {
   const { address, isConnected, isReady, connectWallet } = useWallet();
   const { usd, eth, weth, wbtc, loading: balancesLoading } = useBalances(address);
-  const { spot: ethSpot } = useSpot("eth");
-  const { spot: btcSpot } = useSpot("btc");
+  const { spot: ethSpot, loading: ethSpotLoading } = useSpot("eth");
+  const { spot: btcSpot, loading: btcSpotLoading } = useSpot("btc");
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
@@ -33,7 +33,7 @@ export function ConnectButton() {
           className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors flex items-center gap-1.5"
         >
           <img src="/base.svg" alt="Base" className="w-4 h-4" />
-          {balancesLoading ? "..." : balanceLabel}
+          {(balancesLoading || ethSpotLoading || btcSpotLoading) ? "..." : balanceLabel}
         </button>
 
         {showDeposit && (
