@@ -2,9 +2,27 @@
 
 import { usePrivy, useWallets, useConnectWallet } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
+import {
+  useWallets as useSolanaWallets,
+  useSignAndSendTransaction,
+} from "@privy-io/react-auth/solana";
 import { createWalletClient, custom, type Address } from "viem";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
+  createTransferInstruction,
+  TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { CHAIN } from "@/lib/contracts";
+import {
+  SOLANA_RPC_URL,
+  SOLANA_USDC_MINT,
+  SOLANA_CHAIN,
+  toPublicKey,
+} from "@/lib/solana";
 
 export type BatchCall = {
   to: Address;
@@ -12,13 +30,35 @@ export type BatchCall = {
   value?: bigint;
 };
 
+export interface ExternalWallet {
+  address: string;
+  chain: "base" | "solana";
+  name: string;
+  walletClientType: string;
+}
+
+const WALLET_NAMES: Record<string, string> = {
+  metamask: "MetaMask",
+  coinbase_wallet: "Coinbase",
+  rainbow: "Rainbow",
+  phantom: "Phantom",
+  privy: "Privy",
+};
+
+function prettyWalletName(raw: string): string {
+  return WALLET_NAMES[raw] ?? raw;
+}
+
 export function useWallet() {
   const { logout, ready } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
+  const { wallets: solanaWallets } = useSolanaWallets();
+  const { signAndSendTransaction } = useSignAndSendTransaction();
   const [chainError, setChainError] = useState<string | null>(null);
 
+  // --- EVM wallets ---
   const externalWallet = wallets.find((w) => w.walletClientType !== "privy");
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
   const fundingWallet = externalWallet ?? embeddedWallet;
@@ -26,8 +66,43 @@ export function useWallet() {
   // Trading address: always the smart wallet (gas-sponsored, batched)
   const address = client?.account?.address as Address | undefined;
 
-  // Funding address: the connected EOA (for deposits, withdrawals, legacy positions)
+  // Funding address: the connected EOA (for deposits, withdrawals)
   const fundingAddress = fundingWallet?.address as Address | undefined;
+
+  // --- Solana wallets ---
+  const solanaEmbedded = solanaWallets.find(
+    (w) => "isPrivyWallet" in w.standardWallet,
+  );
+  const solanaAddress = solanaEmbedded?.address;
+
+  // --- Unified external wallets list ---
+  const externalWalletsList = useMemo<ExternalWallet[]>(() => {
+    const list: ExternalWallet[] = [];
+
+    // EVM external wallets (or embedded as fallback for email-login users)
+    const evmWallet = externalWallet ?? embeddedWallet;
+    if (evmWallet) {
+      list.push({
+        address: evmWallet.address,
+        chain: "base",
+        name: prettyWalletName(evmWallet.walletClientType),
+        walletClientType: evmWallet.walletClientType,
+      });
+    }
+
+    // Solana external wallets (not the embedded Privy wallet)
+    for (const w of solanaWallets) {
+      if ("isPrivyWallet" in w.standardWallet) continue;
+      list.push({
+        address: w.address,
+        chain: "solana",
+        name: w.standardWallet.name,
+        walletClientType: w.standardWallet.name.toLowerCase(),
+      });
+    }
+
+    return list;
+  }, [externalWallet, embeddedWallet, solanaWallets]);
 
   useEffect(() => {
     if (!fundingWallet) return;
@@ -42,7 +117,7 @@ export function useWallet() {
       });
   }, [fundingWallet]);
 
-  // All trades execute through the smart wallet — gas sponsored by Privy paymaster
+  // All trades execute through the smart wallet — gas sponsored
   const sendBatchTx = useCallback(
     async (calls: BatchCall[]): Promise<unknown> => {
       if (calls.length === 0) {
@@ -76,7 +151,7 @@ export function useWallet() {
     [client],
   );
 
-  // Deposit/withdraw only — single tx from the user's EOA
+  // Deposit/withdraw — single tx from the user's EVM EOA
   const sendFundingTx = useCallback(
     async (call: BatchCall): Promise<`0x${string}`> => {
       if (!fundingWallet) {
@@ -98,8 +173,94 @@ export function useWallet() {
     [fundingWallet],
   );
 
+  // SPL USDC transfer from external Solana wallet to embedded Solana wallet
+  const sendSolanaDeposit = useCallback(
+    async (fromAddress: string, amount: bigint): Promise<void> => {
+      if (!solanaAddress) {
+        throw new Error("Solana embedded wallet not ready");
+      }
+      if (!SOLANA_USDC_MINT || !SOLANA_RPC_URL) {
+        throw new Error(
+          "Solana USDC mint or RPC URL not configured",
+        );
+      }
+
+      const sourceWallet = solanaWallets.find(
+        (w) => w.address === fromAddress,
+      );
+      if (!sourceWallet) {
+        throw new Error("Solana wallet not found: " + fromAddress);
+      }
+
+      const conn = new Connection(SOLANA_RPC_URL);
+      const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+      const sender = toPublicKey(fromAddress, "sender");
+      const receiver = toPublicKey(solanaAddress, "receiver");
+
+      const sourceAta = await getAssociatedTokenAddress(
+        mint, sender, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      );
+      const destAta = await getAssociatedTokenAddress(
+        mint, receiver, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      );
+
+      // Verify source token account exists and has enough balance
+      const sourceAccount = await conn.getAccountInfo(sourceAta);
+      if (!sourceAccount) {
+        throw new Error(
+          "No USDC token account found for this wallet. " +
+            "Send USDC to this wallet first.",
+        );
+      }
+
+      const tx = new Transaction();
+
+      // Create destination ATA if it doesn't exist
+      const destAccount = await conn.getAccountInfo(destAta);
+      if (!destAccount) {
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            sender, destAta, receiver, mint,
+            TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+          ),
+        );
+      }
+
+      tx.add(
+        createTransferInstruction(
+          sourceAta, destAta, sender, amount,
+          [], TOKEN_PROGRAM_ID,
+        ),
+      );
+
+      const { blockhash } = await conn.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = sender;
+
+      const serialized = tx.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+
+      console.log(
+        "[sendSolanaDeposit] Sending SPL transfer from",
+        fromAddress,
+        "to",
+        solanaAddress,
+        "amount:",
+        amount.toString(),
+      );
+
+      await signAndSendTransaction({
+        transaction: serialized,
+        wallet: sourceWallet,
+        chain: SOLANA_CHAIN as `solana:${string}`,
+      });
+    },
+    [solanaAddress, solanaWallets, signAndSendTransaction],
+  );
+
   // Authenticate the connected wallet to create a smart wallet.
-  // Called once when the user first deposits or trades.
   const activateSmartWallet = useCallback(async () => {
     if (!fundingWallet) throw new Error("No wallet connected");
     await fundingWallet.loginOrLink();
@@ -127,8 +288,11 @@ export function useWallet() {
   return {
     address,
     fundingAddress,
+    solanaAddress,
+    externalWallets: externalWalletsList,
     sendBatchTx,
     sendFundingTx,
+    sendSolanaDeposit,
     chainError,
     isConnected: !!fundingAddress,
     isReady: ready,
