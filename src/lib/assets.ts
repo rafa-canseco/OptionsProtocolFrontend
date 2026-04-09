@@ -22,6 +22,10 @@ export interface AssetConfig {
   minSellAmount: number;
   /** Minimum buy amount in USD */
   minBuyAmountUsd: number;
+  /** Which chain this asset trades on */
+  chain: "base" | "solana";
+  /** Decimals of the wrapped collateral token for calls */
+  collateralDecimals: number;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -38,6 +42,8 @@ export const ASSETS: Record<string, AssetConfig> = {
     swapFeeTier: 3000,
     minSellAmount: 0.005,
     minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 18,
   },
   btc: {
     slug: "btc",
@@ -52,34 +58,23 @@ export const ASSETS: Record<string, AssetConfig> = {
     swapFeeTier: 500,
     minSellAmount: 0.0001,
     minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 8,
   },
-  aero: {
-    slug: "aero",
-    symbol: "AERO",
-    name: "Aerodrome",
-    wrappedSymbol: "AERO",
+  sol: {
+    slug: "sol",
+    symbol: "SOL",
+    name: "Solana",
+    wrappedSymbol: "wSOL",
     stableSymbol: "USDC",
-    maxAmount: 0,
-    maxAmountUsd: 0,
-    amountPlaceholder: "0",
-    displayDecimals: 2,
-    comingSoon: true,
-    minSellAmount: 0,
-    minBuyAmountUsd: 0,
-  },
-  virtual: {
-    slug: "virtual",
-    symbol: "VIRTUAL",
-    name: "Virtuals Protocol",
-    wrappedSymbol: "VIRTUAL",
-    stableSymbol: "USDC",
-    maxAmount: 0,
-    maxAmountUsd: 0,
-    amountPlaceholder: "0",
-    displayDecimals: 2,
-    comingSoon: true,
-    minSellAmount: 0,
-    minBuyAmountUsd: 0,
+    maxAmount: 10_000,
+    maxAmountUsd: 1_000_000,
+    amountPlaceholder: "10",
+    displayDecimals: 4,
+    minSellAmount: 0.1,
+    minBuyAmountUsd: 10,
+    chain: "solana",
+    collateralDecimals: 9,
   },
 };
 
@@ -111,7 +106,9 @@ export function resolvePositionAsset(
   }
   if (strikePrice != null) {
     const strikeUsd = strikePrice / 1e8;
-    return strikeUsd > 10_000 ? ASSETS.btc : ASSETS.eth;
+    if (strikeUsd > 10_000) return ASSETS.btc;
+    if (strikeUsd < 500) return ASSETS.sol;
+    return ASSETS.eth;
   }
   return ASSETS[DEFAULT_ASSET];
 }
