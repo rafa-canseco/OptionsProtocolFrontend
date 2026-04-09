@@ -55,7 +55,7 @@ function prettyWalletName(raw: string): string {
 }
 
 export function useWallet() {
-  const { logout, ready } = usePrivy();
+  const { logout, ready, unlinkWallet } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -386,10 +386,11 @@ export function useWallet() {
     sendSolanaSolDeposit,
     sendSolanaTransaction,
     signSolanaTransaction,
-    isConnected: !!fundingAddress,
+    isConnected: !!(fundingAddress || solanaAddress),
     isReady: ready,
     connectWallet,
     activateSmartWallet,
     disconnect,
+    unlinkWallet,
   };
 }

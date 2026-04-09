@@ -55,6 +55,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     activateSmartWallet,
     connectWallet,
     disconnect,
+    unlinkWallet,
   } = useWallet();
   const [tab, setTab] = useState<Tab>("deposit");
   const [selectedWallet, setSelectedWallet] =
@@ -480,6 +481,20 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     <span className="text-xs text-[var(--text-secondary)] shrink-0">
                       {chainLabel(w.chain)}
                     </span>
+                    <button
+                      onClick={async (e) => {
+                        e.stopPropagation();
+                        try {
+                          await unlinkWallet(w.address);
+                        } catch (err) {
+                          console.error("[DepositModal] unlink failed:", err);
+                        }
+                      }}
+                      disabled={isPending}
+                      className="text-[var(--text-secondary)] hover:text-[var(--danger)] text-xs transition-colors disabled:opacity-40"
+                    >
+                      ×
+                    </button>
                   </button>
                 ))}
                 <button

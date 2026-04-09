@@ -81,7 +81,7 @@ export function NavBar() {
               )}
             </div>
           )}
-          {SHOW_FAUCET && isConnected && !balLoading && fundingAddress && (
+          {SHOW_FAUCET && isConnected && !balLoading && (fundingAddress || solanaAddress) && (
             <FaucetButton address={fundingAddress} solanaAddress={solanaAddress} refetch={refetch} />
           )}
           <ConnectButton />

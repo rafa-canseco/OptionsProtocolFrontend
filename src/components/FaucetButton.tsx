@@ -4,7 +4,7 @@ import { useFaucet } from "@/hooks/useFaucet";
 import type { Address } from "viem";
 
 type Props = {
-  address: Address;
+  address: Address | undefined;
   solanaAddress: string | undefined;
   refetch: () => void;
 };
