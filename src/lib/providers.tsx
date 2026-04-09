@@ -4,6 +4,7 @@ import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
+import { CHAIN } from "@/lib/contracts";
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -38,6 +39,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
             connectors: toSolanaWalletConnectors(),
           },
         },
+        defaultChain: CHAIN,
+        supportedChains: [CHAIN],
         embeddedWallets: {
           ethereum: {
             createOnLogin: "all-users",
