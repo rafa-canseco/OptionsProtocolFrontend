@@ -539,7 +539,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
                 </p>
                 <p className="text-xs text-amber-400/80 mt-1">
-                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via Aave while committed
+                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via {asset.chain === "solana" ? "Kamino" : "Aave"} while committed
                 </p>
               </>
             )}
@@ -553,7 +553,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
                 </p>
                 <p className="text-xs text-amber-400/80 mt-1">
-                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via Aave while committed
+                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via {asset.chain === "solana" ? "Kamino" : "Aave"} while committed
                 </p>
               </>
             )}
@@ -567,7 +567,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   If {asset.symbol} stays in your range, everything comes back. You keep both payments.
                 </p>
                 <p className="text-xs text-amber-400/80 mt-1">
-                  Collateral earns Aave yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
+                  Collateral earns {asset.chain === "solana" ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
                 </p>
               </>
             )}

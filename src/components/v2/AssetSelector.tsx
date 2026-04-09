@@ -120,22 +120,27 @@ export function AssetSelector({
                     <span className="text-xs text-[var(--text-secondary)]">
                       {asset.name}
                     </span>
-                    {asset.chain === "solana" && (
-                      <span className="text-[9px] font-medium text-purple-400
-                        bg-purple-500/10 px-1 py-0.5 rounded ml-auto">
-                        Solana
-                      </span>
-                    )}
-                    {disabled && (
-                      <span className="ml-auto text-[10px] font-medium
-                        text-[var(--text-secondary)] border
-                        border-[var(--border)] rounded px-1.5 py-0.5">
-                        Soon
-                      </span>
-                    )}
-                    {!disabled && isActive && (
-                      <Check className="ml-auto size-4 text-[var(--accent)]" />
-                    )}
+                    <span className="ml-auto flex items-center gap-1.5">
+                      {asset.chain === "base" && (
+                        <span className="text-[9px] font-medium text-blue-400
+                          bg-blue-500/10 px-1 py-0.5 rounded">
+                          Base
+                        </span>
+                      )}
+                      {asset.chain === "solana" && (
+                        <span className="text-[9px] font-medium text-purple-400
+                          bg-purple-500/10 px-1 py-0.5 rounded">
+                          Solana
+                        </span>
+                      )}
+                      {disabled && (
+                        <span className="text-[10px] font-medium
+                          text-[var(--text-secondary)] border
+                          border-[var(--border)] rounded px-1.5 py-0.5">
+                          Soon
+                        </span>
+                      )}
+                    </span>
                   </CommandItem>
                 );
               })}

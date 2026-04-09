@@ -210,7 +210,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {yieldInfo && (
             <p className="text-xs text-amber-400 flex items-center gap-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              <span className="font-mono">{formatApr(aaveApr)}</span> APR via Aave
+              <span className="font-mono">{formatApr(aaveApr)}</span> APR via {config?.chain === "solana" ? "Kamino" : "Aave"}
               {estYieldUsd != null && estYieldUsd > 0 && (
                 <span className="font-mono">
                   · ~${fmtYieldUsd(estYieldUsd)} accrued ({yieldDays}d)

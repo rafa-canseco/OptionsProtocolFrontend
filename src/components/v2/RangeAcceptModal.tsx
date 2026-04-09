@@ -423,7 +423,7 @@ export function RangeAcceptModal({
         </div>
 
         <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
-          Collateral earns Aave yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[assetSlug] ?? 0)} on {assetSymbol}
+          Collateral earns {assetSlug === "sol" ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[assetSlug] ?? 0)} on {assetSymbol}
           <YieldExplainer />
         </p>
 

@@ -455,7 +455,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             </p>
 
             <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
-              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via Aave while open
+              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via {isSol ? "Kamino" : "Aave"} while open
               <YieldExplainer />
             </p>
 
