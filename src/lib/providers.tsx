@@ -39,7 +39,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
             connectors: toSolanaWalletConnectors(),
           },
         },
-        defaultChain: CHAIN,
         supportedChains: [CHAIN],
         embeddedWallets: {
           ethereum: {
