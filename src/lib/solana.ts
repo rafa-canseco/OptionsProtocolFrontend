@@ -5,6 +5,15 @@ export const SOLANA_USDC_MINT = process.env.NEXT_PUBLIC_SOLANA_USDC_MINT ?? "";
 export const SOLANA_CHAIN =
   process.env.NEXT_PUBLIC_SOLANA_CHAIN ?? "solana:devnet";
 
+/** Native SOL mint address — used as wSOL when wrapped into SPL token */
+export const SOLANA_WSOL_MINT =
+  "So11111111111111111111111111111111111111112";
+
+/** Block explorer for Solana transaction links */
+export const SOLANA_EXPLORER_URL =
+  process.env.NEXT_PUBLIC_SOLANA_EXPLORER_URL ??
+  "https://solscan.io";
+
 if (!SOLANA_RPC_URL) {
   console.warn(
     "[solana] NEXT_PUBLIC_SOLANA_RPC_URL is not set. " +
