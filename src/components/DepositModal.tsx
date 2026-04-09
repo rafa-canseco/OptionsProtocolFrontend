@@ -488,6 +488,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                         </span>
                       </button>
                     ))}
+                    <button
+                      onClick={() => connectWallet()}
+                      disabled={isPending}
+                      className="w-full rounded-xl border border-dashed border-[var(--border)] py-2.5 text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors disabled:opacity-40"
+                    >
+                      + Connect another wallet
+                    </button>
                   </div>
                 )}
               </div>
