@@ -9,7 +9,9 @@ import {
 } from "@privy-io/react-auth/solana";
 import { createWalletClient, custom, type Address } from "viem";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { Connection, PublicKey, Transaction } from "@solana/web3.js";
+import {
+  Connection, PublicKey, Transaction, SystemProgram,
+} from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
@@ -270,6 +272,62 @@ export function useWallet() {
     [solanaAddress, solanaWallets, signAndSendTransaction],
   );
 
+  // Native SOL transfer from external Solana wallet to embedded wallet
+  const sendSolanaSolDeposit = useCallback(
+    async (fromAddress: string, lamports: bigint): Promise<void> => {
+      if (!solanaAddress) {
+        throw new Error("Solana embedded wallet not ready");
+      }
+      if (!SOLANA_RPC_URL) {
+        throw new Error("Solana RPC URL not configured");
+      }
+
+      const sourceWallet = solanaWallets.find(
+        (w) => w.address === fromAddress,
+      );
+      if (!sourceWallet) {
+        throw new Error("Solana wallet not found: " + fromAddress);
+      }
+
+      const conn = new Connection(SOLANA_RPC_URL);
+      const sender = toPublicKey(fromAddress, "sender");
+      const receiver = toPublicKey(solanaAddress, "receiver");
+
+      const tx = new Transaction().add(
+        SystemProgram.transfer({
+          fromPubkey: sender,
+          toPubkey: receiver,
+          lamports,
+        }),
+      );
+
+      const { blockhash } = await conn.getLatestBlockhash();
+      tx.recentBlockhash = blockhash;
+      tx.feePayer = sender;
+
+      const serialized = tx.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+
+      console.log(
+        "[sendSolanaSolDeposit] Sending SOL from",
+        fromAddress,
+        "to",
+        solanaAddress,
+        "lamports:",
+        lamports.toString(),
+      );
+
+      await signAndSendTransaction({
+        transaction: serialized,
+        wallet: sourceWallet,
+        chain: SOLANA_CHAIN as `solana:${string}`,
+      });
+    },
+    [solanaAddress, solanaWallets, signAndSendTransaction],
+  );
+
   // Gas-sponsored Solana trade execution (equivalent of sendBatchTx for Base)
   const sendSolanaTransaction = useCallback(
     async (tx: Transaction): Promise<string> => {
@@ -339,6 +397,7 @@ export function useWallet() {
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
+    sendSolanaSolDeposit,
     sendSolanaTransaction,
     signSolanaTransaction,
     chainError,

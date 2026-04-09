@@ -8,7 +8,7 @@ import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
 
 type Tab = "deposit" | "withdraw";
-type Token = "usdc" | "eth" | "btc";
+type Token = "usdc" | "eth" | "btc" | "sol";
 
 interface TokenConfig {
   label: string;
@@ -20,11 +20,12 @@ const TOKEN_META: Record<Token, TokenConfig> = {
   usdc: { label: "USDC", icon: "/usdc.svg", decimals: 6 },
   eth: { label: "ETH", icon: "/eth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
+  sol: { label: "SOL", icon: "/sol.png", decimals: 9 },
 };
 
 const TOKENS_BY_CHAIN: Record<"base" | "solana", Token[]> = {
   base: ["usdc", "eth", "btc"],
-  solana: ["usdc"],
+  solana: ["usdc", "sol"],
 };
 
 interface Props {
@@ -50,18 +51,22 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
+    sendSolanaSolDeposit,
     activateSmartWallet,
     connectWallet,
     disconnect,
   } = useWallet();
-  const smartBalances = useBalances(address);
-  const eoaBalances = useBalances(fundingAddress);
-  const solBalance = useSolanaBalance(solanaAddress);
-
   const [tab, setTab] = useState<Tab>("deposit");
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
   const [token, setToken] = useState<Token>(requiredToken ?? "usdc");
+
+  const smartBalances = useBalances(address);
+  const eoaBalances = useBalances(fundingAddress);
+  const solBalance = useSolanaBalance(solanaAddress);
+  const solExternalBalance = useSolanaBalance(
+    selectedWallet?.chain === "solana" ? selectedWallet.address : undefined,
+  );
   const [amountStr, setAmountStr] = useState("");
   const [status, setStatus] = useState<
     "idle" | "pending" | "done" | "activating"
@@ -96,10 +101,22 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const totalUsdc = baseUsdc + solanaUsdc;
 
   // --- Available balance for deposit/withdraw ---
+  const solanaDepositBalance = token === "sol"
+    ? solExternalBalance.solanaSol
+    : token === "usdc"
+      ? solExternalBalance.solanaUsdc
+      : 0;
+
+  const solanaDepositRaw = token === "sol"
+    ? solExternalBalance.solanaSolRaw
+    : token === "usdc"
+      ? solExternalBalance.solanaUsdcRaw
+      : BigInt(0);
+
   const availableBalance =
     tab === "deposit"
       ? chain === "solana"
-        ? 0
+        ? solanaDepositBalance
         : token === "usdc"
           ? eoaBalances.usd
           : token === "eth"
@@ -114,7 +131,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const rawBalance =
     tab === "deposit"
       ? chain === "solana"
-        ? BigInt(0)
+        ? solanaDepositRaw
         : token === "usdc"
           ? eoaBalances.usdRaw
           : token === "eth"
@@ -195,15 +212,16 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     token, sendFundingTx, onComplete,
   ]);
 
-  // --- Solana deposit (SPL USDC transfer) ---
+  // --- Solana deposit (SPL USDC or native SOL transfer) ---
   const handleSolanaDeposit = useCallback(async () => {
     if (!selectedWallet) {
       setError("No Solana wallet selected.");
       return;
     }
+    const decimals = token === "sol" ? 9 : 6;
     let amount: bigint;
     try {
-      amount = parseUnits(amountStr, 6);
+      amount = parseUnits(amountStr, decimals);
     } catch (err) {
       console.error("[DepositModal] parseUnits failed:", err);
       setError("Invalid amount.");
@@ -217,7 +235,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setError(null);
     setStatus("pending");
     try {
-      await sendSolanaDeposit(selectedWallet.address, amount);
+      if (token === "sol") {
+        await sendSolanaSolDeposit(selectedWallet.address, amount);
+      } else {
+        await sendSolanaDeposit(selectedWallet.address, amount);
+      }
       setStatus("done");
       window.dispatchEvent(new Event("balance:refetch"));
       setTimeout(
@@ -235,7 +257,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       }
       setStatus("idle");
     }
-  }, [selectedWallet, amountStr, sendSolanaDeposit, onComplete]);
+  }, [
+    selectedWallet, amountStr, token,
+    sendSolanaDeposit, sendSolanaSolDeposit, onComplete,
+  ]);
 
   const handleDeposit =
     chain === "solana" ? handleSolanaDeposit : handleBaseDeposit;
@@ -538,33 +563,29 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   }}
                   className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
                 />
-                {(tab === "withdraw" || chain === "base") && (
-                  <button
-                    onClick={handleMax}
-                    disabled={
-                      isPending || isDone || availableBalance <= 0
-                    }
-                    className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
-                  >
-                    Max
-                  </button>
-                )}
+                <button
+                  onClick={handleMax}
+                  disabled={
+                    isPending || isDone || availableBalance <= 0
+                  }
+                  className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
+                >
+                  Max
+                </button>
               </div>
-              {(tab === "withdraw" || chain === "base") && (
-                <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-                  Available:{" "}
-                  {token === "usdc"
-                    ? `$${availableBalance.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}`
-                    : `${availableBalance.toLocaleString(undefined, {
-                        minimumFractionDigits: 4,
-                        maximumFractionDigits: 6,
-                      })} ${meta.label}`}
-                  {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
-                </p>
-              )}
+              <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+                Available:{" "}
+                {token === "usdc"
+                  ? `$${availableBalance.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}`
+                  : `${availableBalance.toLocaleString(undefined, {
+                      minimumFractionDigits: 4,
+                      maximumFractionDigits: 6,
+                    })} ${meta.label}`}
+                {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
+              </p>
             </div>
 
             {/* Withdraw gas note */}
