@@ -19,6 +19,7 @@ const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
 export function NavBar() {
   const pathname = usePathname();
   const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
+
   const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
