@@ -8,7 +8,7 @@ import {
   useSignTransaction as useSolanaSignTransaction,
 } from "@privy-io/react-auth/solana";
 import { createWalletClient, custom, type Address } from "viem";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import {
   Connection, PublicKey, Transaction, SystemProgram,
 } from "@solana/web3.js";
@@ -62,8 +62,6 @@ export function useWallet() {
   const { wallets: solanaWallets } = useSolanaWallets();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction: privySignSolanaTx } = useSolanaSignTransaction();
-  const [chainError, setChainError] = useState<string | null>(null);
-
   // --- EVM wallets ---
   const externalWallet = wallets.find((w) => w.walletClientType !== "privy");
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
@@ -116,19 +114,6 @@ export function useWallet() {
     return list;
   }, [externalWallet, embeddedWallet, solanaWallets]);
 
-  useEffect(() => {
-    if (!fundingWallet) return;
-    fundingWallet
-      .switchChain(CHAIN.id)
-      .then(() => setChainError(null))
-      .catch((err) => {
-        console.error("[useWallet] Failed to switch chain:", err);
-        setChainError(
-          "Failed to switch to the required chain. Transactions will fail.",
-        );
-      });
-  }, [fundingWallet]);
-
   // All trades execute through the smart wallet — gas sponsored
   const sendBatchTx = useCallback(
     async (calls: BatchCall[]): Promise<unknown> => {
@@ -169,6 +154,7 @@ export function useWallet() {
       if (!fundingWallet) {
         throw new Error("No funding wallet connected");
       }
+      await fundingWallet.switchChain(CHAIN.id);
       const provider = await fundingWallet.getEthereumProvider();
       const walletClient = createWalletClient({
         account: fundingWallet.address as Address,
@@ -400,7 +386,6 @@ export function useWallet() {
     sendSolanaSolDeposit,
     sendSolanaTransaction,
     signSolanaTransaction,
-    chainError,
     isConnected: !!fundingAddress,
     isReady: ready,
     connectWallet,
