@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { encodeFunctionData, formatUnits, parseUnits } from "viem";
+import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -55,7 +55,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     activateSmartWallet,
     connectWallet,
     disconnect,
-    unlinkWallet,
   } = useWallet();
   const [tab, setTab] = useState<Tab>("deposit");
   const [selectedWallet, setSelectedWallet] =
@@ -63,7 +62,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [token, setToken] = useState<Token>(requiredToken ?? "usdc");
 
   const smartBalances = useBalances(address);
-  const eoaBalances = useBalances(fundingAddress);
+  const selectedBaseAddress =
+    selectedWallet?.chain === "base"
+      ? (selectedWallet.address as Address)
+      : undefined;
+  const eoaBalances = useBalances(selectedBaseAddress ?? fundingAddress);
   const solBalance = useSolanaBalance(solanaAddress);
   const solExternalBalance = useSolanaBalance(
     selectedWallet?.chain === "solana" ? selectedWallet.address : undefined,
@@ -462,6 +465,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                       setSelectedWallet(w);
                       setAmountStr("");
                       setError(null);
+                      setStatus("idle");
                     }}
                     disabled={isPending}
                     className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors text-left ${
@@ -481,20 +485,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     <span className="text-xs text-[var(--text-secondary)] shrink-0">
                       {chainLabel(w.chain)}
                     </span>
-                    <button
-                      onClick={async (e) => {
-                        e.stopPropagation();
-                        try {
-                          await unlinkWallet(w.address);
-                        } catch (err) {
-                          console.error("[DepositModal] unlink failed:", err);
-                        }
-                      }}
-                      disabled={isPending}
-                      className="text-[var(--text-secondary)] hover:text-[var(--danger)] text-xs transition-colors disabled:opacity-40"
-                    >
-                      ×
-                    </button>
                   </button>
                 ))}
                 <button
@@ -540,6 +530,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     setToken(t);
                     setAmountStr("");
                     setError(null);
+                    setStatus("idle");
                   }}
                   disabled={isPending}
                   className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${

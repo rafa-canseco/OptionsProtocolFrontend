@@ -11,6 +11,10 @@ interface FaucetOpts {
   onComplete?: () => void;
 }
 
+type FaucetResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
 export function useFaucet({ address, solanaAddress, onComplete }: FaucetOpts) {
   const [minting, setMinting] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -19,80 +23,69 @@ export function useFaucet({ address, solanaAddress, onComplete }: FaucetOpts) {
   async function callFaucet(
     url: string,
     body: Record<string, string>,
-  ): Promise<void> {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    if (!res.ok) {
-      let detail: string | undefined;
-      try {
-        const data = await res.json();
-        detail = data.detail;
-      } catch {
-        /* non-JSON response */
+  ): Promise<FaucetResult> {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        let detail: string | undefined;
+        try {
+          const data = await res.json();
+          detail = data.detail;
+        } catch { /* non-JSON */ }
+        return { ok: false, error: detail || `Faucet error (${res.status})` };
       }
-      throw new Error(detail || `Faucet error (${res.status})`);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Network error",
+      };
     }
   }
 
   async function mint() {
-    if (!address) {
-      console.warn("[useFaucet] mint called without address");
-      return;
-    }
+    if (!address && !solanaAddress) return;
     setMinting(true);
     setError(null);
 
     const results: string[] = [];
+    const errors: string[] = [];
 
-    try {
-      const baseFaucet = callFaucet(
-        `${API_BASE}/faucet`,
-        { address },
-      ).then(() => {
-        results.push("100,000 USDC, 50 ETH, and 2 BTC on Base");
-      });
+    const [baseResult, solanaResult] = await Promise.all([
+      address
+        ? callFaucet(`${API_BASE}/faucet`, { address })
+        : null,
+      solanaAddress
+        ? callFaucet(`${API_BASE}/faucet/solana`, { address: solanaAddress })
+        : null,
+    ]);
 
-      const solanaFaucet = solanaAddress
-        ? callFaucet(
-            `${API_BASE}/faucet/solana`,
-            { address: solanaAddress },
-          ).then(() => {
-            results.push("10,000 USDC and 0.1 SOL on Solana");
-          })
-        : null;
+    if (baseResult?.ok) {
+      results.push("100,000 USDC, 50 ETH, and 2 BTC on Base");
+    } else if (baseResult) {
+      errors.push(baseResult.error);
+    }
 
-      // Settle both — don't let one failure block the other
-      const settled = await Promise.allSettled(
-        [baseFaucet, solanaFaucet].filter(Boolean),
-      );
+    if (solanaResult?.ok) {
+      results.push("10,000 USDC and 0.1 SOL on Solana");
+    } else if (solanaResult) {
+      errors.push(solanaResult.error);
+    }
 
-      const failures = settled.filter((r) => r.status === "rejected");
-      if (failures.length === settled.length) {
-        // All failed — surface the first error
-        const reason = (failures[0] as PromiseRejectedResult).reason;
-        throw reason instanceof Error ? reason : new Error(String(reason));
-      }
-
-      const msg = results.length > 0
-        ? `You received ${results.join("; ")}.`
-        : "Faucet claimed.";
-      setNotification(msg);
+    if (results.length > 0) {
+      setNotification(`You received ${results.join("; ")}.`);
       setTimeout(() => setNotification(null), 5000);
       window.dispatchEvent(new Event("balance:refetch"));
       await onComplete?.();
-    } catch (err) {
-      console.error("[useFaucet] Mint failed:", err);
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to get test tokens. Try again.",
-      );
-    } finally {
-      setMinting(false);
+    } else {
+      setError(errors[0] || "Failed to get test tokens.");
     }
+
+    setMinting(false);
   }
 
   return { mint, minting, notification, error };

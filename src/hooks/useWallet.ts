@@ -55,7 +55,7 @@ function prettyWalletName(raw: string): string {
 }
 
 export function useWallet() {
-  const { logout, ready, unlinkWallet } = usePrivy();
+  const { logout, ready } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -94,20 +94,14 @@ export function useWallet() {
       });
     }
 
-    // Solana external wallets (skip embedded Privy wallet and EVM wallets
-    // that also expose a Solana adapter, e.g. MetaMask Snaps)
-    const evmNames = new Set(
-      list.map((w) => w.name.toLowerCase()),
-    );
+    // Solana external wallets (skip embedded Privy wallet)
     for (const w of solanaWallets) {
       if ("isPrivyWallet" in w.standardWallet) continue;
-      const name = w.standardWallet.name.toLowerCase();
-      if (evmNames.has(name)) continue;
       list.push({
         address: w.address,
         chain: "solana",
         name: w.standardWallet.name,
-        walletClientType: name,
+        walletClientType: w.standardWallet.name.toLowerCase(),
       });
     }
 
@@ -391,6 +385,5 @@ export function useWallet() {
     connectWallet,
     activateSmartWallet,
     disconnect,
-    unlinkWallet,
   };
 }
