@@ -53,7 +53,7 @@ function prettyWalletName(raw: string): string {
 }
 
 export function useWallet() {
-  const { logout, ready, unlinkWallet } = usePrivy();
+  const { logout, ready } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -306,18 +306,6 @@ export function useWallet() {
     [solanaEmbedded, privySignSolanaTx],
   );
 
-  // Disconnect a single external wallet (unlink from Privy account)
-  const disconnectWallet = useCallback(
-    async (walletAddress: string) => {
-      try {
-        await unlinkWallet(walletAddress);
-      } catch (err) {
-        console.warn("[disconnectWallet] Failed to unlink:", err);
-      }
-    },
-    [unlinkWallet],
-  );
-
   // Authenticate the connected wallet to create a smart wallet.
   const activateSmartWallet = useCallback(async () => {
     if (!fundingWallet) throw new Error("No wallet connected");
@@ -353,7 +341,6 @@ export function useWallet() {
     sendSolanaDeposit,
     sendSolanaTransaction,
     signSolanaTransaction,
-    disconnectWallet,
     chainError,
     isConnected: !!fundingAddress,
     isReady: ready,

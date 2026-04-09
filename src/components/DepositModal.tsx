@@ -50,7 +50,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
-    disconnectWallet,
     activateSmartWallet,
     connectWallet,
     disconnect,
@@ -100,7 +99,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const availableBalance =
     tab === "deposit"
       ? chain === "solana"
-        ? 0 // external wallet balance unknown; user enters amount
+        ? 0
         : token === "usdc"
           ? eoaBalances.usd
           : token === "eth"
@@ -133,9 +132,33 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [rawBalance, meta.decimals]);
 
+  const needsBaseActivation = !address;
+
   // --- Base deposit (existing EVM flow) ---
   const handleBaseDeposit = useCallback(async () => {
-    if (!address || !fundingAddress) {
+    // Trigger activation inline if smart wallet isn't ready
+    if (!address) {
+      setError(null);
+      setStatus("activating");
+      try {
+        await activateSmartWallet();
+        // After activation, address will update via state — user retries
+        setStatus("idle");
+        return;
+      } catch (err) {
+        console.error("[DepositModal] activation failed:", err);
+        const msg = err instanceof Error ? err.message : "";
+        if (/reject|denied|cancel/i.test(msg)) {
+          setError("Signature cancelled.");
+        } else {
+          setError(msg || "Activation failed. Please try again.");
+        }
+        setStatus("idle");
+        return;
+      }
+    }
+
+    if (!fundingAddress) {
       setError("Wallet not ready. Please reconnect.");
       return;
     }
@@ -191,7 +214,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [
     address, fundingAddress, amountStr, meta.decimals,
-    token, sendFundingTx, onComplete,
+    token, sendFundingTx, activateSmartWallet, onComplete,
   ]);
 
   // --- Solana deposit (SPL USDC transfer) ---
@@ -202,7 +225,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
     let amount: bigint;
     try {
-      amount = parseUnits(amountStr, 6); // USDC always 6 decimals
+      amount = parseUnits(amountStr, 6);
     } catch (err) {
       console.error("[DepositModal] parseUnits failed:", err);
       setError("Invalid amount.");
@@ -303,41 +326,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const isPending = status === "pending" || status === "activating";
   const isDone = status === "done";
-  const needsActivation = !address;
-
-  useEffect(() => {
-    if (address && status === "activating") {
-      setStatus("idle");
-    }
-  }, [address, status]);
-
-  useEffect(() => {
-    if (status !== "activating") return;
-    const timer = setTimeout(() => {
-      setError(
-        "Activation is taking longer than expected. Please refresh.",
-      );
-      setStatus("idle");
-    }, 15_000);
-    return () => clearTimeout(timer);
-  }, [status]);
-
-  const handleActivate = useCallback(async () => {
-    setError(null);
-    setStatus("activating");
-    try {
-      await activateSmartWallet();
-    } catch (err) {
-      console.error("[DepositModal] activation failed:", err);
-      const msg = err instanceof Error ? err.message : "";
-      if (/reject|denied|cancel/i.test(msg)) {
-        setError("Signature cancelled.");
-      } else {
-        setError(msg || "Activation failed. Please try again.");
-      }
-      setStatus("idle");
-    }
-  }, [activateSmartWallet]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -346,22 +334,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         onClick={isPending ? undefined : onClose}
       />
       <div className="relative w-full max-w-sm bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5">
-        {/* Header with unified balance */}
+        {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--text)]">
-              Your trading account
-            </h2>
-            {address && (
-              <button
-                onClick={() => navigator.clipboard.writeText(address)}
-                className="text-xs text-[var(--text-secondary)] font-mono mt-0.5 hover:text-[var(--text)] transition-colors cursor-pointer break-all text-left"
-                title="Copy address"
-              >
-                {address}
-              </button>
-            )}
-          </div>
+          <h2 className="text-base font-semibold text-[var(--text)]">
+            Your trading accounts
+          </h2>
           <button
             onClick={onClose}
             disabled={isPending}
@@ -371,274 +348,263 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           </button>
         </div>
 
-        {/* Unified USDC balance */}
-        <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
-          <p className="text-xs text-[var(--text-secondary)] mb-1">
-            Total USDC Balance
-          </p>
-          <p className="text-lg font-semibold text-[var(--text)]">
-            $
-            {totalUsdc.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </p>
-          <div className="flex gap-3 mt-1 text-xs text-[var(--text-secondary)]">
-            <span>
-              Base: $
-              {baseUsdc.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </span>
-            <span>
-              Solana: $
-              {solanaUsdc.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
-            </span>
+        {/* Trading accounts */}
+        <div className="space-y-2">
+          {/* Base account */}
+          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <img src="/base.svg" alt="Base" className="w-4 h-4" />
+                <span className="text-sm font-semibold text-[var(--text)]">Base</span>
+              </div>
+              <span className="text-sm font-mono text-[var(--text)]">
+                ${baseUsdc.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+            {address ? (
+              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
+                {truncate(address)}
+              </p>
+            ) : (
+              <p className="text-[10px] text-amber-400 mt-1">
+                Needs one-time activation to trade on Base
+              </p>
+            )}
+          </div>
+
+          {/* Solana account */}
+          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <img src="/sol.png" alt="Solana" className="w-4 h-4 rounded-full" />
+                <span className="text-sm font-semibold text-[var(--text)]">Solana</span>
+              </div>
+              <span className="text-sm font-mono text-[var(--text)]">
+                ${solanaUsdc.toLocaleString(undefined, {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </span>
+            </div>
+            {solanaAddress ? (
+              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
+                {truncate(solanaAddress)}
+              </p>
+            ) : (
+              <p className="text-[10px] text-[var(--text-secondary)] mt-1">
+                Loading...
+              </p>
+            )}
           </div>
         </div>
 
-        {needsActivation ? (
-          <>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Activate your self-custodial trading account with a one-time
-              signature. After this, you can deposit funds and trade with
-              zero gas fees.
-            </p>
-            {error && (
-              <p className="text-sm text-[var(--danger)]">{error}</p>
-            )}
+        {/* Tabs */}
+        <div className="flex rounded-xl bg-[var(--surface)] p-1 gap-1">
+          {(["deposit", "withdraw"] as Tab[]).map((t) => (
             <button
-              onClick={handleActivate}
+              key={t}
+              onClick={() => {
+                setTab(t);
+                setAmountStr("");
+                setError(null);
+                setStatus("idle");
+              }}
               disabled={isPending}
-              className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+              className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors capitalize ${
+                tab === t
+                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              } disabled:opacity-40`}
             >
-              {status === "activating"
-                ? "Activating..."
-                : "Activate account"}
+              {t}
             </button>
-          </>
-        ) : (
-          <>
-            {/* Tabs */}
-            <div className="flex rounded-xl bg-[var(--surface)] p-1 gap-1">
-              {(["deposit", "withdraw"] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setTab(t);
-                    setAmountStr("");
-                    setError(null);
-                    setStatus("idle");
-                  }}
-                  disabled={isPending}
-                  className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors capitalize ${
-                    tab === t
-                      ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-                  } disabled:opacity-40`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
+          ))}
+        </div>
 
-            {/* Wallet selector (deposit only) */}
-            {tab === "deposit" && (
-              <div className="space-y-2">
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Deposit from
-                </p>
-                {externalWallets.length === 0 ? (
-                  <button
-                    onClick={() => connectWallet()}
-                    className="w-full rounded-xl border border-dashed border-[var(--border)] py-3 text-sm text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
-                  >
-                    Connect a wallet to deposit
-                  </button>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {externalWallets.map((w) => (
-                      <div
-                        key={w.address}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors ${
-                          selectedWallet?.address === w.address
-                            ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                            : "border-[var(--border)] hover:border-[var(--text-secondary)]"
-                        }`}
-                      >
-                        <button
-                          onClick={() => {
-                            setSelectedWallet(w);
-                            setAmountStr("");
-                            setError(null);
-                          }}
-                          disabled={isPending}
-                          className="flex-1 min-w-0 text-left disabled:opacity-40"
-                        >
-                          <span className="font-semibold text-[var(--text)]">
-                            {w.name}
-                          </span>
-                          <span className="ml-2 text-[var(--text-secondary)] font-mono text-xs">
-                            {truncate(w.address)}
-                          </span>
-                        </button>
-                        <span className="text-xs text-[var(--text-secondary)] shrink-0">
-                          {chainLabel(w.chain)}
-                        </span>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (selectedWallet?.address === w.address) {
-                              setSelectedWallet(null);
-                            }
-                            disconnectWallet(w.address);
-                          }}
-                          disabled={isPending}
-                          className="text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:opacity-40 shrink-0 p-0.5"
-                          title="Disconnect wallet"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <path d="M18 6L6 18M6 6l12 12" />
-                          </svg>
-                        </button>
-                      </div>
-                    ))}
-                    <button
-                      onClick={() => connectWallet()}
-                      disabled={isPending}
-                      className="w-full rounded-xl border border-dashed border-[var(--border)] py-2.5 text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors disabled:opacity-40"
-                    >
-                      + Connect another wallet
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Token selector */}
-            <div className="flex gap-2">
-              {availableTokens.map((t) => (
-                <button
-                  key={t}
-                  onClick={() => {
-                    setToken(t);
-                    setAmountStr("");
-                    setError(null);
-                  }}
-                  disabled={isPending}
-                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                    token === t
-                      ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
-                      : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]"
-                  } disabled:opacity-40`}
-                >
-                  <img
-                    src={TOKEN_META[t].icon}
-                    alt={TOKEN_META[t].label}
-                    className="w-4 h-4 rounded-full"
-                  />
-                  {TOKEN_META[t].label}
-                </button>
-              ))}
-            </div>
-
-            {/* Amount input */}
-            <div>
-              <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={amountStr}
-                  disabled={isPending || isDone}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (
-                      raw === "" ||
-                      /^(0|[1-9]\d*)?\.?\d*$/.test(raw)
-                    ) {
-                      setAmountStr(raw);
-                    }
-                  }}
-                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
-                />
-                {(tab === "withdraw" || chain === "base") && (
-                  <button
-                    onClick={handleMax}
-                    disabled={
-                      isPending || isDone || availableBalance <= 0
-                    }
-                    className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
-                  >
-                    Max
-                  </button>
-                )}
-              </div>
-              {/* Show available balance for Base deposits and all withdrawals */}
-              {(tab === "withdraw" || chain === "base") && (
-                <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-                  Available:{" "}
-                  {token === "usdc"
-                    ? `$${availableBalance.toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}`
-                    : `${availableBalance.toLocaleString(undefined, {
-                        minimumFractionDigits: 4,
-                        maximumFractionDigits: 6,
-                      })} ${meta.label}`}
-                  {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
-                </p>
-              )}
-            </div>
-
-            {/* Withdraw gas note */}
-            {tab === "withdraw" && fundingAddress && (
-              <p className="text-xs text-[var(--text-secondary)]">
-                Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
-              </p>
-            )}
-
-            {error && (
-              <p className="text-sm text-[var(--danger)]">{error}</p>
-            )}
-
-            {isDone ? (
-              <div className="space-y-3">
-                <p className="text-sm text-center text-[var(--accent)] font-semibold">
-                  {tab === "deposit"
-                    ? "Deposit complete."
-                    : "Withdrawal complete."}
-                </p>
-                <button
-                  onClick={onClose}
-                  className="w-full rounded-xl bg-[var(--surface)] py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            ) : (
+        {/* Wallet selector (deposit only) */}
+        {tab === "deposit" && (
+          <div className="space-y-2">
+            <p className="text-xs text-[var(--text-secondary)]">
+              Deposit from
+            </p>
+            {externalWallets.length === 0 ? (
               <button
-                onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
-                disabled={
-                  isPending || !amountStr || !(Number(amountStr) > 0)
-                }
-                className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+                onClick={() => connectWallet()}
+                className="w-full rounded-xl border border-dashed border-[var(--border)] py-3 text-sm text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
               >
-                {isPending
-                  ? tab === "deposit"
-                    ? "Depositing..."
-                    : "Withdrawing..."
-                  : tab === "deposit"
-                    ? `Deposit ${meta.label} on ${chainLabel(chain)}`
-                    : `Withdraw ${meta.label}`}
+                Connect a wallet to deposit
+              </button>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                {externalWallets.map((w) => (
+                  <button
+                    key={w.address}
+                    onClick={() => {
+                      setSelectedWallet(w);
+                      setAmountStr("");
+                      setError(null);
+                    }}
+                    disabled={isPending}
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors text-left ${
+                      selectedWallet?.address === w.address
+                        ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                        : "border-[var(--border)] hover:border-[var(--text-secondary)]"
+                    } disabled:opacity-40`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <span className="font-semibold text-[var(--text)]">
+                        {w.name}
+                      </span>
+                      <span className="ml-2 text-[var(--text-secondary)] font-mono text-xs">
+                        {truncate(w.address)}
+                      </span>
+                    </div>
+                    <span className="text-xs text-[var(--text-secondary)] shrink-0">
+                      {chainLabel(w.chain)}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => connectWallet()}
+                  disabled={isPending}
+                  className="w-full rounded-xl border border-dashed border-[var(--border)] py-2.5 text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors disabled:opacity-40"
+                >
+                  + Connect another wallet
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Token selector */}
+        <div className="flex gap-2">
+          {availableTokens.map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setToken(t);
+                setAmountStr("");
+                setError(null);
+              }}
+              disabled={isPending}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                token === t
+                  ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                  : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]"
+              } disabled:opacity-40`}
+            >
+              <img
+                src={TOKEN_META[t].icon}
+                alt={TOKEN_META[t].label}
+                className="w-4 h-4 rounded-full"
+              />
+              {TOKEN_META[t].label}
+            </button>
+          ))}
+        </div>
+
+        {/* Amount input */}
+        <div>
+          <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <input
+              type="text"
+              inputMode="decimal"
+              placeholder="0"
+              value={amountStr}
+              disabled={isPending || isDone}
+              onChange={(e) => {
+                const raw = e.target.value;
+                if (
+                  raw === "" ||
+                  /^(0|[1-9]\d*)?\.?\d*$/.test(raw)
+                ) {
+                  setAmountStr(raw);
+                }
+              }}
+              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+            />
+            {(tab === "withdraw" || chain === "base") && (
+              <button
+                onClick={handleMax}
+                disabled={
+                  isPending || isDone || availableBalance <= 0
+                }
+                className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
+              >
+                Max
               </button>
             )}
-          </>
+          </div>
+          {(tab === "withdraw" || chain === "base") && (
+            <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+              Available:{" "}
+              {token === "usdc"
+                ? `$${availableBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`
+                : `${availableBalance.toLocaleString(undefined, {
+                    minimumFractionDigits: 4,
+                    maximumFractionDigits: 6,
+                  })} ${meta.label}`}
+              {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
+            </p>
+          )}
+        </div>
+
+        {/* Withdraw gas note */}
+        {tab === "withdraw" && fundingAddress && (
+          <p className="text-xs text-[var(--text-secondary)]">
+            Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
+          </p>
+        )}
+
+        {/* Base activation hint when depositing to Base without smart wallet */}
+        {tab === "deposit" && chain === "base" && needsBaseActivation && (
+          <p className="text-xs text-amber-400">
+            You&apos;ll be asked to sign once to activate your Base trading account.
+          </p>
+        )}
+
+        {error && (
+          <p className="text-sm text-[var(--danger)]">{error}</p>
+        )}
+
+        {isDone ? (
+          <div className="space-y-3">
+            <p className="text-sm text-center text-[var(--accent)] font-semibold">
+              {tab === "deposit"
+                ? "Deposit complete."
+                : "Withdrawal complete."}
+            </p>
+            <button
+              onClick={onClose}
+              className="w-full rounded-xl bg-[var(--surface)] py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        ) : (
+          <button
+            onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
+            disabled={
+              isPending || !amountStr || !(Number(amountStr) > 0)
+            }
+            className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+          >
+            {status === "activating"
+              ? "Activating account..."
+              : isPending
+                ? tab === "deposit"
+                  ? "Depositing..."
+                  : "Withdrawing..."
+                : tab === "deposit"
+                  ? `Deposit ${meta.label} on ${chainLabel(chain)}`
+                  : `Withdraw ${meta.label}`}
+          </button>
         )}
 
         {/* Disconnect */}
