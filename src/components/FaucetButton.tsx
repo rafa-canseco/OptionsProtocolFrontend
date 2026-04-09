@@ -5,11 +5,16 @@ import type { Address } from "viem";
 
 type Props = {
   address: Address;
+  solanaAddress: string | undefined;
   refetch: () => void;
 };
 
-export function FaucetButton({ address, refetch }: Props) {
-  const { mint, minting, showNotification, error } = useFaucet(address, refetch);
+export function FaucetButton({ address, solanaAddress, refetch }: Props) {
+  const { mint, minting, notification, error } = useFaucet({
+    address,
+    solanaAddress,
+    onComplete: refetch,
+  });
 
   return (
     <>
@@ -21,9 +26,9 @@ export function FaucetButton({ address, refetch }: Props) {
         {minting ? "Getting funds..." : "Get Test Money"}
       </button>
 
-      {showNotification && (
+      {notification && (
         <div className="mx-6 mt-2 rounded-xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-4 py-2.5 text-sm text-[var(--accent)] animate-fade-in-up">
-          You received 100,000 USDC, 50 ETH, and 2 BTC test tokens.
+          {notification}
         </div>
       )}
 
