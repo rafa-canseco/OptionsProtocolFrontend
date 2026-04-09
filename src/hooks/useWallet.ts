@@ -17,6 +17,8 @@ import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const bs58 = require("bs58") as { encode(data: Uint8Array): string };
 import { CHAIN } from "@/lib/contracts";
 import {
   SOLANA_RPC_URL,
@@ -262,6 +264,27 @@ export function useWallet() {
     [solanaAddress, solanaWallets, signAndSendTransaction],
   );
 
+  // Gas-sponsored Solana trade execution (equivalent of sendBatchTx for Base)
+  const sendSolanaTransaction = useCallback(
+    async (tx: Transaction): Promise<string> => {
+      if (!solanaEmbedded) {
+        throw new Error("Solana embedded wallet not ready");
+      }
+      const serialized = tx.serialize({
+        requireAllSignatures: false,
+        verifySignatures: false,
+      });
+      const result = await signAndSendTransaction({
+        transaction: serialized,
+        wallet: solanaEmbedded,
+        chain: SOLANA_CHAIN as `solana:${string}`,
+        options: { sponsor: true },
+      });
+      return bs58.encode(result.signature);
+    },
+    [solanaEmbedded, signAndSendTransaction],
+  );
+
   // Sign a Solana transaction without broadcasting (for bridge pre-signing)
   const signSolanaTransaction = useCallback(
     async (serializedTx: Uint8Array): Promise<Uint8Array> => {
@@ -310,6 +333,7 @@ export function useWallet() {
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
+    sendSolanaTransaction,
     signSolanaTransaction,
     chainError,
     isConnected: !!fundingAddress,
