@@ -50,6 +50,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
+    disconnectWallet,
     activateSmartWallet,
     connectWallet,
     disconnect,
@@ -461,32 +462,50 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 ) : (
                   <div className="flex flex-col gap-1.5">
                     {externalWallets.map((w) => (
-                      <button
+                      <div
                         key={w.address}
-                        onClick={() => {
-                          setSelectedWallet(w);
-                          setAmountStr("");
-                          setError(null);
-                        }}
-                        disabled={isPending}
-                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors text-left ${
+                        className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors ${
                           selectedWallet?.address === w.address
                             ? "border-[var(--accent)] bg-[var(--accent)]/10"
                             : "border-[var(--border)] hover:border-[var(--text-secondary)]"
-                        } disabled:opacity-40`}
+                        }`}
                       >
-                        <div className="flex-1 min-w-0">
+                        <button
+                          onClick={() => {
+                            setSelectedWallet(w);
+                            setAmountStr("");
+                            setError(null);
+                          }}
+                          disabled={isPending}
+                          className="flex-1 min-w-0 text-left disabled:opacity-40"
+                        >
                           <span className="font-semibold text-[var(--text)]">
                             {w.name}
                           </span>
                           <span className="ml-2 text-[var(--text-secondary)] font-mono text-xs">
                             {truncate(w.address)}
                           </span>
-                        </div>
+                        </button>
                         <span className="text-xs text-[var(--text-secondary)] shrink-0">
                           {chainLabel(w.chain)}
                         </span>
-                      </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (selectedWallet?.address === w.address) {
+                              setSelectedWallet(null);
+                            }
+                            disconnectWallet(w.address);
+                          }}
+                          disabled={isPending}
+                          className="text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:opacity-40 shrink-0 p-0.5"
+                          title="Disconnect wallet"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                          </svg>
+                        </button>
+                      </div>
                     ))}
                     <button
                       onClick={() => connectWallet()}
