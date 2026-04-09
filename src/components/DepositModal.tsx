@@ -136,29 +136,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   // --- Base deposit (existing EVM flow) ---
   const handleBaseDeposit = useCallback(async () => {
-    // Trigger activation inline if smart wallet isn't ready
-    if (!address) {
-      setError(null);
-      setStatus("activating");
-      try {
-        await activateSmartWallet();
-        // After activation, address will update via state — user retries
-        setStatus("idle");
-        return;
-      } catch (err) {
-        console.error("[DepositModal] activation failed:", err);
-        const msg = err instanceof Error ? err.message : "";
-        if (/reject|denied|cancel/i.test(msg)) {
-          setError("Signature cancelled.");
-        } else {
-          setError(msg || "Activation failed. Please try again.");
-        }
-        setStatus("idle");
-        return;
-      }
-    }
-
-    if (!fundingAddress) {
+    if (!address || !fundingAddress) {
       setError("Wallet not ready. Please reconnect.");
       return;
     }
@@ -214,7 +192,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [
     address, fundingAddress, amountStr, meta.decimals,
-    token, sendFundingTx, activateSmartWallet, onComplete,
+    token, sendFundingTx, onComplete,
   ]);
 
   // --- Solana deposit (SPL USDC transfer) ---
@@ -261,6 +239,24 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const handleDeposit =
     chain === "solana" ? handleSolanaDeposit : handleBaseDeposit;
+
+  const handleActivate = useCallback(async () => {
+    setError(null);
+    setStatus("activating");
+    try {
+      await activateSmartWallet();
+      setStatus("idle");
+    } catch (err) {
+      console.error("[DepositModal] activation failed:", err);
+      const msg = err instanceof Error ? err.message : "";
+      if (/reject|denied|cancel/i.test(msg)) {
+        setError("Signature cancelled.");
+      } else {
+        setError(msg || "Activation failed. Please try again.");
+      }
+      setStatus("idle");
+    }
+  }, [activateSmartWallet]);
 
   // --- Withdraw (Base only for now) ---
   const handleWithdraw = useCallback(async () => {
@@ -389,15 +385,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 })}
               </span>
             </div>
-            {solanaAddress ? (
-              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
-                {truncate(solanaAddress)}
-              </p>
-            ) : (
-              <p className="text-[10px] text-[var(--text-secondary)] mt-1">
-                Loading...
-              </p>
-            )}
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
+              {solanaAddress ? truncate(solanaAddress) : "Creating..."}
+            </p>
           </div>
         </div>
 
@@ -479,132 +469,147 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           </div>
         )}
 
-        {/* Token selector */}
-        <div className="flex gap-2">
-          {availableTokens.map((t) => (
-            <button
-              key={t}
-              onClick={() => {
-                setToken(t);
-                setAmountStr("");
-                setError(null);
-              }}
-              disabled={isPending}
-              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                token === t
-                  ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
-                  : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]"
-              } disabled:opacity-40`}
-            >
-              <img
-                src={TOKEN_META[t].icon}
-                alt={TOKEN_META[t].label}
-                className="w-4 h-4 rounded-full"
-              />
-              {TOKEN_META[t].label}
-            </button>
-          ))}
-        </div>
-
-        {/* Amount input */}
-        <div>
-          <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-            <input
-              type="text"
-              inputMode="decimal"
-              placeholder="0"
-              value={amountStr}
-              disabled={isPending || isDone}
-              onChange={(e) => {
-                const raw = e.target.value;
-                if (
-                  raw === "" ||
-                  /^(0|[1-9]\d*)?\.?\d*$/.test(raw)
-                ) {
-                  setAmountStr(raw);
-                }
-              }}
-              className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
-            />
-            {(tab === "withdraw" || chain === "base") && (
-              <button
-                onClick={handleMax}
-                disabled={
-                  isPending || isDone || availableBalance <= 0
-                }
-                className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
-              >
-                Max
-              </button>
-            )}
-          </div>
-          {(tab === "withdraw" || chain === "base") && (
-            <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-              Available:{" "}
-              {token === "usdc"
-                ? `$${availableBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}`
-                : `${availableBalance.toLocaleString(undefined, {
-                    minimumFractionDigits: 4,
-                    maximumFractionDigits: 6,
-                  })} ${meta.label}`}
-              {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
-            </p>
-          )}
-        </div>
-
-        {/* Withdraw gas note */}
-        {tab === "withdraw" && fundingAddress && (
-          <p className="text-xs text-[var(--text-secondary)]">
-            Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
-          </p>
-        )}
-
-        {/* Base activation hint when depositing to Base without smart wallet */}
-        {tab === "deposit" && chain === "base" && needsBaseActivation && (
-          <p className="text-xs text-amber-400">
-            You&apos;ll be asked to sign once to activate your Base trading account.
-          </p>
-        )}
-
-        {error && (
-          <p className="text-sm text-[var(--danger)]">{error}</p>
-        )}
-
-        {isDone ? (
+        {/* Base activation gate — show activate button instead of deposit/withdraw UI */}
+        {needsBaseActivation && (tab === "withdraw" || chain === "base") ? (
           <div className="space-y-3">
-            <p className="text-sm text-center text-[var(--accent)] font-semibold">
-              {tab === "deposit"
-                ? "Deposit complete."
-                : "Withdrawal complete."}
+            <p className="text-sm text-[var(--text-secondary)]">
+              Activate your Base trading account with a one-time signature.
+              After this you can deposit, withdraw, and trade with zero gas fees.
             </p>
+            {error && (
+              <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
             <button
-              onClick={onClose}
-              className="w-full rounded-xl bg-[var(--surface)] py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors"
+              onClick={handleActivate}
+              disabled={isPending}
+              className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
             >
-              Close
+              {status === "activating"
+                ? "Activating..."
+                : "Activate Base Trading Account"}
             </button>
           </div>
         ) : (
-          <button
-            onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
-            disabled={
-              isPending || !amountStr || !(Number(amountStr) > 0)
-            }
-            className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
-          >
-            {status === "activating"
-              ? "Activating account..."
-              : isPending
-                ? tab === "deposit"
-                  ? "Depositing..."
-                  : "Withdrawing..."
-                : tab === "deposit"
-                  ? `Deposit ${meta.label} on ${chainLabel(chain)}`
-                  : `Withdraw ${meta.label}`}
-          </button>
+          <>
+            {/* Token selector */}
+            <div className="flex gap-2">
+              {availableTokens.map((t) => (
+                <button
+                  key={t}
+                  onClick={() => {
+                    setToken(t);
+                    setAmountStr("");
+                    setError(null);
+                  }}
+                  disabled={isPending}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                    token === t
+                      ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]"
+                  } disabled:opacity-40`}
+                >
+                  <img
+                    src={TOKEN_META[t].icon}
+                    alt={TOKEN_META[t].label}
+                    className="w-4 h-4 rounded-full"
+                  />
+                  {TOKEN_META[t].label}
+                </button>
+              ))}
+            </div>
+
+            {/* Amount input */}
+            <div>
+              <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                <input
+                  type="text"
+                  inputMode="decimal"
+                  placeholder="0"
+                  value={amountStr}
+                  disabled={isPending || isDone}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (
+                      raw === "" ||
+                      /^(0|[1-9]\d*)?\.?\d*$/.test(raw)
+                    ) {
+                      setAmountStr(raw);
+                    }
+                  }}
+                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
+                />
+                {(tab === "withdraw" || chain === "base") && (
+                  <button
+                    onClick={handleMax}
+                    disabled={
+                      isPending || isDone || availableBalance <= 0
+                    }
+                    className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
+                  >
+                    Max
+                  </button>
+                )}
+              </div>
+              {(tab === "withdraw" || chain === "base") && (
+                <p className="text-xs text-[var(--text-secondary)] mt-1.5">
+                  Available:{" "}
+                  {token === "usdc"
+                    ? `$${availableBalance.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}`
+                    : `${availableBalance.toLocaleString(undefined, {
+                        minimumFractionDigits: 4,
+                        maximumFractionDigits: 6,
+                      })} ${meta.label}`}
+                  {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
+                </p>
+              )}
+            </div>
+
+            {/* Withdraw gas note */}
+            {tab === "withdraw" && fundingAddress && (
+              <p className="text-xs text-[var(--text-secondary)]">
+                Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
+              </p>
+            )}
+
+            {error && (
+              <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
+
+            {isDone ? (
+              <div className="space-y-3">
+                <p className="text-sm text-center text-[var(--accent)] font-semibold">
+                  {tab === "deposit"
+                    ? "Deposit complete."
+                    : "Withdrawal complete."}
+                </p>
+                <button
+                  onClick={onClose}
+                  className="w-full rounded-xl bg-[var(--surface)] py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
+                disabled={
+                  isPending || !amountStr || !(Number(amountStr) > 0)
+                }
+                className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+              >
+                {isPending
+                  ? tab === "deposit"
+                    ? "Depositing..."
+                    : "Withdrawing..."
+                  : tab === "deposit"
+                    ? `Deposit ${meta.label} on ${chainLabel(chain)}`
+                    : `Withdraw ${meta.label}`}
+              </button>
+            )}
+          </>
         )}
 
         {/* Disconnect */}
