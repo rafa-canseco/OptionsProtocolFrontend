@@ -94,14 +94,20 @@ export function useWallet() {
       });
     }
 
-    // Solana external wallets (not the embedded Privy wallet)
+    // Solana external wallets (skip embedded Privy wallet and EVM wallets
+    // that also expose a Solana adapter, e.g. MetaMask Snaps)
+    const evmNames = new Set(
+      list.map((w) => w.name.toLowerCase()),
+    );
     for (const w of solanaWallets) {
       if ("isPrivyWallet" in w.standardWallet) continue;
+      const name = w.standardWallet.name.toLowerCase();
+      if (evmNames.has(name)) continue;
       list.push({
         address: w.address,
         chain: "solana",
         name: w.standardWallet.name,
-        walletClientType: w.standardWallet.name.toLowerCase(),
+        walletClientType: name,
       });
     }
 
