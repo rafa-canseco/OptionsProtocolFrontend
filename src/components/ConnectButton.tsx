@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useLogin } from "@privy-io/react-auth";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -12,8 +13,8 @@ import {
 } from "@/components/ui/popover";
 
 export function ConnectButton() {
-  const { address, solanaAddress, isConnected, isReady, connectWallet } =
-    useWallet();
+  const { login } = useLogin();
+  const { address, solanaAddress, isConnected, isReady } = useWallet();
   const { usd, loading: balancesLoading } = useBalances(address);
   const { solanaUsdc, loading: solLoading } = useSolanaBalance(solanaAddress);
   const [showDeposit, setShowDeposit] = useState(false);
@@ -96,7 +97,7 @@ export function ConnectButton() {
 
   return (
     <button
-      onClick={connectWallet}
+      onClick={() => login()}
       className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
     >
       Connect
