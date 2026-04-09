@@ -6,6 +6,7 @@ import { api, type Position } from "@/lib/api";
 export function usePositions(
   address: string | undefined,
   fundingAddress: string | undefined,
+  solanaAddress?: string | undefined,
   pollInterval = 15_000,
 ) {
   const [positions, setPositions] = useState<Position[]>([]);
@@ -25,6 +26,9 @@ export function usePositions(
       if (fundingAddress && fundingAddress !== address) {
         queries.push(api.getPositions(fundingAddress));
       }
+      if (solanaAddress) {
+        queries.push(api.getPositions(solanaAddress));
+      }
 
       const results = await Promise.all(queries);
       const merged = results.flat();
@@ -43,7 +47,7 @@ export function usePositions(
     } finally {
       setLoading(false);
     }
-  }, [address, fundingAddress]);
+  }, [address, fundingAddress, solanaAddress]);
 
   useEffect(() => {
     refresh();

@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd, fmtAsset, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
+import { SOLANA_EXPLORER_URL } from "@/lib/solana";
+import { getAssetConfig } from "@/lib/assets";
 import { formatApr } from "@/lib/yield";
 import type { AaveRates } from "@/hooks/useAaveRates";
 import { YieldExplainer } from "./yield/YieldExplainer";
@@ -12,7 +14,17 @@ import { YieldExplainer } from "./yield/YieldExplainer";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
-const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
+const BASE_EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
+
+function explorerTxUrl(
+  txHash: string,
+  slug: string,
+): string | null {
+  if (slug === "sol") {
+    return `${SOLANA_EXPLORER_URL}/tx/${txHash}`;
+  }
+  return BASE_EXPLORER ? `${BASE_EXPLORER}/tx/${txHash}` : null;
+}
 
 interface YieldInfo {
   asset: string;
@@ -49,9 +61,9 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   // strike_price is 8 decimals on-chain
   const strike = position.strike_price / 1e8;
 
-  // Collateral: puts = USDC (6 dec), ETH calls = WETH (18 dec), BTC calls = WBTC (8 dec)
-  const isBtc = assetSlug === "btc";
-  const callDec = isBtc ? 1e8 : 1e18;
+  // Collateral: puts = USDC (6 dec), calls = wrapped asset (varies)
+  const config = getAssetConfig(assetSlug);
+  const callDec = 10 ** (config?.collateralDecimals ?? 18);
   const committedUsd = isBuy
     ? position.collateral / 1e6
     : (position.collateral / callDec) * strike;
@@ -209,11 +221,14 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           )}
 
           <div className="flex items-center gap-4">
-            {EXPLORER && position.tx_hash && (
-              <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
-                Open tx
-              </a>
-            )}
+            {position.tx_hash && (() => {
+              const url = explorerTxUrl(position.tx_hash, assetSlug);
+              return url ? (
+                <a href={url} target="_blank" rel="noopener noreferrer" className="text-xs text-[var(--accent)] hover:underline">
+                  Open tx
+                </a>
+              ) : null;
+            })()}
             <a
               href={buildCalendarUrl(position, assetSymbol, assetSlug)}
               target="_blank"
@@ -253,20 +268,16 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             {returnPct.toFixed(1)}% in {totalDays}d · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
           </p>
 
-          {EXPLORER && (
-            <div className="flex gap-3 text-xs">
-              {position.tx_hash && (
-                <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
-                  Open tx
-                </a>
-              )}
-              {position.settlement_tx_hash && (
-                <a href={`${EXPLORER}/tx/${position.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
-                  Settle tx
-                </a>
-              )}
-            </div>
-          )}
+          <div className="flex gap-3 text-xs">
+            {position.tx_hash && (() => {
+              const url = explorerTxUrl(position.tx_hash, assetSlug);
+              return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">Open tx</a> : null;
+            })()}
+            {position.settlement_tx_hash && (() => {
+              const url = explorerTxUrl(position.settlement_tx_hash, assetSlug);
+              return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">Settle tx</a> : null;
+            })()}
+          </div>
 
           {/* CTA: Earn again */}
           <Link
@@ -339,25 +350,20 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
             </p>
           )}
 
-          {EXPLORER && (
-            <div className="flex gap-3 text-xs">
-              {position.tx_hash && (
-                <a href={`${EXPLORER}/tx/${position.tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
-                  Open tx
-                </a>
-              )}
-              {position.settlement_tx_hash && (
-                <a href={`${EXPLORER}/tx/${position.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
-                  Settle tx
-                </a>
-              )}
-              {position.delivery_tx_hash && (
-                <a href={`${EXPLORER}/tx/${position.delivery_tx_hash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
-                  Delivery tx
-                </a>
-              )}
-            </div>
-          )}
+          <div className="flex gap-3 text-xs">
+            {position.tx_hash && (() => {
+              const url = explorerTxUrl(position.tx_hash, assetSlug);
+              return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">Open tx</a> : null;
+            })()}
+            {position.settlement_tx_hash && (() => {
+              const url = explorerTxUrl(position.settlement_tx_hash, assetSlug);
+              return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">Settle tx</a> : null;
+            })()}
+            {position.delivery_tx_hash && (() => {
+              const url = explorerTxUrl(position.delivery_tx_hash, assetSlug);
+              return url ? <a href={url} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">Delivery tx</a> : null;
+            })()}
+          </div>
 
           {/* CTA: Next step */}
           <Link
