@@ -11,6 +11,8 @@ import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
+import { SOLANA_EXPLORER_URL, toPublicKey } from "@/lib/solana";
+import { buildSolanaTradeTransaction } from "@/lib/bridgeTx";
 import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
@@ -52,9 +54,9 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, solanaAddress, sendBatchTx, isConnected, connectWallet } = useWallet();
+  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected, connectWallet } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw } = useBalances(address);
-  const { solanaUsdcRaw } = useSolanaBalance(solanaAddress);
+  const { solanaUsdcRaw, solanaWsolRaw, solanaSolRaw, solanaWsol, solanaSol } = useSolanaBalance(solanaAddress);
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
   const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<TxStep>("idle");
@@ -67,8 +69,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
-  // For covered calls: ETH uses native + WETH, BTC uses WBTC
-  const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
+  const isSol = assetSlug === "sol";
+  // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
+  const walletBalance = isBuy
+    ? usd
+    : isSol
+      ? solanaWsol + solanaSol
+      : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
@@ -161,6 +168,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       if (quote.chain && quote.chain !== "base") {
         const deficit = checkDeficit(
           quote, amount, isBuy, assetSlug, baseUsdcRaw, solanaUsdcRaw,
+          solanaWsolRaw, solanaSolRaw,
         );
 
         if (deficit.needsBridge && deficit.sourceChain) {
@@ -190,6 +198,46 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                 "Bridge-and-trade failed. Check your balance before retrying.",
             );
             setStep("idle");
+          }
+          return;
+        }
+
+        // SOL calls: insufficient wSOL + SOL, can't bridge
+        if (deficit.needsDeposit) {
+          setError(
+            "Insufficient SOL for covered call. Deposit SOL to your Solana wallet.",
+          );
+          return;
+        }
+
+        // Direct Solana execution (no bridge needed)
+        if (!deficit.needsBridge) {
+          if (!solanaAddress) {
+            setError("Solana wallet not ready. Please wait and try again.");
+            return;
+          }
+
+          updateStep("executing");
+
+          const solanaPk = toPublicKey(solanaAddress, "Solana wallet");
+          const tradeTx = await buildSolanaTradeTransaction(
+            quote, amount, isBuy, assetSlug, solanaPk,
+            isBuy ? undefined : solanaWsolRaw,
+          );
+
+          const signature = await sendSolanaTransaction(tradeTx);
+          setTxHash(signature);
+          setChainExecuted("solana");
+          updateStep("confirmed");
+          onAccepted({ amount, txHash: signature });
+          window.dispatchEvent(new Event("balance:refetch"));
+
+          const pos = buildOptimisticPosition(
+            quote, amount, isBuy,
+            solanaAddress as unknown as Address, assetSlug,
+          );
+          try { saveOptimistic(pos); } catch (err) {
+            console.warn("[AcceptModal] Could not save optimistic position:", err);
           }
           return;
         }
@@ -361,7 +409,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                 <div className="flex items-center gap-1.5 shrink-0">
                   <img
-                    src={isBuy ? "/usdc.svg" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                    src={isBuy ? "/usdc.svg" : isSol ? "/sol.png" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
                     alt={isBuy ? "USDC" : assetSymbol}
                     className="w-5 h-5 rounded-full"
                   />
@@ -462,9 +510,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           </p>
         )}
 
-        {step === "confirmed" && txHash && CHAIN.blockExplorers?.default.url && (
+        {step === "confirmed" && txHash && (
           <a
-            href={`${CHAIN.blockExplorers.default.url}/tx/${txHash}`}
+            href={
+              chainExecuted === "solana"
+                ? `${SOLANA_EXPLORER_URL}/tx/${txHash}`
+                : `${CHAIN.blockExplorers?.default.url}/tx/${txHash}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="block text-center text-sm text-[var(--accent)] hover:underline"
