@@ -17,16 +17,19 @@ import {
   maxUint256,
   encodeFunctionData,
 } from "viem";
-import { PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import { PublicKey, Transaction, TransactionInstruction, SystemProgram } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
+  createAssociatedTokenAccountInstruction,
   createApproveInstruction,
+  createSyncNativeInstruction,
   TOKEN_PROGRAM_ID,
+  ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import type { PriceQuote } from "@/lib/api";
 import type { BatchCall } from "@/hooks/useWallet";
 import { ADDRESSES, ERC20_ABI } from "@/lib/contracts";
-import { SOLANA_USDC_MINT, solanaConnection, toPublicKey } from "@/lib/solana";
+import { SOLANA_USDC_MINT, SOLANA_WSOL_MINT, solanaConnection, toPublicKey } from "@/lib/solana";
 import { encodeExecuteOrder, computeCollateral } from "@/lib/execution";
 
 // ---------------------------------------------------------------------------
@@ -103,6 +106,8 @@ export async function buildSolanaTradeTransaction(
   isBuy: boolean,
   assetSlug: string,
   ownerPubkey: PublicKey,
+  /** Current wSOL balance — used to decide if wrapping is needed */
+  wsolBalance?: bigint,
 ): Promise<Transaction> {
   if (!solanaConnection) {
     throw new Error("Solana RPC not configured");
@@ -111,12 +116,15 @@ export async function buildSolanaTradeTransaction(
     throw new Error("Solana USDC mint not configured");
   }
 
-  const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
   const { oTokenAmount, collateral } =
     computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
+  // Determine collateral mint based on option type
+  const collateralMintStr = isBuy ? SOLANA_USDC_MINT : SOLANA_WSOL_MINT;
+  const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
+
   const ownerAta = await getAssociatedTokenAddress(
-    mint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
   );
 
   const marginPoolPda = PublicKey.findProgramAddressSync(
@@ -124,6 +132,44 @@ export async function buildSolanaTradeTransaction(
     SOLANA_PROGRAMS.marginPool,
   )[0];
 
+  const tx = new Transaction();
+
+  // For calls: auto-wrap native SOL → wSOL if needed
+  if (!isBuy) {
+    const currentWsol = wsolBalance ?? BigInt(0);
+    if (currentWsol < collateral) {
+      const wrapAmount = collateral - currentWsol;
+
+      // Create wSOL ATA if it doesn't exist
+      const ataInfo = await solanaConnection.getAccountInfo(ownerAta);
+      if (!ataInfo) {
+        tx.add(
+          createAssociatedTokenAccountInstruction(
+            ownerPubkey,
+            ownerAta,
+            ownerPubkey,
+            collateralMint,
+            TOKEN_PROGRAM_ID,
+            ASSOCIATED_TOKEN_PROGRAM_ID,
+          ),
+        );
+      }
+
+      // Transfer native SOL to wSOL ATA
+      tx.add(
+        SystemProgram.transfer({
+          fromPubkey: ownerPubkey,
+          toPubkey: ownerAta,
+          lamports: wrapAmount,
+        }),
+      );
+
+      // Sync native balance to update wSOL amount
+      tx.add(createSyncNativeInstruction(ownerAta, TOKEN_PROGRAM_ID));
+    }
+  }
+
+  // Approve collateral to margin pool
   const approveIx = createApproveInstruction(
     ownerAta,
     marginPoolPda,
@@ -132,6 +178,7 @@ export async function buildSolanaTradeTransaction(
     [],
     TOKEN_PROGRAM_ID,
   );
+  tx.add(approveIx);
 
   // executeOrder: Anchor discriminator + Borsh args
   const discriminator = Buffer.from("733db418a820d714", "hex");
@@ -174,9 +221,7 @@ export async function buildSolanaTradeTransaction(
     ],
     data: ixData,
   });
-
-  const tx = new Transaction();
-  tx.add(approveIx, executeIx);
+  tx.add(executeIx);
 
   const { blockhash } = await solanaConnection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;

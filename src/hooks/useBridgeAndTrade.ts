@@ -32,6 +32,7 @@ export type ChainId = "base" | "solana";
 
 export interface DeficitResult {
   needsBridge: boolean;
+  needsDeposit: boolean;
   sourceChain: ChainId | null;
   deficit: bigint;
 }
@@ -88,6 +89,8 @@ export function useBridgeAndTrade() {
       assetSlug: string,
       baseUsdcRaw: bigint,
       solanaUsdcRaw: bigint,
+      solanaWsolRaw?: bigint,
+      solanaSolRaw?: bigint,
     ): DeficitResult => {
       if (!quote.chain) {
         throw new Error(
@@ -100,18 +103,35 @@ export function useBridgeAndTrade() {
         isBuy, amount, quote.strike, assetSlug,
       );
 
-      const targetBalance =
-        quote.chain === "base" ? baseUsdcRaw : solanaUsdcRaw;
+      // Puts (buy side): USDC collateral — can bridge cross-chain
+      if (isBuy) {
+        const targetBalance =
+          quote.chain === "base" ? baseUsdcRaw : solanaUsdcRaw;
 
-      if (targetBalance >= collateral) {
-        return { needsBridge: false, sourceChain: null, deficit: BigInt(0) };
+        if (targetBalance >= collateral) {
+          return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
+        }
+
+        const deficit = collateral - targetBalance;
+        const sourceChain: ChainId =
+          quote.chain === "base" ? "solana" : "base";
+
+        return { needsBridge: true, needsDeposit: false, sourceChain, deficit };
       }
 
-      const deficit = collateral - targetBalance;
-      const sourceChain: ChainId =
-        quote.chain === "base" ? "solana" : "base";
+      // Calls (sell side): wrapped asset collateral
+      if (quote.chain === "solana") {
+        // SOL calls: wSOL + native SOL (auto-wrap handles conversion)
+        const available = (solanaWsolRaw ?? BigInt(0)) + (solanaSolRaw ?? BigInt(0));
+        if (available >= collateral) {
+          return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
+        }
+        // Can't bridge SOL/wSOL via CCTP — user must deposit
+        return { needsBridge: false, needsDeposit: true, sourceChain: null, deficit: collateral - available };
+      }
 
-      return { needsBridge: true, sourceChain, deficit };
+      // Base calls: existing WETH/cbBTC logic — handled by AcceptModal on-chain check
+      return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
     },
     [],
   );

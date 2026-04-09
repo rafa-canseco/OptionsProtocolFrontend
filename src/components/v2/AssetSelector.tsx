@@ -22,8 +22,7 @@ import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
   btc: "/cbbtc.webp",
-  aero: "/aero.png",
-  virtual: "/virtual.png",
+  sol: "/sol.png",
 };
 
 function AssetIcon({
@@ -121,6 +120,12 @@ export function AssetSelector({
                     <span className="text-xs text-[var(--text-secondary)]">
                       {asset.name}
                     </span>
+                    {asset.chain === "solana" && (
+                      <span className="text-[9px] font-medium text-purple-400
+                        bg-purple-500/10 px-1 py-0.5 rounded ml-auto">
+                        Solana
+                      </span>
+                    )}
                     {disabled && (
                       <span className="ml-auto text-[10px] font-medium
                         text-[var(--text-secondary)] border

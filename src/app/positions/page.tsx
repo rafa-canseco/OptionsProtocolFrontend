@@ -105,11 +105,12 @@ function groupPositions(positions: Position[]): DisplayItem[] {
 }
 
 export default function PositionsPage() {
-  const { address, fundingAddress, isConnected } = useWallet();
-  const { positions, loading, refresh } = usePositions(address, fundingAddress);
+  const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
+  const { positions, loading, refresh } = usePositions(address, fundingAddress, solanaAddress);
   const { activity } = useActivity(address, fundingAddress ?? undefined);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
+  const { spot: solSpot } = useSpot("sol");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
   const notifStatus = useNotificationStatus(address);
@@ -210,7 +211,7 @@ export default function PositionsPage() {
                   item.positions[0].asset,
                   item.positions[0].strike_price,
                 );
-                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+                const posSpot = posAsset.slug === "btc" ? btcSpot : posAsset.slug === "sol" ? solSpot : ethSpot;
                 return (
                   <RangePositionCard
                     key={item.groupId}
@@ -227,7 +228,7 @@ export default function PositionsPage() {
               }
               const pos = item.position;
               const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
-              const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+              const posSpot = posAsset.slug === "btc" ? btcSpot : posAsset.slug === "sol" ? solSpot : ethSpot;
               return (
                 <PositionCard
                   key={pos.id}
