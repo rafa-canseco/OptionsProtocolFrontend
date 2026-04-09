@@ -1,6 +1,7 @@
 "use client";
 
 import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
+import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
@@ -31,6 +32,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: "dark",
           accentColor: "#22D3EE",
+          walletChainType: "ethereum-and-solana",
+        },
+        externalWallets: {
+          solana: {
+            connectors: toSolanaWalletConnectors(),
+          },
         },
         defaultChain: CHAIN,
         supportedChains: [CHAIN],
