@@ -10,7 +10,7 @@ import {
 import { createWalletClient, custom, type Address } from "viem";
 import { useCallback, useMemo } from "react";
 import {
-  Connection, PublicKey, Transaction, SystemProgram,
+  Connection, PublicKey, Transaction, VersionedTransaction, SystemProgram,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
@@ -310,14 +310,13 @@ export function useWallet() {
 
   // Gas-sponsored Solana trade execution (equivalent of sendBatchTx for Base)
   const sendSolanaTransaction = useCallback(
-    async (tx: Transaction): Promise<string> => {
+    async (tx: Transaction | VersionedTransaction): Promise<string> => {
       if (!solanaEmbedded) {
         throw new Error("Solana embedded wallet not ready");
       }
-      const serialized = tx.serialize({
-        requireAllSignatures: false,
-        verifySignatures: false,
-      });
+      const serialized = tx instanceof VersionedTransaction
+        ? tx.serialize()
+        : tx.serialize({ requireAllSignatures: false, verifySignatures: false });
       const result = await signAndSendTransaction({
         transaction: serialized,
         wallet: solanaEmbedded,

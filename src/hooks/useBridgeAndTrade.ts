@@ -39,7 +39,7 @@ export interface DeficitResult {
 
 export interface BridgeAndTradeResult {
   success: boolean;
-  jobId: string;
+  jobId?: string;
   chainExecuted?: ChainId;
   txHash?: string;
   error?: string;
@@ -160,10 +160,19 @@ export function useBridgeAndTrade() {
       const destDomain =
         destChain === "base" ? DOMAIN_BASE : DOMAIN_SOLANA;
 
-      const { fee } = await api.getBridgeFee(
-        sourceDomain, destDomain, deficit.toString(),
-      );
-      const maxFee = BigInt(fee);
+      let maxFee: bigint;
+      try {
+        const { fee } = await api.getBridgeFee(
+          sourceDomain, destDomain, deficit.toString(),
+        );
+        maxFee = BigInt(fee);
+      } catch {
+        const chainName = destChain === "solana" ? "Solana" : "Base";
+        return {
+          success: false,
+          error: `Not enough USDC on ${chainName}. Deposit USDC to your ${chainName} wallet first.`,
+        };
+      }
 
       if (sourceChain === "base") {
         return executeBaseToSolana(
@@ -204,10 +213,7 @@ export function useBridgeAndTrade() {
     const tradeTx = await buildSolanaTradeTransaction(
       quote, amount, isBuy, assetSlug, solanaPk,
     );
-    const serialized = tradeTx.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false,
-    });
+    const serialized = tradeTx.serialize();
     const signed = await signSolanaTransaction(serialized);
     const signedTradeTx = Buffer.from(signed).toString("base64");
 

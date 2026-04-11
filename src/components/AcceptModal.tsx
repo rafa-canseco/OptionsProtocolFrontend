@@ -220,6 +220,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           updateStep("executing");
 
           const solanaPk = toPublicKey(solanaAddress, "Solana wallet");
+
           const tradeTx = await buildSolanaTradeTransaction(
             quote, amount, isBuy, assetSlug, solanaPk,
             isBuy ? undefined : solanaWsolRaw,

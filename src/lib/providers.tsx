@@ -5,6 +5,8 @@ import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
+import { SOLANA_RPC_URL } from "@/lib/solana";
+import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -28,7 +30,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={PRIVY_APP_ID}
       config={{
-        loginMethods: ["email", "wallet"],
+        loginMethods: ["wallet"],
         appearance: {
           theme: "dark",
           accentColor: "#22D3EE",
@@ -40,6 +42,18 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         },
         supportedChains: [CHAIN],
+        solana: {
+          rpcs: {
+            "solana:devnet": {
+              rpc: createSolanaRpc(
+                SOLANA_RPC_URL || "https://api.devnet.solana.com",
+              ),
+              rpcSubscriptions: createSolanaRpcSubscriptions(
+                "wss://api.devnet.solana.com",
+              ),
+            },
+          },
+        },
         embeddedWallets: {
           ethereum: {
             createOnLogin: "all-users",
