@@ -218,6 +218,26 @@ export async function buildSolanaTradeTransaction(
   // On-chain reads
   // ---------------------------------------------------------------------------
 
+  // Pre-flight: verify otoken hasn't expired on-chain
+  // OTokenInfo layout: discriminator(8) + otoken_mint(32) + underlying(32)
+  //   + strike_asset(32) + collateral_mint(32) + strike_price(8) + expiry(8)
+  const otokenInfoAccount = await solanaConnection.getAccountInfo(otokenInfoPda);
+  if (!otokenInfoAccount) {
+    throw new Error(
+      "otoken_info account not found on-chain. " +
+      "The option token has not been registered yet.",
+    );
+  }
+  const otokenExpiry = Buffer.from(otokenInfoAccount.data)
+    .readBigInt64LE(144); // offset: 8+32+32+32+32+8 = 144
+  const nowUnix = BigInt(Math.floor(Date.now() / 1000));
+  if (otokenExpiry <= nowUnix) {
+    throw new Error(
+      `Option has expired on-chain (expiry=${otokenExpiry}, now=${nowUnix}). ` +
+      "Select a quote with a future expiry date.",
+    );
+  }
+
   // Read settlerConfig → treasury pubkey at offset 72 (8+32+32)
   const settlerConfigInfo = await solanaConnection.getAccountInfo(settlerConfigPda);
   if (!settlerConfigInfo) {

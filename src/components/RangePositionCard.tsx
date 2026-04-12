@@ -5,11 +5,19 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
+import { SOLANA_EXPLORER_URL } from "@/lib/solana";
 import { YieldExplainer } from "./yield/YieldExplainer";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
 const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
+
+function explorerTxUrl(txHash: string, slug: string): string | null {
+  if (slug === "sol") {
+    return `${SOLANA_EXPLORER_URL}/tx/${txHash}`;
+  }
+  return EXPLORER ? `${EXPLORER}/tx/${txHash}` : null;
+}
 
 interface YieldInfo {
   asset: string;
@@ -220,11 +228,11 @@ export function RangePositionCard({
                   ${fmtUsd(callPremium)}
                 </span>
               </div>
-              {EXPLORER && (
+              {(putLeg.tx_hash || callLeg.tx_hash) && (
                 <div className="flex gap-3">
-                  {putLeg.tx_hash && (
+                  {putLeg.tx_hash && explorerTxUrl(putLeg.tx_hash, assetSlug) && (
                     <a
-                      href={`${EXPLORER}/tx/${putLeg.tx_hash}`}
+                      href={explorerTxUrl(putLeg.tx_hash, assetSlug)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[var(--accent)] hover:underline"
@@ -232,9 +240,9 @@ export function RangePositionCard({
                       Lower tx
                     </a>
                   )}
-                  {callLeg.tx_hash && (
+                  {callLeg.tx_hash && explorerTxUrl(callLeg.tx_hash, assetSlug) && (
                     <a
-                      href={`${EXPLORER}/tx/${callLeg.tx_hash}`}
+                      href={explorerTxUrl(callLeg.tx_hash, assetSlug)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[var(--accent)] hover:underline"

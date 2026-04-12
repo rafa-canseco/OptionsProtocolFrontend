@@ -118,7 +118,7 @@ export default function PositionsPage() {
     summary: yieldSummary,
     positions: yieldPositions,
     history: yieldHistory,
-  } = useYield(address);
+  } = useYield(address, solanaAddress);
   const { rates: aaveRates } = useAaveRates();
 
   const yieldByVault = useMemo(() => {

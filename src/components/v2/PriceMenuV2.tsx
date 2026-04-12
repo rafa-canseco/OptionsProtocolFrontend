@@ -14,6 +14,7 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
+import { SOLANA_EXPLORER_URL } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import { formatApr } from "@/lib/yield";
 import { useAaveRates } from "@/hooks/useAaveRates";
@@ -314,7 +315,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ${asset.symbol}`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
     const roi = computeROI(aq.premium, aq.strike);
-    const explorerUrl = CHAIN.blockExplorers?.default.url;
+    const explorerUrl = asset.chain === "solana"
+      ? SOLANA_EXPLORER_URL
+      : CHAIN.blockExplorers?.default.url;
 
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
@@ -373,7 +376,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   }
 
   if (rangeAccepted) {
-    const explorerUrl = CHAIN.blockExplorers?.default.url;
+    const explorerUrl = asset.chain === "solana"
+      ? SOLANA_EXPLORER_URL
+      : CHAIN.blockExplorers?.default.url;
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
         <div>

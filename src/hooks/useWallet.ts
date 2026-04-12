@@ -26,6 +26,7 @@ import {
   SOLANA_RPC_URL,
   SOLANA_USDC_MINT,
   SOLANA_CHAIN,
+  solanaConnection,
   toPublicKey,
 } from "@/lib/solana";
 
@@ -314,18 +315,28 @@ export function useWallet() {
       if (!solanaEmbedded) {
         throw new Error("Solana embedded wallet not ready");
       }
-      const serialized = tx instanceof VersionedTransaction
+      if (!solanaConnection) {
+        throw new Error("Solana RPC not configured");
+      }
+
+      // Privy's client-side sponsor flow fails on v0 transactions that use
+      // address lookup tables. Sign locally, then submit via our RPC instead.
+      const unsignedTx = tx instanceof VersionedTransaction
         ? tx.serialize()
         : tx.serialize({ requireAllSignatures: false, verifySignatures: false });
-      const result = await signAndSendTransaction({
-        transaction: serialized,
+      const { signedTransaction } = await privySignSolanaTx({
+        transaction: unsignedTx,
         wallet: solanaEmbedded,
         chain: SOLANA_CHAIN as `solana:${string}`,
-        options: { sponsor: true },
       });
-      return bs58.encode(result.signature);
+      const signature = await solanaConnection.sendRawTransaction(
+        Buffer.from(signedTransaction),
+        { preflightCommitment: "confirmed" },
+      );
+      await solanaConnection.confirmTransaction(signature, "confirmed");
+      return signature;
     },
-    [solanaEmbedded, signAndSendTransaction],
+    [solanaEmbedded, privySignSolanaTx],
   );
 
   // Sign a Solana transaction without broadcasting (for bridge pre-signing)
@@ -337,6 +348,7 @@ export function useWallet() {
       const result = await privySignSolanaTx({
         transaction: serializedTx,
         wallet: solanaEmbedded,
+        chain: SOLANA_CHAIN as `solana:${string}`,
       });
       return result.signedTransaction;
     },
