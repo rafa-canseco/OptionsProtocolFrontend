@@ -66,6 +66,16 @@ function getSerializedBase64Length(tx: { serialize: () => Uint8Array }): number 
   return 4 * Math.ceil(tx.serialize().length / 3);
 }
 
+function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
+  const divisor = BigInt(10) ** BigInt(9 - decimals);
+  const displayUnits = rawLamports / divisor;
+  const scale = BigInt(10) ** BigInt(decimals);
+  const whole = displayUnits / scale;
+  const fraction = (displayUnits % scale).toString().padStart(decimals, "0");
+  const trimmed = fraction.replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : whole.toString();
+}
+
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
   const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
@@ -120,8 +130,14 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
 
   function handlePercent(pct: number) {
-    const raw = maxInputAmount * (pct / 100);
     setActivePercent(pct);
+    if (!isBuy && isSol) {
+      const raw = (solMaxByBalanceRaw * BigInt(pct)) / BigInt(100);
+      setAmountStr(formatSolRawAmount(raw));
+      return;
+    }
+
+    const raw = maxInputAmount * (pct / 100);
     if (isBuy) {
       setAmountStr(floorTo(raw, 2).toString());
     } else {
@@ -170,11 +186,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       setShowDeposit(true);
       return;
     }
-    if (!address) {
-      setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
-      setShowDeposit(true);
-      return;
-    }
 
     if (!quote.otoken_address || !quote.signature || !quote.bid_price_raw
         || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null
@@ -216,6 +227,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         }
 
         if (deficit.needsBridge && deficit.sourceChain) {
+          if (!address || !solanaAddress) {
+            setDepositToken("usdc");
+            setShowDeposit(true);
+            return;
+          }
           updateStep("executing");
           const result = await executeBridgeAndTrade({
             quote, amount, isBuy, assetSlug,
@@ -349,6 +365,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       }
 
       // --- Direct Base execution ---
+      if (!address) {
+        setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
+        setShowDeposit(true);
+        return;
+      }
+
       const { oTokenAmount, collateral, collateralAsset } =
         computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
