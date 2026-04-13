@@ -1,6 +1,8 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Position } from "@/lib/api"
+import { getAssetConfig } from "@/lib/assets"
+import { getPositionStrike } from "@/lib/positionMath"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -47,7 +49,7 @@ export function buildCalendarUrl(
   assetSlug: string,
   titleOverride?: string,
 ): string {
-  const strike = position.strike_price / 1e8;
+  const strike = getPositionStrike(position);
   const side = position.is_put ? "put" : "call";
   const strikeFmt = strike.toLocaleString("en-US");
   const title = titleOverride ?? `b1nary: ${assetSymbol} $${strikeFmt} ${side} expiry`;
@@ -58,8 +60,7 @@ export function buildCalendarUrl(
   const day = `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}`;
   const dates = `${day}T080000Z/${day}T090000Z`;
 
-  const isBtc = assetSlug === "btc";
-  const callDec = isBtc ? 1e8 : 1e18;
+  const callDec = 10 ** (getAssetConfig(assetSlug)?.collateralDecimals ?? 18);
   const premiumUsd = Number(position.net_premium) / 1e6;
   const committedDisplay = position.is_put
     ? `$${(position.collateral / 1e6).toLocaleString("en-US", { maximumFractionDigits: 0 })}`

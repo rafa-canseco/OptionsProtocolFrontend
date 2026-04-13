@@ -7,6 +7,7 @@ import { useSpot } from "@/hooks/useSpot";
 import { useCapacity } from "@/hooks/useCapacity";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
+import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
 import { HowItWorksDrawer } from "../HowItWorksDrawer";
@@ -14,7 +15,7 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { SOLANA_EXPLORER_URL } from "@/lib/solana";
+import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import { formatApr } from "@/lib/yield";
 import { useAaveRates } from "@/hooks/useAaveRates";
@@ -167,8 +168,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
-  const { address, isConnected, connectWallet } = useWallet();
+  const { address, solanaAddress, isConnected } = useWallet();
   const { usd, eth, weth, wbtc } = useBalances(address);
+  const { solanaUsdc, solanaWsol, solanaSol } = useSolanaBalance(solanaAddress);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
@@ -192,7 +194,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
-  const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
+  const isSol = asset.slug === "sol";
+  const walletBalance = isBuy
+    ? asset.chain === "solana" ? solanaUsdc : usd
+    : isSol ? solanaWsol + solanaSol : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
@@ -316,7 +321,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
     const roi = computeROI(aq.premium, aq.strike);
     const explorerUrl = asset.chain === "solana"
-      ? SOLANA_EXPLORER_URL
+      ? null
       : CHAIN.blockExplorers?.default.url;
 
     return (
@@ -335,9 +340,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p>{commitLabel} committed for {aq.expiry_days} days</p>
           <p>{abuy ? "Buy" : "Sell"} {asset.symbol} at ${aq.strike.toLocaleString()}/{asset.symbol}</p>
         </div>
-        {aTxHash && explorerUrl && (
+        {aTxHash && (
           <a
-            href={`${explorerUrl}/tx/${aTxHash}`}
+            href={
+              asset.chain === "solana"
+                ? solanaTxUrl(aTxHash)
+                : `${explorerUrl}/tx/${aTxHash}`
+            }
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block text-sm text-[var(--accent)] hover:underline"
@@ -377,7 +386,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   if (rangeAccepted) {
     const explorerUrl = asset.chain === "solana"
-      ? SOLANA_EXPLORER_URL
+      ? null
       : CHAIN.blockExplorers?.default.url;
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
@@ -399,15 +408,33 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p>Range: ${rangeAccepted.putStrike.toLocaleString()} – ${rangeAccepted.callStrike.toLocaleString()}</p>
           <p>${rangeAccepted.amount.toLocaleString()} committed for {rangeAccepted.expiryDays} days</p>
         </div>
-        {explorerUrl && (rangeAccepted.putTxHash || rangeAccepted.callTxHash) && (
+        {(rangeAccepted.putTxHash || rangeAccepted.callTxHash) && (
           <div className="flex justify-center gap-3 text-sm">
             {rangeAccepted.putTxHash && (
-              <a href={`${explorerUrl}/tx/${rangeAccepted.putTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              <a
+                href={
+                  asset.chain === "solana"
+                    ? solanaTxUrl(rangeAccepted.putTxHash)
+                    : `${explorerUrl}/tx/${rangeAccepted.putTxHash}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent)] hover:underline"
+              >
                 Lower tx ↗
               </a>
             )}
             {rangeAccepted.callTxHash && (
-              <a href={`${explorerUrl}/tx/${rangeAccepted.callTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              <a
+                href={
+                  asset.chain === "solana"
+                    ? solanaTxUrl(rangeAccepted.callTxHash)
+                    : `${explorerUrl}/tx/${rangeAccepted.callTxHash}`
+                }
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-[var(--accent)] hover:underline"
+              >
                 Upper tx ↗
               </a>
             )}
@@ -609,7 +636,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           prices={prices}
           activeExpiry={activeExpiry}
           spot={spot}
-          walletBalance={usd}
+          walletBalance={asset.chain === "solana" ? solanaUsdc : usd}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}
@@ -629,7 +656,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--accent)] transition-colors duration-200">
               <div className="flex items-center gap-1.5 shrink-0">
                 <img
-                  src={isBuy ? "/usdc.svg" : `/${asset.slug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                  src={isBuy ? "/usdc.svg" : `/${isSol ? "sol.png" : asset.slug === "btc" ? "cbbtc.webp" : "eth.png"}`}
                   alt={isBuy ? "USDC" : asset.symbol}
                   className="w-5 h-5 rounded-full"
                 />
@@ -726,7 +753,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
-                if (!isConnected) { connectWallet(); return; }
                 setConfirming(true);
               }}
               disabled={marketClosed || (!canAccept && isConnected)}
@@ -791,7 +817,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="lg:hidden space-y-2 animate-fade-in-up">
             <button
               onClick={() => {
-                if (!isConnected) { connectWallet(); return; }
                 setConfirming(true);
               }}
               disabled={marketClosed || (!canAccept && isConnected)}

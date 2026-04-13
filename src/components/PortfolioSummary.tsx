@@ -5,6 +5,7 @@ import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import { resolvePositionAsset } from "@/lib/assets";
+import { getPositionStrike } from "@/lib/positionMath";
 
 interface Props {
   positions: Position[];
@@ -24,14 +25,12 @@ function formatUSD(n: number): string {
 }
 
 function callDecimals(p: Position): number {
-  return resolvePositionAsset(p.asset, p.strike_price).slug === "btc"
-    ? 1e8
-    : 1e18;
+  return 10 ** resolvePositionAsset(p.asset, p.strike_price).collateralDecimals;
 }
 
 function capitalUsd(p: Position): number {
   if (p.is_put) return p.collateral / 1e6;
-  return (p.collateral / callDecimals(p)) * (p.strike_price / 1e8);
+  return (p.collateral / callDecimals(p)) * getPositionStrike(p);
 }
 
 function toUsd(

@@ -29,6 +29,8 @@ export interface PriceQuote {
 export interface Position {
   id: string;
   tx_hash: string;
+  tx_url?: string | null;
+  explorer_url?: string | null;
   block_number: number;
   user_address: string;
   otoken_address: string;
@@ -36,19 +38,30 @@ export interface Position {
   premium: string;
   collateral: number;
   vault_id: number;
+  /** Legacy raw strike. Base uses 8 decimals; newer APIs may also send normalized fields below. */
   strike_price: number;
+  /** Normalized strike in USD, preferred when provided by the backend. */
+  strike_usd?: number | null;
+  /** Alias for strike_usd used by some indexer responses. */
+  strike?: number | null;
   expiry: number;
   is_put: boolean;
   is_settled: boolean;
   settled_at: string | null;
   settlement_tx_hash: string | null;
+  settlement_tx_url?: string | null;
   indexed_at: string;
   settlement_type: string | null;
   delivered_asset: string | null;
   delivered_amount: number | null;
   delivery_tx_hash: string | null;
+  delivery_tx_url?: string | null;
   is_itm: boolean | null;
   expiry_price: number | null;
+  /** Normalized settlement price in USD, preferred when provided by the backend. */
+  expiry_price_usd?: number | null;
+  /** Optional raw collateral decimals from the backend for chain-specific assets. */
+  collateral_decimals?: number | null;
   gross_premium: string;
   net_premium: string;
   protocol_fee: string;

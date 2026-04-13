@@ -1,3 +1,5 @@
+import { normalizeUsdPrice } from "@/lib/positionMath";
+
 export interface AssetConfig {
   slug: string;
   symbol: string;
@@ -105,7 +107,7 @@ export function resolvePositionAsset(
     if (config) return config;
   }
   if (strikePrice != null) {
-    const strikeUsd = strikePrice / 1e8;
+    const strikeUsd = normalizeUsdPrice(strikePrice);
     if (strikeUsd > 10_000) return ASSETS.btc;
     if (strikeUsd < 500) return ASSETS.sol;
     return ASSETS.eth;

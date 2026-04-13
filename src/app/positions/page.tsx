@@ -15,6 +15,7 @@ import { useNotificationStatus } from "@/hooks/useNotificationStatus";
 import { useYield } from "@/hooks/useYield";
 import { useAaveRates } from "@/hooks/useAaveRates";
 import { resolvePositionAsset } from "@/lib/assets";
+import { getPositionStrike } from "@/lib/positionMath";
 import { NotificationBanner } from "@/components/NotificationBanner";
 import { DistributionHistory } from "@/components/yield/DistributionHistory";
 import type { YieldMetric } from "@/components/YieldToggle";
@@ -28,7 +29,10 @@ const PAIR_WINDOW_MS = 60_000;
 
 function inferAsset(pos: Position): string {
   if (pos.asset) return pos.asset;
-  return pos.strike_price / 1e8 > 10_000 ? "btc" : "eth";
+  const strike = getPositionStrike(pos);
+  if (strike > 10_000) return "btc";
+  if (strike < 500) return "sol";
+  return "eth";
 }
 
 function groupPositions(positions: Position[]): DisplayItem[] {
