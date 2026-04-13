@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   solanaConnection,
   SOLANA_USDC_MINT,
@@ -17,6 +17,7 @@ interface SolanaBalance {
   solanaSol: number;
   loading: boolean;
   error: string | null;
+  refetch: () => Promise<void>;
 }
 
 const ZERO: SolanaBalance = {
@@ -28,6 +29,7 @@ const ZERO: SolanaBalance = {
   solanaSol: 0,
   loading: true,
   error: null,
+  refetch: async () => {},
 };
 
 export function useSolanaBalance(
@@ -35,10 +37,14 @@ export function useSolanaBalance(
   pollInterval = 15_000,
 ): SolanaBalance {
   const [balance, setBalance] = useState<SolanaBalance>(ZERO);
+  const requestIdRef = useRef(0);
 
   const refetch = useCallback(async () => {
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+
     if (!address || !SOLANA_USDC_MINT || !solanaConnection) {
-      setBalance({ ...ZERO, loading: false });
+      setBalance({ ...ZERO, loading: false, refetch });
       return;
     }
     try {
@@ -49,11 +55,11 @@ export function useSolanaBalance(
       const [usdcResp, wsolResp, solLamports] = await Promise.all([
         solanaConnection.getParsedTokenAccountsByOwner(owner, {
           mint: usdcMint,
-        }),
+        }, "confirmed"),
         solanaConnection.getParsedTokenAccountsByOwner(owner, {
           mint: wsolMint,
-        }),
-        solanaConnection.getBalance(owner),
+        }, "confirmed"),
+        solanaConnection.getBalance(owner, "confirmed"),
       ]);
 
       let usdcRaw = BigInt(0);
@@ -74,6 +80,8 @@ export function useSolanaBalance(
 
       const solRaw = BigInt(solLamports);
 
+      if (requestId !== requestIdRef.current) return;
+
       setBalance({
         solanaUsdcRaw: usdcRaw,
         solanaUsdc: Number(usdcRaw) / 1e6,
@@ -83,13 +91,16 @@ export function useSolanaBalance(
         solanaSol: Number(solRaw) / 1e9,
         loading: false,
         error: null,
+        refetch,
       });
     } catch (err) {
       console.error("[useSolanaBalance] Failed to fetch:", err);
+      if (requestId !== requestIdRef.current) return;
       setBalance((prev) => ({
         ...prev,
         loading: false,
         error: "Failed to fetch Solana balance",
+        refetch,
       }));
     }
   }, [address]);
@@ -102,10 +113,15 @@ export function useSolanaBalance(
   }, [refetch, address, pollInterval]);
 
   useEffect(() => {
-    const handler = () => refetch();
+    const handler = () => {
+      refetch();
+      for (const delay of [500, 1500, 3000, 6000]) {
+        window.setTimeout(() => refetch(), delay);
+      }
+    };
     window.addEventListener("balance:refetch", handler);
     return () => window.removeEventListener("balance:refetch", handler);
   }, [refetch]);
 
-  return balance;
+  return { ...balance, refetch };
 }

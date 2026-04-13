@@ -55,6 +55,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
           },
         },
         embeddedWallets: {
+          showWalletUIs: false,
           ethereum: {
             createOnLogin: "all-users",
           },

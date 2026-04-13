@@ -15,7 +15,7 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { solanaTxUrl } from "@/lib/solana";
+import { SOLANA_NATIVE_RESERVE_LAMPORTS, solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import { formatApr } from "@/lib/yield";
 import { useAaveRates } from "@/hooks/useAaveRates";
@@ -54,6 +54,17 @@ function daysUntil(expiryDate: string): number {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 const MIN_DISPLAY_APR = 3;
+const RAW_COLLATERAL_BUFFER = BigInt(1);
+
+function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
+  const divisor = BigInt(10) ** BigInt(9 - decimals);
+  const displayUnits = rawLamports / divisor;
+  const scale = BigInt(10) ** BigInt(decimals);
+  const whole = displayUnits / scale;
+  const fraction = (displayUnits % scale).toString().padStart(decimals, "0");
+  const trimmed = fraction.replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : whole.toString();
+}
 
 function fmtYield(apr: number, roi: number, metric: YieldMetric): string {
   return metric === "apr"
@@ -170,7 +181,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { capacity } = useCapacity(asset.slug);
   const { address, solanaAddress, isConnected } = useWallet();
   const { usd, eth, weth, wbtc } = useBalances(address);
-  const { solanaUsdc, solanaWsol, solanaSol } = useSolanaBalance(solanaAddress);
+  const {
+    solanaUsdc,
+    solanaWsolRaw,
+    solanaWsol,
+    solanaSolRaw,
+    solanaSol,
+  } = useSolanaBalance(solanaAddress);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
@@ -195,9 +212,18 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
+  const wrappableSolRaw =
+    solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
+      ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
+      : BigInt(0);
+  const solMaxByBalanceRaw =
+    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
+      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
+      : BigInt(0);
+  const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
   const walletBalance = isBuy
-    ? asset.chain === "solana" ? solanaUsdc : usd
-    : isSol ? solanaWsol + solanaSol : isBtc ? wbtc : eth + weth;
+    ? usd + solanaUsdc
+    : isSol ? solCollateralBalance : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
@@ -284,6 +310,14 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   }
 
   function handlePercentShortcut(pct: number) {
+    if (!isBuy && isSol) {
+      const capRaw = BigInt(Math.floor(capEth * 1e9));
+      const rawAvailable = solMaxByBalanceRaw < capRaw ? solMaxByBalanceRaw : capRaw;
+      const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
+      setAmountStr(formatSolRawAmount(raw));
+      return;
+    }
+
     const raw = walletBalance * (pct / 100);
     if (isBuy) {
       const truncated = floorTo(raw, 2);
@@ -636,7 +670,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           prices={prices}
           activeExpiry={activeExpiry}
           spot={spot}
-          walletBalance={asset.chain === "solana" ? solanaUsdc : usd}
+          walletBalance={usd + solanaUsdc}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}

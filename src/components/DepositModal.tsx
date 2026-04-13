@@ -50,12 +50,6 @@ function chainLabel(chain: "base" | "solana"): string {
 
 function refetchBalancesSoon() {
   window.dispatchEvent(new Event("balance:refetch"));
-  for (const delay of [1000, 2500, 5000]) {
-    setTimeout(
-      () => window.dispatchEvent(new Event("balance:refetch")),
-      delay,
-    );
-  }
 }
 
 function TokenIcon({

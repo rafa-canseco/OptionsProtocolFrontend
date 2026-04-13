@@ -66,6 +66,12 @@ const SOLANA_PROGRAMS = {
 } as const;
 
 const SOLANA_ALT_ADDRESS = process.env.NEXT_PUBLIC_SOLANA_ALT_ADDRESS ?? "";
+const SOLANA_USDC_POOL_TOKEN_ACCOUNT =
+  process.env.NEXT_PUBLIC_SOLANA_USDC_POOL_TOKEN_ACCOUNT ??
+  "Gd27sN9HKzBhQmedn6twMTmqSvsHqzSWhTcBt7nnz2hx";
+const SOLANA_WSOL_POOL_TOKEN_ACCOUNT =
+  process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT ??
+  "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg";
 
 let cachedAlt: AddressLookupTableAccount | null = null;
 
@@ -84,6 +90,44 @@ async function loadAlt(
   }
   cachedAlt = resp.value;
   return cachedAlt;
+}
+
+async function findControllerPoolTokenAccount(
+  mint: PublicKey,
+  poolVaultAuthority: PublicKey,
+  usdcMint: PublicKey,
+  wsolMint: PublicKey,
+): Promise<PublicKey> {
+  if (mint.equals(usdcMint) && SOLANA_USDC_POOL_TOKEN_ACCOUNT) {
+    return toPublicKey(
+      SOLANA_USDC_POOL_TOKEN_ACCOUNT,
+      "Solana USDC pool token account",
+    );
+  }
+  if (mint.equals(wsolMint) && SOLANA_WSOL_POOL_TOKEN_ACCOUNT) {
+    return toPublicKey(
+      SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
+      "Solana wSOL pool token account",
+    );
+  }
+  if (!solanaConnection) {
+    throw new Error("Solana RPC not configured");
+  }
+
+  const accounts = await solanaConnection.getTokenAccountsByOwner(
+    poolVaultAuthority,
+    { mint },
+  );
+  if (accounts.value.length > 0) {
+    return accounts.value[0].pubkey;
+  }
+
+  return getAssociatedTokenAddress(
+    mint,
+    poolVaultAuthority,
+    true,
+    TOKEN_PROGRAM_ID,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -120,8 +164,174 @@ export function buildEvmTradeCalls(
 }
 
 // ---------------------------------------------------------------------------
-// Solana: Build a trade Transaction (approve + executeOrder)
+// Solana: Build Transactions
 // ---------------------------------------------------------------------------
+
+/**
+ * Build a small sponsored transaction to wrap native SOL into the user's wSOL
+ * ATA before executeOrder. Keeping this separate avoids pushing the sponsored
+ * executeOrder v0 transaction over Solana's 1232-byte size limit.
+ */
+export async function buildWrapSolTransaction(
+  ownerPubkey: PublicKey,
+  lamports: bigint,
+): Promise<Transaction> {
+  if (!solanaConnection) {
+    throw new Error("Solana RPC not configured");
+  }
+  if (lamports <= BigInt(0)) {
+    throw new Error("Wrap amount must be greater than zero");
+  }
+
+  const wsolMint = toPublicKey(SOLANA_WSOL_MINT, "wSOL mint");
+  const userWsolAccount = await getAssociatedTokenAddress(
+    wsolMint,
+    ownerPubkey,
+    false,
+    TOKEN_PROGRAM_ID,
+  );
+
+  const tx = new Transaction();
+  const ataInfo = await solanaConnection.getAccountInfo(userWsolAccount);
+  if (!ataInfo) {
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        ownerPubkey,
+        userWsolAccount,
+        ownerPubkey,
+        wsolMint,
+        TOKEN_PROGRAM_ID,
+        ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    );
+  }
+
+  tx.add(
+    SystemProgram.transfer({
+      fromPubkey: ownerPubkey,
+      toPubkey: userWsolAccount,
+      lamports,
+    }),
+  );
+  tx.add(createSyncNativeInstruction(userWsolAccount, TOKEN_PROGRAM_ID));
+
+  const { blockhash } = await solanaConnection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = ownerPubkey;
+  return tx;
+}
+
+export async function buildSolanaTradeSetupTransaction(
+  quote: PriceQuote,
+  amount: number,
+  isBuy: boolean,
+  assetSlug: string,
+  ownerPubkey: PublicKey,
+  wrapSolLamports: bigint = BigInt(0),
+  includeApprove = false,
+): Promise<Transaction | null> {
+  if (!solanaConnection) {
+    throw new Error("Solana RPC not configured");
+  }
+  if (!SOLANA_USDC_MINT) {
+    throw new Error("Solana USDC mint not configured");
+  }
+
+  const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+  const { collateral } = computeCollateral(isBuy, amount, quote.strike, assetSlug);
+  const collateralMint = toPublicKey(
+    isBuy ? SOLANA_USDC_MINT : SOLANA_WSOL_MINT,
+    "collateral mint",
+  );
+  const oTokenMint = toPublicKey(quote.otoken_address!, "oToken mint");
+
+  const [settlerConfigPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("settler_config")],
+    SOLANA_PROGRAMS.batchSettler,
+  );
+
+  const userCollateralAccount = await getAssociatedTokenAddress(
+    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+  );
+  const settlerOtokenAccount = await getAssociatedTokenAddress(
+    oTokenMint, settlerConfigPda, true, TOKEN_PROGRAM_ID,
+  );
+  const userPremiumAccount = await getAssociatedTokenAddress(
+    usdcMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+  );
+
+  const [
+    settlerOtokenAccountInfo,
+    userPremiumAccountInfo,
+    userCollateralAccountInfo,
+  ] = await solanaConnection.getMultipleAccountsInfo([
+    settlerOtokenAccount,
+    userPremiumAccount,
+    userCollateralAccount,
+  ]);
+
+  const tx = new Transaction();
+  if (!settlerOtokenAccountInfo) {
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        ownerPubkey, settlerOtokenAccount, settlerConfigPda,
+        oTokenMint, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    );
+  }
+  if (!userPremiumAccountInfo) {
+    tx.add(
+      createAssociatedTokenAccountInstruction(
+        ownerPubkey, userPremiumAccount, ownerPubkey,
+        usdcMint, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    );
+  }
+  if (wrapSolLamports > BigInt(0)) {
+    if (isBuy || assetSlug !== "sol") {
+      throw new Error("SOL wrapping is only valid for Solana covered calls.");
+    }
+    if (!userCollateralAccountInfo) {
+      tx.add(
+        createAssociatedTokenAccountInstruction(
+          ownerPubkey,
+          userCollateralAccount,
+          ownerPubkey,
+          collateralMint,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID,
+        ),
+      );
+    }
+    tx.add(
+      SystemProgram.transfer({
+        fromPubkey: ownerPubkey,
+        toPubkey: userCollateralAccount,
+        lamports: wrapSolLamports,
+      }),
+    );
+    tx.add(createSyncNativeInstruction(userCollateralAccount, TOKEN_PROGRAM_ID));
+  }
+  if (includeApprove) {
+    tx.add(createApproveInstruction(
+      userCollateralAccount,
+      settlerConfigPda,
+      ownerPubkey,
+      collateral,
+      [],
+      TOKEN_PROGRAM_ID,
+    ));
+  }
+
+  if (tx.instructions.length === 0) {
+    return null;
+  }
+
+  const { blockhash } = await solanaConnection.getLatestBlockhash();
+  tx.recentBlockhash = blockhash;
+  tx.feePayer = ownerPubkey;
+  return tx;
+}
 
 /** Build 8-byte LE buffer for a u64 (bigint). */
 function u64Le(value: bigint): Buffer {
@@ -135,6 +345,13 @@ function u64Le(value: bigint): Buffer {
  */
 function readPubkeyAt(data: Buffer, offset: number): PublicKey {
   return new PublicKey(data.slice(offset, offset + 32));
+}
+
+function readSplTokenOwner(data: Buffer): PublicKey {
+  if (data.length < 64) {
+    throw new Error("SPL token account data is too short to read owner");
+  }
+  return readPubkeyAt(data, 32);
 }
 
 function expectedNetPremiumRaw(
@@ -184,7 +401,7 @@ function assertSolanaPremiumScale(
  * Privy's `signSolanaTransaction()`.
  *
  * Single sponsored tx containing: ATA creates (idempotent) +
- * SPL approve + Ed25519 verify + executeOrder (22 accounts).
+ * SPL approve + Ed25519 verify + executeOrder (23 accounts).
  * Uses Address Lookup Table to compress below 1232-byte limit.
  */
 export async function buildSolanaTradeTransaction(
@@ -193,8 +410,11 @@ export async function buildSolanaTradeTransaction(
   isBuy: boolean,
   assetSlug: string,
   ownerPubkey: PublicKey,
-  /** Current wSOL balance — used to decide if wrapping is needed */
+  /** Current wSOL balance. Calls can inline-wrap native SOL via wrapSolLamports. */
   wsolBalance?: bigint,
+  wrapSolLamports: bigint = BigInt(0),
+  includeSetupInstructions = true,
+  includeApproveInstruction = true,
 ): Promise<VersionedTransaction> {
   if (!solanaConnection) {
     throw new Error("Solana RPC not configured");
@@ -259,6 +479,11 @@ export async function buildSolanaTradeTransaction(
     SOLANA_PROGRAMS.batchSettler,
   );
 
+  const [poolVaultAuthorityPda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("pool_vault_auth"), collateralMint.toBuffer()],
+    SOLANA_PROGRAMS.controller,
+  );
+
   // ---------------------------------------------------------------------------
   // On-chain reads
   // ---------------------------------------------------------------------------
@@ -299,21 +524,28 @@ export async function buildSolanaTradeTransaction(
     protocolFeeBps,
   );
 
-  // Read PoolVault PDA on marginPool → token_account at offset 40 (8+32)
-  const [poolVaultPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("pool_vault"), collateralMint.toBuffer()],
-    SOLANA_PROGRAMS.marginPool,
+  const poolTokenAccountPubkey = await findControllerPoolTokenAccount(
+    collateralMint,
+    poolVaultAuthorityPda,
+    usdcMint,
+    toPublicKey(SOLANA_WSOL_MINT, "wSOL mint"),
   );
-  const poolVaultInfo = await solanaConnection.getAccountInfo(poolVaultPda);
-  if (!poolVaultInfo) {
+
+  const poolTokenInfo = await solanaConnection.getAccountInfo(poolTokenAccountPubkey);
+  if (!poolTokenInfo) {
     throw new Error(
-      `${collateralLabel} collateral vault is not initialized on Solana. ` +
-        `PoolVault ${poolVaultPda.toBase58()} for mint ${collateralMint.toBase58()} ` +
+      `${collateralLabel} pool token account ${poolTokenAccountPubkey.toBase58()} ` +
         "was not found on-chain.",
     );
   }
-  const poolVaultData = Buffer.from(poolVaultInfo.data);
-  const poolTokenAccountPubkey = readPubkeyAt(poolVaultData, 40);
+  const poolTokenOwner = readSplTokenOwner(Buffer.from(poolTokenInfo.data));
+  if (!poolTokenOwner.equals(poolVaultAuthorityPda)) {
+    throw new Error(
+      `${collateralLabel} pool token account ${poolTokenAccountPubkey.toBase58()} ` +
+        `is owned by ${poolTokenOwner.toBase58()}, expected ` +
+        `${poolVaultAuthorityPda.toBase58()}.`,
+    );
+  }
 
   // Read vaultCounter → next_id at offset 40 (8+32)
   const vaultCounterInfo = await solanaConnection.getAccountInfo(vaultCounterPda);
@@ -368,61 +600,76 @@ export async function buildSolanaTradeTransaction(
 
   const instructions: TransactionInstruction[] = [];
 
-  // Create settler's oToken custody ATA if it doesn't exist (idempotent)
-  instructions.push(
-    createAssociatedTokenAccountIdempotentInstruction(
-      ownerPubkey, settlerOtokenAccount, settlerConfigPda,
-      oTokenMint, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
-    ),
-  );
-  // Create user's premium ATA if it doesn't exist (idempotent)
-  instructions.push(
-    createAssociatedTokenAccountIdempotentInstruction(
-      ownerPubkey, userPremiumAccount, ownerPubkey,
-      premiumMint, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
-    ),
-  );
+  const [
+    settlerOtokenAccountInfo,
+    userPremiumAccountInfo,
+    userCollateralAccountInfo,
+  ] = await solanaConnection.getMultipleAccountsInfo([
+    settlerOtokenAccount,
+    userPremiumAccount,
+    userCollateralAccount,
+  ]);
 
-  // For calls: auto-wrap native SOL → wSOL if needed
-  if (!isBuy) {
-    const currentWsol = wsolBalance ?? BigInt(0);
-    if (currentWsol < collateral) {
-      const wrapAmount = collateral - currentWsol;
-
-      const ataInfo = await solanaConnection.getAccountInfo(userCollateralAccount);
-      if (!ataInfo) {
-        instructions.push(
-          createAssociatedTokenAccountInstruction(
-            ownerPubkey,
-            userCollateralAccount,
-            ownerPubkey,
-            collateralMint,
-            TOKEN_PROGRAM_ID,
-            ASSOCIATED_TOKEN_PROGRAM_ID,
-          ),
-        );
-      }
-
-      instructions.push(
-        SystemProgram.transfer({
-          fromPubkey: ownerPubkey,
-          toPubkey: userCollateralAccount,
-          lamports: wrapAmount,
-        }),
-      );
-
-      instructions.push(createSyncNativeInstruction(userCollateralAccount, TOKEN_PROGRAM_ID));
-    }
+  if (includeSetupInstructions && !settlerOtokenAccountInfo) {
+    instructions.push(
+      createAssociatedTokenAccountInstruction(
+        ownerPubkey, settlerOtokenAccount, settlerConfigPda,
+        oTokenMint, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    );
   }
 
-  instructions.push(createApproveInstruction(
-    userCollateralAccount,
-    settlerConfigPda,
-    ownerPubkey,
-    collateral,
-    [],
-    TOKEN_PROGRAM_ID,
-  ));
+  if (includeSetupInstructions && !userPremiumAccountInfo) {
+    instructions.push(
+      createAssociatedTokenAccountInstruction(
+        ownerPubkey, userPremiumAccount, ownerPubkey,
+        premiumMint, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      ),
+    );
+  }
+
+  if (includeSetupInstructions && wrapSolLamports > BigInt(0)) {
+    if (isBuy || assetSlug !== "sol") {
+      throw new Error("SOL wrapping is only valid for Solana covered calls.");
+    }
+    if (!userCollateralAccountInfo) {
+      instructions.push(
+        createAssociatedTokenAccountInstruction(
+          ownerPubkey,
+          userCollateralAccount,
+          ownerPubkey,
+          collateralMint,
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID,
+        ),
+      );
+    }
+    instructions.push(
+      SystemProgram.transfer({
+        fromPubkey: ownerPubkey,
+        toPubkey: userCollateralAccount,
+        lamports: wrapSolLamports,
+      }),
+    );
+    instructions.push(createSyncNativeInstruction(userCollateralAccount, TOKEN_PROGRAM_ID));
+  }
+
+  if (!isBuy && (wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
+    throw new Error(
+      "Insufficient wSOL for this trade. Wrap SOL before executing.",
+    );
+  }
+
+  if (includeApproveInstruction) {
+    instructions.push(createApproveInstruction(
+      userCollateralAccount,
+      settlerConfigPda,
+      ownerPubkey,
+      collateral,
+      [],
+      TOKEN_PROGRAM_ID,
+    ));
+  }
 
   // ---------------------------------------------------------------------------
   // Ed25519 precompile instruction — verify maker signature
@@ -447,7 +694,7 @@ export async function buildSolanaTradeTransaction(
   instructions.push(ed25519Ix);
 
   // ---------------------------------------------------------------------------
-  // executeOrder instruction — 22 accounts, IDL-correct args
+  // executeOrder instruction — 23 accounts, IDL-correct args
   // ---------------------------------------------------------------------------
 
   const discriminator = Buffer.from("733db418a820d714", "hex");
@@ -495,29 +742,31 @@ export async function buildSolanaTradeTransaction(
       { pubkey: userCollateralAccount, isSigner: false, isWritable: true },
       // [9]  poolTokenAccount
       { pubkey: poolTokenAccountPubkey, isSigner: false, isWritable: true },
-      // [10] settlerOtokenAccount
+      // [10] poolVaultAuthority
+      { pubkey: poolVaultAuthorityPda, isSigner: false, isWritable: false },
+      // [11] settlerOtokenAccount
       { pubkey: settlerOtokenAccount, isSigner: false, isWritable: true },
-      // [11] mmPremiumAccount
+      // [12] mmPremiumAccount
       { pubkey: mmPremiumAccount, isSigner: false, isWritable: true },
-      // [12] userPremiumAccount
+      // [13] userPremiumAccount
       { pubkey: userPremiumAccount, isSigner: false, isWritable: true },
-      // [13] treasuryAccount
+      // [14] treasuryAccount
       { pubkey: treasuryAccount, isSigner: false, isWritable: true },
-      // [14] makerOtokenBalance
+      // [15] makerOtokenBalance
       { pubkey: makerOtokenBalancePda, isSigner: false, isWritable: true },
-      // [15] vaultMm
+      // [16] vaultMm
       { pubkey: vaultMmPda, isSigner: false, isWritable: true },
-      // [16] user
+      // [17] user
       { pubkey: ownerPubkey, isSigner: true, isWritable: true },
-      // [17] maker
+      // [18] maker
       { pubkey: makerPubkey, isSigner: false, isWritable: false },
-      // [18] controllerProgram
+      // [19] controllerProgram
       { pubkey: SOLANA_PROGRAMS.controller, isSigner: false, isWritable: false },
-      // [19] tokenProgram
+      // [20] tokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [20] systemProgram
+      // [21] systemProgram
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // [21] instructionsSysvar
+      // [22] instructionsSysvar
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
     ],
     data: ixData,
