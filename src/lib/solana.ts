@@ -14,6 +14,13 @@ export const SOLANA_EXPLORER_URL =
   process.env.NEXT_PUBLIC_SOLANA_EXPLORER_URL ??
   "https://solscan.io";
 
+export function solanaTxUrl(signature: string): string {
+  const baseUrl = `${SOLANA_EXPLORER_URL.replace(/\/$/, "")}/tx/${signature}`;
+  if (SOLANA_CHAIN.includes("devnet")) return `${baseUrl}?cluster=devnet`;
+  if (SOLANA_CHAIN.includes("testnet")) return `${baseUrl}?cluster=testnet`;
+  return baseUrl;
+}
+
 if (!SOLANA_RPC_URL) {
   console.warn(
     "[solana] NEXT_PUBLIC_SOLANA_RPC_URL is not set. " +

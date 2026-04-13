@@ -31,6 +31,7 @@ import {
 import { encodeSwapExactOutput } from "@/lib/swap";
 import { getAssetConfig } from "@/lib/assets";
 import { DepositModal } from "@/components/DepositModal";
+import { solanaTxUrl } from "@/lib/solana";
 
 const DEADLINE_BUFFER_S = 60;
 
@@ -86,7 +87,7 @@ export function RangeAcceptModal({
   onClose,
   onAccepted,
 }: Props) {
-  const { address, sendBatchTx, isConnected, connectWallet } = useWallet();
+  const { address, sendBatchTx, isConnected } = useWallet();
   const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<RangeStep>("idle");
   const [putTxHash, setPutTxHash] = useState<string | null>(null);
@@ -94,11 +95,13 @@ export function RangeAcceptModal({
   const [error, setError] = useState<string | null>(null);
   const [didSwap, setDidSwap] = useState(false);
   const [showDeposit, setShowDeposit] = useState(false);
-  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc">("usdc");
+  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol">("usdc");
 
   const loading = step === "swapping" || step === "executing-put" || step === "executing-call";
   const done = step === "confirmed";
   const explorerUrl = CHAIN.blockExplorers?.default.url ?? null;
+  const txUrl = (hash: string) =>
+    assetSlug === "sol" ? solanaTxUrl(hash) : `${explorerUrl}/tx/${hash}`;
 
   const stepLabels: Record<RangeStep, string> = {
     "idle": "Accept range",
@@ -110,7 +113,11 @@ export function RangeAcceptModal({
   };
 
   async function handleAccept() {
-    if (!isConnected) { connectWallet(); return; }
+    if (!isConnected) {
+      setDepositToken("usdc");
+      setShowDeposit(true);
+      return;
+    }
     if (!address) {
       setDepositToken("usdc");
       setShowDeposit(true);
@@ -206,7 +213,7 @@ export function RangeAcceptModal({
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
         setDidSwap(true);
       } else if (callAvailable < callNeeded) {
-        setDepositToken(isBtc ? "btc" : "eth");
+        setDepositToken(isBtc ? "btc" : assetSlug === "sol" ? "sol" : "eth");
         setShowDeposit(true);
         return;
       } else {
@@ -479,15 +486,15 @@ export function RangeAcceptModal({
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
         {/* Tx links */}
-        {explorerUrl && (putTxHash || callTxHash) && (
+        {(putTxHash || callTxHash) && (assetSlug === "sol" || explorerUrl) && (
           <div className="flex gap-3 text-xs">
             {putTxHash && (
-              <a href={`${explorerUrl}/tx/${putTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              <a href={txUrl(putTxHash)} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
                 Lower tx
               </a>
             )}
             {callTxHash && (
-              <a href={`${explorerUrl}/tx/${callTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              <a href={txUrl(callTxHash)} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
                 Upper tx
               </a>
             )}

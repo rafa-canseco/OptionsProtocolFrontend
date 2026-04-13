@@ -11,7 +11,7 @@ import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
-import { SOLANA_EXPLORER_URL, toPublicKey } from "@/lib/solana";
+import { solanaTxUrl, toPublicKey } from "@/lib/solana";
 import { buildSolanaTradeTransaction } from "@/lib/bridgeTx";
 import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
@@ -54,7 +54,7 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected, connectWallet } = useWallet();
+  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw } = useBalances(address);
   const { solanaUsdcRaw, solanaWsolRaw, solanaSolRaw, solanaWsol, solanaSol } = useSolanaBalance(solanaAddress);
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
@@ -65,7 +65,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
   const [showDeposit, setShowDeposit] = useState(false);
-  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc">("usdc");
+  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol">("usdc");
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
@@ -132,9 +132,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     : (assetConfig?.minSellAmount ?? 0.005);
 
   async function handleAccept() {
-    if (!isConnected) { connectWallet(); return; }
+    if (!isConnected) {
+      setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
+      setShowDeposit(true);
+      return;
+    }
     if (!address) {
-      setDepositToken(isBuy ? "usdc" : isBtc ? "btc" : "eth");
+      setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
       setShowDeposit(true);
       return;
     }
@@ -204,9 +208,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         // SOL calls: insufficient wSOL + SOL, can't bridge
         if (deficit.needsDeposit) {
-          setError(
-            "Insufficient SOL for covered call. Deposit SOL to your Solana wallet.",
-          );
+          setDepositToken("sol");
+          setShowDeposit(true);
           return;
         }
 
@@ -342,6 +345,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       console.error("[AcceptModal] Transaction failed:", err);
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("Timed out") || msg.includes("Lost connection")) {
+        setError(msg);
+      } else if (msg.includes("collateral vault is not initialized")) {
         setError(msg);
       } else if (currentStep === "idle") {
         setError("Could not read on-chain data. Check your connection and try again.");
@@ -515,7 +520,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           <a
             href={
               chainExecuted === "solana"
-                ? `${SOLANA_EXPLORER_URL}/tx/${txHash}`
+                ? solanaTxUrl(txHash)
                 : `${CHAIN.blockExplorers?.default.url}/tx/${txHash}`
             }
             target="_blank"

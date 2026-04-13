@@ -137,6 +137,46 @@ function readPubkeyAt(data: Buffer, offset: number): PublicKey {
   return new PublicKey(data.slice(offset, offset + 32));
 }
 
+function expectedNetPremiumRaw(
+  quote: PriceQuote,
+  amount: number,
+  isBuy: boolean,
+): bigint {
+  const contracts = isBuy ? amount / quote.strike : amount;
+  return BigInt(Math.round(contracts * quote.premium * 1e6));
+}
+
+function assertSolanaPremiumScale(
+  quote: PriceQuote,
+  oTokenAmount: bigint,
+  amount: number,
+  isBuy: boolean,
+  feeBps: number,
+) {
+  if (!quote.bid_price_raw) return;
+
+  // Mirrors batch_settler::compute_premium_split exactly.
+  const grossRaw =
+    (oTokenAmount * BigInt(quote.bid_price_raw)) / BigInt(100_000_000);
+  const feeRaw = (grossRaw * BigInt(feeBps)) / BigInt(10_000);
+  const netRaw = grossRaw - feeRaw;
+  const expectedRaw = expectedNetPremiumRaw(quote, amount, isBuy);
+  const toleranceRaw = BigInt(10_000); // 1 cent USDC
+  const delta =
+    netRaw > expectedRaw ? netRaw - expectedRaw : expectedRaw - netRaw;
+
+  if (expectedRaw > BigInt(0) && delta > toleranceRaw) {
+    const expectedUsd = Number(expectedRaw) / 1e6;
+    const onchainUsd = Number(netRaw) / 1e6;
+    throw new Error(
+      "Solana quote premium mismatch. " +
+        `UI shows $${expectedUsd.toFixed(2)}, but the on-chain instruction ` +
+        `would pay $${onchainUsd.toFixed(2)}. ` +
+        "This quote was blocked to avoid executing at the wrong amount.",
+    );
+  }
+}
+
 
 /**
  * Build a Solana Transaction for approve + executeOrder on the
@@ -168,6 +208,11 @@ export async function buildSolanaTradeTransaction(
 
   // Determine collateral mint based on option type (put=USDC, call=wSOL)
   const collateralMintStr = isBuy ? SOLANA_USDC_MINT : SOLANA_WSOL_MINT;
+  const collateralLabel = isBuy
+    ? "USDC"
+    : assetSlug === "sol"
+      ? "wSOL"
+      : assetSlug;
   const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
@@ -245,6 +290,14 @@ export async function buildSolanaTradeTransaction(
   }
   const settlerConfigData = Buffer.from(settlerConfigInfo.data);
   const treasuryPubkey = readPubkeyAt(settlerConfigData, 72);
+  const protocolFeeBps = settlerConfigData.readUInt16LE(104);
+  assertSolanaPremiumScale(
+    quote,
+    oTokenAmount,
+    amount,
+    isBuy,
+    protocolFeeBps,
+  );
 
   // Read PoolVault PDA on marginPool → token_account at offset 40 (8+32)
   const [poolVaultPda] = PublicKey.findProgramAddressSync(
@@ -253,7 +306,11 @@ export async function buildSolanaTradeTransaction(
   );
   const poolVaultInfo = await solanaConnection.getAccountInfo(poolVaultPda);
   if (!poolVaultInfo) {
-    throw new Error("PoolVault account not found on-chain");
+    throw new Error(
+      `${collateralLabel} collateral vault is not initialized on Solana. ` +
+        `PoolVault ${poolVaultPda.toBase58()} for mint ${collateralMint.toBase58()} ` +
+        "was not found on-chain.",
+    );
   }
   const poolVaultData = Buffer.from(poolVaultInfo.data);
   const poolTokenAccountPubkey = readPubkeyAt(poolVaultData, 40);
