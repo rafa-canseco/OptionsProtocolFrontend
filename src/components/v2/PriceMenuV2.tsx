@@ -196,7 +196,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
   const walletBalance = isBuy
-    ? asset.chain === "solana" ? solanaUsdc : usd
+    ? usd + solanaUsdc
     : isSol ? solanaWsol + solanaSol : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
@@ -636,7 +636,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           prices={prices}
           activeExpiry={activeExpiry}
           spot={spot}
-          walletBalance={asset.chain === "solana" ? solanaUsdc : usd}
+          walletBalance={usd + solanaUsdc}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}

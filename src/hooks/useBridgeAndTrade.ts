@@ -11,8 +11,6 @@ import {
 } from "@/lib/api";
 import { computeCollateral } from "@/lib/execution";
 import {
-  DOMAIN_BASE,
-  DOMAIN_SOLANA,
   buildEvmBurnCalls,
   buildSolanaBurnTransaction,
   evmToBytes32,
@@ -112,10 +110,17 @@ export function useBridgeAndTrade() {
           return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
         }
 
-        const deficit = collateral - targetBalance;
         const sourceChain: ChainId =
           quote.chain === "base" ? "solana" : "base";
+        const sourceBalance =
+          sourceChain === "base" ? baseUsdcRaw : solanaUsdcRaw;
 
+        // Total across both chains still insufficient — user must deposit
+        if (targetBalance + sourceBalance < collateral) {
+          return { needsBridge: false, needsDeposit: true, sourceChain: null, deficit: collateral - targetBalance - sourceBalance };
+        }
+
+        const deficit = collateral - targetBalance;
         return { needsBridge: true, needsDeposit: false, sourceChain, deficit };
       }
 
@@ -154,25 +159,9 @@ export function useBridgeAndTrade() {
       if (!solanaAddress) throw new Error("Solana wallet not ready");
       if (!user?.id) throw new Error("Privy user not authenticated");
 
-      // 1. Fetch bridge fee
-      const sourceDomain =
-        sourceChain === "base" ? DOMAIN_BASE : DOMAIN_SOLANA;
-      const destDomain =
-        destChain === "base" ? DOMAIN_BASE : DOMAIN_SOLANA;
-
-      let maxFee: bigint;
-      try {
-        const { fee } = await api.getBridgeFee(
-          sourceDomain, destDomain, deficit.toString(),
-        );
-        maxFee = BigInt(fee);
-      } catch {
-        const chainName = destChain === "solana" ? "Solana" : "Base";
-        return {
-          success: false,
-          error: `Not enough USDC on ${chainName}. Deposit USDC to your ${chainName} wallet first.`,
-        };
-      }
+      // maxFee = 0: our backend relayer handles attestation + receiveMessage
+      // directly (standard CCTP flow), so no fast-relayer fee is needed.
+      const maxFee = BigInt(0);
 
       if (sourceChain === "base") {
         return executeBaseToSolana(

@@ -285,10 +285,7 @@ export interface BridgeJob {
   updated_at: string;
 }
 
-export interface BridgeFee {
-  fee: string;
-  feeUsd: string;
-}
+
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -412,12 +409,4 @@ export const api = {
   getBridgeStatus: (jobId: string) =>
     fetchAPI<BridgeJob>(`/api/bridge-status/${jobId}`),
 
-  getBridgeFee: (
-    sourceDomain: number,
-    destDomain: number,
-    amount: string,
-  ) =>
-    fetchAPI<BridgeFee>(
-      `/api/bridge/fee?source=${sourceDomain}&dest=${destDomain}&amount=${amount}`,
-    ),
 };
