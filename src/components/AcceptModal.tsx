@@ -11,8 +11,15 @@ import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
-import { solanaTxUrl, toPublicKey } from "@/lib/solana";
-import { buildSolanaTradeTransaction } from "@/lib/bridgeTx";
+import {
+  SOLANA_NATIVE_RESERVE_LAMPORTS,
+  solanaTxUrl,
+  toPublicKey,
+} from "@/lib/solana";
+import {
+  buildSolanaTradeSetupTransaction,
+  buildSolanaTradeTransaction,
+} from "@/lib/bridgeTx";
 import type { BatchCall } from "@/hooks/useWallet";
 import type { PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
@@ -51,6 +58,13 @@ interface Props {
 type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
+const RAW_COLLATERAL_BUFFER = BigInt(1);
+const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1290;
+const SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES = 1260;
+
+function getSerializedBase64Length(tx: { serialize: () => Uint8Array }): number {
+  return 4 * Math.ceil(tx.serialize().length / 3);
+}
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
@@ -71,30 +85,48 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
   const isSol = assetSlug === "sol";
+  const assetConfig = getAssetConfig(assetSlug);
+  const wrappableSolRaw =
+    solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
+      ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
+      : BigInt(0);
+  const solCollateralBalance =
+    (Number(solanaWsolRaw + wrappableSolRaw) / 1e9);
   // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
   // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
   const walletBalance = isBuy
     ? usd + solanaUsdc
     : isSol
-      ? solanaWsol + solanaSol
+      ? solCollateralBalance
       : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
     ? Math.min(quote.available_amount, capEth) * quote.strike
     : Math.min(quote.available_amount, capEth);
+  const solMaxByBalanceRaw =
+    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
+      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
+      : BigInt(0);
+  const maxByBalance = isBuy
+    ? walletBalance
+    : isSol
+      ? Number(solMaxByBalanceRaw) / 1e9
+      : walletBalance;
+  const maxInputAmount = Math.min(maxByBalance, maxAmount);
 
   const [amountStr, setAmountStr] = useState(initialAmount ?? "");
   const amount = Number(amountStr) || 0;
 
 
   function handlePercent(pct: number) {
-    const raw = walletBalance * (pct / 100);
+    const raw = maxInputAmount * (pct / 100);
     setActivePercent(pct);
     if (isBuy) {
       setAmountStr(floorTo(raw, 2).toString());
     } else {
-      setAmountStr(floorTo(raw, 4).toString());
+      const decimals = isSol ? 8 : (assetConfig?.displayDecimals ?? 4);
+      setAmountStr(floorTo(raw, decimals).toString());
     }
   }
 
@@ -128,7 +160,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           ? "Connect wallet"
           : "Accept";
 
-  const assetConfig = getAssetConfig(assetSlug);
   const minAmount = isBuy
     ? (assetConfig?.minBuyAmountUsd ?? 10)
     : (assetConfig?.minSellAmount ?? 0.005);
@@ -242,11 +273,63 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         updateStep("executing");
 
         const solanaPk = toPublicKey(solanaAddress, "Solana wallet");
+        const { collateral } = computeCollateral(
+          isBuy,
+          amount,
+          quote.strike,
+          assetSlug,
+        );
 
-        const tradeTx = await buildSolanaTradeTransaction(
+        let wrapAmount = BigInt(0);
+        if (!isBuy && assetSlug === "sol" && solanaWsolRaw < collateral) {
+          wrapAmount = collateral - solanaWsolRaw;
+          if (wrappableSolRaw < wrapAmount) {
+            setDepositToken("sol");
+            setShowDeposit(true);
+            setStep("idle");
+            return;
+          }
+        }
+
+        let tradeTx = await buildSolanaTradeTransaction(
           quote, amount, isBuy, assetSlug, solanaPk,
           isBuy ? undefined : solanaWsolRaw,
+          wrapAmount,
         );
+
+        const tradeTxBase64Length = getSerializedBase64Length(tradeTx);
+        if (
+          tradeTxBase64Length > SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES
+        ) {
+          const setupTx = await buildSolanaTradeSetupTransaction(
+            quote,
+            amount,
+            isBuy,
+            assetSlug,
+            solanaPk,
+            wrapAmount,
+            true,
+          );
+          if (setupTx) {
+            await sendSolanaTransaction(setupTx);
+            window.dispatchEvent(new Event("balance:refetch"));
+          }
+
+          tradeTx = await buildSolanaTradeTransaction(
+            quote, amount, isBuy, assetSlug, solanaPk,
+            isBuy ? undefined : collateral,
+            BigInt(0),
+            false,
+            false,
+          );
+        }
+
+        const finalTradeTxBase64Length = getSerializedBase64Length(tradeTx);
+        if (finalTradeTxBase64Length > SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES) {
+          throw new Error(
+            `Solana transaction is too large for sponsored execution (${finalTradeTxBase64Length} bytes).`,
+          );
+        }
 
         const signature = await sendSolanaTransaction(tradeTx);
         setTxHash(signature);

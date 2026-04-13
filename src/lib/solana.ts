@@ -9,6 +9,12 @@ export const SOLANA_CHAIN =
 export const SOLANA_WSOL_MINT =
   "So11111111111111111111111111111111111111112";
 
+/**
+ * Keep native SOL available for rent/account state when wrapping to wSOL.
+ * Gas is sponsored, but wrapping can still require rent-exempt lamports.
+ */
+export const SOLANA_NATIVE_RESERVE_LAMPORTS = BigInt(15_000_000);
+
 /** Block explorer for Solana transaction links */
 export const SOLANA_EXPLORER_URL =
   process.env.NEXT_PUBLIC_SOLANA_EXPLORER_URL ??

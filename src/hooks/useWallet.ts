@@ -333,28 +333,26 @@ export function useWallet() {
       if (!solanaEmbedded) {
         throw new Error("Solana embedded wallet not ready");
       }
-      if (!solanaConnection) {
-        throw new Error("Solana RPC not configured");
-      }
 
-      // Privy's client-side sponsor flow fails on v0 transactions that use
-      // address lookup tables. Sign locally, then submit via our RPC instead.
-      const unsignedTx = tx instanceof VersionedTransaction
+      const serialized = tx instanceof VersionedTransaction
         ? tx.serialize()
         : tx.serialize({ requireAllSignatures: false, verifySignatures: false });
-      const { signedTransaction } = await privySignSolanaTx({
-        transaction: unsignedTx,
+
+      const result = await signAndSendTransaction({
+        transaction: serialized,
         wallet: solanaEmbedded,
         chain: SOLANA_CHAIN as `solana:${string}`,
+        options: {
+          sponsor: true,
+          uiOptions: { showWalletUIs: false },
+        },
       });
-      const signature = await solanaConnection.sendRawTransaction(
-        Buffer.from(signedTransaction),
-        { preflightCommitment: "confirmed" },
-      );
-      await solanaConnection.confirmTransaction(signature, "confirmed");
-      return signature;
+
+      return typeof result.signature === "string"
+        ? result.signature
+        : bs58.encode(result.signature);
     },
-    [solanaEmbedded, privySignSolanaTx],
+    [solanaEmbedded, signAndSendTransaction],
   );
 
   // SPL USDC transfer from embedded Solana wallet to an external Solana wallet

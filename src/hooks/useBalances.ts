@@ -103,7 +103,12 @@ export function useBalances(address: Address | undefined, pollInterval = 15_000)
 
   // Listen for balance:refetch events from other components
   useEffect(() => {
-    const handler = () => refetch();
+    const handler = () => {
+      refetch();
+      for (const delay of [500, 1500, 3000, 6000]) {
+        window.setTimeout(() => refetch(), delay);
+      }
+    };
     window.addEventListener("balance:refetch", handler);
     return () => window.removeEventListener("balance:refetch", handler);
   }, [refetch]);
