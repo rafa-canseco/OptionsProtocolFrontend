@@ -23,6 +23,7 @@ const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
   btc: "/cbbtc.webp",
   sol: "/sol.png",
+  okb: "/okb.svg",
 };
 
 function AssetIcon({
@@ -131,6 +132,12 @@ export function AssetSelector({
                         <span className="text-[9px] font-medium text-purple-400
                           bg-purple-500/10 px-1 py-0.5 rounded">
                           Solana
+                        </span>
+                      )}
+                      {asset.chain === "xlayer" && (
+                        <span className="text-[9px] font-medium text-cyan-400
+                          bg-cyan-500/10 px-1 py-0.5 rounded">
+                          X Layer
                         </span>
                       )}
                       {disabled && (

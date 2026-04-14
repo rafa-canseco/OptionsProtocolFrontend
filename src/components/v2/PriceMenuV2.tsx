@@ -14,7 +14,7 @@ import { HowItWorksDrawer } from "../HowItWorksDrawer";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
-import { CHAIN } from "@/lib/contracts";
+import { CHAIN, IS_XLAYER } from "@/lib/contracts";
 import { SOLANA_NATIVE_RESERVE_LAMPORTS, solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import { formatApr } from "@/lib/yield";
@@ -180,7 +180,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
   const { address, solanaAddress, isConnected } = useWallet();
-  const { usd, eth, weth, wbtc } = useBalances(address);
+  const { usd, eth, weth, wbtc, okb } = useBalances(address);
   const {
     solanaUsdc,
     solanaWsolRaw,
@@ -212,6 +212,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
+  const isOkb = asset.slug === "okb";
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -222,8 +223,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       : BigInt(0);
   const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
   const walletBalance = isBuy
-    ? usd + solanaUsdc
-    : isSol ? solCollateralBalance : isBtc ? wbtc : eth + weth;
+    ? IS_XLAYER ? usd : usd + solanaUsdc
+    : isOkb ? okb : isSol ? solCollateralBalance : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
@@ -670,7 +671,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           prices={prices}
           activeExpiry={activeExpiry}
           spot={spot}
-          walletBalance={usd + solanaUsdc}
+          walletBalance={IS_XLAYER ? usd : usd + solanaUsdc}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}

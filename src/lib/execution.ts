@@ -46,7 +46,10 @@ export function computeCollateral(
   const config = getAssetConfig(assetSlug);
   const scale = BigInt(10) ** BigInt((config?.collateralDecimals ?? 18) - 8);
   const collateral = oTokenAmount * scale;
-  const collateralAsset = assetSlug === "btc" ? ADDRESSES.wbtc : ADDRESSES.weth;
+  const collateralAsset =
+    assetSlug === "btc" ? ADDRESSES.wbtc
+    : assetSlug === "okb" ? (ADDRESSES.mokb ?? ADDRESSES.weth)
+    : ADDRESSES.weth;
   return { oTokenAmount, collateral, collateralAsset };
 }
 
@@ -155,7 +158,7 @@ export function buildOptimisticPosition(
   const optOTokenAmt = isBuy
     ? (amount / quote.strike) * 1e8
     : amount * 1e8;
-  const callDecimals = assetSlug === "btc" ? 1e8 : 1e18;
+  const callDecimals = assetSlug === "btc" ? 1e8 : 1e18; // OKB and ETH are both 18 decimals
   const optCollateral = isBuy ? amount * 1e6 : amount * callDecimals;
   const optPremium = isBuy
     ? String(((quote.premium * amount) / quote.strike) * 1e6)

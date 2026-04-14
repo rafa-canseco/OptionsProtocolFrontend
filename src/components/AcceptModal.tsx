@@ -10,7 +10,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
-import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
+import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI, IS_XLAYER } from "@/lib/contracts";
 import {
   SOLANA_NATIVE_RESERVE_LAMPORTS,
   solanaTxUrl,
@@ -79,22 +79,23 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
   const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
-  const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
+  const { usd, eth, weth, wbtc, okb, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
   const { solanaUsdcRaw, solanaUsdc, solanaWsolRaw, solanaSolRaw, solanaWsol, solanaSol, loading: solBalLoading } = useSolanaBalance(solanaAddress);
   const balancesLoading = baseBalLoading || solBalLoading;
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
   const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [chainExecuted, setChainExecuted] = useState<"base" | "solana" | null>(null);
+  const [chainExecuted, setChainExecuted] = useState<"base" | "solana" | "xlayer" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
   const [showDeposit, setShowDeposit] = useState(false);
-  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol">("usdc");
+  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol" | "okb">("usdc");
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
   const isSol = assetSlug === "sol";
+  const isOkb = assetSlug === "okb";
   const assetConfig = getAssetConfig(assetSlug);
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -102,13 +103,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       : BigInt(0);
   const solCollateralBalance =
     (Number(solanaWsolRaw + wrappableSolRaw) / 1e9);
-  // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
-  // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
+  // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL, OKB uses MockOKB
+  // For buys: show USDC (on XLayer just local, otherwise combined Base + Solana)
   const walletBalance = isBuy
-    ? usd + solanaUsdc
-    : isSol
-      ? solCollateralBalance
-      : isBtc ? wbtc : eth + weth;
+    ? IS_XLAYER ? usd : usd + solanaUsdc
+    : isOkb
+      ? okb
+      : isSol
+        ? solCollateralBalance
+        : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
@@ -182,7 +185,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   async function handleAccept() {
     if (!isConnected) {
-      setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
+      setDepositToken(isBuy ? "usdc" : isOkb ? "okb" : isSol ? "sol" : isBtc ? "btc" : "eth");
       setShowDeposit(true);
       return;
     }
@@ -366,7 +369,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
       // --- Direct Base execution ---
       if (!address) {
-        setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
+        setDepositToken(isBuy ? "usdc" : isOkb ? "okb" : isSol ? "sol" : isBtc ? "btc" : "eth");
         setShowDeposit(true);
         return;
       }
@@ -376,7 +379,16 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
       // On-chain balance check for sells — redirect to deposit if underfunded
       let wrapAmount = BigInt(0);
-      if (isBtc) {
+      if (isOkb) {
+        // OKB calls: MockOKB is ERC20, no wrapping needed
+        const okbAddr = ADDRESSES.mokb ?? ADDRESSES.weth;
+        const okbBal = await readTokenBalance(okbAddr, address);
+        if (okbBal < collateral) {
+          setDepositToken("okb");
+          setShowDeposit(true);
+          return;
+        }
+      } else if (isBtc) {
         // BTC calls: cbBTC is already ERC20, no wrapping needed
         const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
         if (wbtcBal < collateral) {
@@ -449,7 +461,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       );
       if (resultHash) setTxHash(resultHash);
 
-      setChainExecuted(quote.chain ?? "base");
+      setChainExecuted(IS_XLAYER ? "xlayer" : (quote.chain ?? "base"));
       updateStep("confirmed");
       onAccepted({ amount, txHash: resultHash });
       window.dispatchEvent(new Event("balance:refetch"));
@@ -532,7 +544,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                 <div className="flex items-center gap-1.5 shrink-0">
                   <img
-                    src={isBuy ? "/usdc.svg" : isSol ? "/sol.png" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                    src={isBuy ? "/usdc.svg" : isOkb ? "/okb.svg" : isSol ? "/sol.png" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
                     alt={isBuy ? "USDC" : assetSymbol}
                     className="w-5 h-5 rounded-full"
                   />
@@ -631,7 +643,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         {step === "confirmed" && chainExecuted && (
           <p className="text-center text-xs text-[var(--text-secondary)]">
-            Executed on {chainExecuted === "solana" ? "Solana" : "Base"}
+            Executed on {chainExecuted === "solana" ? "Solana" : chainExecuted === "xlayer" ? "X Layer" : "Base"}
           </p>
         )}
 
