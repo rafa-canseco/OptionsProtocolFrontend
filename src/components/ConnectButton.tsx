@@ -5,6 +5,7 @@ import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { DepositModal } from "@/components/DepositModal";
+import { IS_XLAYER } from "@/lib/contracts";
 import {
   Popover,
   PopoverContent,
@@ -14,7 +15,7 @@ import {
 export function ConnectButton() {
   const { address, solanaAddress, isConnected, isReady, connectWallet } =
     useWallet();
-  const { usd, loading: balancesLoading } = useBalances(address);
+  const { usd, okb, loading: balancesLoading } = useBalances(address);
   const { solanaUsdc, loading: solLoading } = useSolanaBalance(solanaAddress);
   const [showDeposit, setShowDeposit] = useState(false);
 
@@ -25,8 +26,8 @@ export function ConnectButton() {
   }
 
   if (isConnected) {
-    const total = usd + solanaUsdc;
-    const loading = balancesLoading || solLoading;
+    const total = IS_XLAYER ? usd : usd + solanaUsdc;
+    const loading = IS_XLAYER ? balancesLoading : balancesLoading || solLoading;
     const hasBalance = total > 0;
     const balanceLabel = hasBalance
       ? `$${total.toLocaleString(undefined, {
@@ -48,34 +49,65 @@ export function ConnectButton() {
             align="end"
           >
             <div className="space-y-2 text-sm">
-              <div className="flex justify-between text-[var(--text)]">
-                <span className="flex items-center gap-1.5">
-                  <img src="/base.svg" alt="Base" className="w-3.5 h-3.5" />
-                  Base
-                </span>
-                <span className="font-mono">
-                  ${usd.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between text-[var(--text)]">
-                <span className="flex items-center gap-1.5">
-                  <img
-                    src="/sol.png"
-                    alt="Solana"
-                    className="w-3.5 h-3.5 rounded-full"
-                  />
-                  Solana
-                </span>
-                <span className="font-mono">
-                  ${solanaUsdc.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
+              {IS_XLAYER ? (
+                <>
+                  <div className="flex justify-between text-[var(--text)]">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-3.5 h-3.5 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-[7px] font-bold text-[var(--bg)]">X</span>
+                      USDC
+                    </span>
+                    <span className="font-mono">
+                      ${usd.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[var(--text)]">
+                    <span className="flex items-center gap-1.5">
+                      <img src="/okb.svg" alt="OKB" className="w-3.5 h-3.5 rounded-full" />
+                      OKB
+                    </span>
+                    <span className="font-mono">
+                      {okb.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 4,
+                      })}
+                    </span>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="flex justify-between text-[var(--text)]">
+                    <span className="flex items-center gap-1.5">
+                      <img src="/base.svg" alt="Base" className="w-3.5 h-3.5" />
+                      Base
+                    </span>
+                    <span className="font-mono">
+                      ${usd.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[var(--text)]">
+                    <span className="flex items-center gap-1.5">
+                      <img
+                        src="/sol.png"
+                        alt="Solana"
+                        className="w-3.5 h-3.5 rounded-full"
+                      />
+                      Solana
+                    </span>
+                    <span className="font-mono">
+                      ${solanaUsdc.toLocaleString(undefined, {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2,
+                      })}
+                    </span>
+                  </div>
+                </>
+              )}
               <div className="h-px bg-[var(--border)]" />
               <button
                 onClick={() => setShowDeposit(true)}

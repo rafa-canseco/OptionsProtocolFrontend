@@ -7,6 +7,7 @@ import { useBalances } from "@/hooks/useBalances";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
 import { DEFAULT_ASSET } from "@/lib/assets";
+import { IS_XLAYER } from "@/lib/contracts";
 
 const LINKS = [
   { href: "/earn", label: "Earn" },
@@ -20,7 +21,7 @@ export function NavBar() {
   const pathname = usePathname();
   const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
 
-  const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
+  const { usd, eth, weth, wbtc, okb, usdFormatted, loading: balLoading, refetch } = useBalances(address);
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
 
@@ -57,10 +58,16 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0) && (
+          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0 || okb > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
               <img src="/usdc.svg" alt="USDC" className="w-4 h-4 inline" />
               <span>${usdFormatted}</span>
+              {currentAsset === "okb" && okb > 0 && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{okb.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} OKB</span>
+                </>
+              )}
               {currentAsset === "eth" && (
                 <>
                   <span className="opacity-40">·</span>

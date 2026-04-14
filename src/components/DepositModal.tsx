@@ -5,11 +5,11 @@ import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem"
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
-import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
+import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, IS_XLAYER } from "@/lib/contracts";
 import { solanaTxUrl } from "@/lib/solana";
 
 type Tab = "deposit" | "withdraw";
-type Token = "usdc" | "eth" | "weth" | "btc" | "sol";
+type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "okb";
 type AccountBalanceToken = Token | "wsol";
 
 interface TokenConfig {
@@ -25,11 +25,13 @@ const TOKEN_META: Record<AccountBalanceToken, TokenConfig> = {
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
   sol: { label: "SOL", icon: "/sol.png", decimals: 9 },
   wsol: { label: "wSOL", icon: "/sol.png", decimals: 9 },
+  okb: { label: "OKB", icon: "/okb.svg", decimals: 18 },
 };
 
-const TOKENS_BY_CHAIN: Record<"base" | "solana", Token[]> = {
+const TOKENS_BY_CHAIN: Record<"base" | "solana" | "xlayer", Token[]> = {
   base: ["usdc", "eth", "weth", "btc"],
   solana: ["usdc", "sol"],
+  xlayer: ["usdc", "okb"],
 };
 
 const SOL_FEE_RESERVE_LAMPORTS = BigInt(5_000_000);
@@ -44,7 +46,8 @@ function truncate(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-function chainLabel(chain: "base" | "solana"): string {
+function chainLabel(chain: "base" | "solana" | "xlayer"): string {
+  if (chain === "xlayer") return "X Layer";
   return chain === "base" ? "Base" : "Solana";
 }
 
@@ -146,13 +149,17 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [selectedWallet, token]);
 
-  const chain = selectedWallet?.chain ?? (requiredToken === "sol" ? "solana" : "base");
+  const chain: "base" | "solana" | "xlayer" = IS_XLAYER
+    ? "xlayer"
+    : selectedWallet?.chain ?? (requiredToken === "sol" ? "solana" : "base");
   const meta = TOKEN_META[token];
   const availableTokens = TOKENS_BY_CHAIN[chain];
   const filteredAssetTokens = availableTokens.filter((asset) =>
     TOKEN_META[asset].label.toLowerCase().includes(assetSearch.trim().toLowerCase()),
   );
-  const baseBalanceTokens: AccountBalanceToken[] = ["usdc", "eth", "weth", "btc"];
+  const baseBalanceTokens: AccountBalanceToken[] = IS_XLAYER
+    ? ["usdc", "okb"]
+    : ["usdc", "eth", "weth", "btc"];
   const solanaBalanceTokens: AccountBalanceToken[] = ["usdc", "sol", "wsol"];
   const filteredBaseBalanceTokens = baseBalanceTokens.filter((asset) =>
     TOKEN_META[asset].label.toLowerCase().includes(baseBalanceSearch.trim().toLowerCase()),
@@ -171,17 +178,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       if (asset === "usdc") return solanaWalletBalance.solanaUsdcRaw;
       return BigInt(0);
     }
-    if (tab === "deposit") {
-      if (asset === "usdc") return eoaBalances.usdRaw;
-      if (asset === "eth") return eoaBalances.ethRaw;
-      if (asset === "weth") return eoaBalances.wethRaw;
-      if (asset === "btc") return eoaBalances.wbtcRaw;
-      return BigInt(0);
-    }
-    if (asset === "usdc") return smartBalances.usdRaw;
-    if (asset === "eth") return smartBalances.ethRaw;
-    if (asset === "weth") return smartBalances.wethRaw;
-    if (asset === "btc") return smartBalances.wbtcRaw;
+    const balSource = tab === "deposit" ? eoaBalances : smartBalances;
+    if (asset === "usdc") return balSource.usdRaw;
+    if (asset === "eth") return balSource.ethRaw;
+    if (asset === "weth") return balSource.wethRaw;
+    if (asset === "btc") return balSource.wbtcRaw;
+    if (asset === "okb") return balSource.okbRaw;
     return BigInt(0);
   }, [chain, eoaBalances, smartBalances, solanaWalletBalance, tab]);
 
@@ -229,14 +231,15 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const needsBaseActivation = !address;
 
   const getTradingBalanceRaw = useCallback((
-    account: "base" | "solana",
+    account: "base" | "solana" | "xlayer",
     asset: AccountBalanceToken,
   ): bigint => {
-    if (account === "base") {
+    if (account === "xlayer" || account === "base") {
       if (asset === "usdc") return smartBalances.usdRaw;
       if (asset === "eth") return smartBalances.ethRaw;
       if (asset === "weth") return smartBalances.wethRaw;
       if (asset === "btc") return smartBalances.wbtcRaw;
+      if (asset === "okb") return smartBalances.okbRaw;
       return BigInt(0);
     }
     if (asset === "usdc") return solBalance.solanaUsdcRaw;
@@ -246,7 +249,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [smartBalances, solBalance]);
 
   const formatTradingBalance = useCallback((
-    account: "base" | "solana",
+    account: "base" | "solana" | "xlayer",
     asset: AccountBalanceToken,
   ): string => {
     const tokenMeta = TOKEN_META[asset];
@@ -314,9 +317,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         const tokenAddress =
           token === "usdc"
             ? ADDRESSES.usdc
-            : token === "weth"
-              ? ADDRESSES.weth
-              : ADDRESSES.wbtc;
+            : token === "okb"
+              ? (ADDRESSES.mokb ?? ADDRESSES.weth)
+              : token === "weth"
+                ? ADDRESSES.weth
+                : ADDRESSES.wbtc;
         hash = await sendFundingTx({
           to: tokenAddress,
           data: encodeFunctionData({
@@ -429,9 +434,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           ? ADDRESSES.usdc
           : token === "eth"
             ? null
-            : token === "weth"
-              ? ADDRESSES.weth
-              : ADDRESSES.wbtc;
+            : token === "okb"
+              ? (ADDRESSES.mokb ?? ADDRESSES.weth)
+              : token === "weth"
+                ? ADDRESSES.weth
+                : ADDRESSES.wbtc;
 
       const result = await sendBatchTx([
         tokenAddress
@@ -534,13 +541,17 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
         {/* Trading accounts */}
         <div className="space-y-2">
-          {/* Base account */}
+          {/* EVM account */}
           <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <img src="/base.svg" alt="Base" className="w-4 h-4" />
+                {IS_XLAYER ? (
+                  <span className="w-4 h-4 inline-flex items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold text-[var(--bg)]">X</span>
+                ) : (
+                  <img src="/base.svg" alt="Base" className="w-4 h-4" />
+                )}
                 <span className="text-sm font-semibold text-[var(--text)]">
-                  Base trading account
+                  {IS_XLAYER ? "X Layer trading account" : "Base trading account"}
                 </span>
               </div>
               <span className={`text-xs font-semibold ${
@@ -563,7 +574,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 <span className="text-[var(--text-secondary)]">⌄</span>
               </button>
               <span className="font-mono text-sm font-semibold text-[var(--text)]">
-                {formatTradingBalance("base", baseBalanceToken)}
+                {formatTradingBalance(IS_XLAYER ? "xlayer" : "base", baseBalanceToken)}
                 {baseBalanceToken !== "usdc" ? ` ${TOKEN_META[baseBalanceToken].label}` : ""}
               </span>
               {baseBalanceMenuOpen && (
@@ -603,7 +614,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                             {TOKEN_META[asset].label}
                           </span>
                           <span className="block text-xs font-mono text-[var(--text-secondary)]">
-                            {formatTradingBalance("base", asset)}
+                            {formatTradingBalance(IS_XLAYER ? "xlayer" : "base", asset)}
                             {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
                           </span>
                         </span>
@@ -629,8 +640,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             )}
           </div>
 
-          {/* Solana account */}
-          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
+          {/* Solana account (hidden on XLayer) */}
+          {!IS_XLAYER && <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <img src="/sol.png" alt="Solana" className="w-4 h-4 rounded-full" />
@@ -716,7 +727,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
               {solanaAddress ? truncate(solanaAddress) : "Set up on first deposit"}
             </p>
-          </div>
+          </div>}
         </div>
 
         {/* Tabs */}
@@ -815,10 +826,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               Connect the wallet you want to use for deposits and withdrawals.
             </p>
           </div>
-        ) : needsBaseActivation && chain === "base" ? (
+        ) : needsBaseActivation && (chain === "base" || chain === "xlayer") ? (
           <div className="space-y-3">
             <p className="text-sm text-[var(--text-secondary)]">
-              Activate your Base trading account with a one-time signature.
+              Activate your {IS_XLAYER ? "X Layer" : "Base"} trading account with a one-time signature.
               After this you can deposit, withdraw, and trade with zero gas fees.
             </p>
             {error && (
@@ -831,7 +842,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             >
               {status === "activating"
                 ? "Activating..."
-                : "Activate Base Trading Account"}
+                : IS_XLAYER
+                  ? "Activate X Layer Trading Account"
+                  : "Activate Base Trading Account"}
             </button>
           </div>
         ) : (
