@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import type { Address } from "viem";
+import { encodeFunctionData, type Address } from "viem";
+import { IS_XLAYER, ADDRESSES, ERC20_ABI, publicClient } from "@/lib/contracts";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -9,13 +10,25 @@ interface FaucetOpts {
   address: Address | undefined;
   solanaAddress: string | undefined;
   onComplete?: () => void;
+  sendFundingTx?: (call: {
+    to: Address;
+    data: `0x${string}`;
+    value?: bigint;
+  }) => Promise<`0x${string}`>;
+  fundingAddress?: Address;
 }
 
 type FaucetResult =
   | { ok: true }
   | { ok: false; error: string };
 
-export function useFaucet({ address, solanaAddress, onComplete }: FaucetOpts) {
+export function useFaucet({
+  address,
+  solanaAddress,
+  onComplete,
+  sendFundingTx,
+  fundingAddress,
+}: FaucetOpts) {
   const [minting, setMinting] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +60,64 @@ export function useFaucet({ address, solanaAddress, onComplete }: FaucetOpts) {
     }
   }
 
+  async function mintXLayer(): Promise<void> {
+    if (!sendFundingTx || !fundingAddress) {
+      throw new Error("Wallet not connected");
+    }
+    const recipient = fundingAddress;
+    const mokbAddress = ADDRESSES.mokb ?? ADDRESSES.weth;
+
+    const okbAmount = BigInt("1000") * BigInt(10) ** BigInt(18);
+    const usdcAmount = BigInt("100000") * BigInt(10) ** BigInt(6);
+
+    const mintOkbData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: "mint",
+      args: [recipient, okbAmount],
+    });
+    const mintUsdcData = encodeFunctionData({
+      abi: ERC20_ABI,
+      functionName: "mint",
+      args: [recipient, usdcAmount],
+    });
+
+    const hash1 = await sendFundingTx({
+      to: mokbAddress,
+      data: mintOkbData,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: hash1 });
+
+    const hash2 = await sendFundingTx({
+      to: ADDRESSES.usdc,
+      data: mintUsdcData,
+    });
+    await publicClient.waitForTransactionReceipt({ hash: hash2 });
+  }
+
   async function mint() {
+    if (IS_XLAYER) {
+      if (!sendFundingTx || !fundingAddress) return;
+      setMinting(true);
+      setError(null);
+      try {
+        await mintXLayer();
+        setNotification("You received 1,000 OKB and 100,000 USDC on X Layer.");
+        setTimeout(() => setNotification(null), 5000);
+        window.dispatchEvent(new Event("balance:refetch"));
+        await onComplete?.();
+      } catch (err) {
+        console.error("[useFaucet] XLayer mint failed:", err);
+        const msg = err instanceof Error ? err.message : "";
+        if (/reject|denied|cancel/i.test(msg)) {
+          setError("Transaction cancelled.");
+        } else {
+          setError(msg || "Minting failed.");
+        }
+      }
+      setMinting(false);
+      return;
+    }
+
     if (!address && !solanaAddress) return;
     setMinting(true);
     setError(null);
