@@ -23,7 +23,7 @@ export interface PriceQuote {
   max_amount_raw: number | null;
   maker_nonce: number | null;
   position_count: number;
-  chain: "base" | "solana";
+  chain: "base" | "solana" | "xlayer";
 }
 
 export interface Position {
