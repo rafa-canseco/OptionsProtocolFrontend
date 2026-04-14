@@ -103,11 +103,17 @@ export function useBridgeAndTrade() {
 
       // Puts (buy side): USDC collateral — can bridge cross-chain
       if (isBuy) {
+        // XLayer and Base both use the EVM USDC balance (baseUsdcRaw)
         const targetBalance =
-          quote.chain === "base" ? baseUsdcRaw : solanaUsdcRaw;
+          quote.chain === "solana" ? solanaUsdcRaw : baseUsdcRaw;
 
         if (targetBalance >= collateral) {
           return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
+        }
+
+        // XLayer has no bridge — if insufficient, just prompt deposit
+        if (quote.chain === "xlayer") {
+          return { needsBridge: false, needsDeposit: true, sourceChain: null, deficit: collateral - targetBalance };
         }
 
         const sourceChain: ChainId =
