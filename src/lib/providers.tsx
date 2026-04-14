@@ -4,7 +4,7 @@ import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
-import { CHAIN } from "@/lib/contracts";
+import { CHAIN, IS_XLAYER } from "@/lib/contracts";
 import { SOLANA_RPC_URL } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
@@ -34,34 +34,36 @@ export function Providers({ children }: { children: React.ReactNode }) {
         appearance: {
           theme: "dark",
           accentColor: "#22D3EE",
-          walletChainType: "ethereum-and-solana",
+          walletChainType: IS_XLAYER
+            ? "ethereum-only"
+            : "ethereum-and-solana",
         },
-        externalWallets: {
-          solana: {
-            connectors: toSolanaWalletConnectors(),
+        ...(!IS_XLAYER && {
+          externalWallets: {
+            solana: { connectors: toSolanaWalletConnectors() },
           },
-        },
+        }),
         supportedChains: [CHAIN],
-        solana: {
-          rpcs: {
-            "solana:devnet": {
-              rpc: createSolanaRpc(
-                SOLANA_RPC_URL || "https://api.devnet.solana.com",
-              ),
-              rpcSubscriptions: createSolanaRpcSubscriptions(
-                "wss://api.devnet.solana.com",
-              ),
+        ...(!IS_XLAYER && {
+          solana: {
+            rpcs: {
+              "solana:devnet": {
+                rpc: createSolanaRpc(
+                  SOLANA_RPC_URL || "https://api.devnet.solana.com",
+                ),
+                rpcSubscriptions: createSolanaRpcSubscriptions(
+                  "wss://api.devnet.solana.com",
+                ),
+              },
             },
           },
-        },
+        }),
         embeddedWallets: {
           showWalletUIs: false,
-          ethereum: {
-            createOnLogin: "all-users",
-          },
-          solana: {
-            createOnLogin: "all-users",
-          },
+          ethereum: { createOnLogin: "all-users" },
+          ...(!IS_XLAYER && {
+            solana: { createOnLogin: "all-users" as const },
+          }),
         },
         plugins,
       }}

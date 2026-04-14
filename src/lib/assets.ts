@@ -1,4 +1,5 @@
 import { normalizeUsdPrice } from "@/lib/positionMath";
+import { IS_XLAYER } from "@/lib/contracts";
 
 export interface AssetConfig {
   slug: string;
@@ -25,7 +26,7 @@ export interface AssetConfig {
   /** Minimum buy amount in USD */
   minBuyAmountUsd: number;
   /** Which chain this asset trades on */
-  chain: "base" | "solana";
+  chain: "base" | "solana" | "xlayer";
   /** Decimals of the wrapped collateral token for calls */
   collateralDecimals: number;
 }
@@ -78,10 +79,26 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "solana",
     collateralDecimals: 9,
   },
+  okb: {
+    slug: "okb",
+    symbol: "OKB",
+    name: "OKB",
+    wrappedSymbol: "MockOKB",
+    stableSymbol: "USDC",
+    maxAmount: 10_000,
+    maxAmountUsd: 1_000_000,
+    amountPlaceholder: "10",
+    displayDecimals: 4,
+    swapFeeTier: 500,
+    minSellAmount: 0.1,
+    minBuyAmountUsd: 10,
+    chain: "xlayer",
+    collateralDecimals: 18,
+  },
 };
 
 export const ASSET_SLUGS = Object.keys(ASSETS);
-export const DEFAULT_ASSET = "eth";
+export const DEFAULT_ASSET = IS_XLAYER ? "okb" : "eth";
 
 if (!(DEFAULT_ASSET in ASSETS)) {
   throw new Error(

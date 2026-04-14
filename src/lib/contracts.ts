@@ -1,31 +1,60 @@
-import { type Address, createPublicClient, http } from "viem";
+import { type Address, type Chain, createPublicClient, http } from "viem";
 import { base, baseSepolia } from "viem/chains";
+
+const xlayerTestnet: Chain = {
+  id: 1952,
+  name: "X Layer Testnet",
+  nativeCurrency: { name: "OKB", symbol: "OKB", decimals: 18 },
+  rpcUrls: {
+    default: { http: ["https://testrpc.xlayer.tech/terigon"] },
+  },
+  blockExplorers: {
+    default: {
+      name: "OKX Explorer",
+      url: "https://www.okx.com/web3/explorer/xlayer-test",
+    },
+  },
+  testnet: true,
+};
 
 const rawChainId = process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532";
 const chainId = Number(rawChainId);
 if (Number.isNaN(chainId)) {
   throw new Error(
-    `[contracts] NEXT_PUBLIC_CHAIN_ID="${rawChainId}" is not a valid number. Use 8453 (Base) or 84532 (Base Sepolia).`,
+    `[contracts] NEXT_PUBLIC_CHAIN_ID="${rawChainId}" is not a valid number.`,
   );
 }
-export const CHAIN = chainId === 8453 ? base : baseSepolia;
 
-const ADDRESS_ENV: Record<string, string | undefined> = {
-  NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS:   process.env.NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS,
-  NEXT_PUBLIC_CONTROLLER_ADDRESS:     process.env.NEXT_PUBLIC_CONTROLLER_ADDRESS,
-  NEXT_PUBLIC_MARGIN_POOL_ADDRESS:    process.env.NEXT_PUBLIC_MARGIN_POOL_ADDRESS,
-  NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS: process.env.NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS,
-  NEXT_PUBLIC_ORACLE_ADDRESS:         process.env.NEXT_PUBLIC_ORACLE_ADDRESS,
-  NEXT_PUBLIC_WHITELIST_ADDRESS:      process.env.NEXT_PUBLIC_WHITELIST_ADDRESS,
-  NEXT_PUBLIC_BATCH_SETTLER_ADDRESS:  process.env.NEXT_PUBLIC_BATCH_SETTLER_ADDRESS,
-  NEXT_PUBLIC_USDC_ADDRESS:           process.env.NEXT_PUBLIC_USDC_ADDRESS,
-  NEXT_PUBLIC_WETH_ADDRESS:           process.env.NEXT_PUBLIC_WETH_ADDRESS,
-  NEXT_PUBLIC_WBTC_ADDRESS:           process.env.NEXT_PUBLIC_WBTC_ADDRESS,
-};
+function resolveChain(): Chain {
+  if (chainId === 1952) return xlayerTestnet;
+  if (chainId === 8453) return base;
+  return baseSepolia;
+}
 
-const missing = Object.entries(ADDRESS_ENV)
-  .filter(([, v]) => !v || !/^0x[0-9a-fA-F]{40}$/.test(v))
-  .map(([k]) => k);
+export const CHAIN = resolveChain();
+export const IS_XLAYER = chainId === 1952;
+
+const REQUIRED_ADDRESSES = [
+  "NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS",
+  "NEXT_PUBLIC_CONTROLLER_ADDRESS",
+  "NEXT_PUBLIC_MARGIN_POOL_ADDRESS",
+  "NEXT_PUBLIC_OTOKEN_FACTORY_ADDRESS",
+  "NEXT_PUBLIC_ORACLE_ADDRESS",
+  "NEXT_PUBLIC_WHITELIST_ADDRESS",
+  "NEXT_PUBLIC_BATCH_SETTLER_ADDRESS",
+  "NEXT_PUBLIC_USDC_ADDRESS",
+  "NEXT_PUBLIC_WETH_ADDRESS",
+  "NEXT_PUBLIC_WBTC_ADDRESS",
+] as const;
+
+const ADDRESS_ENV: Record<string, string | undefined> = {};
+for (const k of REQUIRED_ADDRESSES) {
+  ADDRESS_ENV[k] = process.env[k];
+}
+
+const missing = REQUIRED_ADDRESSES.filter(
+  (k) => !ADDRESS_ENV[k] || !/^0x[0-9a-fA-F]{40}$/.test(ADDRESS_ENV[k]!),
+);
 
 if (missing.length > 0) {
   throw new Error(
@@ -45,6 +74,7 @@ export const ADDRESSES = {
   usdc:          ADDRESS_ENV.NEXT_PUBLIC_USDC_ADDRESS           as Address,
   weth:          ADDRESS_ENV.NEXT_PUBLIC_WETH_ADDRESS           as Address,
   wbtc:          ADDRESS_ENV.NEXT_PUBLIC_WBTC_ADDRESS           as Address,
+  mokb:          (process.env.NEXT_PUBLIC_MOKB_ADDRESS || null)  as Address | null,
   swapRouter:    (process.env.NEXT_PUBLIC_SWAP_ROUTER_ADDRESS || null) as Address | null,
 } as const;
 
