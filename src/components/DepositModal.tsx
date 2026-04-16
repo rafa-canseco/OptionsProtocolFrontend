@@ -369,7 +369,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             ) : (
               <button
                 onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
-                disabled={isPending || !amountStr || !(Number(amountStr) > 0)}
+                disabled={isPending || !amountStr || !(Number(amountStr) > 0) || (tab === "withdraw" && !hasExternalWallet)}
                 className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
               >
                 {isPending
