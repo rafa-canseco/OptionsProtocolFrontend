@@ -2,6 +2,7 @@
 
 import type { Position, Activity, YieldAssetSummary, YieldPositionTotal } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
+import { toUsd } from "@/lib/pricing";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { InfoTooltip } from "./ui/InfoTooltip";
 import { resolvePositionAsset } from "@/lib/assets";
@@ -31,18 +32,6 @@ function callDecimals(p: Position): number {
 function capitalUsd(p: Position): number {
   if (p.is_put) return p.collateral / 1e6;
   return (p.collateral / callDecimals(p)) * getPositionStrike(p);
-}
-
-function toUsd(
-  amount: number,
-  asset: string,
-  ethSpot: number | undefined,
-  btcSpot: number | undefined,
-): number {
-  if (asset === "usdc") return amount;
-  if (asset === "eth") return amount * (ethSpot ?? 0);
-  if (asset === "btc") return amount * (btcSpot ?? 0);
-  return 0;
 }
 
 export function PortfolioSummary({

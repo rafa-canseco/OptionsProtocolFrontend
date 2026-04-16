@@ -80,6 +80,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const {
     address,
     fundingAddress,
+    withdrawAddress,
+    hasExternalWallet,
     solanaAddress,
     externalWallets,
     sendBatchTx,
@@ -409,11 +411,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [activateSmartWallet, selectedWallet]);
 
   const handleBaseWithdraw = useCallback(async () => {
-    const withdrawAddress = selectedWallet?.chain === "base"
-      ? (selectedWallet.address as Address)
-      : fundingAddress;
-    if (!address || !withdrawAddress) {
-      setError("Wallet not ready. Please reconnect.");
+    if (!selectedWallet || selectedWallet.chain !== "base") {
+      setError("Connect an external wallet to withdraw.");
+      return;
+    }
+    const baseWithdrawAddr = selectedWallet.address as Address;
+    if (!address) {
+      setError("Smart wallet not ready. Please reconnect.");
       return;
     }
     const amount = parseAmount();
@@ -440,11 +444,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               data: encodeFunctionData({
                 abi: ERC20_ABI,
                 functionName: "transfer",
-                args: [withdrawAddress, amount],
+                args: [baseWithdrawAddr, amount],
               }),
             }
           : {
-              to: withdrawAddress,
+              to: baseWithdrawAddr,
               data: "0x",
               value: amount,
             },
@@ -466,7 +470,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setStatus("idle");
     }
   }, [
-    address, fundingAddress, selectedWallet, parseAmount,
+    address, selectedWallet, parseAmount,
     token, sendBatchTx,
   ]);
 
