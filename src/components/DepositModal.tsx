@@ -35,7 +35,7 @@ function truncate(addr: string): string {
 }
 
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
-  const { address, fundingAddress, sendBatchTx, sendFundingTx, activateSmartWallet, disconnect } = useWallet();
+  const { address, fundingAddress, hasExternalWallet, sendBatchTx, sendFundingTx, activateSmartWallet, disconnect } = useWallet();
   const smartBalances = useBalances(address);
   const eoaBalances = useBalances(fundingAddress);
 
@@ -121,6 +121,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [address, fundingAddress, amountStr, meta.decimals, token, sendFundingTx, onComplete]);
 
   const handleWithdraw = useCallback(async () => {
+    if (!hasExternalWallet) {
+      setError(
+        "Connect your external wallet to withdraw. " +
+        "Funds can only be sent to the wallet you connected with.",
+      );
+      return;
+    }
     if (!address || !fundingAddress) {
       setError("Wallet not ready. Please reconnect.");
       return;
@@ -168,7 +175,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setError(err instanceof Error ? err.message : "Transaction failed. Please try again.");
       setStatus("idle");
     }
-  }, [address, fundingAddress, amountStr, meta.decimals, token, sendBatchTx]);
+  }, [address, fundingAddress, hasExternalWallet, amountStr, meta.decimals, token, sendBatchTx]);
 
   const isPending = status === "pending" || status === "activating";
   const isDone = status === "done";
@@ -334,9 +341,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             </div>
 
             {/* Withdraw gas note */}
-            {tab === "withdraw" && fundingAddress && (
+            {tab === "withdraw" && fundingAddress && hasExternalWallet && (
               <p className="text-xs text-[var(--text-secondary)]">
                 Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
+              </p>
+            )}
+            {tab === "withdraw" && !hasExternalWallet && (
+              <p className="text-xs text-[var(--danger)]">
+                Connect your external wallet to withdraw.
               </p>
             )}
 

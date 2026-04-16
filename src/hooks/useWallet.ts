@@ -127,6 +127,7 @@ export function useWallet() {
   return {
     address,
     fundingAddress,
+    hasExternalWallet: !!externalWallet,
     sendBatchTx,
     sendFundingTx,
     chainError,
