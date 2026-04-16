@@ -35,7 +35,7 @@ function truncate(addr: string): string {
 }
 
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
-  const { address, fundingAddress, sendBatchTx, sendFundingTx, activateSmartWallet, disconnect } = useWallet();
+  const { address, fundingAddress, withdrawAddress, hasExternalWallet, sendBatchTx, sendFundingTx, activateSmartWallet, disconnect } = useWallet();
   const smartBalances = useBalances(address);
   const eoaBalances = useBalances(fundingAddress);
 
@@ -121,7 +121,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [address, fundingAddress, amountStr, meta.decimals, token, sendFundingTx, onComplete]);
 
   const handleWithdraw = useCallback(async () => {
-    if (!address || !fundingAddress) {
+    if (!hasExternalWallet) {
+      setError(
+        "Connect your external wallet to withdraw. " +
+        "Funds can only be sent to the wallet you connected with.",
+      );
+      return;
+    }
+    if (!address || !withdrawAddress) {
       setError("Wallet not ready. Please reconnect.");
       return;
     }
@@ -140,8 +147,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setError(null);
     setStatus("pending");
     try {
-      // Withdraw: transfer from smart wallet back to EOA
-      // ETH/WETH option withdraws WETH token
+      // Withdraw: transfer from smart wallet back to external EOA
       const tokenAddress = token === "usdc" ? ADDRESSES.usdc
         : token === "eth" || token === "weth" ? ADDRESSES.weth
         : ADDRESSES.wbtc;
@@ -151,7 +157,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         data: encodeFunctionData({
           abi: ERC20_ABI,
           functionName: "transfer",
-          args: [fundingAddress, amount],
+          args: [withdrawAddress, amount],
         }),
       }]);
       if (typeof result !== "string" || !result.startsWith("0x")) {
@@ -168,7 +174,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setError(err instanceof Error ? err.message : "Transaction failed. Please try again.");
       setStatus("idle");
     }
-  }, [address, fundingAddress, amountStr, meta.decimals, token, sendBatchTx]);
+  }, [address, withdrawAddress, hasExternalWallet, amountStr, meta.decimals, token, sendBatchTx]);
 
   const isPending = status === "pending" || status === "activating";
   const isDone = status === "done";
@@ -334,9 +340,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             </div>
 
             {/* Withdraw gas note */}
-            {tab === "withdraw" && fundingAddress && (
+            {tab === "withdraw" && withdrawAddress && (
               <p className="text-xs text-[var(--text-secondary)]">
-                Withdraw to {truncate(fundingAddress)}. Gas is sponsored.
+                Withdraw to {truncate(withdrawAddress)}. Gas is sponsored.
+              </p>
+            )}
+            {tab === "withdraw" && !hasExternalWallet && (
+              <p className="text-xs text-[var(--danger)]">
+                Connect your external wallet to withdraw.
               </p>
             )}
 
@@ -357,7 +368,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             ) : (
               <button
                 onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
-                disabled={isPending || !amountStr || !(Number(amountStr) > 0)}
+                disabled={isPending || !amountStr || !(Number(amountStr) > 0) || (tab === "withdraw" && !hasExternalWallet)}
                 className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
               >
                 {isPending

@@ -26,8 +26,12 @@ export function useWallet() {
   // Trading address: always the smart wallet (gas-sponsored, batched)
   const address = client?.account?.address as Address | undefined;
 
-  // Funding address: the connected EOA (for deposits, withdrawals, legacy positions)
+  // Funding address: the connected EOA (for deposits). Falls back to
+  // embedded wallet so deposits work even without an external wallet.
   const fundingAddress = fundingWallet?.address as Address | undefined;
+
+  // Withdraw address: external wallet only, never the embedded wallet.
+  const withdrawAddress = externalWallet?.address as Address | undefined;
 
   useEffect(() => {
     if (!fundingWallet) return;
@@ -127,9 +131,13 @@ export function useWallet() {
   return {
     address,
     fundingAddress,
+    withdrawAddress,
+    hasExternalWallet: !!externalWallet,
     sendBatchTx,
     sendFundingTx,
     chainError,
+    // True when any wallet (external or embedded) is available.
+    // Use hasExternalWallet to guard outbound transfers.
     isConnected: !!fundingAddress,
     isReady: ready,
     connectWallet,
