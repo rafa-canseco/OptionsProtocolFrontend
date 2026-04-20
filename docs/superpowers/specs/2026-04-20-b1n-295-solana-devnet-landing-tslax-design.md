@@ -6,34 +6,44 @@
 
 ## Goal
 
-Ship `solana.b1nary.app` as a polished Solana devnet frontend supporting SOL and mock TSLAx. Adapt copy — landing and earn flow — so chain/asset references are no longer hard-coded to ETH/Base. Add clear devnet/demo cues so users don't confuse mock TSLAx with the real mainnet token.
+Two outcomes in one pass:
+
+1. Ship `solana.b1nary.app` as a polished Solana devnet frontend supporting SOL and mock TSLAx. Launch App on that subdomain opens at `/earn/sol`.
+2. Redesign the landing on `dev` so that when it ships to `main`, b1nary.app tells a multi-chain story — "Now on Base and Solana" — not an ETH/Base-only story.
+
+Adapt copy — landing and earn flow — so chain/asset references are no longer hard-coded to ETH/Base. Add clear devnet/demo cues so users don't confuse mock TSLAx with the real mainnet token.
 
 ## Non-Goals
 
 - Positions, leaderboard, and docs pages: stay as-is. Out of scope.
-- No landing variants (stocks-forward, chain-forward): single generic multi-chain landing.
+- No separate Solana-only landing file; one landing component, env-driven featured asset + chain label.
 - No brand change: wordmark stays "b1nary" on both subdomains.
-- No mainnet Solana wiring. Devnet only.
+- No mainnet Solana wiring. Devnet only in this ticket.
 - Real TSLAx mainnet mint stays reference-only; never used in tx.
+- Not redirecting `solana.b1nary.app/` straight to `/earn/sol`. Both subdomains show the landing; the "Launch App" CTA on each jumps to the featured asset.
 
 ## Deployment Model
 
-Two separate Vercel deployments pointing at the same codebase:
+Two Vercel deployments pointing at the same codebase:
 
-| Domain | Env vars | Default asset | Banner |
-|---|---|---|---|
-| `app.b1nary.app` (existing Base) | unchanged | `eth` | none |
-| `solana.b1nary.app` (new) | new bundle below | `sol` | devnet banner |
+| Domain | `DEPLOYMENT_CHAIN` | `DEPLOYMENT_ENV` | Featured asset | Devnet banner | Launch App target |
+|---|---|---|---|---|---|
+| `b1nary.app` / `app.b1nary.app` (Base, live) | `base` | `mainnet` (or `testnet` for `dev`) | `eth` | off | `/earn/eth` |
+| `solana.b1nary.app` (new, devnet) | `solana` | `devnet` | `sol` | on | `/earn/sol` |
 
-Runtime differentiation via `NEXT_PUBLIC_DEPLOYMENT_CHAIN` and `NEXT_PUBLIC_DEPLOYMENT_ENV`. Same bundle served on both; env flags pick the featured asset and banner visibility.
+Runtime differentiation via `NEXT_PUBLIC_DEPLOYMENT_CHAIN` and `NEXT_PUBLIC_DEPLOYMENT_ENV`. Same bundle served on both; env flags pick the featured asset, chain label, banner visibility, and any cross-subdomain link.
+
+Landing copy itself is chain-agnostic and explicitly multi-chain — it tells the "now on Base and Solana" story on **both** subdomains. Only per-subdomain differences are the featured asset (hero/loop/terminal symbol), the devnet banner on Solana, and the cross-link in the header/footer.
 
 ## Decisions
 
-1. **Landing variant**: single generic multi-chain landing. Copy is asset-agnostic; symbol/spot comes from the featured asset resolver.
+1. **Landing**: single multi-chain landing shared by both subdomains. Copy is asset-agnostic; symbol/spot comes from the featured asset resolver. Chain story ("Base + Solana") is a first-class message, not a footnote.
 2. **Brand**: "b1nary" everywhere; no "b1nary Solana" wordmark.
 3. **TSLAx label**: `symbol="TSLAx"`, `name="Tesla (devnet mock)"`. Unambiguous in selector.
-4. **Scope**: landing + earn components + devnet banner + TSLAx asset registration + Vercel env. Positions/leaderboard/docs unchanged.
+4. **Scope**: landing redesign + earn components + devnet banner + TSLAx asset registration + Vercel env + cross-subdomain nav link. Positions/leaderboard/docs unchanged.
 5. **Devnet banner**: new component, sticky below header, dismissible per session. Rendered when `isDevnet()` is true.
+6. **Cross-subdomain link**: header adds a small pill showing the "other" chain. On Base it reads "Solana devnet →" linking to `solana.b1nary.app`. On Solana it reads "Base (live) →" linking to `app.b1nary.app`. The current chain is shown as a static label.
+7. **Hero launch CTA**: uses featured asset. Primary CTA copy stays "Launch App". Secondary micro-copy below: "opens with {symbol}".
 
 ## Design
 
@@ -46,6 +56,9 @@ import { ASSETS } from "@/lib/assets";
 
 export type DeploymentChain = "base" | "solana" | "multi";
 export type DeploymentEnv = "mainnet" | "testnet" | "devnet";
+
+const BASE_SUBDOMAIN = "https://app.b1nary.app";
+const SOLANA_SUBDOMAIN = "https://solana.b1nary.app";
 
 export function getDeploymentChain(): DeploymentChain {
   const raw = process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
@@ -67,6 +80,30 @@ export function getFeaturedAssetSlug(): string {
   const override = process.env.NEXT_PUBLIC_FEATURED_ASSET;
   if (override && override in ASSETS) return override;
   return getDeploymentChain() === "solana" ? "sol" : "eth";
+}
+
+export function getChainLabel(): string {
+  switch (getDeploymentChain()) {
+    case "base": return "Base";
+    case "solana": return "Solana";
+    case "multi": return "Base + Solana";
+  }
+}
+
+export function getHeroChainLine(): string {
+  const chain = getDeploymentChain();
+  const env = getDeploymentEnv();
+  if (chain === "solana" && env === "devnet") return "Solana devnet preview. Base mainnet live.";
+  if (chain === "base" && env === "mainnet") return "Now live on Base. Solana devnet preview.";
+  if (chain === "base" && env === "testnet") return "Base testnet. Solana devnet preview.";
+  return "Live on Base. Solana devnet preview.";
+}
+
+export function getOtherSubdomain(): { label: string; href: string } | null {
+  const chain = getDeploymentChain();
+  if (chain === "base") return { label: "Solana devnet →", href: SOLANA_SUBDOMAIN };
+  if (chain === "solana") return { label: "Base (live) →", href: BASE_SUBDOMAIN };
+  return null;
 }
 ```
 
@@ -133,7 +170,7 @@ export const SOLANA_TSLAX_MINT =
 - Copy: "Devnet preview — mock assets, no real funds. Positions here do not reflect mainnet."
 - Link: "Learn more" → `https://docs.b1nary.app/devnet` (added if docs page exists, else omit)
 
-### 5. Landing copy — asset-agnostic
+### 5. Landing copy — asset-agnostic + multi-chain story
 
 `src/components/landing/LandingPage.tsx` changes:
 
@@ -142,9 +179,21 @@ export const SOLANA_TSLAX_MINT =
 ```ts
 const featuredSlug = getFeaturedAssetSlug();
 const featuredAsset = ASSETS[featuredSlug];
+const chainLabel = getChainLabel();           // "Base", "Solana", or "Base + Solana"
+const otherSubdomain = getOtherSubdomain();   // { label, href } | null
 ```
 
 Pass `featuredAsset` down to `MechanismSection`, `LoopSection`, `AgentNativeSection`.
+
+**Header**:
+- Adds a chain pill. On Base: `Base · live` (static) + `Solana devnet →` (link to `https://solana.b1nary.app`). On Solana: `Solana · devnet` (static) + `Base (live) →` (link to `https://app.b1nary.app`).
+- Pill hidden if `getOtherSubdomain()` returns `null` (e.g., local dev).
+
+**HeroSection**:
+- H1 unchanged: "Turn volatility into income."
+- New supporting line below the agent tagline: "Now live on Base. Solana devnet preview." — rendered from a small `getHeroChainLine()` helper so it's driven by deploy state, not hard-coded.
+- Primary CTA "Launch App" href resolves via `getFeaturedAssetSlug()`.
+- Micro-copy under the CTA: `opens with {featuredAsset.symbol}`.
 
 **MechanismSection:**
 - `useSpot(featuredSlug)` instead of hard-coded `"eth"`
@@ -159,20 +208,26 @@ Pass `featuredAsset` down to `MechanismSection`, `LoopSection`, `AgentNativeSect
 - ``You now have ${symbol}.`` and ``You now have dollars.``
 
 **ComparisonSection:**
-- `Staking ETH` → `Staking ${featuredAsset.symbol}` (ETH for Base, SOL for Solana)
-- `Lending (Aave)` → `Lending (Aave)` for Base, `Lending (Kamino)` for Solana
-- Use a small mapping keyed by `featuredAsset.chain`
+- `Staking ETH` → `Staking ${featuredAsset.symbol}`
+- `Lending (Aave)` → `Lending (Aave)` on Base, `Lending (Kamino)` on Solana
+- Mapping keyed by `featuredAsset.chain`
 
 **AgentNativeSection terminal:**
 - Use `featuredAsset.symbol` in example strings
-- Sample strike: `featuredAsset.chain === "solana" ? 180 : 2800`
+- Sample strike: chain-specific fallback from `featuredAsset.fallbackSpot`, rounded
 
 **SocialProofSection:**
-- `Built on` stat: `Base` for Base, `Solana` for Solana, `Base + Solana` for `multi`
+- `Built on` stat: `Base` / `Solana` / `Base + Solana` depending on `chainLabel`
+- New stat replacing or pairing with existing: `Chains live · 2` with sublabel `Base + Solana devnet` when multi-chain messaging applies
 - Footer subtitle: `Open source · Audited · Live on {chainLabel}`
 
+**Multi-chain messaging block (new)**:
+- Small section or integrated into SocialProof: "b1nary runs on Base (live) and Solana (devnet preview). Same protocol. Same contracts. Two chains."
+- One sentence. Not a full section — we want the chain story surfaced without breaking the flow.
+
 **CTA buttons:**
-- `Launch App` → `/earn` (redirect there uses featured asset)
+- `Launch App` → `/earn` (server-side redirect uses featured asset)
+- Final `CTASection` Launch App also honors featured asset
 
 ### 6. Earn flow — asset-agnostic copy pass
 
@@ -251,6 +306,10 @@ Resolution: filter in `AssetSelector`. Cross-chain assets hidden, not disabled, 
 
 ## Adversarial Review
 
+**Objection 0**: The main `b1nary.app` landing will claim "Now on Base and Solana" when Solana is still devnet. That's misleading.
+
+*Response*: We hedge by always labeling Solana as "devnet preview" in the hero line, stats sublabel, and cross-link. Never "Solana live" until mainnet. Users see a clear devnet qualifier everywhere Solana is mentioned. Copy reviewed: `Now live on Base. Solana devnet preview.` — truthful.
+
 **Objection 1**: TSLAx is the interesting product story (first tokenized stock on b1nary). Why not lead the Solana landing with stock-forward copy?
 
 *Response*: Deliberately chose not to. Reasons:
@@ -275,7 +334,7 @@ Resolution: filter in `AssetSelector`. Cross-chain assets hidden, not disabled, 
 | `src/lib/solana.ts` | add `SOLANA_TSLAX_MINT` |
 | `src/hooks/useSolanaBalance.ts` | fetch TSLAx SPL when mint set |
 | `src/components/DevnetBanner.tsx` | NEW |
-| `src/components/landing/LandingPage.tsx` | asset-agnostic strings; render banner; chain-aware stats |
+| `src/components/landing/LandingPage.tsx` | asset-agnostic strings; render banner; chain-aware stats; multi-chain hero line; header chain pill + cross-subdomain link |
 | `src/components/v2/AssetSelector.tsx` | filter by `DEPLOYMENT_CHAIN`; TSLAx logo |
 | `src/components/v2/PriceMenuV2.tsx` | devnet chip near asset pill; copy sweep |
 | `src/components/v2/OutcomeCards.tsx` | copy sweep |
