@@ -4,10 +4,9 @@ import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { BackgroundEffects } from "./BackgroundEffects";
-import { getAssetConfig } from "@/lib/assets";
+import { getAssetConfig, getDefaultAssetSlug } from "@/lib/assets";
 import {
   getChainLabel,
-  getFeaturedAssetSlug,
   getHeroChainLine,
   getOtherSubdomain,
   isDevnet,
@@ -1091,8 +1090,8 @@ function AiCtaSection() {
 
 /* ── Main ── */
 
-export function LandingPage() {
-  const featuredAsset = getAssetConfig(getFeaturedAssetSlug()) ?? getAssetConfig("eth")!;
+export function LandingPage({ hostname }: { hostname?: string }) {
+  const featuredAsset = getAssetConfig(getDefaultAssetSlug(hostname)) ?? getAssetConfig("eth")!;
   const featuredAssetSymbol = featuredAsset.symbol;
   const chainLine = "Live on Base and Solana";
   const otherSubdomain = getOtherSubdomain();
