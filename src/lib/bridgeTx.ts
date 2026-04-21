@@ -40,7 +40,13 @@ import {
 import type { PriceQuote } from "@/lib/api";
 import type { BatchCall } from "@/hooks/useWallet";
 import { ADDRESSES, ERC20_ABI } from "@/lib/contracts";
-import { SOLANA_USDC_MINT, SOLANA_WSOL_MINT, solanaConnection, toPublicKey } from "@/lib/solana";
+import {
+  SOLANA_TSLAX_MINT,
+  SOLANA_USDC_MINT,
+  SOLANA_WSOL_MINT,
+  solanaConnection,
+  toPublicKey,
+} from "@/lib/solana";
 import { encodeExecuteOrder, computeCollateral } from "@/lib/execution";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -426,13 +432,16 @@ export async function buildSolanaTradeTransaction(
   const { oTokenAmount, collateral } =
     computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
-  // Determine collateral mint based on option type (put=USDC, call=wSOL)
-  const collateralMintStr = isBuy ? SOLANA_USDC_MINT : SOLANA_WSOL_MINT;
+  const collateralMintStr = isBuy
+    ? SOLANA_USDC_MINT
+    : assetSlug === "tslax"
+      ? SOLANA_TSLAX_MINT
+      : SOLANA_WSOL_MINT;
   const collateralLabel = isBuy
     ? "USDC"
     : assetSlug === "sol"
       ? "wSOL"
-      : assetSlug;
+      : assetSlug.toUpperCase();
   const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");

@@ -155,7 +155,8 @@ export function buildOptimisticPosition(
   const optOTokenAmt = isBuy
     ? (amount / quote.strike) * 1e8
     : amount * 1e8;
-  const callDecimals = assetSlug === "btc" ? 1e8 : 1e18;
+  const config = getAssetConfig(assetSlug);
+  const callDecimals = 10 ** (config?.collateralDecimals ?? 18);
   const optCollateral = isBuy ? amount * 1e6 : amount * callDecimals;
   const optPremium = isBuy
     ? String(((quote.premium * amount) / quote.strike) * 1e6)

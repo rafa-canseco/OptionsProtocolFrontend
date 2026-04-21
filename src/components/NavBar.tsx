@@ -4,9 +4,10 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
+import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
-import { DEFAULT_ASSET } from "@/lib/assets";
+import { getDefaultAssetSlug } from "@/lib/assets";
 
 const LINKS = [
   { href: "/earn", label: "Earn" },
@@ -21,12 +22,18 @@ export function NavBar() {
   const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
 
   const { usd, eth, weth, wbtc, usdFormatted, loading: balLoading, refetch } = useBalances(address);
+  const {
+    solanaUsdc,
+    solanaSol,
+    solanaTslax,
+    loading: solanaBalLoading,
+  } = useSolanaBalance(solanaAddress);
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
 
   // Extract current asset from /earn/[asset] path
   const earnMatch = pathname.match(/^\/earn\/(\w+)/);
-  const currentAsset = earnMatch?.[1] ?? DEFAULT_ASSET;
+  const currentAsset = earnMatch?.[1] ?? getDefaultAssetSlug();
 
   return (
     <>
@@ -57,7 +64,7 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && !balLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0) && (
+          {isConnected && !balLoading && !solanaBalLoading && (usd > 0 || eth > 0 || weth > 0 || wbtc > 0 || solanaUsdc > 0 || solanaSol > 0 || solanaTslax > 0) && (
             <div className="hidden sm:flex items-center gap-1.5 text-sm text-[var(--text-secondary)]">
               <img src="/usdc.svg" alt="USDC" className="w-4 h-4 inline" />
               <span>${usdFormatted}</span>
@@ -77,6 +84,18 @@ export function NavBar() {
                 <>
                   <span className="opacity-40">·</span>
                   <span>{wbtc.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 6 })} cbBTC</span>
+                </>
+              )}
+              {currentAsset === "sol" && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{solanaSol.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} SOL</span>
+                </>
+              )}
+              {currentAsset === "tslax" && (
+                <>
+                  <span className="opacity-40">·</span>
+                  <span>{solanaTslax.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} TSLAx</span>
                 </>
               )}
             </div>

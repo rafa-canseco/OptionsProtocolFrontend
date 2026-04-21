@@ -29,6 +29,8 @@ const zeroSolBalance = {
   solanaSolRaw: BigInt(0),
   solanaWsol: 0,
   solanaWsolRaw: BigInt(0),
+  solanaTslax: 0,
+  solanaTslaxRaw: BigInt(0),
   loading: false,
 };
 

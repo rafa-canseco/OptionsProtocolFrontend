@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import {
   solanaConnection,
   SOLANA_USDC_MINT,
+  SOLANA_TSLAX_MINT,
   SOLANA_WSOL_MINT,
   toPublicKey,
 } from "@/lib/solana";
@@ -13,6 +14,8 @@ interface SolanaBalance {
   solanaUsdc: number;
   solanaWsolRaw: bigint;
   solanaWsol: number;
+  solanaTslaxRaw: bigint;
+  solanaTslax: number;
   solanaSolRaw: bigint;
   solanaSol: number;
   loading: boolean;
@@ -25,6 +28,8 @@ const ZERO: SolanaBalance = {
   solanaUsdc: 0,
   solanaWsolRaw: BigInt(0),
   solanaWsol: 0,
+  solanaTslaxRaw: BigInt(0),
+  solanaTslax: 0,
   solanaSolRaw: BigInt(0),
   solanaSol: 0,
   loading: true,
@@ -51,14 +56,22 @@ export function useSolanaBalance(
       const owner = toPublicKey(address, "wallet address");
       const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
       const wsolMint = toPublicKey(SOLANA_WSOL_MINT, "wSOL mint");
+      const tslaxMint = SOLANA_TSLAX_MINT
+        ? toPublicKey(SOLANA_TSLAX_MINT, "TSLAx mint")
+        : null;
 
-      const [usdcResp, wsolResp, solLamports] = await Promise.all([
+      const [usdcResp, wsolResp, tslaxResp, solLamports] = await Promise.all([
         solanaConnection.getParsedTokenAccountsByOwner(owner, {
           mint: usdcMint,
         }, "confirmed"),
         solanaConnection.getParsedTokenAccountsByOwner(owner, {
           mint: wsolMint,
         }, "confirmed"),
+        tslaxMint
+          ? solanaConnection.getParsedTokenAccountsByOwner(owner, {
+              mint: tslaxMint,
+            }, "confirmed")
+          : Promise.resolve({ value: [] }),
         solanaConnection.getBalance(owner, "confirmed"),
       ]);
 
@@ -78,6 +91,14 @@ export function useSolanaBalance(
         }
       }
 
+      let tslaxRaw = BigInt(0);
+      for (const { account } of tslaxResp.value) {
+        const info = account.data.parsed?.info;
+        if (info?.tokenAmount?.amount) {
+          tslaxRaw += BigInt(info.tokenAmount.amount);
+        }
+      }
+
       const solRaw = BigInt(solLamports);
 
       if (requestId !== requestIdRef.current) return;
@@ -87,6 +108,8 @@ export function useSolanaBalance(
         solanaUsdc: Number(usdcRaw) / 1e6,
         solanaWsolRaw: wsolRaw,
         solanaWsol: Number(wsolRaw) / 1e9,
+        solanaTslaxRaw: tslaxRaw,
+        solanaTslax: Number(tslaxRaw) / 1e8,
         solanaSolRaw: solRaw,
         solanaSol: Number(solRaw) / 1e9,
         loading: false,

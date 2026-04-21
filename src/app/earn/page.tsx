@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { DEFAULT_ASSET } from "@/lib/assets";
+import { getDefaultAssetSlug } from "@/lib/assets";
 
 export default function EarnPage() {
-  redirect(`/earn/${DEFAULT_ASSET}`);
+  redirect(`/earn/${getDefaultAssetSlug()}`);
 }

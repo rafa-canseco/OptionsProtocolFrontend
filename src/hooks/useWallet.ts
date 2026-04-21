@@ -25,6 +25,7 @@ const bs58 = require("bs58") as { encode(data: Uint8Array): string };
 import { CHAIN } from "@/lib/contracts";
 import {
   SOLANA_RPC_URL,
+  SOLANA_TSLAX_MINT,
   SOLANA_USDC_MINT,
   SOLANA_CHAIN,
   solanaConnection,
@@ -54,6 +55,22 @@ const WALLET_NAMES: Record<string, string> = {
 
 function prettyWalletName(raw: string): string {
   return WALLET_NAMES[raw] ?? raw;
+}
+
+function getSplMintConfig(token: "usdc" | "tslax"): {
+  mint: string;
+  label: string;
+} {
+  if (token === "tslax") {
+    if (!SOLANA_TSLAX_MINT) {
+      throw new Error("Solana TSLAx mint not configured");
+    }
+    return { mint: SOLANA_TSLAX_MINT, label: "TSLAx" };
+  }
+  if (!SOLANA_USDC_MINT) {
+    throw new Error("Solana USDC mint not configured");
+  }
+  return { mint: SOLANA_USDC_MINT, label: "USDC" };
 }
 
 export function useWallet() {
@@ -180,11 +197,15 @@ export function useWallet() {
 
   // SPL USDC transfer from external Solana wallet to embedded Solana wallet
   const sendSolanaDeposit = useCallback(
-    async (fromAddress: string, amount: bigint): Promise<string> => {
+    async (
+      fromAddress: string,
+      amount: bigint,
+      token: "usdc" | "tslax" = "usdc",
+    ): Promise<string> => {
       const receiverAddress = await getSolanaTradingAddress();
-      if (!SOLANA_USDC_MINT || !SOLANA_RPC_URL) {
+      if (!SOLANA_RPC_URL) {
         throw new Error(
-          "Solana USDC mint or RPC URL not configured",
+          "Solana RPC URL not configured",
         );
       }
 
@@ -196,7 +217,8 @@ export function useWallet() {
       }
 
       const conn = new Connection(SOLANA_RPC_URL);
-      const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+      const splConfig = getSplMintConfig(token);
+      const mint = toPublicKey(splConfig.mint, `${splConfig.label} mint`);
       const sender = toPublicKey(fromAddress, "sender");
       const receiver = toPublicKey(receiverAddress, "receiver");
 
@@ -211,8 +233,8 @@ export function useWallet() {
       const sourceAccount = await conn.getAccountInfo(sourceAta);
       if (!sourceAccount) {
         throw new Error(
-          "No USDC token account found for this wallet. " +
-            "Send USDC to this wallet first.",
+          `No ${splConfig.label} token account found for this wallet. ` +
+            `Send ${splConfig.label} to this wallet first.`,
         );
       }
 
@@ -250,6 +272,8 @@ export function useWallet() {
         fromAddress,
         "to",
         receiverAddress,
+        "token:",
+        splConfig.label,
         "amount:",
         amount.toString(),
       );
@@ -361,16 +385,21 @@ export function useWallet() {
 
   // SPL USDC transfer from embedded Solana wallet to an external Solana wallet
   const sendSolanaWithdraw = useCallback(
-    async (toAddress: string, amount: bigint): Promise<string> => {
+    async (
+      toAddress: string,
+      amount: bigint,
+      token: "usdc" | "tslax" = "usdc",
+    ): Promise<string> => {
       if (!solanaEmbedded || !solanaAddress) {
         throw new Error("Solana embedded wallet not ready");
       }
-      if (!SOLANA_USDC_MINT || !SOLANA_RPC_URL) {
-        throw new Error("Solana USDC mint or RPC URL not configured");
+      if (!SOLANA_RPC_URL) {
+        throw new Error("Solana RPC URL not configured");
       }
 
       const conn = new Connection(SOLANA_RPC_URL);
-      const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+      const splConfig = getSplMintConfig(token);
+      const mint = toPublicKey(splConfig.mint, `${splConfig.label} mint`);
       const sender = toPublicKey(solanaAddress, "sender");
       const receiver = toPublicKey(toAddress, "receiver");
 
@@ -383,7 +412,9 @@ export function useWallet() {
 
       const sourceAccount = await conn.getAccountInfo(sourceAta);
       if (!sourceAccount) {
-        throw new Error("No USDC balance found in your Solana trading account.");
+        throw new Error(
+          `No ${splConfig.label} balance found in your Solana trading account.`,
+        );
       }
 
       const tx = new Transaction();

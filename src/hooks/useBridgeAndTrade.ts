@@ -89,6 +89,7 @@ export function useBridgeAndTrade() {
       solanaUsdcRaw: bigint,
       solanaWsolRaw?: bigint,
       solanaSolRaw?: bigint,
+      solanaTslaxRaw?: bigint,
     ): DeficitResult => {
       if (!quote.chain) {
         throw new Error(
@@ -126,6 +127,14 @@ export function useBridgeAndTrade() {
 
       // Calls (sell side): wrapped asset collateral
       if (quote.chain === "solana") {
+        if (assetSlug === "tslax") {
+          const available = solanaTslaxRaw ?? BigInt(0);
+          if (available >= collateral) {
+            return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
+          }
+          return { needsBridge: false, needsDeposit: true, sourceChain: null, deficit: collateral - available };
+        }
+
         // SOL calls: wSOL + wrappable native SOL. Keep a small native SOL
         // reserve for rent/account state; gas itself is sponsored.
         const nativeRaw = solanaSolRaw ?? BigInt(0);

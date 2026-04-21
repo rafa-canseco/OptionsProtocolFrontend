@@ -3,7 +3,16 @@
 import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { DevnetBanner } from "@/components/DevnetBanner";
 import { BackgroundEffects } from "./BackgroundEffects";
+import { getAssetConfig } from "@/lib/assets";
+import {
+  getChainLabel,
+  getFeaturedAssetSlug,
+  getHeroChainLine,
+  getOtherSubdomain,
+  isDevnet,
+} from "@/lib/deployment";
 import { usePrices } from "@/hooks/usePrices";
 import { useSpot } from "@/hooks/useSpot";
 
@@ -11,11 +20,16 @@ const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
 const BINARY_CHARS = "01";
 
-const FALLBACK_SPOT = 2621;
+function strikeIncrement(spot: number) {
+  if (spot >= 1_000) return 100;
+  if (spot >= 100) return 10;
+  return 1;
+}
 
 function deriveStrikes(spot: number) {
-  const buy = Math.round((spot * 0.92) / 100) * 100;
-  const sell = Math.round((spot * 1.08) / 100) * 100;
+  const increment = strikeIncrement(spot);
+  const buy = Math.round((spot * 0.92) / increment) * increment;
+  const sell = Math.round((spot * 1.08) / increment) * increment;
   return { buyStrike: buy, sellStrike: sell };
 }
 
@@ -171,10 +185,28 @@ function HeaderLogo() {
 
 /* ── Section 1: Income Hero ── */
 
-function HeroSection() {
+function HeroSection({
+  chainLine,
+  launchHref,
+  launchLabel,
+  otherSubdomain,
+}: {
+  chainLine: string;
+  launchHref: string;
+  launchLabel: string;
+  otherSubdomain: { label: string; href: string } | null;
+}) {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
       <div className="max-w-5xl mx-auto w-full">
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="mb-5 text-xs font-mono uppercase tracking-[0.22em] text-[var(--accent)]"
+        >
+          {chainLine}
+        </motion.p>
         {/* Line 1: short, punchy, large */}
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
@@ -192,7 +224,7 @@ function HeroSection() {
           transition={{ duration: 0.7, delay: 0.6 }}
           className="mt-4 text-[clamp(1.3rem,3.5vw,2rem)] leading-[1.2] text-[var(--text-secondary)] font-light"
         >
-          You set the terms. The market moves. You already know the outcome.
+          Pick your chain. Set your terms. Get paid upfront before expiry decides the outcome.
         </motion.p>
 
         {/* Agent tagline */}
@@ -217,10 +249,10 @@ function HeroSection() {
           className="flex flex-wrap gap-4 mt-12"
         >
           <Link
-            href="/earn"
+            href={launchHref}
             className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
           >
-            Launch App
+            {launchLabel}
           </Link>
           <a
             href="#mechanism"
@@ -228,6 +260,14 @@ function HeroSection() {
           >
             See how it works &darr;
           </a>
+          {otherSubdomain && (
+            <a
+              href={otherSubdomain.href}
+              className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
+            >
+              {otherSubdomain.label}
+            </a>
+          )}
         </motion.div>
       </div>
 
@@ -336,7 +376,7 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
-        I have ETH
+        I have the asset
       </button>
     </div>
   );
@@ -349,6 +389,7 @@ function MechanismSection({
   buyStrike,
   sellStrike,
   priceReady,
+  assetSymbol,
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
@@ -356,6 +397,7 @@ function MechanismSection({
   buyStrike: number;
   sellStrike: number;
   priceReady: boolean;
+  assetSymbol: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10%" });
@@ -384,7 +426,7 @@ function MechanismSection({
           >
             <div className="flex items-center gap-6 flex-wrap">
               <p className="text-[var(--text-secondary)] text-lg">
-                ETH is{" "}
+                {assetSymbol} is{" "}
                 {priceReady ? (
                   <span className="text-[var(--text)] font-bold font-mono">${spot.toLocaleString()}</span>
                 ) : (
@@ -403,7 +445,7 @@ function MechanismSection({
                 transition={{ duration: 0.3 }}
                 className="text-xl text-[var(--text-secondary)]"
               >
-                You set: <span className="text-[var(--text)]">{side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}</span>
+                You set: <span className="text-[var(--text)]">{side === "buy" ? "Buy" : "Sell"} {assetSymbol} at ${strike.toLocaleString()}</span>
                 <br />
                 You receive: <span className="font-semibold text-[var(--accent)]"><AnimatedPremium value={premium} /></span> upfront
               </motion.p>
@@ -451,8 +493,8 @@ function MechanismSection({
               <p className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">Price {side === "buy" ? "drops" : "rises"}</p>
               <p className="text-xl text-[var(--text)] font-light">
                 {side === "buy"
-                  ? `You buy ETH at $${strike.toLocaleString()}.`
-                  : `You sell ETH at $${strike.toLocaleString()}.`}
+                  ? `You buy ${assetSymbol} at $${strike.toLocaleString()}.`
+                  : `You sell ${assetSymbol} at $${strike.toLocaleString()}.`}
               </p>
               <p className="text-[var(--text-secondary)]">
                 + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>
@@ -466,7 +508,7 @@ function MechanismSection({
               <p className="text-xl text-[var(--text)] font-light">
                 {side === "buy"
                   ? `Your $${strike.toLocaleString()} comes back.`
-                  : "Your ETH comes back."}
+                  : `Your ${assetSymbol} comes back.`}
               </p>
               <p className="text-[var(--text-secondary)]">
                 + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>
@@ -502,6 +544,7 @@ function buildLoopFrames(
   sellStrike: number,
   buyPremium: number,
   sellPremium: number,
+  assetSymbol: string,
 ): LoopFrame[] {
   const bs = `$${buyStrike.toLocaleString()}`;
   const ss = `$${sellStrike.toLocaleString()}`;
@@ -509,29 +552,29 @@ function buildLoopFrames(
   const sp = sellPremium;
 
   if (side === "buy") return [
-    { text: `Buy ETH @ ${bs}` },
+    { text: `Buy ${assetSymbol} @ ${bs}` },
     { text: `Earn $${bp} ✓`, accent: true, counter: bp },
     { text: `Price didn't hit.\n${bs} back.`, secondary: true },
     { text: "Earn again →", accent: true, pulse: true },
-    { text: `Buy ETH @ ${bs}` },
+    { text: `Buy ${assetSymbol} @ ${bs}` },
     { text: `Earn $${bp} ✓`, accent: true, counter: bp },
-    { text: `Price hit.\nYou bought ETH @ ${bs}.`, secondary: true },
-    { text: "You now have ETH.\nSet a sell price.", slow: true },
-    { text: `Sell ETH @ ${ss}` },
+    { text: `Price hit.\nYou bought ${assetSymbol} @ ${bs}.`, secondary: true },
+    { text: `You now have ${assetSymbol}.\nSet a sell price.`, slow: true },
+    { text: `Sell ${assetSymbol} @ ${ss}` },
     { text: `Earn $${sp} ✓`, accent: true, counter: sp },
     { text: "Earn again →", accent: true, pulse: true },
   ];
 
   return [
-    { text: `Sell ETH @ ${ss}` },
+    { text: `Sell ${assetSymbol} @ ${ss}` },
     { text: `Earn $${sp} ✓`, accent: true, counter: sp },
-    { text: "Price didn't hit.\nYour ETH comes back.", secondary: true },
+    { text: `Price didn't hit.\nYour ${assetSymbol} comes back.`, secondary: true },
     { text: "Earn again →", accent: true, pulse: true },
-    { text: `Sell ETH @ ${ss}` },
+    { text: `Sell ${assetSymbol} @ ${ss}` },
     { text: `Earn $${sp} ✓`, accent: true, counter: sp },
-    { text: `Price hit.\nYou sold ETH @ ${ss}.`, secondary: true },
+    { text: `Price hit.\nYou sold ${assetSymbol} @ ${ss}.`, secondary: true },
     { text: "You now have dollars.\nSet a buy price.", slow: true },
-    { text: `Buy ETH @ ${bs}` },
+    { text: `Buy ${assetSymbol} @ ${bs}` },
     { text: `Earn $${bp} ✓`, accent: true, counter: bp },
     { text: "Earn again →", accent: true, pulse: true },
   ];
@@ -564,11 +607,13 @@ const LoopSection = memo(function LoopSection({
   buyStrike,
   sellStrike,
   spotBase,
+  assetSymbol,
 }: {
   side: "buy" | "sell";
   buyStrike: number;
   sellStrike: number;
   spotBase: number;
+  assetSymbol: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
@@ -576,8 +621,8 @@ const LoopSection = memo(function LoopSection({
   const buyPremium = derivePremium(spotBase, "buy", buyStrike, sellStrike);
   const sellPremium = derivePremium(spotBase, "sell", buyStrike, sellStrike);
   const frames = useMemo(
-    () => buildLoopFrames(side, buyStrike, sellStrike, buyPremium, sellPremium),
-    [side, buyStrike, sellStrike, buyPremium, sellPremium],
+    () => buildLoopFrames(side, buyStrike, sellStrike, buyPremium, sellPremium, assetSymbol),
+    [side, buyStrike, sellStrike, buyPremium, sellPremium, assetSymbol],
   );
 
   useEffect(() => {
@@ -657,7 +702,7 @@ const LoopSection = memo(function LoopSection({
 
 const COMPARISONS = [
   { name: "Savings account", apr: "~4%", pros: ["Safe"], cons: ["Not crypto"] },
-  { name: "Staking ETH", apr: "~3.5%", pros: ["Passive"], cons: ["Low income"] },
+  { name: "Staking majors", apr: "~3.5%", pros: ["Passive"], cons: ["Low income"] },
   { name: "Lending (Aave)", apr: "~2%", pros: ["DeFi"], cons: ["Lower income"] },
 ];
 
@@ -810,59 +855,7 @@ function EngineSection() {
 
 /* ── Section 8: Social Proof ── */
 
-const STATS = [
-  { label: "Built on", value: "Base" },
-  { label: "Backed", value: "100%" },
-  { label: "Margin calls", value: "None" },
-];
-
-const SocialProofSection = memo(function SocialProofSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-20%" });
-
-  return (
-    <section ref={ref} className="py-24 flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-5xl w-full space-y-12">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6 }}
-          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--text)] tracking-tight text-center"
-        >
-          Fully collateralized. No margin. No liquidations.
-        </motion.h2>
-
-        <div className="grid grid-cols-3 gap-3 sm:gap-6">
-          {STATS.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 15 }}
-              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
-              transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
-              className="text-center"
-            >
-              <p className="text-xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
-              <p className="text-sm text-[var(--text-secondary)] opacity-60 mt-1">{stat.label}</p>
-            </motion.div>
-          ))}
-        </div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="text-center text-[var(--text-secondary)] opacity-50 text-sm"
-        >
-          Open source · Audited · Live on Base
-        </motion.p>
-      </div>
-    </section>
-  );
-});
-
-/* ── Section 6: Agent-Native ── */
-
-function AgentNativeSection() {
+function AgentNativeSection({ assetSymbol }: { assetSymbol: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10%" });
 
@@ -899,7 +892,7 @@ function AgentNativeSection() {
               transition={{ duration: 0.4, delay: 0.2 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell ETH at $2,800&quot;
+                <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell {assetSymbol} at $2,800&quot;
               </p>
               <p className="text-[var(--accent)] mt-1">&gt; +$62 earned</p>
             </motion.div>
@@ -917,7 +910,7 @@ function AgentNativeSection() {
               transition={{ duration: 0.4, delay: 0.6 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> agent POST /execute &#123;asset: &quot;ETH&quot;, price: 2800, side: &quot;sell&quot;&#125;
+                <span className="text-[var(--accent)]">$</span> agent POST /execute &#123;asset: &quot;{assetSymbol}&quot;, price: 2800, side: &quot;sell&quot;&#125;
               </p>
               <p className="text-[var(--accent)] mt-1">&gt; +$62 earned</p>
             </motion.div>
@@ -935,7 +928,7 @@ function AgentNativeSection() {
               transition={{ duration: 0.4, delay: 1.0 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> agent POST /provide &#123;asset: &quot;ETH&quot;, quotes: [...]&#125;
+                <span className="text-[var(--accent)]">$</span> agent POST /provide &#123;asset: &quot;{assetSymbol}&quot;, quotes: [...]&#125;
               </p>
               <p className="text-[var(--accent)] mt-1">&gt; Liquidity published. Earning fees on every trade.</p>
             </motion.div>
@@ -959,6 +952,61 @@ function AgentNativeSection() {
           </p>
         </motion.div>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function SocialProofSection({
+  chainLabel,
+  socialFooter,
+}: {
+  chainLabel: string;
+  socialFooter: string;
+}) {
+  const stats = [
+    { label: "Built on", value: chainLabel },
+  { label: "Backed", value: "100%" },
+  { label: "Margin calls", value: "None" },
+  ];
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "-20%" });
+
+  return (
+    <section ref={ref} className="py-24 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-5xl w-full space-y-12">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--text)] tracking-tight text-center"
+        >
+          Fully collateralized. No margin. No liquidations.
+        </motion.h2>
+
+        <div className="grid grid-cols-3 gap-3 sm:gap-6">
+          {stats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 15 }}
+              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+              transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
+              className="text-center"
+            >
+              <p className="text-xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
+              <p className="text-sm text-[var(--text-secondary)] opacity-60 mt-1">{stat.label}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.5, delay: 0.7 }}
+          className="text-center text-[var(--text-secondary)] opacity-50 text-sm"
+        >
+          {socialFooter}
+        </motion.p>
       </div>
     </section>
   );
@@ -1033,12 +1081,23 @@ function AiCtaSection() {
 /* ── Main ── */
 
 export function LandingPage() {
+  const featuredAsset = getAssetConfig(getFeaturedAssetSlug()) ?? getAssetConfig("eth")!;
+  const featuredAssetSymbol = featuredAsset.symbol;
+  const chainLabel = getChainLabel();
+  const chainLine = getHeroChainLine();
+  const otherSubdomain = getOtherSubdomain();
+  const launchHref = `/earn/${featuredAsset.slug}`;
+  const launchLabel = isDevnet() ? "Launch Devnet App" : "Launch App";
+  const socialFooter = isDevnet()
+    ? "Open source · Devnet preview · Mock assets"
+    : `Open source · Audited · ${chainLine}`;
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const { prices, loading: priceLoading } = usePrices(undefined, 30_000);
-  const { spot: liveSpot, loading: spotLoading } = useSpot("eth", 30_000);
+  const { prices, loading: priceLoading } = usePrices(featuredAsset.slug, 30_000);
+  const { spot: liveSpot, loading: spotLoading } = useSpot(featuredAsset.slug, 30_000);
   const quoteSpot = prices[0]?.spot;
-  const spot = liveSpot ? Math.round(liveSpot) : quoteSpot ? Math.round(quoteSpot) : FALLBACK_SPOT;
-  const priceReady = spot !== FALLBACK_SPOT || (!priceLoading && !spotLoading);
+  const fallbackSpot = featuredAsset.fallbackSpot;
+  const spot = liveSpot ? Math.round(liveSpot) : quoteSpot ? Math.round(quoteSpot) : fallbackSpot;
+  const priceReady = spot !== fallbackSpot || (!priceLoading && !spotLoading);
   const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
   return (
@@ -1067,24 +1126,32 @@ export function LandingPage() {
             <XIcon className="w-4 h-4" />
           </a>
           <Link
-            href="/earn"
+            href={launchHref}
             className="rounded-lg px-4 py-3 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
           >
-            Launch App &rarr;
+            {launchLabel} &rarr;
           </Link>
         </div>
       </header>
 
       <main>
-        <HeroSection />
+        <div className="max-w-6xl mx-auto px-6 pt-28">
+          <DevnetBanner assetSymbol={featuredAssetSymbol} />
+        </div>
+        <HeroSection
+          chainLine={`${chainLabel} · ${chainLine}`}
+          launchHref={launchHref}
+          launchLabel={launchLabel}
+          otherSubdomain={otherSubdomain}
+        />
         <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
         <ProblemSection />
         <EngineSection />
-        <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
-        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
+        <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} assetSymbol={featuredAssetSymbol} />
+        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} assetSymbol={featuredAssetSymbol} />
         <ComparisonSection />
-        <AgentNativeSection />
-        <SocialProofSection />
+        <AgentNativeSection assetSymbol={featuredAssetSymbol} />
+        <SocialProofSection chainLabel={chainLabel} socialFooter={socialFooter} />
         <CTASection />
         <AiCtaSection />
       </main>
