@@ -61,6 +61,7 @@ const PERCENTAGES = [25, 50, 75, 100] as const;
 const RAW_COLLATERAL_BUFFER = BigInt(1);
 const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1290;
 const SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES = 1260;
+type DepositToken = "usdc" | "eth" | "btc" | "sol" | "tslax";
 
 function getSerializedBase64Length(tx: { serialize: () => Uint8Array }): number {
   return 4 * Math.ceil(tx.serialize().length / 3);
@@ -80,7 +81,15 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
   const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
-  const { solanaUsdcRaw, solanaUsdc, solanaWsolRaw, solanaSolRaw, solanaWsol, solanaSol, loading: solBalLoading } = useSolanaBalance(solanaAddress);
+  const {
+    solanaUsdcRaw,
+    solanaUsdc,
+    solanaWsolRaw,
+    solanaSolRaw,
+    solanaTslaxRaw,
+    solanaTslax,
+    loading: solBalLoading,
+  } = useSolanaBalance(solanaAddress);
   const balancesLoading = baseBalLoading || solBalLoading;
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
   const { rates: aaveRates } = useAaveRates();
@@ -90,12 +99,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
   const [showDeposit, setShowDeposit] = useState(false);
-  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol">("usdc");
+  const [depositToken, setDepositToken] = useState<DepositToken>("usdc");
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
-  const isSol = assetSlug === "sol";
   const assetConfig = getAssetConfig(assetSlug);
+  const isSol = assetSlug === "sol";
+  const isSolanaAsset = assetConfig?.chain === "solana";
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -106,6 +116,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
   const walletBalance = isBuy
     ? usd + solanaUsdc
+    : assetSlug === "tslax"
+      ? solanaTslax
     : isSol
       ? solCollateralBalance
       : isBtc ? wbtc : eth + weth;
@@ -182,7 +194,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
   async function handleAccept() {
     if (!isConnected) {
-      setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
+      setDepositToken(
+        isBuy
+          ? "usdc"
+          : assetSlug === "tslax"
+            ? "tslax"
+            : isSol
+              ? "sol"
+              : isBtc
+                ? "btc"
+                : "eth",
+      );
       setShowDeposit(true);
       return;
     }
@@ -216,7 +238,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       if (isBuy && quote.chain) {
         const deficit = checkDeficit(
           quote, amount, isBuy, assetSlug, baseUsdcRaw, solanaUsdcRaw,
-          solanaWsolRaw, solanaSolRaw,
+          solanaWsolRaw, solanaSolRaw, solanaTslaxRaw,
         );
 
         // Insufficient balance across both chains — prompt deposit
@@ -269,11 +291,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       if (!isBuy && quote.chain === "solana") {
         const deficit = checkDeficit(
           quote, amount, isBuy, assetSlug, baseUsdcRaw, solanaUsdcRaw,
-          solanaWsolRaw, solanaSolRaw,
+          solanaWsolRaw, solanaSolRaw, solanaTslaxRaw,
         );
 
         if (deficit.needsDeposit) {
-          setDepositToken("sol");
+          setDepositToken(assetSlug === "tslax" ? "tslax" : "sol");
           setShowDeposit(true);
           return;
         }
@@ -366,7 +388,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
       // --- Direct Base execution ---
       if (!address) {
-        setDepositToken(isBuy ? "usdc" : isSol ? "sol" : isBtc ? "btc" : "eth");
+        setDepositToken(
+          isBuy
+            ? "usdc"
+            : assetSlug === "tslax"
+              ? "tslax"
+              : isSol
+                ? "sol"
+                : isBtc
+                  ? "btc"
+                  : "eth",
+        );
         setShowDeposit(true);
         return;
       }
@@ -580,7 +612,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             </p>
 
             <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
-              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via {isSol ? "Kamino" : "Aave"} while open
+              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while open
               <YieldExplainer />
             </p>
 

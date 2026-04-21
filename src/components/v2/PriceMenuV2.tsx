@@ -184,9 +184,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const {
     solanaUsdc,
     solanaWsolRaw,
-    solanaWsol,
     solanaSolRaw,
-    solanaSol,
+    solanaTslax,
   } = useSolanaBalance(solanaAddress);
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
@@ -212,6 +211,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
+  const isSolanaAsset = asset.chain === "solana";
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -223,7 +223,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
   const walletBalance = isBuy
     ? usd + solanaUsdc
-    : isSol ? solCollateralBalance : isBtc ? wbtc : eth + weth;
+    : asset.slug === "tslax"
+      ? solanaTslax
+      : isSol
+        ? solCollateralBalance
+        : isBtc
+          ? wbtc
+          : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
@@ -605,7 +611,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
                 </p>
                 <p className="text-xs text-amber-400/80 mt-1">
-                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via {asset.chain === "solana" ? "Kamino" : "Aave"} while committed
+                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while committed
                 </p>
               </>
             )}
@@ -619,7 +625,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
                 </p>
                 <p className="text-xs text-amber-400/80 mt-1">
-                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via {asset.chain === "solana" ? "Kamino" : "Aave"} while committed
+                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while committed
                 </p>
               </>
             )}
@@ -633,7 +639,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   If {asset.symbol} stays in your range, everything comes back. You keep both payments.
                 </p>
                 <p className="text-xs text-amber-400/80 mt-1">
-                  Collateral earns {asset.chain === "solana" ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
+                  Collateral earns {isSolanaAsset ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
                 </p>
               </>
             )}

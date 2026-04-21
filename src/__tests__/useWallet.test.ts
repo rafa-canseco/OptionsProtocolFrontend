@@ -28,6 +28,7 @@ vi.mock("@/lib/contracts", () => ({
 vi.mock("@/lib/solana", () => ({
   SOLANA_RPC_URL: undefined,
   SOLANA_USDC_MINT: undefined,
+  SOLANA_TSLAX_MINT: undefined,
   SOLANA_CHAIN: undefined,
   solanaConnection: undefined,
   toPublicKey: vi.fn(),

@@ -6,10 +6,10 @@ import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
-import { solanaTxUrl } from "@/lib/solana";
+import { SOLANA_TSLAX_MINT, solanaTxUrl } from "@/lib/solana";
 
 type Tab = "deposit" | "withdraw";
-type Token = "usdc" | "eth" | "weth" | "btc" | "sol";
+type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "tslax";
 type AccountBalanceToken = Token | "wsol";
 
 interface TokenConfig {
@@ -24,12 +24,13 @@ const TOKEN_META: Record<AccountBalanceToken, TokenConfig> = {
   weth: { label: "WETH", icon: "/weth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
   sol: { label: "SOL", icon: "/sol.png", decimals: 9 },
+  tslax: { label: "TSLAx", icon: "/tslax.svg", decimals: 8 },
   wsol: { label: "wSOL", icon: "/sol.png", decimals: 9 },
 };
 
 const TOKENS_BY_CHAIN: Record<"base" | "solana", Token[]> = {
   base: ["usdc", "eth", "weth", "btc"],
-  solana: ["usdc", "sol"],
+  solana: ["usdc", "sol", "tslax"],
 };
 
 const SOL_FEE_RESERVE_LAMPORTS = BigInt(5_000_000);
@@ -130,7 +131,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   // Auto-select a useful wallet when the list populates.
   useEffect(() => {
     if (!selectedWallet && externalWallets.length > 0) {
-      const preferredChain = requiredToken === "sol" ? "solana" : "base";
+      const preferredChain =
+        requiredToken === "sol" || requiredToken === "tslax"
+          ? "solana"
+          : "base";
       setSelectedWallet(
         externalWallets.find((w) => w.chain === preferredChain) ??
           externalWallets[0],
@@ -148,14 +152,16 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [selectedWallet, token]);
 
-  const chain = selectedWallet?.chain ?? (requiredToken === "sol" ? "solana" : "base");
+  const chain = selectedWallet?.chain ?? (
+    requiredToken === "sol" || requiredToken === "tslax" ? "solana" : "base"
+  );
   const meta = TOKEN_META[token];
   const availableTokens = TOKENS_BY_CHAIN[chain];
   const filteredAssetTokens = availableTokens.filter((asset) =>
     TOKEN_META[asset].label.toLowerCase().includes(assetSearch.trim().toLowerCase()),
   );
   const baseBalanceTokens: AccountBalanceToken[] = ["usdc", "eth", "weth", "btc"];
-  const solanaBalanceTokens: AccountBalanceToken[] = ["usdc", "sol", "wsol"];
+  const solanaBalanceTokens: AccountBalanceToken[] = ["usdc", "sol", "tslax", "wsol"];
   const filteredBaseBalanceTokens = baseBalanceTokens.filter((asset) =>
     TOKEN_META[asset].label.toLowerCase().includes(baseBalanceSearch.trim().toLowerCase()),
   );
@@ -171,6 +177,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     if (chain === "solana") {
       if (asset === "sol") return solanaWalletBalance.solanaSolRaw;
       if (asset === "usdc") return solanaWalletBalance.solanaUsdcRaw;
+      if (asset === "tslax") return solanaWalletBalance.solanaTslaxRaw;
       return BigInt(0);
     }
     if (tab === "deposit") {
@@ -243,6 +250,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
     if (asset === "usdc") return solBalance.solanaUsdcRaw;
     if (asset === "sol") return solBalance.solanaSolRaw;
+    if (asset === "tslax") return solBalance.solanaTslaxRaw;
     if (asset === "wsol") return solBalance.solanaWsolRaw;
     return BigInt(0);
   }, [smartBalances, solBalance]);
@@ -364,7 +372,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       if (token === "sol") {
         signature = await sendSolanaSolDeposit(selectedWallet.address, amount);
       } else {
-        signature = await sendSolanaDeposit(selectedWallet.address, amount);
+        signature = await sendSolanaDeposit(
+          selectedWallet.address,
+          amount,
+          token === "tslax" ? "tslax" : "usdc",
+        );
       }
       setTxHash(signature);
       setTxChain("solana");
@@ -489,7 +501,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     try {
       const signature = token === "sol"
         ? await sendSolanaSolWithdraw(selectedWallet.address, amount)
-        : await sendSolanaWithdraw(selectedWallet.address, amount);
+        : await sendSolanaWithdraw(
+            selectedWallet.address,
+            amount,
+            token === "tslax" ? "tslax" : "usdc",
+          );
       setTxHash(signature);
       setTxChain("solana");
       setStatus("done");
@@ -965,6 +981,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               {chain === "solana" && token === "usdc" && (
                 <p className="text-xs text-[var(--text-secondary)] mt-1">
                   Solana USDC transactions need a little SOL for network fees.
+                </p>
+              )}
+              {chain === "solana" && token === "tslax" && !SOLANA_TSLAX_MINT && (
+                <p className="text-xs text-amber-400 mt-1">
+                  TSLAx mint is not configured in this deployment.
                 </p>
               )}
             </div>

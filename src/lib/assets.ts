@@ -28,6 +28,8 @@ export interface AssetConfig {
   chain: "base" | "solana";
   /** Decimals of the wrapped collateral token for calls */
   collateralDecimals: number;
+  /** Spot price used when live feed is unavailable */
+  fallbackSpot: number;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -46,6 +48,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     minBuyAmountUsd: 10,
     chain: "base",
     collateralDecimals: 18,
+    fallbackSpot: 2621,
   },
   btc: {
     slug: "btc",
@@ -62,6 +65,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     minBuyAmountUsd: 10,
     chain: "base",
     collateralDecimals: 8,
+    fallbackSpot: 95_000,
   },
   sol: {
     slug: "sol",
@@ -77,11 +81,39 @@ export const ASSETS: Record<string, AssetConfig> = {
     minBuyAmountUsd: 10,
     chain: "solana",
     collateralDecimals: 9,
+    fallbackSpot: 180,
+  },
+  tslax: {
+    slug: "tslax",
+    symbol: "TSLAx",
+    name: "Tesla xStock",
+    wrappedSymbol: "TSLAx",
+    stableSymbol: "USDC",
+    maxAmount: 10_000,
+    maxAmountUsd: 1_000_000,
+    amountPlaceholder: "10",
+    displayDecimals: 4,
+    minSellAmount: 0.01,
+    minBuyAmountUsd: 10,
+    chain: "solana",
+    collateralDecimals: 8,
+    fallbackSpot: 350,
   },
 };
 
 export const ASSET_SLUGS = Object.keys(ASSETS);
-export const DEFAULT_ASSET = "eth";
+const DEFAULT_ASSET_FALLBACK = "eth";
+
+export function getDefaultAssetSlug(): string {
+  const override = process.env.NEXT_PUBLIC_FEATURED_ASSET;
+  if (override && override in ASSETS) return override;
+  const chain = process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
+  if (chain === "solana") return "sol";
+  return DEFAULT_ASSET_FALLBACK;
+}
+
+/** @deprecated Use getDefaultAssetSlug() for deployment-aware routing. */
+export const DEFAULT_ASSET = DEFAULT_ASSET_FALLBACK;
 
 if (!(DEFAULT_ASSET in ASSETS)) {
   throw new Error(
@@ -112,5 +144,5 @@ export function resolvePositionAsset(
     if (strikeUsd < 500) return ASSETS.sol;
     return ASSETS.eth;
   }
-  return ASSETS[DEFAULT_ASSET];
+  return ASSETS[DEFAULT_ASSET_FALLBACK];
 }

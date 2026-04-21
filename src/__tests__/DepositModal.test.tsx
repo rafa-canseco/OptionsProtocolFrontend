@@ -63,6 +63,8 @@ vi.mock("@/hooks/useSolanaBalance", () => ({
     solanaSolRaw: BigInt(0),
     solanaWsol: 0,
     solanaWsolRaw: BigInt(0),
+    solanaTslax: 0,
+    solanaTslaxRaw: BigInt(0),
     loading: false,
   }),
 }));
@@ -94,6 +96,7 @@ vi.mock("@/lib/contracts", () => ({
 vi.mock("@/lib/solana", () => ({
   SOLANA_RPC_URL: undefined,
   SOLANA_USDC_MINT: undefined,
+  SOLANA_TSLAX_MINT: undefined,
   SOLANA_CHAIN: undefined,
   solanaConnection: undefined,
   solanaTxUrl: (hash: string) => `https://solscan.io/tx/${hash}`,

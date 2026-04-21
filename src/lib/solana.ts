@@ -2,6 +2,8 @@ import { Connection, PublicKey } from "@solana/web3.js";
 
 export const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "";
 export const SOLANA_USDC_MINT = process.env.NEXT_PUBLIC_SOLANA_USDC_MINT ?? "";
+export const SOLANA_TSLAX_MINT =
+  process.env.NEXT_PUBLIC_SOLANA_TSLAX_MINT ?? "";
 export const SOLANA_CHAIN =
   process.env.NEXT_PUBLIC_SOLANA_CHAIN ?? "solana:devnet";
 
@@ -38,6 +40,13 @@ if (!SOLANA_USDC_MINT) {
   console.warn(
     "[solana] NEXT_PUBLIC_SOLANA_USDC_MINT is not set. " +
       "Solana USDC balance will always show as zero.",
+  );
+}
+
+if (!SOLANA_TSLAX_MINT) {
+  console.warn(
+    "[solana] NEXT_PUBLIC_SOLANA_TSLAX_MINT is not set. " +
+      "TSLAx balance will always show as zero.",
   );
 }
 

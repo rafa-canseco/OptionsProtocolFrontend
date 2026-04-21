@@ -3,7 +3,7 @@
 import { use } from "react";
 import { redirect } from "next/navigation";
 import { PriceMenuV2 } from "@/components/v2/PriceMenuV2";
-import { getAssetConfig, DEFAULT_ASSET } from "@/lib/assets";
+import { getAssetConfig, getDefaultAssetSlug } from "@/lib/assets";
 
 export default function EarnAssetPage({
   params,
@@ -14,7 +14,7 @@ export default function EarnAssetPage({
   const config = getAssetConfig(asset);
 
   if (!config) {
-    redirect(`/earn/${DEFAULT_ASSET}`);
+    redirect(`/earn/${getDefaultAssetSlug()}`);
   }
 
   return (

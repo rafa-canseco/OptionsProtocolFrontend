@@ -15,7 +15,7 @@ export function ConnectButton() {
   const { address, solanaAddress, isConnected, isReady, connectWallet } =
     useWallet();
   const { usd, loading: balancesLoading } = useBalances(address);
-  const { solanaUsdc, loading: solLoading } = useSolanaBalance(solanaAddress);
+  const { solanaUsdc, solanaTslax, loading: solLoading } = useSolanaBalance(solanaAddress);
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
@@ -73,6 +73,22 @@ export function ConnectButton() {
                   ${solanaUsdc.toLocaleString(undefined, {
                     minimumFractionDigits: 2,
                     maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+              <div className="flex justify-between text-[var(--text-secondary)]">
+                <span className="flex items-center gap-1.5">
+                  <img
+                    src="/tslax.svg"
+                    alt="TSLAx"
+                    className="w-3.5 h-3.5 rounded-full"
+                  />
+                  TSLAx
+                </span>
+                <span className="font-mono">
+                  {solanaTslax.toLocaleString(undefined, {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 4,
                   })}
                 </span>
               </div>
