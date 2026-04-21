@@ -24,7 +24,7 @@ const TOKEN_META: Record<AccountBalanceToken, TokenConfig> = {
   weth: { label: "WETH", icon: "/weth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
   sol: { label: "SOL", icon: "/sol.png", decimals: 9 },
-  tslax: { label: "TSLAx", icon: "/tslax.png", decimals: 8 },
+  tslax: { label: "TSLAx", icon: "/tslax.svg", decimals: 8 },
   wsol: { label: "wSOL", icon: "/sol.png", decimals: 9 },
 };
 

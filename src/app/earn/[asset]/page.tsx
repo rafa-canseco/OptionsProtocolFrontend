@@ -3,7 +3,6 @@
 import { use } from "react";
 import { redirect } from "next/navigation";
 import { PriceMenuV2 } from "@/components/v2/PriceMenuV2";
-import { DevnetBanner } from "@/components/DevnetBanner";
 import { getAssetConfig, getDefaultAssetSlug } from "@/lib/assets";
 
 export default function EarnAssetPage({
@@ -20,7 +19,6 @@ export default function EarnAssetPage({
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-      <DevnetBanner assetSymbol={config.symbol} />
       <h1 className="sr-only">Earn Premium on {config.symbol}</h1>
       <PriceMenuV2 asset={config} />
     </main>

@@ -3,7 +3,6 @@
 import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
-import { DevnetBanner } from "@/components/DevnetBanner";
 import { BackgroundEffects } from "./BackgroundEffects";
 import { getAssetConfig } from "@/lib/assets";
 import {
@@ -14,6 +13,7 @@ import {
   isDevnet,
 } from "@/lib/deployment";
 import { usePrices } from "@/hooks/usePrices";
+import { useCoinGeckoSpot } from "@/hooks/useCoinGeckoSpot";
 import { useSpot } from "@/hooks/useSpot";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
@@ -31,6 +31,13 @@ function deriveStrikes(spot: number) {
   const buy = Math.round((spot * 0.92) / increment) * increment;
   const sell = Math.round((spot * 1.08) / increment) * increment;
   return { buyStrike: buy, sellStrike: sell };
+}
+
+function premiumBaseRate(spot: number, side: "buy" | "sell") {
+  if (spot < 500) {
+    return side === "buy" ? 0.14 : 0.09;
+  }
+  return side === "buy" ? 0.025 : 0.015;
 }
 
 /* ── Binary scramble hook ── */
@@ -91,8 +98,8 @@ function FadeBlock({
 }
 
 function derivePremium(spot: number, side: "buy" | "sell", buyStrike: number, sellStrike: number): number {
-  const basePremiumBuy = Math.round(buyStrike * 0.025);
-  const basePremiumSell = Math.round(sellStrike * 0.015);
+  const basePremiumBuy = Math.round(buyStrike * premiumBaseRate(spot, "buy"));
+  const basePremiumSell = Math.round(sellStrike * premiumBaseRate(spot, "sell"));
 
   if (!Number.isFinite(spot)) return side === "buy" ? basePremiumBuy : basePremiumSell;
 
@@ -187,14 +194,8 @@ function HeaderLogo() {
 
 function HeroSection({
   chainLine,
-  launchHref,
-  launchLabel,
-  otherSubdomain,
 }: {
   chainLine: string;
-  launchHref: string;
-  launchLabel: string;
-  otherSubdomain: { label: string; href: string } | null;
 }) {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
@@ -224,7 +225,7 @@ function HeroSection({
           transition={{ duration: 0.7, delay: 0.6 }}
           className="mt-4 text-[clamp(1.3rem,3.5vw,2rem)] leading-[1.2] text-[var(--text-secondary)] font-light"
         >
-          Pick your chain. Set your terms. Get paid upfront before expiry decides the outcome.
+          You set the terms. The market moves. You already know the outcome.
         </motion.p>
 
         {/* Agent tagline */}
@@ -241,34 +242,6 @@ function HeroSection({
           one protocol
         </motion.p>
 
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 1.3 }}
-          className="flex flex-wrap gap-4 mt-12"
-        >
-          <Link
-            href={launchHref}
-            className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
-          >
-            {launchLabel}
-          </Link>
-          <a
-            href="#mechanism"
-            className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
-          >
-            See how it works &darr;
-          </a>
-          {otherSubdomain && (
-            <a
-              href={otherSubdomain.href}
-              className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
-            >
-              {otherSubdomain.label}
-            </a>
-          )}
-        </motion.div>
       </div>
 
       <motion.div
@@ -382,9 +355,44 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
   );
 }
 
+function AssetToggle({
+  asset,
+  onAssetChange,
+}: {
+  asset: "eth" | "sol";
+  onAssetChange: (asset: "eth" | "sol") => void;
+}) {
+  return (
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit">
+      <button
+        onClick={() => onAssetChange("eth")}
+        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
+          asset === "eth"
+            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
+            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+        }`}
+      >
+        ETH
+      </button>
+      <button
+        onClick={() => onAssetChange("sol")}
+        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
+          asset === "sol"
+            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
+            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+        }`}
+      >
+        SOL
+      </button>
+    </div>
+  );
+}
+
 function MechanismSection({
   side,
   onSideChange,
+  asset,
+  onAssetChange,
   spot,
   buyStrike,
   sellStrike,
@@ -393,6 +401,8 @@ function MechanismSection({
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
+  asset: "eth" | "sol";
+  onAssetChange: (asset: "eth" | "sol") => void;
   spot: number;
   buyStrike: number;
   sellStrike: number;
@@ -424,6 +434,10 @@ function MechanismSection({
             transition={{ duration: 0.5, delay: 0.15 }}
             className="space-y-5"
           >
+            <div className="flex items-center gap-4 flex-wrap">
+              <AssetToggle asset={asset} onAssetChange={onAssetChange} />
+              <SideToggle side={side} onSideChange={onSideChange} />
+            </div>
             <div className="flex items-center gap-6 flex-wrap">
               <p className="text-[var(--text-secondary)] text-lg">
                 {assetSymbol} is{" "}
@@ -433,7 +447,6 @@ function MechanismSection({
                   <span className="inline-block w-20 h-6 rounded bg-[var(--border)] animate-pulse align-middle" />
                 )}
               </p>
-              <SideToggle side={side} onSideChange={onSideChange} />
             </div>
 
             <AnimatePresence mode="wait">
@@ -471,10 +484,10 @@ function MechanismSection({
               Where does the money come from?
             </p>
             <p className="text-[var(--text-secondary)]">
-              You set a price, someone pays to lock it in. You get paid upfront, every time.
+              A market maker pays you to lock in that price for a fixed window.
             </p>
             <p className="text-sm font-medium text-[var(--accent)]">
-              Not token rewards. Real market income.
+              Think of it like selling insurance: they pay the premium upfront, and you take the obligation if the price hits.
             </p>
           </motion.div>
         </div>
@@ -958,16 +971,14 @@ function AgentNativeSection({ assetSymbol }: { assetSymbol: string }) {
 }
 
 function SocialProofSection({
-  chainLabel,
   socialFooter,
 }: {
-  chainLabel: string;
   socialFooter: string;
 }) {
   const stats = [
-    { label: "Built on", value: chainLabel },
-  { label: "Backed", value: "100%" },
-  { label: "Margin calls", value: "None" },
+    { label: "Built on", value: "Base + Solana" },
+    { label: "Backed", value: "100%" },
+    { label: "Margin calls", value: "None" },
   ];
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { margin: "-20%" });
@@ -1083,21 +1094,23 @@ function AiCtaSection() {
 export function LandingPage() {
   const featuredAsset = getAssetConfig(getFeaturedAssetSlug()) ?? getAssetConfig("eth")!;
   const featuredAssetSymbol = featuredAsset.symbol;
-  const chainLabel = getChainLabel();
-  const chainLine = getHeroChainLine();
+  const chainLine = "Live on Base and Solana";
   const otherSubdomain = getOtherSubdomain();
   const launchHref = `/earn/${featuredAsset.slug}`;
   const launchLabel = isDevnet() ? "Launch Devnet App" : "Launch App";
-  const socialFooter = isDevnet()
-    ? "Open source · Devnet preview · Mock assets"
-    : `Open source · Audited · ${chainLine}`;
+  const socialFooter = "Open source · Fully collateralized · No liquidations";
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const { prices, loading: priceLoading } = usePrices(featuredAsset.slug, 30_000);
-  const { spot: liveSpot, loading: spotLoading } = useSpot(featuredAsset.slug, 30_000);
+  const [mechanismAsset, setMechanismAsset] = useState<"eth" | "sol">("eth");
+  const mechanismAssetConfig = getAssetConfig(mechanismAsset) ?? getAssetConfig("eth")!;
+  const mechanismAssetSymbol = mechanismAssetConfig.symbol;
+  const { prices, loading: priceLoading } = usePrices(mechanismAssetConfig.slug, 30_000);
+  const { spot: coinGeckoSpot, loading: coinGeckoLoading } = useCoinGeckoSpot(mechanismAssetConfig.slug, 30_000);
+  const { spot: liveSpot, loading: spotLoading } = useSpot(mechanismAssetConfig.slug, 30_000);
   const quoteSpot = prices[0]?.spot;
-  const fallbackSpot = featuredAsset.fallbackSpot;
-  const spot = liveSpot ? Math.round(liveSpot) : quoteSpot ? Math.round(quoteSpot) : fallbackSpot;
-  const priceReady = spot !== fallbackSpot || (!priceLoading && !spotLoading);
+  const fallbackSpot = mechanismAssetConfig.fallbackSpot;
+  const resolvedSpot = coinGeckoSpot ?? liveSpot ?? quoteSpot;
+  const spot = resolvedSpot ? Math.round(resolvedSpot) : fallbackSpot;
+  const priceReady = spot !== fallbackSpot || (!priceLoading && !spotLoading && !coinGeckoLoading);
   const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
 
   return (
@@ -1135,23 +1148,26 @@ export function LandingPage() {
       </header>
 
       <main>
-        <div className="max-w-6xl mx-auto px-6 pt-28">
-          <DevnetBanner assetSymbol={featuredAssetSymbol} />
-        </div>
         <HeroSection
-          chainLine={`${chainLabel} · ${chainLine}`}
-          launchHref={launchHref}
-          launchLabel={launchLabel}
-          otherSubdomain={otherSubdomain}
+          chainLine={chainLine}
         />
         <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
         <ProblemSection />
         <EngineSection />
-        <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} assetSymbol={featuredAssetSymbol} />
-        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} assetSymbol={featuredAssetSymbol} />
+        <MechanismSection
+          side={side}
+          onSideChange={setSide}
+          asset={mechanismAsset}
+          onAssetChange={setMechanismAsset}
+          spot={spot}
+          buyStrike={buyStrike}
+          sellStrike={sellStrike}
+          priceReady={priceReady}
+          assetSymbol={mechanismAssetSymbol}
+        />
         <ComparisonSection />
         <AgentNativeSection assetSymbol={featuredAssetSymbol} />
-        <SocialProofSection chainLabel={chainLabel} socialFooter={socialFooter} />
+        <SocialProofSection socialFooter={socialFooter} />
         <CTASection />
         <AiCtaSection />
       </main>

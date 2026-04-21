@@ -23,7 +23,7 @@ const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
   btc: "/cbbtc.webp",
   sol: "/sol.png",
-  tslax: "/tslax.png",
+  tslax: "/tslax.svg",
 };
 
 function AssetIcon({

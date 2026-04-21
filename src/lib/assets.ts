@@ -86,7 +86,7 @@ export const ASSETS: Record<string, AssetConfig> = {
   tslax: {
     slug: "tslax",
     symbol: "TSLAx",
-    name: "Tesla xStock (devnet mock)",
+    name: "Tesla xStock",
     wrappedSymbol: "TSLAx",
     stableSymbol: "USDC",
     maxAmount: 10_000,

@@ -79,7 +79,7 @@ export function ConnectButton() {
               <div className="flex justify-between text-[var(--text-secondary)]">
                 <span className="flex items-center gap-1.5">
                   <img
-                    src="/tslax.png"
+                    src="/tslax.svg"
                     alt="TSLAx"
                     className="w-3.5 h-3.5 rounded-full"
                   />
