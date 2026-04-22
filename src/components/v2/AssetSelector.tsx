@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/command";
 import Image from "next/image";
 import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
+import { isProductionReadOnlyAsset } from "@/lib/marketState";
 
 const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
@@ -98,6 +99,7 @@ export function AssetSelector({
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
                 const disabled = asset.comingSoon === true;
+                const showComingSoon = disabled || isProductionReadOnlyAsset(asset);
                 return (
                   <CommandItem
                     key={slug}
@@ -134,7 +136,7 @@ export function AssetSelector({
                           Solana
                         </span>
                       )}
-                      {disabled && (
+                      {showComingSoon && (
                         <span className="text-[10px] font-medium
                           text-[var(--text-secondary)] border
                           border-[var(--border)] rounded px-1.5 py-0.5">

@@ -15,6 +15,7 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
+import { isExecutableQuote, isProductionReadOnlyAsset } from "@/lib/marketState";
 import { SOLANA_NATIVE_RESERVE_LAMPORTS, solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import { formatApr } from "@/lib/yield";
@@ -95,7 +96,7 @@ function StrikeCard({
 }) {
   const apr = computeAPR(quote.premium, quote.strike, quote.expiry_days);
   const roi = computeROI(quote.premium, quote.strike);
-  const disabled = !quote.otoken_address || quote.available_amount <= 0;
+  const disabled = quote.available_amount <= 0;
 
   const isBuy = side === "buy";
   const earnings = amount > 0
@@ -212,6 +213,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
   const isSolanaAsset = asset.chain === "solana";
+  const marketReadOnly = isProductionReadOnlyAsset(asset);
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -289,7 +291,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     ? computeAPR(selectedQuote.premium, selectedQuote.strike, selectedQuote.expiry_days)
     : 0;
 
-  const canAccept = selectedQuote && amount > 0 && selectedQuote.otoken_address;
+  const canAccept = !!(
+    !marketReadOnly &&
+    selectedQuote &&
+    amount > 0 &&
+    isExecutableQuote(selectedQuote)
+  );
 
   function handleStartTutorial() {
     const onComplete = () => {};
@@ -547,7 +554,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </div>
         <div className="flex items-center gap-3">
           <YieldToggle value={yieldMetric} onChange={setYieldMetric} />
-          {capacity && (
+          {marketReadOnly ? (
+            <span className="text-xs font-medium text-amber-400">
+              Coming soon
+            </span>
+          ) : capacity && (
             <span className={`text-xs font-medium ${
               marketClosed
                 ? "text-[var(--danger)]"
@@ -601,6 +612,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
           {/* Context line — explains the benefit and why you get paid */}
           <div className="animate-fade-in-up space-y-1" data-tour="context-line">
+            {marketReadOnly && (
+              <p className="text-xs text-amber-400/90">
+                Live quotes are visible in production. Trading for {asset.symbol} remains read-only for now.
+              </p>
+            )}
             {side === "buy" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">
@@ -676,6 +692,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           prices={prices}
           activeExpiry={activeExpiry}
           spot={spot}
+          marketReadOnly={marketReadOnly}
           walletBalance={usd + solanaUsdc}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
@@ -793,16 +810,19 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
+                if (marketReadOnly) return;
                 setConfirming(true);
               }}
-              disabled={marketClosed || (!canAccept && isConnected)}
+              disabled={marketReadOnly || marketClosed || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept
+                !marketReadOnly && !marketClosed && canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
             >
-              {marketClosed
+              {marketReadOnly
+                ? "Coming soon"
+                : marketClosed
                 ? "Market temporarily closed"
                 : !isConnected
                   ? "Connect wallet"
@@ -857,16 +877,19 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="lg:hidden space-y-2 animate-fade-in-up">
             <button
               onClick={() => {
+                if (marketReadOnly) return;
                 setConfirming(true);
               }}
-              disabled={marketClosed || (!canAccept && isConnected)}
+              disabled={marketReadOnly || marketClosed || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketClosed && canAccept
+                !marketReadOnly && !marketClosed && canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
             >
-              {marketClosed
+              {marketReadOnly
+                ? "Coming soon"
+                : marketClosed
                 ? "Market temporarily closed"
                 : !isConnected
                   ? "Connect wallet"
@@ -887,7 +910,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       )}
 
       {/* AcceptModal — only opens on Accept click, confirmation-only */}
-      {confirming && selectedQuote && (
+      {confirming && selectedQuote && !marketReadOnly && (
         <AcceptModal
           quote={selectedQuote}
           side={side as "buy" | "sell"}
