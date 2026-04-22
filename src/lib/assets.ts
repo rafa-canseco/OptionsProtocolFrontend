@@ -104,9 +104,20 @@ export const ASSETS: Record<string, AssetConfig> = {
 export const ASSET_SLUGS = Object.keys(ASSETS);
 const DEFAULT_ASSET_FALLBACK = "eth";
 
-export function getDefaultAssetSlug(): string {
+function getHostnameDefaultAsset(hostname?: string): string | null {
+  if (!hostname) return null;
+  const normalized = hostname.toLowerCase().split(":")[0];
+  if (normalized === "solana.b1nary.app" || normalized.startsWith("solana.")) {
+    return "sol";
+  }
+  return null;
+}
+
+export function getDefaultAssetSlug(hostname?: string): string {
   const override = process.env.NEXT_PUBLIC_FEATURED_ASSET;
   if (override && override in ASSETS) return override;
+  const hostDefault = getHostnameDefaultAsset(hostname);
+  if (hostDefault) return hostDefault;
   const chain = process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
   if (chain === "solana") return "sol";
   return DEFAULT_ASSET_FALLBACK;
