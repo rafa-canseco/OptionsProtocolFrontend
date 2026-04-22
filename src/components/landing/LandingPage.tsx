@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
 import { BackgroundEffects } from "./BackgroundEffects";
+import { AssetsStrip } from "./AssetsStrip";
+import { HowItWorks } from "./HowItWorks";
 import { getAssetConfig, getDefaultAssetSlug } from "@/lib/assets";
 import {
   getChainLabel,
@@ -354,35 +356,38 @@ function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange
   );
 }
 
+type MechanismAsset = "eth" | "btc" | "sol" | "tslax";
+
+const MECHANISM_ASSETS: { slug: MechanismAsset; label: string }[] = [
+  { slug: "eth", label: "ETH" },
+  { slug: "btc", label: "cbBTC" },
+  { slug: "sol", label: "SOL" },
+  { slug: "tslax", label: "TSLAx" },
+];
+
 function AssetToggle({
   asset,
   onAssetChange,
 }: {
-  asset: "eth" | "sol";
-  onAssetChange: (asset: "eth" | "sol") => void;
+  asset: MechanismAsset;
+  onAssetChange: (asset: MechanismAsset) => void;
 }) {
   return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit">
-      <button
-        onClick={() => onAssetChange("eth")}
-        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
-          asset === "eth"
-            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
-            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-        }`}
-      >
-        ETH
-      </button>
-      <button
-        onClick={() => onAssetChange("sol")}
-        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
-          asset === "sol"
-            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
-            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-        }`}
-      >
-        SOL
-      </button>
+    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit overflow-x-auto scrollbar-hide">
+      {MECHANISM_ASSETS.map(({ slug, label }) => (
+        <button
+          key={slug}
+          type="button"
+          onClick={() => onAssetChange(slug)}
+          className={`px-4 sm:px-5 py-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
+            asset === slug
+              ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
+              : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+          }`}
+        >
+          {label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -400,8 +405,8 @@ function MechanismSection({
 }: {
   side: "buy" | "sell";
   onSideChange: (s: "buy" | "sell") => void;
-  asset: "eth" | "sol";
-  onAssetChange: (asset: "eth" | "sol") => void;
+  asset: MechanismAsset;
+  onAssetChange: (asset: MechanismAsset) => void;
   spot: number;
   buyStrike: number;
   sellStrike: number;
@@ -424,7 +429,7 @@ function MechanismSection({
             transition={{ duration: 0.6 }}
             className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight"
           >
-            Here&apos;s how it works.
+            Try it with live prices.
           </motion.h2>
 
           <motion.div
@@ -1090,6 +1095,12 @@ function AiCtaSection() {
 
 /* ── Main ── */
 
+function resolveInitialMechanismAsset(hostname?: string): MechanismAsset {
+  const slug = getDefaultAssetSlug(hostname);
+  const found = MECHANISM_ASSETS.find((m) => m.slug === slug);
+  return found ? found.slug : "eth";
+}
+
 export function LandingPage({ hostname }: { hostname?: string }) {
   const featuredAsset = getAssetConfig(getDefaultAssetSlug(hostname)) ?? getAssetConfig("eth")!;
   const featuredAssetSymbol = featuredAsset.symbol;
@@ -1099,7 +1110,9 @@ export function LandingPage({ hostname }: { hostname?: string }) {
   const launchLabel = isDevnet() ? "Launch Devnet App" : "Launch App";
   const socialFooter = "Open source · Fully collateralized · No liquidations";
   const [side, setSide] = useState<"buy" | "sell">("buy");
-  const [mechanismAsset, setMechanismAsset] = useState<"eth" | "sol">("eth");
+  const [mechanismAsset, setMechanismAsset] = useState<MechanismAsset>(() =>
+    resolveInitialMechanismAsset(hostname),
+  );
   const mechanismAssetConfig = getAssetConfig(mechanismAsset) ?? getAssetConfig("eth")!;
   const mechanismAssetSymbol = mechanismAssetConfig.symbol;
   const { prices, loading: priceLoading } = usePrices(mechanismAssetConfig.slug, 30_000);
@@ -1150,9 +1163,10 @@ export function LandingPage({ hostname }: { hostname?: string }) {
         <HeroSection
           chainLine={chainLine}
         />
-        <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
+        <AssetsStrip />
         <ProblemSection />
         <EngineSection />
+        <HowItWorks />
         <MechanismSection
           side={side}
           onSideChange={setSide}
