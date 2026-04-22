@@ -15,7 +15,7 @@ type Outcome = {
   total: string;
 };
 
-type OutcomePair = { hit: Outcome; miss: Outcome };
+type OutcomePair = { priceHigh: Outcome; priceLow: Outcome };
 
 type SideExample = {
   conditions: ConditionRow[];
@@ -36,21 +36,21 @@ const BUY: SideExample = {
     { label: "Yield", value: "Locked collateral keeps earning until expiry." },
   ],
   outcomes: {
-    hit: {
-      condition: "TSLAx drops to $320 or below",
-      lines: [
-        "Your buy triggers: 1 TSLAx at $320.",
-        "Plus the +$49 premium.",
-      ],
-      total: "Effective cost: $271/share",
-    },
-    miss: {
+    priceHigh: {
       condition: "TSLAx stays above $320",
       lines: [
         "No trade. $320 USDC back.",
         "Plus the +$49 premium.",
       ],
       total: "Total: $369 USDC",
+    },
+    priceLow: {
+      condition: "TSLAx drops to $320 or below",
+      lines: [
+        "Your buy triggers: 1 TSLAx at $320.",
+        "Plus the +$49 premium.",
+      ],
+      total: "Effective cost: $271/share",
     },
   },
 };
@@ -68,7 +68,7 @@ const SELL: SideExample = {
     { label: "Yield", value: "Locked collateral keeps earning until expiry." },
   ],
   outcomes: {
-    hit: {
+    priceHigh: {
       condition: "TSLAx rises to $380 or above",
       lines: [
         "Your sell triggers: 1 TSLAx at $380 → $380 USDC.",
@@ -76,7 +76,7 @@ const SELL: SideExample = {
       ],
       total: "Total: $417 USDC",
     },
-    miss: {
+    priceLow: {
       condition: "TSLAx stays below $380",
       lines: [
         "No trade. 1 TSLAx back.",
@@ -187,7 +187,7 @@ function CommitList({ rows }: { rows: CommitRow[] }) {
 function OutcomeGrid({ outcomes }: { outcomes: OutcomePair }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-      {[outcomes.hit, outcomes.miss].map((out, i) => (
+      {[outcomes.priceHigh, outcomes.priceLow].map((out, i) => (
         <div
           key={i}
           className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3.5"

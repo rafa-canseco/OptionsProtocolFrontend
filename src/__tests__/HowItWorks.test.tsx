@@ -62,17 +62,22 @@ describe("HowItWorks", () => {
       .getByRole("heading", { level: 3, name: /expiry resolves/i })
       .closest("article");
     expect(step3).not.toBeNull();
-    // Trigger/no-trigger framing so causality is obvious
     expect(step3).toHaveTextContent(/tslax drops to \$320 or below/i);
     expect(step3).toHaveTextContent(/tslax stays above \$320/i);
-    // Buy hit: commit triggers, effective cost explicit
     expect(step3).toHaveTextContent(/your buy triggers/i);
     expect(step3).toHaveTextContent(/1 tslax at \$320/i);
     expect(step3).toHaveTextContent(/effective cost: \$271\/share/i);
-    // Buy miss: refund + premium, explicit USD total
     expect(step3).toHaveTextContent(/no trade/i);
     expect(step3).toHaveTextContent(/\$320 usdc back/i);
     expect(step3).toHaveTextContent(/total: \$369 usdc/i);
+  });
+
+  it("renders buy-side outcomes with price-up scenario before price-down", () => {
+    render(<HowItWorks />);
+    const stayAbove = screen.getByText(/tslax stays above \$320/i);
+    const dropBelow = screen.getByText(/tslax drops to \$320 or below/i);
+    const pos = stayAbove.compareDocumentPosition(dropBelow);
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   it("switches to sell-side example with explicit USD totals when the toggle flips", async () => {
@@ -100,14 +105,17 @@ describe("HowItWorks", () => {
       .closest("article");
     expect(step3).toHaveTextContent(/tslax rises to \$380 or above/i);
     expect(step3).toHaveTextContent(/tslax stays below \$380/i);
-    // Sell hit: commit triggers, receive USD total
     expect(step3).toHaveTextContent(/your sell triggers/i);
     expect(step3).toHaveTextContent(/1 tslax at \$380/i);
     expect(step3).toHaveTextContent(/total: \$417 usdc/i);
-    // Sell miss: asset back + premium
     expect(step3).toHaveTextContent(/no trade/i);
     expect(step3).toHaveTextContent(/1 tslax back/i);
     expect(step3).toHaveTextContent(/\+\$37/);
+
+    const riseAbove = screen.getByText(/tslax rises to \$380 or above/i);
+    const stayBelow = screen.getByText(/tslax stays below \$380/i);
+    const pos = riseAbove.compareDocumentPosition(stayBelow);
+    expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
   });
 
   it("defaults the toggle to the USD side", () => {
