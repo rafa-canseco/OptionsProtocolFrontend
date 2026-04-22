@@ -36,6 +36,7 @@ import {
 import { floorTo, fmtAsset } from "@/lib/utils";
 import { formatApr } from "@/lib/yield";
 import { useAaveRates } from "@/hooks/useAaveRates";
+import { isProductionReadOnlyAsset } from "@/lib/marketState";
 import type { YieldMetric } from "./YieldToggle";
 import { YieldExplainer } from "./yield/YieldExplainer";
 import { DepositModal } from "@/components/DepositModal";
@@ -106,6 +107,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const assetConfig = getAssetConfig(assetSlug);
   const isSol = assetSlug === "sol";
   const isSolanaAsset = assetConfig?.chain === "solana";
+  const marketReadOnly = isProductionReadOnlyAsset(
+    assetConfig ?? { slug: assetSlug, chain: quote.chain },
+  );
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -193,6 +197,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     : (assetConfig?.minSellAmount ?? 0.005);
 
   async function handleAccept() {
+    if (marketReadOnly) {
+      setError(`${assetSymbol} is visible in production, but trading is still coming soon.`);
+      return;
+    }
+
     if (!isConnected) {
       setDepositToken(
         isBuy
@@ -524,6 +533,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           <p className="text-lg font-semibold text-[var(--bone)]">
             {isBuy ? "Buy" : "Sell"} {assetSymbol} at ${quote.strike.toLocaleString()}/{assetSymbol}
           </p>
+          {marketReadOnly && (
+            <p className="mt-1 text-xs text-amber-400/90">
+              This market is read-only in production. Live quotes are visible, but execution is blocked.
+            </p>
+          )}
           {amount > 0 && (
             <div className="mt-1 flex items-baseline gap-3">
               <p className="text-2xl font-bold text-[var(--accent)] font-mono">
@@ -655,10 +669,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         <button
           onClick={handleAccept}
-          disabled={loading || amount < minAmount || amount > maxAmount}
+          disabled={marketReadOnly || loading || amount < minAmount || amount > maxAmount}
           className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
         >
-          {buttonLabel}
+          {marketReadOnly ? "Coming soon" : buttonLabel}
         </button>
 
         {step === "confirmed" && chainExecuted && (
