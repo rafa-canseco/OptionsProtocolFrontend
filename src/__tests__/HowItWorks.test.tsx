@@ -62,12 +62,15 @@ describe("HowItWorks", () => {
       .getByRole("heading", { level: 3, name: /expiry resolves/i })
       .closest("article");
     expect(step3).not.toBeNull();
-    expect(step3).toHaveTextContent(/tslax closes ≤ \$320/i);
-    expect(step3).toHaveTextContent(/tslax closes > \$320/i);
-    // Buy hit: acquire asset, effective cost explicit
-    expect(step3).toHaveTextContent(/buy 1 tslax @ \$320/i);
+    // Trigger/no-trigger framing so causality is obvious
+    expect(step3).toHaveTextContent(/tslax drops to \$320 or below/i);
+    expect(step3).toHaveTextContent(/tslax stays above \$320/i);
+    // Buy hit: commit triggers, effective cost explicit
+    expect(step3).toHaveTextContent(/your buy triggers/i);
+    expect(step3).toHaveTextContent(/1 tslax at \$320/i);
     expect(step3).toHaveTextContent(/effective cost: \$271\/share/i);
     // Buy miss: refund + premium, explicit USD total
+    expect(step3).toHaveTextContent(/no trade/i);
     expect(step3).toHaveTextContent(/\$320 usdc back/i);
     expect(step3).toHaveTextContent(/total: \$369 usdc/i);
   });
@@ -95,12 +98,14 @@ describe("HowItWorks", () => {
     const step3 = screen
       .getByRole("heading", { level: 3, name: /expiry resolves/i })
       .closest("article");
-    expect(step3).toHaveTextContent(/tslax closes ≥ \$380/i);
-    expect(step3).toHaveTextContent(/tslax closes < \$380/i);
-    // Sell hit: receive USD total
-    expect(step3).toHaveTextContent(/sell 1 tslax @ \$380/i);
+    expect(step3).toHaveTextContent(/tslax rises to \$380 or above/i);
+    expect(step3).toHaveTextContent(/tslax stays below \$380/i);
+    // Sell hit: commit triggers, receive USD total
+    expect(step3).toHaveTextContent(/your sell triggers/i);
+    expect(step3).toHaveTextContent(/1 tslax at \$380/i);
     expect(step3).toHaveTextContent(/total: \$417 usdc/i);
     // Sell miss: asset back + premium
+    expect(step3).toHaveTextContent(/no trade/i);
     expect(step3).toHaveTextContent(/1 tslax back/i);
     expect(step3).toHaveTextContent(/\+\$37/);
   });

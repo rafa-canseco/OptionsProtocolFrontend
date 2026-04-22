@@ -37,13 +37,19 @@ const BUY: SideExample = {
   ],
   outcomes: {
     hit: {
-      condition: "TSLAx closes ≤ $320",
-      lines: ["Buy 1 TSLAx @ $320.", "Keep the +$49 premium."],
+      condition: "TSLAx drops to $320 or below",
+      lines: [
+        "Your buy triggers: 1 TSLAx at $320.",
+        "Plus the +$49 premium.",
+      ],
       total: "Effective cost: $271/share",
     },
     miss: {
-      condition: "TSLAx closes > $320",
-      lines: ["Your $320 USDC back.", "Keep the +$49 premium."],
+      condition: "TSLAx stays above $320",
+      lines: [
+        "No trade. $320 USDC back.",
+        "Plus the +$49 premium.",
+      ],
       total: "Total: $369 USDC",
     },
   },
@@ -63,13 +69,19 @@ const SELL: SideExample = {
   ],
   outcomes: {
     hit: {
-      condition: "TSLAx closes ≥ $380",
-      lines: ["Sell 1 TSLAx @ $380 → $380 USDC received.", "Plus the +$37 premium."],
+      condition: "TSLAx rises to $380 or above",
+      lines: [
+        "Your sell triggers: 1 TSLAx at $380 → $380 USDC.",
+        "Plus the +$37 premium.",
+      ],
       total: "Total: $417 USDC",
     },
     miss: {
-      condition: "TSLAx closes < $380",
-      lines: ["Your 1 TSLAx back.", "Plus the +$37 premium."],
+      condition: "TSLAx stays below $380",
+      lines: [
+        "No trade. 1 TSLAx back.",
+        "Plus the +$37 premium.",
+      ],
       total: "Asset + $37 earned",
     },
   },
