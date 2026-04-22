@@ -5,98 +5,72 @@ import { motion, useInView } from "framer-motion";
 
 type Side = "buy" | "sell";
 
-type Condition = { label: string; value: string };
+type ConditionRow = { label: string; value: string; hint?: string };
 
-type StepData = {
-  title: string;
-  conditions?: Condition[];
-  lines?: { label?: string; value: string }[];
-};
+type CommitRow = { label: string; value: string; hint?: string };
 
 type Outcome = {
   condition: string;
   lines: string[];
-  earn: string;
+  total: string;
 };
 
 type OutcomePair = { hit: Outcome; miss: Outcome };
 
-const BUY: { steps: [StepData, StepData, StepData]; outcomes: OutcomePair } = {
-  steps: [
-    {
-      title: "Pick your conditions.",
-      conditions: [
-        { label: "Amount", value: "1" },
-        { label: "Asset", value: "TSLAx" },
-        { label: "Strike", value: "$320" },
-        { label: "Expiry", value: "7d" },
-      ],
-    },
-    {
-      title: "Commit collateral.",
-      lines: [
-        { label: "Locked:", value: "$320 USDC" },
-        { value: "Generating yield until expiry." },
-      ],
-    },
-    {
-      title: "Get paid upfront.",
-      lines: [
-        { label: "You receive:", value: "+$49" },
-        { value: "The moment you commit." },
-      ],
-    },
+type SideExample = {
+  conditions: ConditionRow[];
+  commit: CommitRow[];
+  outcomes: OutcomePair;
+};
+
+const BUY: SideExample = {
+  conditions: [
+    { label: "Asset", value: "TSLAx" },
+    { label: "Strike", value: "$320", hint: "price you'd buy at" },
+    { label: "Amount to commit", value: "$320 USDC" },
+    { label: "Expiry", value: "7d" },
+  ],
+  commit: [
+    { label: "Locked", value: "$320 USDC for 7d" },
+    { label: "Premium", value: "+$49 upfront" },
+    { label: "Yield", value: "Locked collateral keeps earning until expiry." },
   ],
   outcomes: {
     hit: {
       condition: "TSLAx closes ≤ $320",
-      lines: ["Buy 1 TSLAx @ $320.", "You already got +$49."],
-      earn: "Effective cost: $271/share",
+      lines: ["Buy 1 TSLAx @ $320.", "Keep the +$49 premium."],
+      total: "Effective cost: $271/share",
     },
     miss: {
       condition: "TSLAx closes > $320",
-      lines: ["Your $320 USDC comes back.", "You already got +$49."],
-      earn: "+$49 earned, no trade",
+      lines: ["Your $320 USDC back.", "Keep the +$49 premium."],
+      total: "Total: $369 USDC",
     },
   },
 };
 
-const SELL: { steps: [StepData, StepData, StepData]; outcomes: OutcomePair } = {
-  steps: [
-    {
-      title: "Pick your conditions.",
-      conditions: [
-        { label: "Amount", value: "1" },
-        { label: "Asset", value: "TSLAx" },
-        { label: "Strike", value: "$380" },
-        { label: "Expiry", value: "7d" },
-      ],
-    },
-    {
-      title: "Commit collateral.",
-      lines: [
-        { label: "Locked:", value: "1 TSLAx" },
-        { value: "Generating yield until expiry." },
-      ],
-    },
-    {
-      title: "Get paid upfront.",
-      lines: [
-        { label: "You receive:", value: "+$37" },
-        { value: "The moment you commit." },
-      ],
-    },
+const SELL: SideExample = {
+  conditions: [
+    { label: "Asset", value: "TSLAx" },
+    { label: "Strike", value: "$380", hint: "price you'd sell at" },
+    { label: "Amount to commit", value: "1 TSLAx" },
+    { label: "Expiry", value: "7d" },
+  ],
+  commit: [
+    { label: "Locked", value: "1 TSLAx for 7d" },
+    { label: "Premium", value: "+$37 upfront" },
+    { label: "Yield", value: "Locked collateral keeps earning until expiry." },
   ],
   outcomes: {
     hit: {
       condition: "TSLAx closes ≥ $380",
-      lines: ["Sell 1 TSLAx @ $380.", "You already got +$37."],
-      earn: "Effective price: $417/share",
+      lines: ["Sell 1 TSLAx @ $380 → $380 USDC received.", "Plus the +$37 premium."],
+      total: "Total: $417 USDC",
     },
     miss: {
       condition: "TSLAx closes < $380",
-      lines: ["Your TSLAx comes back.", "You already got +$37."],
-      earn: "+$37 earned, no trade",
+      lines: ["Your 1 TSLAx back.", "Plus the +$37 premium."],
+      total: "Asset + $37 earned",
     },
   },
 };
@@ -110,7 +84,7 @@ function SideToggle({ side, onSideChange }: { side: Side; onSideChange: (s: Side
         aria-pressed={side === "buy"}
         className={`px-4 py-2 rounded-lg font-mono transition-all ${
           side === "buy"
-            ? "bg-gradient-to-b from-[var(--accent)] to-[#0891b2] text-[var(--bg)] font-medium shadow-[0_0_20px_rgba(34,211,238,0.35)]"
+            ? "bg-[var(--accent)] text-[var(--bg)] font-medium shadow-[0_0_20px_rgba(34,211,238,0.3)]"
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
@@ -122,7 +96,7 @@ function SideToggle({ side, onSideChange }: { side: Side; onSideChange: (s: Side
         aria-pressed={side === "sell"}
         className={`px-4 py-2 rounded-lg font-mono transition-all ${
           side === "sell"
-            ? "bg-gradient-to-b from-[var(--accent)] to-[#0891b2] text-[var(--bg)] font-medium shadow-[0_0_20px_rgba(34,211,238,0.35)]"
+            ? "bg-[var(--accent)] text-[var(--bg)] font-medium shadow-[0_0_20px_rgba(34,211,238,0.3)]"
             : "text-[var(--text-secondary)] hover:text-[var(--text)]"
         }`}
       >
@@ -134,130 +108,92 @@ function SideToggle({ side, onSideChange }: { side: Side; onSideChange: (s: Side
 
 function StepCard({
   number,
-  step,
-  variant = "accent",
+  title,
+  children,
+  wide = false,
 }: {
   number: string;
-  step: StepData;
-  variant?: "accent" | "purple" | "pink";
+  title: string;
+  children: React.ReactNode;
+  wide?: boolean;
 }) {
-  const colorMap = {
-    accent: {
-      tint: "rgba(34,211,238,0.04)",
-      border: "rgba(34,211,238,0.22)",
-      line: "rgba(34,211,238,0.6)",
-      n: "var(--accent)",
-    },
-    purple: {
-      tint: "rgba(168,85,247,0.04)",
-      border: "rgba(168,85,247,0.22)",
-      line: "rgba(168,85,247,0.6)",
-      n: "#c084fc",
-    },
-    pink: {
-      tint: "rgba(236,72,153,0.04)",
-      border: "rgba(236,72,153,0.22)",
-      line: "rgba(236,72,153,0.6)",
-      n: "#f472b6",
-    },
-  } as const;
-  const c = colorMap[variant];
-
   return (
     <article
-      className="relative overflow-hidden rounded-2xl px-5 pt-5 pb-5 flex flex-col gap-3"
-      style={{
-        background: `linear-gradient(180deg, ${c.tint} 0%, transparent 70%)`,
-        border: `1px solid ${c.border}`,
-      }}
+      className={`relative overflow-hidden rounded-2xl px-5 pt-5 pb-5 flex flex-col gap-3 border border-[var(--accent)]/20 bg-gradient-to-b from-[var(--accent)]/[0.04] to-transparent ${
+        wide ? "md:col-span-2" : ""
+      }`}
     >
       <span
         aria-hidden="true"
-        className="absolute top-0 left-0 right-0 h-px"
-        style={{
-          background: `linear-gradient(90deg, transparent, ${c.line}, transparent)`,
-        }}
+        className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-[var(--accent)]/60 to-transparent"
       />
-      <div
-        className="font-mono text-[11px] tracking-[0.2em]"
-        style={{ color: c.n }}
-      >
+      <div className="font-mono text-[11px] tracking-[0.2em] text-[var(--accent)]">
         {number}
       </div>
       <h3 className="text-[var(--bone)] text-[17px] font-medium tracking-tight leading-[1.2]">
-        {step.title}
+        {title}
       </h3>
-      {step.conditions ? (
-        <dl className="rounded-lg bg-white/[0.03] p-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12px] font-mono">
-          {step.conditions.map((c) => (
-            <div key={c.label} className="contents">
-              <dt className="text-[#fb923c]">{c.label}</dt>
-              <dd className="text-[#c4c9d2]">{c.value}</dd>
-            </div>
-          ))}
-        </dl>
-      ) : null}
-      {step.lines ? (
-        <div className="rounded-lg bg-white/[0.03] p-3 space-y-1.5 text-[12px] font-mono leading-[1.55]">
-          {step.lines.map((line, i) => (
-            <p key={i} className="text-[#c4c9d2]">
-              {line.label ? (
-                <span className="text-[#fb923c]">{line.label} </span>
-              ) : null}
-              {line.value}
-            </p>
-          ))}
-        </div>
-      ) : null}
+      {children}
     </article>
   );
 }
 
-function ResolutionCard({ outcomes }: { outcomes: OutcomePair }) {
+function ConditionsList({ rows }: { rows: ConditionRow[] }) {
   return (
-    <article
-      className="relative overflow-hidden rounded-2xl px-5 pt-5 pb-5 flex flex-col gap-3 col-span-1 sm:col-span-2 lg:col-span-3"
-      style={{
-        background:
-          "linear-gradient(180deg, rgba(251,146,60,0.05) 0%, transparent 70%)",
-        border: "1px solid rgba(251,146,60,0.22)",
-      }}
-    >
-      <span
-        aria-hidden="true"
-        className="absolute top-0 left-0 right-0 h-px"
-        style={{
-          background:
-            "linear-gradient(90deg, transparent, rgba(251,146,60,0.6), transparent)",
-        }}
-      />
-      <div className="font-mono text-[11px] tracking-[0.2em] text-[#fb923c]">
-        04 · RESOLUTION
-      </div>
-      <h3 className="text-[var(--bone)] text-[17px] font-medium tracking-tight leading-[1.2]">
-        Expiry resolves. One of two.
-      </h3>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-        {[outcomes.hit, outcomes.miss].map((out, i) => (
-          <div
-            key={i}
-            className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3.5"
-          >
-            <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[var(--text-secondary)] mb-1.5">
-              {out.condition}
-            </div>
-            {out.lines.map((line, j) => (
-              <p key={j} className="text-[13px] text-[var(--text)] leading-[1.5]">
-                {line}
-              </p>
-            ))}
-            <p className="mt-1.5 font-mono text-[13px] font-semibold text-[var(--accent)]">
-              {out.earn}
-            </p>
+    <dl className="rounded-lg bg-white/[0.03] p-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12px] font-mono">
+      {rows.map((row) => (
+        <div key={row.label} className="contents">
+          <dt className="text-[var(--accent)]">{row.label}</dt>
+          <dd className="text-[#c4c9d2]">
+            {row.value}
+            {row.hint ? (
+              <span className="text-[var(--text-secondary)] opacity-70">
+                {"  ·  "}
+                {row.hint}
+              </span>
+            ) : null}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function CommitList({ rows }: { rows: CommitRow[] }) {
+  return (
+    <dl className="rounded-lg bg-white/[0.03] p-3 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-[12px] font-mono">
+      {rows.map((row) => (
+        <div key={row.label} className="contents">
+          <dt className="text-[var(--accent)]">{row.label}</dt>
+          <dd className="text-[#c4c9d2]">{row.value}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
+function OutcomeGrid({ outcomes }: { outcomes: OutcomePair }) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+      {[outcomes.hit, outcomes.miss].map((out, i) => (
+        <div
+          key={i}
+          className="rounded-lg bg-white/[0.03] border border-white/[0.06] p-3.5"
+        >
+          <div className="font-mono text-[10px] tracking-[0.15em] uppercase text-[var(--text-secondary)] mb-1.5">
+            {out.condition}
           </div>
-        ))}
-      </div>
-    </article>
+          {out.lines.map((line, j) => (
+            <p key={j} className="text-[13px] text-[var(--text)] leading-[1.5]">
+              {line}
+            </p>
+          ))}
+          <p className="mt-1.5 font-mono text-[13px] font-semibold text-[var(--accent)]">
+            {out.total}
+          </p>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -269,7 +205,7 @@ export function HowItWorks() {
 
   return (
     <section ref={ref} className="py-24 px-6 relative z-[3]">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-5xl mx-auto">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -290,12 +226,17 @@ export function HowItWorks() {
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
+          className="grid grid-cols-1 md:grid-cols-2 gap-3"
         >
-          <StepCard number="01" step={data.steps[0]} variant="accent" />
-          <StepCard number="02" step={data.steps[1]} variant="purple" />
-          <StepCard number="03" step={data.steps[2]} variant="pink" />
-          <ResolutionCard outcomes={data.outcomes} />
+          <StepCard number="01" title="Pick your conditions.">
+            <ConditionsList rows={data.conditions} />
+          </StepCard>
+          <StepCard number="02" title="Commit & get paid.">
+            <CommitList rows={data.commit} />
+          </StepCard>
+          <StepCard number="03" title="Expiry resolves. One of two." wide>
+            <OutcomeGrid outcomes={data.outcomes} />
+          </StepCard>
         </motion.div>
       </div>
     </section>
