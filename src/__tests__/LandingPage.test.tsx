@@ -1,17 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen } from "@testing-library/react";
-import userEvent from "@testing-library/user-event";
 import { LandingPage } from "@/components/landing/LandingPage";
-
-vi.mock("@/hooks/usePrices", () => ({
-  usePrices: () => ({ prices: [], loading: false }),
-}));
-vi.mock("@/hooks/useCoinGeckoSpot", () => ({
-  useCoinGeckoSpot: () => ({ spot: undefined, loading: false }),
-}));
-vi.mock("@/hooks/useSpot", () => ({
-  useSpot: () => ({ spot: undefined, loading: false }),
-}));
 
 describe("LandingPage", () => {
   beforeEach(() => {
@@ -38,38 +27,33 @@ describe("LandingPage", () => {
       screen.getByRole("heading", { level: 2, name: /how it works/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 3, name: /pick your price/i }),
+      screen.getByRole("heading", { level: 3, name: /pick your conditions/i }),
     ).toBeInTheDocument();
   });
 
-  it("retitles the Mechanism section to 'Try it with live prices.'", () => {
+  it("removes the MechanismSection (no 'Try it with live prices' or 'Here\\'s how it works')", () => {
     render(<LandingPage />);
     expect(
-      screen.getByRole("heading", { level: 2, name: /try it with live prices/i }),
-    ).toBeInTheDocument();
+      screen.queryByRole("heading", { level: 2, name: /try it with live prices/i }),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { level: 2, name: /here's how it works/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("exposes all four assets in the Mechanism toggle", () => {
-    render(<LandingPage />);
-    // The AssetToggle buttons live inside the Mechanism section. ETH and SOL
-    // labels also appear in the AssetsStrip, so we scope to button role.
-    expect(screen.getByRole("button", { name: "ETH" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "cbBTC" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "SOL" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "TSLAx" })).toBeInTheDocument();
-  });
-
-  it("switches the Mechanism asset when a different toggle is clicked", async () => {
-    const user = userEvent.setup();
-    render(<LandingPage />);
-
-    const btcButton = screen.getByRole("button", { name: "cbBTC" });
-    await user.click(btcButton);
-
-    // After selecting cbBTC the spot line should reference cbBTC
-    expect(screen.getByText(/cbbtc is/i)).toBeInTheDocument();
+  it("places AssetsStrip immediately before HowItWorks", () => {
+    const { container } = render(<LandingPage />);
+    const assetsStripList = container.querySelector("ul");
+    const howItWorksHeading = screen.getByRole("heading", {
+      level: 2,
+      name: /how it works/i,
+    });
+    expect(assetsStripList).not.toBeNull();
+    expect(howItWorksHeading).toBeInTheDocument();
+    if (assetsStripList) {
+      const pos = assetsStripList.compareDocumentPosition(howItWorksHeading);
+      // HowItWorks comes after the AssetsStrip list in document order
+      expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+    }
   });
 });

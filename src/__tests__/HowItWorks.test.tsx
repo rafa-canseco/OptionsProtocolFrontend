@@ -9,36 +9,65 @@ describe("HowItWorks", () => {
     expect(
       screen.getByRole("heading", { level: 2, name: /how it works/i }),
     ).toBeInTheDocument();
-    expect(screen.getByText(/walk through a concrete example/i)).toBeInTheDocument();
+    expect(screen.getByText(/1 tslax @ \$320, 7-day/i)).toBeInTheDocument();
   });
 
   it("renders all four step titles", () => {
     render(<HowItWorks />);
-    expect(screen.getByRole("heading", { level: 3, name: /pick your price/i })).toBeInTheDocument();
-    expect(screen.getByRole("heading", { level: 3, name: /commit your collateral/i })).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 3, name: /get paid the premium upfront/i }),
+      screen.getByRole("heading", { level: 3, name: /pick your conditions/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("heading", { level: 3, name: /wait for expiry/i }),
+      screen.getByRole("heading", { level: 3, name: /commit collateral/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: /get paid upfront/i }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { level: 3, name: /expiry resolves/i }),
     ).toBeInTheDocument();
   });
 
-  it("shows the buy-side TSLAx example by default", () => {
+  it("step 1 lists amount, asset, strike, and expiry", () => {
     render(<HowItWorks />);
-    expect(screen.getByText(/i'll buy 1 tslax at \$320/i)).toBeInTheDocument();
-    const locked = screen.getByText(/locked:/i);
-    expect(locked.parentElement).toHaveTextContent("$320 USDC");
-    const received = screen.getByText(/you receive:/i);
-    expect(received.parentElement).toHaveTextContent(/\+\$49/);
+    const step1 = screen
+      .getByRole("heading", { level: 3, name: /pick your conditions/i })
+      .closest("article");
+    expect(step1).not.toBeNull();
+    expect(step1).toHaveTextContent(/amount/i);
+    expect(step1).toHaveTextContent(/asset/i);
+    expect(step1).toHaveTextContent(/strike/i);
+    expect(step1).toHaveTextContent(/expiry/i);
+    expect(step1).toHaveTextContent(/tslax/i);
+    expect(step1).toHaveTextContent(/\$320/);
+    expect(step1).toHaveTextContent(/7d/i);
   });
 
-  it("renders buy-side outcome grid with both cases", () => {
+  it("step 2 mentions the collateral is locked and generating yield", () => {
+    render(<HowItWorks />);
+    const step2 = screen
+      .getByRole("heading", { level: 3, name: /commit collateral/i })
+      .closest("article");
+    expect(step2).not.toBeNull();
+    expect(step2).toHaveTextContent(/\$320 usdc/i);
+    expect(step2).toHaveTextContent(/yield/i);
+    expect(step2).toHaveTextContent(/expiry/i);
+  });
+
+  it("step 3 shows the upfront premium on the buy side", () => {
+    render(<HowItWorks />);
+    const step3 = screen
+      .getByRole("heading", { level: 3, name: /get paid upfront/i })
+      .closest("article");
+    expect(step3).toHaveTextContent(/\+\$49/);
+  });
+
+  it("step 4 renders both outcome cases on the buy side", () => {
     render(<HowItWorks />);
     expect(screen.getByText(/tslax closes ≤ \$320/i)).toBeInTheDocument();
     expect(screen.getByText(/tslax closes > \$320/i)).toBeInTheDocument();
     expect(screen.getByText(/effective cost: \$271\/share/i)).toBeInTheDocument();
-    expect(screen.getByText(/net: \+\$49 earned, no trade/i)).toBeInTheDocument();
+    expect(screen.getByText(/\+\$49 earned, no trade/i)).toBeInTheDocument();
   });
 
   it("switches to sell-side example when the toggle flips", async () => {
@@ -48,11 +77,22 @@ describe("HowItWorks", () => {
     const sellTab = screen.getByRole("button", { name: /i have the asset/i });
     await user.click(sellTab);
 
-    expect(screen.getByText(/i'll sell 1 tslax at \$380/i)).toBeInTheDocument();
-    const locked = screen.getByText(/locked:/i);
-    expect(locked.parentElement).toHaveTextContent("1 TSLAx");
-    const received = screen.getByText(/you receive:/i);
-    expect(received.parentElement).toHaveTextContent(/\+\$37/);
+    const step1 = screen
+      .getByRole("heading", { level: 3, name: /pick your conditions/i })
+      .closest("article");
+    expect(step1).toHaveTextContent(/\$380/);
+
+    const step2 = screen
+      .getByRole("heading", { level: 3, name: /commit collateral/i })
+      .closest("article");
+    expect(step2).toHaveTextContent(/1 tslax/i);
+    expect(step2).toHaveTextContent(/yield/i);
+
+    const step3 = screen
+      .getByRole("heading", { level: 3, name: /get paid upfront/i })
+      .closest("article");
+    expect(step3).toHaveTextContent(/\+\$37/);
+
     expect(screen.getByText(/tslax closes ≥ \$380/i)).toBeInTheDocument();
     expect(screen.getByText(/tslax closes < \$380/i)).toBeInTheDocument();
     expect(screen.getByText(/effective price: \$417\/share/i)).toBeInTheDocument();
