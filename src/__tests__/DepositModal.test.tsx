@@ -1,19 +1,64 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DepositModal } from "@/components/DepositModal";
 
+const ORIGINAL_ENV = { ...process.env };
+
 const mockSendBatchTx = vi.fn();
 const mockSendFundingTx = vi.fn();
 
-const defaultWallet = {
+type ExternalWalletStub = {
+  address: string;
+  chain: "base" | "solana";
+  name: string;
+  walletClientType: string;
+};
+
+const baseExternalWallet: ExternalWalletStub = {
+  address: "0xFunding",
+  chain: "base",
+  name: "MetaMask",
+  walletClientType: "metamask",
+};
+
+type WalletStub = {
+  address: `0x${string}` | undefined;
+  fundingAddress: `0x${string}` | undefined;
+  withdrawAddress: `0x${string}` | undefined;
+  hasExternalWallet: boolean;
+  solanaAddress: string | undefined;
+  externalWallets: ExternalWalletStub[];
+  sendBatchTx: ReturnType<typeof vi.fn>;
+  sendFundingTx: ReturnType<typeof vi.fn>;
+  sendSolanaDeposit: ReturnType<typeof vi.fn>;
+  sendSolanaSolDeposit: ReturnType<typeof vi.fn>;
+  sendSolanaWithdraw: ReturnType<typeof vi.fn>;
+  sendSolanaSolWithdraw: ReturnType<typeof vi.fn>;
+  sendSolanaTransaction: ReturnType<typeof vi.fn>;
+  signSolanaTransaction: ReturnType<typeof vi.fn>;
+  isConnected: boolean;
+  isReady: boolean;
+  connectWallet: ReturnType<typeof vi.fn>;
+  activateSmartWallet: ReturnType<typeof vi.fn>;
+  disconnect: ReturnType<typeof vi.fn>;
+};
+
+const defaultWallet: WalletStub = {
   address: "0xSmartWallet" as `0x${string}`,
   fundingAddress: "0xFunding" as `0x${string}`,
   withdrawAddress: "0xFunding" as `0x${string}`,
   hasExternalWallet: true,
+  solanaAddress: undefined,
+  externalWallets: [baseExternalWallet],
   sendBatchTx: mockSendBatchTx,
   sendFundingTx: mockSendFundingTx,
-  chainError: null,
+  sendSolanaDeposit: vi.fn(),
+  sendSolanaSolDeposit: vi.fn(),
+  sendSolanaWithdraw: vi.fn(),
+  sendSolanaSolWithdraw: vi.fn(),
+  sendSolanaTransaction: vi.fn(),
+  signSolanaTransaction: vi.fn(),
   isConnected: true,
   isReady: true,
   connectWallet: vi.fn(),
@@ -21,7 +66,7 @@ const defaultWallet = {
   disconnect: vi.fn(),
 };
 
-let walletOverrides: Partial<typeof defaultWallet> = {};
+let walletOverrides: Partial<WalletStub> = {};
 
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: () => ({ ...defaultWallet, ...walletOverrides }),
@@ -37,6 +82,20 @@ vi.mock("@/hooks/useBalances", () => ({
     ethRaw: BigInt(100_000_000_000_000_000),
     wethRaw: BigInt(0),
     wbtcRaw: BigInt(0),
+    loading: false,
+  }),
+}));
+
+vi.mock("@/hooks/useSolanaBalance", () => ({
+  useSolanaBalance: () => ({
+    solanaUsdc: 0,
+    solanaSol: 0,
+    solanaUsdcRaw: BigInt(0),
+    solanaSolRaw: BigInt(0),
+    solanaWsol: 0,
+    solanaWsolRaw: BigInt(0),
+    solanaTslax: 0,
+    solanaTslaxRaw: BigInt(0),
     loading: false,
   }),
 }));
@@ -65,16 +124,27 @@ vi.mock("@/lib/contracts", () => ({
   ],
 }));
 
+vi.mock("@/lib/solana", () => ({
+  SOLANA_RPC_URL: undefined,
+  SOLANA_USDC_MINT: undefined,
+  SOLANA_TSLAX_MINT: undefined,
+  SOLANA_CHAIN: undefined,
+  solanaConnection: undefined,
+  solanaTxUrl: (hash: string) => `https://solscan.io/tx/${hash}`,
+  toPublicKey: vi.fn(),
+}));
+
 describe("DepositModal withdraw guard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     walletOverrides = {};
   });
 
-  it("shows warning and disables button when no external wallet on withdraw tab", async () => {
+  it("shows connect prompt when no external wallet on withdraw tab", async () => {
     walletOverrides = {
       hasExternalWallet: false,
       withdrawAddress: undefined,
+      externalWallets: [],
     };
 
     render(<DepositModal onClose={vi.fn()} />);
@@ -82,14 +152,10 @@ describe("DepositModal withdraw guard", () => {
     const withdrawTab = screen.getByRole("button", { name: /withdraw/i });
     await userEvent.click(withdrawTab);
 
+    // The wallet selector area should show "+ Connect another wallet"
     expect(
-      screen.getByText("Connect your external wallet to withdraw."),
+      screen.getByText(/\+ Connect another wallet/),
     ).toBeInTheDocument();
-
-    const withdrawButton = screen.getByRole("button", {
-      name: /withdraw usdc/i,
-    });
-    expect(withdrawButton).toBeDisabled();
   });
 
   it("shows destination address when external wallet is connected", async () => {
@@ -98,15 +164,17 @@ describe("DepositModal withdraw guard", () => {
     const withdrawTab = screen.getByRole("button", { name: /withdraw/i });
     await userEvent.click(withdrawTab);
 
+    // "Withdraw to" note with the truncated address and gas info
     expect(
-      screen.getByText(/Withdraw to 0xFund\.\.\.ding/),
+      screen.getByText(/Withdraw to.*Gas is sponsored/),
     ).toBeInTheDocument();
   });
 
-  it("does not call sendBatchTx when hasExternalWallet is false", async () => {
+  it("does not call sendBatchTx when no external wallets", async () => {
     walletOverrides = {
       hasExternalWallet: false,
       withdrawAddress: undefined,
+      externalWallets: [],
     };
 
     render(<DepositModal onClose={vi.fn()} />);
@@ -114,7 +182,109 @@ describe("DepositModal withdraw guard", () => {
     const withdrawTab = screen.getByRole("button", { name: /withdraw/i });
     await userEvent.click(withdrawTab);
 
-    // Button should be disabled, but verify sendBatchTx never called
     expect(mockSendBatchTx).not.toHaveBeenCalled();
+  });
+});
+
+describe("DepositModal Solana production gate", () => {
+  const solanaWallet: ExternalWalletStub = {
+    address: "SolWalletAddress11111111111111111111111111",
+    chain: "solana",
+    name: "Phantom",
+    walletClientType: "phantom",
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    walletOverrides = {};
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  it("hides Solana trading account card in mainnet", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      solanaAddress: "SolEmbeddedAddr1111111111111111111111111",
+      externalWallets: [baseExternalWallet, solanaWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    expect(
+      screen.queryByText(/Solana trading account/i),
+    ).not.toBeInTheDocument();
+  });
+
+  it("filters Solana external wallets from the selector in mainnet", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      externalWallets: [baseExternalWallet, solanaWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    expect(screen.getByText("MetaMask")).toBeInTheDocument();
+    expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
+  });
+
+  it("still shows Solana trading account in devnet", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
+    walletOverrides = {
+      solanaAddress: "SolEmbeddedAddr1111111111111111111111111",
+      externalWallets: [baseExternalWallet, solanaWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    expect(
+      screen.getByText(/Solana trading account/i),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Phantom")).toBeInTheDocument();
+  });
+
+  it("ignores requiredToken=tslax in mainnet and does not preselect Solana", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      externalWallets: [baseExternalWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} requiredToken="tslax" />);
+
+    // The deposit UI falls back to the Base tab — we should see a Base
+    // deposit note, not a Solana one.
+    expect(
+      screen.getByText(/Deposit on Base/i),
+    ).toBeInTheDocument();
+  });
+
+  it("ignores requiredToken=sol in mainnet and falls back to Base", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      externalWallets: [baseExternalWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} requiredToken="sol" />);
+
+    expect(
+      screen.getByText(/Deposit on Base/i),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-selects the Base wallet when Solana wallets are filtered in mainnet", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      externalWallets: [baseExternalWallet, solanaWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    // Phantom is filtered, MetaMask remains and should be auto-selected.
+    expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
+    expect(screen.getByText("MetaMask")).toBeInTheDocument();
+    // "From MetaMask" under the amount input confirms Base auto-selection.
+    expect(screen.getByText(/From MetaMask/i)).toBeInTheDocument();
   });
 });

@@ -4,11 +4,10 @@ import { ConnectButton } from "@/components/ConnectButton";
 
 const mockWallet = {
   address: "0xabc" as `0x${string}`,
+  solanaAddress: undefined as string | undefined,
   isConnected: true,
   isReady: true,
   connectWallet: vi.fn(),
-  fundingAddress: undefined,
-  chainError: null,
 };
 
 const zeroBalances = {
@@ -20,10 +19,19 @@ const zeroBalances = {
   eth: 0,
   weth: 0,
   wbtc: 0,
-  usdFormatted: "0",
-  ethFormatted: "0.00",
   loading: false,
-  refetch: vi.fn(),
+};
+
+const zeroSolBalance = {
+  solanaUsdc: 0,
+  solanaSol: 0,
+  solanaUsdcRaw: BigInt(0),
+  solanaSolRaw: BigInt(0),
+  solanaWsol: 0,
+  solanaWsolRaw: BigInt(0),
+  solanaTslax: 0,
+  solanaTslaxRaw: BigInt(0),
+  loading: false,
 };
 
 vi.mock("@/hooks/useWallet", () => ({
@@ -35,17 +43,9 @@ vi.mock("@/hooks/useBalances", () => ({
   useBalances: () => balancesOverride,
 }));
 
-let ethSpotOverride: { spot: number | undefined; loading: boolean } = {
-  spot: 2000,
-  loading: false,
-};
-let btcSpotOverride: { spot: number | undefined; loading: boolean } = {
-  spot: 60000,
-  loading: false,
-};
-vi.mock("@/hooks/useSpot", () => ({
-  useSpot: (asset: string) =>
-    asset === "eth" ? ethSpotOverride : btcSpotOverride,
+let solBalanceOverride = { ...zeroSolBalance };
+vi.mock("@/hooks/useSolanaBalance", () => ({
+  useSolanaBalance: () => solBalanceOverride,
 }));
 
 vi.mock("@/components/DepositModal", () => ({
@@ -56,8 +56,7 @@ describe("ConnectButton", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     balancesOverride = { ...zeroBalances };
-    ethSpotOverride = { spot: 2000, loading: false };
-    btcSpotOverride = { spot: 60000, loading: false };
+    solBalanceOverride = { ...zeroSolBalance };
     mockWallet.isConnected = true;
     mockWallet.isReady = true;
   });
@@ -80,23 +79,17 @@ describe("ConnectButton", () => {
     expect(screen.getByText("Deposit")).toBeInTheDocument();
   });
 
-  it("shows USDC-only total for USDC-only user", () => {
+  it("shows USDC total from Base", () => {
     balancesOverride = { ...zeroBalances, usd: 500 };
     render(<ConnectButton />);
     expect(screen.getByText("$500.00")).toBeInTheDocument();
   });
 
-  it("sums USDC + ETH + WETH + WBTC in USD", () => {
-    balancesOverride = {
-      ...zeroBalances,
-      usd: 1000,
-      eth: 1,
-      weth: 0.5,
-      wbtc: 0.1,
-    };
-    // total = 1000 + (1 + 0.5) * 2000 + 0.1 * 60000 = 1000 + 3000 + 6000 = 10000
+  it("sums Base USDC + Solana USDC", () => {
+    balancesOverride = { ...zeroBalances, usd: 1000 };
+    solBalanceOverride = { ...zeroSolBalance, solanaUsdc: 500 };
     render(<ConnectButton />);
-    expect(screen.getByText("$10,000.00")).toBeInTheDocument();
+    expect(screen.getByText("$1,500.00")).toBeInTheDocument();
   });
 
   it("shows ... while balances are loading", () => {
@@ -105,18 +98,16 @@ describe("ConnectButton", () => {
     expect(screen.getByText("...")).toBeInTheDocument();
   });
 
-  it("shows ... while spot prices are loading", () => {
+  it("shows ... while Solana balances are loading", () => {
     balancesOverride = { ...zeroBalances, usd: 100 };
-    ethSpotOverride = { spot: undefined, loading: true };
+    solBalanceOverride = { ...zeroSolBalance, loading: true };
     render(<ConnectButton />);
     expect(screen.getByText("...")).toBeInTheDocument();
   });
 
-  it("falls back to USDC-only when spot is undefined", () => {
-    balancesOverride = { ...zeroBalances, usd: 100, eth: 1 };
-    ethSpotOverride = { spot: undefined, loading: false };
+  it("shows balance from Solana only", () => {
+    solBalanceOverride = { ...zeroSolBalance, solanaUsdc: 250 };
     render(<ConnectButton />);
-    // ETH contributes $0 when spot is undefined
-    expect(screen.getByText("$100.00")).toBeInTheDocument();
+    expect(screen.getByText("$250.00")).toBeInTheDocument();
   });
 });

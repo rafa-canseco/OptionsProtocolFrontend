@@ -18,12 +18,13 @@ import {
 } from "@/components/ui/command";
 import Image from "next/image";
 import { ASSETS, ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
+import { isProductionReadOnlyAsset } from "@/lib/marketState";
 
 const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
   btc: "/cbbtc.webp",
-  aero: "/aero.png",
-  virtual: "/virtual.png",
+  sol: "/sol.png",
+  tslax: "/tslax.svg",
 };
 
 function AssetIcon({
@@ -98,6 +99,7 @@ export function AssetSelector({
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
                 const disabled = asset.comingSoon === true;
+                const showComingSoon = disabled || isProductionReadOnlyAsset(asset);
                 return (
                   <CommandItem
                     key={slug}
@@ -121,16 +123,27 @@ export function AssetSelector({
                     <span className="text-xs text-[var(--text-secondary)]">
                       {asset.name}
                     </span>
-                    {disabled && (
-                      <span className="ml-auto text-[10px] font-medium
-                        text-[var(--text-secondary)] border
-                        border-[var(--border)] rounded px-1.5 py-0.5">
-                        Soon
-                      </span>
-                    )}
-                    {!disabled && isActive && (
-                      <Check className="ml-auto size-4 text-[var(--accent)]" />
-                    )}
+                    <span className="ml-auto flex items-center gap-1.5">
+                      {asset.chain === "base" && (
+                        <span className="text-[9px] font-medium text-blue-400
+                          bg-blue-500/10 px-1 py-0.5 rounded">
+                          Base
+                        </span>
+                      )}
+                      {asset.chain === "solana" && (
+                        <span className="text-[9px] font-medium text-purple-400
+                          bg-purple-500/10 px-1 py-0.5 rounded">
+                          Solana
+                        </span>
+                      )}
+                      {showComingSoon && (
+                        <span className="text-[10px] font-medium
+                          text-[var(--text-secondary)] border
+                          border-[var(--border)] rounded px-1.5 py-0.5">
+                          Soon
+                        </span>
+                      )}
+                    </span>
                   </CommandItem>
                 );
               })}

@@ -1,23 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState, useCallback, useEffect, useMemo, memo } from "react";
-import { motion, useInView, AnimatePresence } from "framer-motion";
+import { useRef, useState, useCallback, useEffect, memo } from "react";
+import { motion, useInView } from "framer-motion";
 import { BackgroundEffects } from "./BackgroundEffects";
-import { usePrices } from "@/hooks/usePrices";
-import { useSpot } from "@/hooks/useSpot";
+import { AssetsStrip } from "./AssetsStrip";
+import { HowItWorks } from "./HowItWorks";
+import { getAssetConfig, getDefaultAssetSlug } from "@/lib/assets";
+import { isDevnet } from "@/lib/deployment";
 
 const WORDMARK_FONT = "'Fira Code', monospace";
 const TARGET = "b1nary";
 const BINARY_CHARS = "01";
-
-const FALLBACK_SPOT = 2621;
-
-function deriveStrikes(spot: number) {
-  const buy = Math.round((spot * 0.92) / 100) * 100;
-  const sell = Math.round((spot * 1.08) / 100) * 100;
-  return { buyStrike: buy, sellStrike: sell };
-}
 
 /* ── Binary scramble hook ── */
 function useBinaryReveal(trigger: boolean, duration = 2000) {
@@ -76,49 +70,6 @@ function FadeBlock({
   );
 }
 
-function derivePremium(spot: number, side: "buy" | "sell", buyStrike: number, sellStrike: number): number {
-  const basePremiumBuy = Math.round(buyStrike * 0.025);
-  const basePremiumSell = Math.round(sellStrike * 0.015);
-
-  if (!Number.isFinite(spot)) return side === "buy" ? basePremiumBuy : basePremiumSell;
-
-  if (side === "buy") {
-    const dist = Math.max(0, (spot - buyStrike) / spot);
-    return Math.round(Math.max(1, basePremiumBuy * (1 + dist)));
-  } else {
-    const dist = Math.max(0, (sellStrike - spot) / spot);
-    return Math.round(Math.max(1, basePremiumSell * (1 + dist)));
-  }
-}
-
-function AnimatedPremium({ value }: { value: number }) {
-  const [display, setDisplay] = useState(value);
-  const prevRef = useRef(value);
-  const frameRef = useRef<number>(0);
-
-  if (value !== prevRef.current) {
-    const from = prevRef.current;
-    const to = value;
-    prevRef.current = value;
-
-    const duration = 500;
-    const start = performance.now();
-
-    const animate = (now: number) => {
-      const elapsed = now - start;
-      const t = Math.min(elapsed / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setDisplay(Math.round(from + (to - from) * eased));
-      if (t < 1) frameRef.current = requestAnimationFrame(animate);
-    };
-
-    cancelAnimationFrame(frameRef.current);
-    frameRef.current = requestAnimationFrame(animate);
-  }
-
-  return <>${display}</>;
-}
-
 /* ── X (Twitter) icon ── */
 
 function XIcon({ className }: { className?: string }) {
@@ -136,7 +87,6 @@ function HeaderLogo() {
   const display = useBinaryReveal(trigger, 1500);
 
   useEffect(() => {
-    // Start scramble after a short delay on mount
     const timer = setTimeout(() => setTrigger(true), 300);
     return () => clearTimeout(timer);
   }, []);
@@ -171,11 +121,22 @@ function HeaderLogo() {
 
 /* ── Section 1: Income Hero ── */
 
-function HeroSection() {
+function HeroSection({
+  chainLine,
+}: {
+  chainLine: string;
+}) {
   return (
     <section className="min-h-screen flex flex-col justify-center px-6 relative z-[3]">
       <div className="max-w-5xl mx-auto w-full">
-        {/* Line 1: short, punchy, large */}
+        <motion.p
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, delay: 0.15 }}
+          className="mb-5 text-xs font-mono uppercase tracking-[0.22em] text-[var(--accent)]"
+        >
+          {chainLine}
+        </motion.p>
         <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -185,7 +146,6 @@ function HeroSection() {
           Turn volatility into income.
         </motion.h1>
 
-        {/* Line 2: supporting, slightly smaller */}
         <motion.p
           initial={{ opacity: 0, y: 15 }}
           animate={{ opacity: 1, y: 0 }}
@@ -195,7 +155,6 @@ function HeroSection() {
           You set the terms. The market moves. You already know the outcome.
         </motion.p>
 
-        {/* Agent tagline */}
         <motion.p
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
@@ -209,26 +168,6 @@ function HeroSection() {
           one protocol
         </motion.p>
 
-        {/* CTAs */}
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 1.3 }}
-          className="flex flex-wrap gap-4 mt-12"
-        >
-          <Link
-            href="/earn"
-            className="rounded-xl px-8 py-3.5 text-base font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
-          >
-            Launch App
-          </Link>
-          <a
-            href="#mechanism"
-            className="rounded-xl px-8 py-3.5 text-base font-medium text-[var(--text-secondary)] border border-[var(--border)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors"
-          >
-            See how it works &darr;
-          </a>
-        </motion.div>
       </div>
 
       <motion.div
@@ -284,7 +223,6 @@ function ProblemSection() {
         </FadeBlock>
       </div>
 
-      {/* Auto-scrolling marquee */}
       <div className="relative overflow-hidden">
         <div className="flex gap-5 marquee-track">
           {[...PAIN_CARDS, ...PAIN_CARDS, ...PAIN_CARDS].map((card, i) => (
@@ -297,7 +235,6 @@ function ProblemSection() {
             </div>
           ))}
         </div>
-        {/* Fade edges */}
         <div className="absolute inset-y-0 left-0 w-16 bg-gradient-to-r from-[var(--bg)] to-transparent pointer-events-none" />
         <div className="absolute inset-y-0 right-0 w-16 bg-gradient-to-l from-[var(--bg)] to-transparent pointer-events-none" />
       </div>
@@ -313,351 +250,11 @@ function ProblemSection() {
   );
 }
 
-/* ── Section 3: The Mechanism ── */
-
-function SideToggle({ side, onSideChange }: { side: "buy" | "sell"; onSideChange: (s: "buy" | "sell") => void }) {
-  return (
-    <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex w-fit">
-      <button
-        onClick={() => onSideChange("buy")}
-        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
-          side === "buy"
-            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
-            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-        }`}
-      >
-        I have USD
-      </button>
-      <button
-        onClick={() => onSideChange("sell")}
-        className={`px-5 py-3 text-sm font-medium rounded-lg transition-all ${
-          side === "sell"
-            ? "bg-[var(--border)] text-[var(--accent)] shadow-sm"
-            : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-        }`}
-      >
-        I have ETH
-      </button>
-    </div>
-  );
-}
-
-function MechanismSection({
-  side,
-  onSideChange,
-  spot,
-  buyStrike,
-  sellStrike,
-  priceReady,
-}: {
-  side: "buy" | "sell";
-  onSideChange: (s: "buy" | "sell") => void;
-  spot: number;
-  buyStrike: number;
-  sellStrike: number;
-  priceReady: boolean;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { once: true, margin: "-10%" });
-  const strike = side === "buy" ? buyStrike : sellStrike;
-  const premium = derivePremium(spot, side, buyStrike, sellStrike);
-
-  return (
-    <section id="mechanism" ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-6xl w-full grid grid-cols-1 lg:grid-cols-2 gap-10 lg:gap-16 items-center">
-        {/* Left: controls + explanation */}
-        <div className="space-y-8">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-            transition={{ duration: 0.6 }}
-            className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight"
-          >
-            Here&apos;s how it works.
-          </motion.h2>
-
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={inView ? { opacity: 1 } : { opacity: 0 }}
-            transition={{ duration: 0.5, delay: 0.15 }}
-            className="space-y-5"
-          >
-            <div className="flex items-center gap-6 flex-wrap">
-              <p className="text-[var(--text-secondary)] text-lg">
-                ETH is{" "}
-                {priceReady ? (
-                  <span className="text-[var(--text)] font-bold font-mono">${spot.toLocaleString()}</span>
-                ) : (
-                  <span className="inline-block w-20 h-6 rounded bg-[var(--border)] animate-pulse align-middle" />
-                )}
-              </p>
-              <SideToggle side={side} onSideChange={onSideChange} />
-            </div>
-
-            <AnimatePresence mode="wait">
-              <motion.p
-                key={side}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.3 }}
-                className="text-xl text-[var(--text-secondary)]"
-              >
-                You set: <span className="text-[var(--text)]">{side === "buy" ? "Buy" : "Sell"} ETH at ${strike.toLocaleString()}</span>
-                <br />
-                You receive: <span className="font-semibold text-[var(--accent)]"><AnimatedPremium value={premium} /></span> upfront
-              </motion.p>
-            </AnimatePresence>
-          </motion.div>
-
-          <motion.p
-            initial={{ opacity: 0 }}
-            animate={inView ? { opacity: 1 } : { opacity: 0 }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="text-[var(--text-secondary)] opacity-60 text-sm"
-          >
-            Locked until expiry. Only the closing price matters.
-          </motion.p>
-
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 10 }}
-            transition={{ duration: 0.5, delay: 0.45 }}
-            className="pt-4 border-t border-[var(--border)] space-y-2"
-          >
-            <p className="text-sm text-[var(--text-secondary)] uppercase tracking-wider">
-              Where does the money come from?
-            </p>
-            <p className="text-[var(--text-secondary)]">
-              You set a price, someone pays to lock it in. You get paid upfront, every time.
-            </p>
-            <p className="text-sm font-medium text-[var(--accent)]">
-              Not token rewards. Real market income.
-            </p>
-          </motion.div>
-        </div>
-
-        {/* Right: outcome card */}
-        <AnimatePresence mode="wait">
-          <motion.div
-            key={side}
-            initial={{ opacity: 0, y: 15 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -15 }}
-            transition={{ duration: 0.4 }}
-            className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/60 p-5 sm:p-8 space-y-6"
-          >
-            <div className="space-y-1">
-              <p className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">Price {side === "buy" ? "drops" : "rises"}</p>
-              <p className="text-xl text-[var(--text)] font-light">
-                {side === "buy"
-                  ? `You buy ETH at $${strike.toLocaleString()}.`
-                  : `You sell ETH at $${strike.toLocaleString()}.`}
-              </p>
-              <p className="text-[var(--text-secondary)]">
-                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>
-              </p>
-            </div>
-
-            <div className="border-t border-[var(--border)]" />
-
-            <div className="space-y-1">
-              <p className="text-[var(--text-secondary)] text-xs uppercase tracking-wider">It {side === "buy" ? "doesn't drop" : "doesn't rise"}</p>
-              <p className="text-xl text-[var(--text)] font-light">
-                {side === "buy"
-                  ? `Your $${strike.toLocaleString()} comes back.`
-                  : "Your ETH comes back."}
-              </p>
-              <p className="text-[var(--text-secondary)]">
-                + keep the <span className="font-semibold text-[var(--accent)]">${premium}</span>
-              </p>
-            </div>
-
-            <div className="border-t border-[var(--border)]" />
-
-            <p className="text-lg font-medium text-[var(--accent)]">
-              Either way: +${premium} earned.
-            </p>
-          </motion.div>
-        </AnimatePresence>
-      </div>
-    </section>
-  );
-}
-
-/* ── Section 3: The Loop ── */
-
-type LoopFrame = {
-  text: string;
-  accent?: boolean;
-  counter?: number;
-  pulse?: boolean;
-  secondary?: boolean;
-  slow?: boolean;
-};
-
-function buildLoopFrames(
-  side: "buy" | "sell",
-  buyStrike: number,
-  sellStrike: number,
-  buyPremium: number,
-  sellPremium: number,
-): LoopFrame[] {
-  const bs = `$${buyStrike.toLocaleString()}`;
-  const ss = `$${sellStrike.toLocaleString()}`;
-  const bp = buyPremium;
-  const sp = sellPremium;
-
-  if (side === "buy") return [
-    { text: `Buy ETH @ ${bs}` },
-    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
-    { text: `Price didn't hit.\n${bs} back.`, secondary: true },
-    { text: "Earn again →", accent: true, pulse: true },
-    { text: `Buy ETH @ ${bs}` },
-    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
-    { text: `Price hit.\nYou bought ETH @ ${bs}.`, secondary: true },
-    { text: "You now have ETH.\nSet a sell price.", slow: true },
-    { text: `Sell ETH @ ${ss}` },
-    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
-    { text: "Earn again →", accent: true, pulse: true },
-  ];
-
-  return [
-    { text: `Sell ETH @ ${ss}` },
-    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
-    { text: "Price didn't hit.\nYour ETH comes back.", secondary: true },
-    { text: "Earn again →", accent: true, pulse: true },
-    { text: `Sell ETH @ ${ss}` },
-    { text: `Earn $${sp} ✓`, accent: true, counter: sp },
-    { text: `Price hit.\nYou sold ETH @ ${ss}.`, secondary: true },
-    { text: "You now have dollars.\nSet a buy price.", slow: true },
-    { text: `Buy ETH @ ${bs}` },
-    { text: `Earn $${bp} ✓`, accent: true, counter: bp },
-    { text: "Earn again →", accent: true, pulse: true },
-  ];
-}
-
-function LoopCounter({ target }: { target: number }) {
-  const [val, setVal] = useState(0);
-  const frameRef = useRef<number>(0);
-
-  useEffect(() => {
-    const start = performance.now();
-    const duration = 800;
-
-    const animate = (now: number) => {
-      const t = Math.min((now - start) / duration, 1);
-      const eased = 1 - Math.pow(1 - t, 3);
-      setVal(Math.round(target * eased));
-      if (t < 1) frameRef.current = requestAnimationFrame(animate);
-    };
-
-    frameRef.current = requestAnimationFrame(animate);
-    return () => cancelAnimationFrame(frameRef.current);
-  }, [target]);
-
-  return <>${val}</>;
-}
-
-const LoopSection = memo(function LoopSection({
-  side,
-  buyStrike,
-  sellStrike,
-  spotBase,
-}: {
-  side: "buy" | "sell";
-  buyStrike: number;
-  sellStrike: number;
-  spotBase: number;
-}) {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-20%" });
-  const [frameIndex, setFrameIndex] = useState(0);
-  const buyPremium = derivePremium(spotBase, "buy", buyStrike, sellStrike);
-  const sellPremium = derivePremium(spotBase, "sell", buyStrike, sellStrike);
-  const frames = useMemo(
-    () => buildLoopFrames(side, buyStrike, sellStrike, buyPremium, sellPremium),
-    [side, buyStrike, sellStrike, buyPremium, sellPremium],
-  );
-
-  useEffect(() => {
-    setFrameIndex(0);
-  }, [side]);
-
-  useEffect(() => {
-    if (!inView) return;
-    const duration = frames[frameIndex]?.slow ? 2500 : 2000;
-    const timer = setTimeout(() => {
-      setFrameIndex((prev) => (prev + 1) % frames.length);
-    }, duration);
-    return () => clearTimeout(timer);
-  }, [inView, frameIndex, frames]);
-
-  const frame = frames[frameIndex];
-
-  return (
-    <section ref={ref} className="min-h-screen flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-5xl w-full space-y-12">
-        <FadeBlock>
-          <h2 className="text-[clamp(2rem,5vw,3.5rem)] font-light text-[var(--bone)] tracking-tight">
-            Every outcome earns.
-          </h2>
-        </FadeBlock>
-
-        <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface)]/50 p-5 sm:p-10 min-h-[160px] flex items-center justify-center">
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${side}-${frameIndex}`}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -12 }}
-              transition={{ duration: 0.4 }}
-              className="text-center space-y-1"
-            >
-              {frame.text.split("\n").map((line, i) => (
-                <p
-                  key={i}
-                  className={`text-[clamp(1.3rem,3.5vw,2.2rem)] leading-relaxed ${
-                    frame.accent
-                      ? "font-semibold text-[var(--accent)]"
-                      : frame.secondary
-                        ? "text-[var(--text-secondary)] font-light"
-                        : "text-[var(--text)] font-light"
-                  }`}
-                >
-                  {frame.counter && i === 0 ? (
-                    <>Earn <LoopCounter target={frame.counter} /> {"✓"}</>
-                  ) : frame.pulse ? (
-                    <motion.span
-                      animate={{ opacity: [0.7, 1, 0.7] }}
-                      transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
-                    >
-                      {line}
-                    </motion.span>
-                  ) : (
-                    line
-                  )}
-                </p>
-              ))}
-            </motion.div>
-          </AnimatePresence>
-        </div>
-
-        <FadeBlock delay={0.2}>
-          <p className="text-center text-[var(--text-secondary)] text-lg">
-            Real earnings. Paid upfront. Every cycle.
-          </p>
-        </FadeBlock>
-      </div>
-    </section>
-  );
-});
-
 /* ── Section 4: Comparison ── */
 
 const COMPARISONS = [
   { name: "Savings account", apr: "~4%", pros: ["Safe"], cons: ["Not crypto"] },
-  { name: "Staking ETH", apr: "~3.5%", pros: ["Passive"], cons: ["Low income"] },
+  { name: "Staking majors", apr: "~3.5%", pros: ["Passive"], cons: ["Low income"] },
   { name: "Lending (Aave)", apr: "~2%", pros: ["DeFi"], cons: ["Lower income"] },
 ];
 
@@ -701,7 +298,6 @@ const ComparisonSection = memo(function ComparisonSection() {
             </motion.div>
           ))}
 
-          {/* b1nary row — highlighted */}
           <motion.div
             initial={{ opacity: 0, y: 15 }}
             animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
@@ -724,7 +320,7 @@ const ComparisonSection = memo(function ComparisonSection() {
   );
 });
 
-/* ── Section 7: Engine ── */
+/* ── Section 5: Engine ── */
 
 const ENGINE_CARDS = [
   {
@@ -808,61 +404,9 @@ function EngineSection() {
   );
 }
 
-/* ── Section 8: Social Proof ── */
+/* ── Section 6: Agent-native ── */
 
-const STATS = [
-  { label: "Built on", value: "Base" },
-  { label: "Backed", value: "100%" },
-  { label: "Margin calls", value: "None" },
-];
-
-const SocialProofSection = memo(function SocialProofSection() {
-  const ref = useRef<HTMLDivElement>(null);
-  const inView = useInView(ref, { margin: "-20%" });
-
-  return (
-    <section ref={ref} className="py-24 flex items-center justify-center px-6 relative z-[3]">
-      <div className="max-w-5xl w-full space-y-12">
-        <motion.h2
-          initial={{ opacity: 0, y: 20 }}
-          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
-          transition={{ duration: 0.6 }}
-          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--text)] tracking-tight text-center"
-        >
-          Fully collateralized. No margin. No liquidations.
-        </motion.h2>
-
-        <div className="grid grid-cols-3 gap-3 sm:gap-6">
-          {STATS.map((stat, i) => (
-            <motion.div
-              key={stat.label}
-              initial={{ opacity: 0, y: 15 }}
-              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
-              transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
-              className="text-center"
-            >
-              <p className="text-xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
-              <p className="text-sm text-[var(--text-secondary)] opacity-60 mt-1">{stat.label}</p>
-            </motion.div>
-          ))}
-        </div>
-
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={inView ? { opacity: 1 } : { opacity: 0 }}
-          transition={{ duration: 0.5, delay: 0.7 }}
-          className="text-center text-[var(--text-secondary)] opacity-50 text-sm"
-        >
-          Open source · Audited · Live on Base
-        </motion.p>
-      </div>
-    </section>
-  );
-});
-
-/* ── Section 6: Agent-Native ── */
-
-function AgentNativeSection() {
+function AgentNativeSection({ assetSymbol }: { assetSymbol: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const inView = useInView(ref, { once: true, margin: "-10%" });
 
@@ -879,7 +423,6 @@ function AgentNativeSection() {
         </motion.h2>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-10 lg:gap-16 items-center">
-        {/* Left: terminal (wider) */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
@@ -899,7 +442,7 @@ function AgentNativeSection() {
               transition={{ duration: 0.4, delay: 0.2 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell ETH at $2,800&quot;
+                <span className="text-[var(--accent)]">$</span> human clicks &quot;Sell {assetSymbol} at $2,800&quot;
               </p>
               <p className="text-[var(--accent)] mt-1">&gt; +$62 earned</p>
             </motion.div>
@@ -917,7 +460,7 @@ function AgentNativeSection() {
               transition={{ duration: 0.4, delay: 0.6 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> agent POST /execute &#123;asset: &quot;ETH&quot;, price: 2800, side: &quot;sell&quot;&#125;
+                <span className="text-[var(--accent)]">$</span> agent POST /execute &#123;asset: &quot;{assetSymbol}&quot;, price: 2800, side: &quot;sell&quot;&#125;
               </p>
               <p className="text-[var(--accent)] mt-1">&gt; +$62 earned</p>
             </motion.div>
@@ -935,14 +478,13 @@ function AgentNativeSection() {
               transition={{ duration: 0.4, delay: 1.0 }}
             >
               <p className="text-[var(--text-secondary)]">
-                <span className="text-[var(--accent)]">$</span> agent POST /provide &#123;asset: &quot;ETH&quot;, quotes: [...]&#125;
+                <span className="text-[var(--accent)]">$</span> agent POST /provide &#123;asset: &quot;{assetSymbol}&quot;, quotes: [...]&#125;
               </p>
               <p className="text-[var(--accent)] mt-1">&gt; Liquidity published. Earning fees on every trade.</p>
             </motion.div>
           </div>
         </motion.div>
 
-        {/* Right: punchline */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={inView ? { opacity: 1 } : { opacity: 0 }}
@@ -964,7 +506,60 @@ function AgentNativeSection() {
   );
 }
 
-/* ── Section 7: CTA ── */
+function SocialProofSection({
+  socialFooter,
+}: {
+  socialFooter: string;
+}) {
+  const stats = [
+    { label: "Built on", value: "Base + Solana" },
+    { label: "Backed", value: "100%" },
+    { label: "Margin calls", value: "None" },
+  ];
+  const ref = useRef<HTMLDivElement>(null);
+  const inView = useInView(ref, { margin: "-20%" });
+
+  return (
+    <section ref={ref} className="py-24 flex items-center justify-center px-6 relative z-[3]">
+      <div className="max-w-5xl w-full space-y-12">
+        <motion.h2
+          initial={{ opacity: 0, y: 20 }}
+          animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 20 }}
+          transition={{ duration: 0.6 }}
+          className="text-[clamp(1.5rem,4vw,2.5rem)] font-light text-[var(--text)] tracking-tight text-center"
+        >
+          Fully collateralized. No margin. No liquidations.
+        </motion.h2>
+
+        <div className="grid grid-cols-3 gap-3 sm:gap-6">
+          {stats.map((stat, i) => (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 15 }}
+              animate={inView ? { opacity: 1, y: 0 } : { opacity: 0, y: 15 }}
+              transition={{ duration: 0.4, delay: 0.2 + i * 0.1 }}
+              className="text-center"
+            >
+              <p className="text-xl sm:text-3xl font-semibold text-[var(--bone)] font-mono">{stat.value}</p>
+              <p className="text-sm text-[var(--text-secondary)] opacity-60 mt-1">{stat.label}</p>
+            </motion.div>
+          ))}
+        </div>
+
+        <motion.p
+          initial={{ opacity: 0 }}
+          animate={inView ? { opacity: 1 } : { opacity: 0 }}
+          transition={{ duration: 0.5, delay: 0.7 }}
+          className="text-center text-[var(--text-secondary)] opacity-50 text-sm"
+        >
+          {socialFooter}
+        </motion.p>
+      </div>
+    </section>
+  );
+}
+
+/* ── CTA ── */
 
 function CTASection() {
   const ref = useRef<HTMLDivElement>(null);
@@ -994,8 +589,6 @@ function CTASection() {
     </section>
   );
 }
-
-/* ── AI CTA ── */
 
 function AiCtaSection() {
   const ref = useRef<HTMLDivElement>(null);
@@ -1032,18 +625,16 @@ function AiCtaSection() {
 
 /* ── Main ── */
 
-export function LandingPage() {
-  const [side, setSide] = useState<"buy" | "sell">("buy");
-  const { prices, loading: priceLoading } = usePrices(undefined, 30_000);
-  const { spot: liveSpot, loading: spotLoading } = useSpot("eth", 30_000);
-  const quoteSpot = prices[0]?.spot;
-  const spot = liveSpot ? Math.round(liveSpot) : quoteSpot ? Math.round(quoteSpot) : FALLBACK_SPOT;
-  const priceReady = spot !== FALLBACK_SPOT || (!priceLoading && !spotLoading);
-  const { buyStrike, sellStrike } = useMemo(() => deriveStrikes(spot), [spot]);
+export function LandingPage({ hostname }: { hostname?: string }) {
+  const featuredAsset = getAssetConfig(getDefaultAssetSlug(hostname)) ?? getAssetConfig("eth")!;
+  const featuredAssetSymbol = featuredAsset.symbol;
+  const chainLine = "Live on Base and Solana";
+  const launchHref = `/earn/${featuredAsset.slug}`;
+  const launchLabel = isDevnet() ? "Launch Devnet App" : "Launch App";
+  const socialFooter = "Open source · Fully collateralized · No liquidations";
 
   return (
     <div className="bg-[var(--bg)] relative overflow-hidden">
-      {/* Global background layers */}
       <BackgroundEffects />
 
       <header className="fixed top-0 left-0 right-0 z-50 px-6 sm:px-10 lg:px-16 py-5 flex items-center justify-between">
@@ -1067,24 +658,23 @@ export function LandingPage() {
             <XIcon className="w-4 h-4" />
           </a>
           <Link
-            href="/earn"
+            href={launchHref}
             className="rounded-lg px-4 py-3 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
           >
-            Launch App &rarr;
+            {launchLabel} &rarr;
           </Link>
         </div>
       </header>
 
       <main>
-        <HeroSection />
-        <div className="max-w-6xl mx-auto px-6"><div className="border-t border-[var(--border)]/50" /></div>
+        <HeroSection chainLine={chainLine} />
         <ProblemSection />
         <EngineSection />
-        <MechanismSection side={side} onSideChange={setSide} spot={spot} buyStrike={buyStrike} sellStrike={sellStrike} priceReady={priceReady} />
-        <LoopSection side={side} buyStrike={buyStrike} sellStrike={sellStrike} spotBase={spot} />
+        <AssetsStrip />
+        <HowItWorks />
         <ComparisonSection />
-        <AgentNativeSection />
-        <SocialProofSection />
+        <AgentNativeSection assetSymbol={featuredAssetSymbol} />
+        <SocialProofSection socialFooter={socialFooter} />
         <CTASection />
         <AiCtaSection />
       </main>

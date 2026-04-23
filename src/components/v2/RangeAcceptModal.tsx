@@ -30,7 +30,9 @@ import {
 } from "@/lib/execution";
 import { encodeSwapExactOutput } from "@/lib/swap";
 import { getAssetConfig } from "@/lib/assets";
+import { isProductionReadOnlyAsset } from "@/lib/marketState";
 import { DepositModal } from "@/components/DepositModal";
+import { solanaTxUrl } from "@/lib/solana";
 
 const DEADLINE_BUFFER_S = 60;
 
@@ -86,7 +88,7 @@ export function RangeAcceptModal({
   onClose,
   onAccepted,
 }: Props) {
-  const { address, sendBatchTx, isConnected, connectWallet } = useWallet();
+  const { address, sendBatchTx, isConnected } = useWallet();
   const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<RangeStep>("idle");
   const [putTxHash, setPutTxHash] = useState<string | null>(null);
@@ -94,11 +96,16 @@ export function RangeAcceptModal({
   const [error, setError] = useState<string | null>(null);
   const [didSwap, setDidSwap] = useState(false);
   const [showDeposit, setShowDeposit] = useState(false);
-  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc">("usdc");
+  const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol">("usdc");
+  const marketReadOnly = isProductionReadOnlyAsset(
+    getAssetConfig(assetSlug) ?? { slug: assetSlug, chain: putQuote.chain },
+  );
 
   const loading = step === "swapping" || step === "executing-put" || step === "executing-call";
   const done = step === "confirmed";
   const explorerUrl = CHAIN.blockExplorers?.default.url ?? null;
+  const txUrl = (hash: string) =>
+    assetSlug === "sol" ? solanaTxUrl(hash) : `${explorerUrl}/tx/${hash}`;
 
   const stepLabels: Record<RangeStep, string> = {
     "idle": "Accept range",
@@ -110,7 +117,16 @@ export function RangeAcceptModal({
   };
 
   async function handleAccept() {
-    if (!isConnected) { connectWallet(); return; }
+    if (marketReadOnly) {
+      setError(`${assetSymbol} is visible in production, but trading is still coming soon.`);
+      return;
+    }
+
+    if (!isConnected) {
+      setDepositToken("usdc");
+      setShowDeposit(true);
+      return;
+    }
     if (!address) {
       setDepositToken("usdc");
       setShowDeposit(true);
@@ -206,7 +222,7 @@ export function RangeAcceptModal({
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
         setDidSwap(true);
       } else if (callAvailable < callNeeded) {
-        setDepositToken(isBtc ? "btc" : "eth");
+        setDepositToken(isBtc ? "btc" : assetSlug === "sol" ? "sol" : "eth");
         setShowDeposit(true);
         return;
       } else {
@@ -400,6 +416,11 @@ export function RangeAcceptModal({
           <p className="text-lg font-semibold text-[var(--bone)]">
             Range: ${putQuote.strike.toLocaleString()} – ${callQuote.strike.toLocaleString()}
           </p>
+          {marketReadOnly && (
+            <p className="mt-1 text-xs text-amber-400/90">
+              This market is read-only in production. Live quotes are visible, but execution is blocked.
+            </p>
+          )}
           <p className="text-2xl font-bold text-[var(--accent)] font-mono mt-1">
             ${fmtUsd(totalPremium)}
           </p>
@@ -423,7 +444,7 @@ export function RangeAcceptModal({
         </div>
 
         <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
-          Collateral earns Aave yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[assetSlug] ?? 0)} on {assetSymbol}
+          Collateral earns {assetSlug === "sol" ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[assetSlug] ?? 0)} on {assetSymbol}
           <YieldExplainer />
         </p>
 
@@ -479,15 +500,15 @@ export function RangeAcceptModal({
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
         {/* Tx links */}
-        {explorerUrl && (putTxHash || callTxHash) && (
+        {(putTxHash || callTxHash) && (assetSlug === "sol" || explorerUrl) && (
           <div className="flex gap-3 text-xs">
             {putTxHash && (
-              <a href={`${explorerUrl}/tx/${putTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              <a href={txUrl(putTxHash)} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
                 Lower tx
               </a>
             )}
             {callTxHash && (
-              <a href={`${explorerUrl}/tx/${callTxHash}`} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
+              <a href={txUrl(callTxHash)} target="_blank" rel="noopener noreferrer" className="text-[var(--accent)] hover:underline">
                 Upper tx
               </a>
             )}
@@ -497,10 +518,10 @@ export function RangeAcceptModal({
         {/* Action button */}
         <button
           onClick={handleAccept}
-          disabled={loading || done}
+          disabled={marketReadOnly || loading || done}
           className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
         >
-          {stepLabels[step]}
+          {marketReadOnly ? "Coming soon" : stepLabels[step]}
         </button>
 
         {showDeposit && (

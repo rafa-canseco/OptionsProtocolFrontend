@@ -1,3 +1,5 @@
+import { normalizeUsdPrice } from "@/lib/positionMath";
+
 export interface AssetConfig {
   slug: string;
   symbol: string;
@@ -22,6 +24,12 @@ export interface AssetConfig {
   minSellAmount: number;
   /** Minimum buy amount in USD */
   minBuyAmountUsd: number;
+  /** Which chain this asset trades on */
+  chain: "base" | "solana";
+  /** Decimals of the wrapped collateral token for calls */
+  collateralDecimals: number;
+  /** Spot price used when live feed is unavailable */
+  fallbackSpot: number;
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -38,6 +46,9 @@ export const ASSETS: Record<string, AssetConfig> = {
     swapFeeTier: 3000,
     minSellAmount: 0.005,
     minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 18,
+    fallbackSpot: 2621,
   },
   btc: {
     slug: "btc",
@@ -52,39 +63,68 @@ export const ASSETS: Record<string, AssetConfig> = {
     swapFeeTier: 500,
     minSellAmount: 0.0001,
     minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 8,
+    fallbackSpot: 95_000,
   },
-  aero: {
-    slug: "aero",
-    symbol: "AERO",
-    name: "Aerodrome",
-    wrappedSymbol: "AERO",
+  sol: {
+    slug: "sol",
+    symbol: "SOL",
+    name: "Solana",
+    wrappedSymbol: "wSOL",
     stableSymbol: "USDC",
-    maxAmount: 0,
-    maxAmountUsd: 0,
-    amountPlaceholder: "0",
-    displayDecimals: 2,
-    comingSoon: true,
-    minSellAmount: 0,
-    minBuyAmountUsd: 0,
+    maxAmount: 10_000,
+    maxAmountUsd: 1_000_000,
+    amountPlaceholder: "10",
+    displayDecimals: 4,
+    minSellAmount: 0.1,
+    minBuyAmountUsd: 10,
+    chain: "solana",
+    collateralDecimals: 9,
+    fallbackSpot: 180,
   },
-  virtual: {
-    slug: "virtual",
-    symbol: "VIRTUAL",
-    name: "Virtuals Protocol",
-    wrappedSymbol: "VIRTUAL",
+  tslax: {
+    slug: "tslax",
+    symbol: "TSLAx",
+    name: "Tesla xStock",
+    wrappedSymbol: "TSLAx",
     stableSymbol: "USDC",
-    maxAmount: 0,
-    maxAmountUsd: 0,
-    amountPlaceholder: "0",
-    displayDecimals: 2,
-    comingSoon: true,
-    minSellAmount: 0,
-    minBuyAmountUsd: 0,
+    maxAmount: 10_000,
+    maxAmountUsd: 1_000_000,
+    amountPlaceholder: "10",
+    displayDecimals: 4,
+    minSellAmount: 0.01,
+    minBuyAmountUsd: 10,
+    chain: "solana",
+    collateralDecimals: 8,
+    fallbackSpot: 350,
   },
 };
 
 export const ASSET_SLUGS = Object.keys(ASSETS);
-export const DEFAULT_ASSET = "eth";
+const DEFAULT_ASSET_FALLBACK = "eth";
+
+function getHostnameDefaultAsset(hostname?: string): string | null {
+  if (!hostname) return null;
+  const normalized = hostname.toLowerCase().split(":")[0];
+  if (normalized === "solana.b1nary.app" || normalized.startsWith("solana.")) {
+    return "sol";
+  }
+  return null;
+}
+
+export function getDefaultAssetSlug(hostname?: string): string {
+  const override = process.env.NEXT_PUBLIC_FEATURED_ASSET;
+  if (override && override in ASSETS) return override;
+  const hostDefault = getHostnameDefaultAsset(hostname);
+  if (hostDefault) return hostDefault;
+  const chain = process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
+  if (chain === "solana") return "sol";
+  return DEFAULT_ASSET_FALLBACK;
+}
+
+/** @deprecated Use getDefaultAssetSlug() for deployment-aware routing. */
+export const DEFAULT_ASSET = DEFAULT_ASSET_FALLBACK;
 
 if (!(DEFAULT_ASSET in ASSETS)) {
   throw new Error(
@@ -110,8 +150,10 @@ export function resolvePositionAsset(
     if (config) return config;
   }
   if (strikePrice != null) {
-    const strikeUsd = strikePrice / 1e8;
-    return strikeUsd > 10_000 ? ASSETS.btc : ASSETS.eth;
+    const strikeUsd = normalizeUsdPrice(strikePrice);
+    if (strikeUsd > 10_000) return ASSETS.btc;
+    if (strikeUsd < 500) return ASSETS.sol;
+    return ASSETS.eth;
   }
-  return ASSETS[DEFAULT_ASSET];
+  return ASSETS[DEFAULT_ASSET_FALLBACK];
 }

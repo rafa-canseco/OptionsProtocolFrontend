@@ -5,49 +5,88 @@ import type { Address } from "viem";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export function useFaucet(address: Address | undefined, onComplete?: () => void) {
+interface FaucetOpts {
+  address: Address | undefined;
+  solanaAddress: string | undefined;
+  onComplete?: () => void;
+}
+
+type FaucetResult =
+  | { ok: true }
+  | { ok: false; error: string };
+
+export function useFaucet({ address, solanaAddress, onComplete }: FaucetOpts) {
   const [minting, setMinting] = useState(false);
-  const [showNotification, setShowNotification] = useState(false);
+  const [notification, setNotification] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function mint() {
-    if (!address) {
-      console.warn("[useFaucet] mint called without address");
-      return;
-    }
-    setMinting(true);
-    setError(null);
-
+  async function callFaucet(
+    url: string,
+    body: Record<string, string>,
+  ): Promise<FaucetResult> {
     try {
-      const res = await fetch(`${API_BASE}/faucet`, {
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ address }),
+        body: JSON.stringify(body),
       });
-
       if (!res.ok) {
         let detail: string | undefined;
         try {
-          const body = await res.json();
-          detail = body.detail;
-        } catch {
-          const text = await res.text().catch(() => "");
-          console.error("[useFaucet] Non-JSON error response:", text);
-        }
-        throw new Error(detail || `Faucet error (${res.status})`);
+          const data = await res.json();
+          detail = data.detail;
+        } catch { /* non-JSON */ }
+        return { ok: false, error: detail || `Faucet error (${res.status})` };
       }
-
-      setShowNotification(true);
-      setTimeout(() => setShowNotification(false), 5000);
-      window.dispatchEvent(new Event("balance:refetch"));
-      await onComplete?.();
+      return { ok: true };
     } catch (err) {
-      console.error("[useFaucet] Mint failed:", err);
-      setError(err instanceof Error ? err.message : "Failed to get test tokens. Try again.");
-    } finally {
-      setMinting(false);
+      return {
+        ok: false,
+        error: err instanceof Error ? err.message : "Network error",
+      };
     }
   }
 
-  return { mint, minting, showNotification, error };
+  async function mint() {
+    if (!address && !solanaAddress) return;
+    setMinting(true);
+    setError(null);
+
+    const results: string[] = [];
+    const errors: string[] = [];
+
+    const [baseResult, solanaResult] = await Promise.all([
+      address
+        ? callFaucet(`${API_BASE}/faucet`, { address })
+        : null,
+      solanaAddress
+        ? callFaucet(`${API_BASE}/faucet/solana`, { address: solanaAddress })
+        : null,
+    ]);
+
+    if (baseResult?.ok) {
+      results.push("100,000 USDC, 50 ETH, and 2 BTC on Base");
+    } else if (baseResult) {
+      errors.push(baseResult.error);
+    }
+
+    if (solanaResult?.ok) {
+      results.push("10,000 USDC and 0.1 SOL on Solana");
+    } else if (solanaResult) {
+      errors.push(solanaResult.error);
+    }
+
+    if (results.length > 0) {
+      setNotification(`You received ${results.join("; ")}.`);
+      setTimeout(() => setNotification(null), 5000);
+      window.dispatchEvent(new Event("balance:refetch"));
+      await onComplete?.();
+    } else {
+      setError(errors[0] || "Failed to get test tokens.");
+    }
+
+    setMinting(false);
+  }
+
+  return { mint, minting, notification, error };
 }

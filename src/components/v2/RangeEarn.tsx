@@ -20,6 +20,7 @@ interface RangeEarnProps {
   prices: PriceQuote[];
   activeExpiry: string | null;
   spot?: number;
+  marketReadOnly?: boolean;
   walletBalance: number;
   amountStr: string;
   onAmountChange: (val: string) => void;
@@ -43,13 +44,14 @@ export function RangeEarn({
   prices,
   activeExpiry,
   spot,
+  marketReadOnly = false,
   walletBalance,
   amountStr,
   onAmountChange,
   onAccepted,
   yieldMetric,
 }: RangeEarnProps) {
-  const { isConnected, connectWallet } = useWallet();
+  const { isConnected } = useWallet();
   const [putQuote, setPutQuote] = useState<PriceQuote | null>(null);
   const [callQuote, setCallQuote] = useState<PriceQuote | null>(null);
   const amount = Number(amountStr) || 0;
@@ -225,7 +227,7 @@ export function RangeEarn({
                   const apr = computeAPR(q.premium, q.strike, q.expiry_days);
                   const roi = computeROI(q.premium, q.strike);
                   const selected = putQuote?.strike === q.strike;
-                  const disabled = !q.otoken_address || q.available_amount <= 0;
+                  const disabled = q.available_amount <= 0;
                   const dist = spot ? ((q.strike - spot) / spot * 100) : null;
                   return (
                     <button
@@ -290,7 +292,7 @@ export function RangeEarn({
                   const apr = computeAPR(q.premium, q.strike, q.expiry_days);
                   const roi = computeROI(q.premium, q.strike);
                   const selected = callQuote?.strike === q.strike;
-                  const disabled = !q.otoken_address || q.available_amount <= 0;
+                  const disabled = q.available_amount <= 0;
                   const dist = spot ? ((q.strike - spot) / spot * 100) : null;
                   return (
                     <button
@@ -367,17 +369,19 @@ export function RangeEarn({
         <div className="animate-fade-in-up" data-tour="range-accept">
           <button
             onClick={() => {
-              if (!isConnected) { connectWallet(); return; }
+              if (marketReadOnly) return;
               setConfirming(true);
             }}
-            disabled={!canAccept && isConnected}
+            disabled={marketReadOnly || (!canAccept && isConnected)}
             className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-              canAccept
+              !marketReadOnly && canAccept
                 ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                 : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
             }`}
           >
-            {!isConnected
+            {marketReadOnly
+              ? "Coming soon"
+              : !isConnected
               ? "Connect wallet"
               : !amount
                 ? "Enter an amount"
@@ -391,7 +395,7 @@ export function RangeEarn({
       </div>
 
       {/* RangeAcceptModal */}
-      {confirming && putQuote && callQuote && (
+      {confirming && putQuote && callQuote && !marketReadOnly && (
         <RangeAcceptModal
           putQuote={putQuote}
           callQuote={callQuote}

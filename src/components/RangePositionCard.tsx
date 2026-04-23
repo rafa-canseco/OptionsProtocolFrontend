@@ -5,11 +5,25 @@ import Link from "next/link";
 import type { Position } from "@/lib/api";
 import { fmtUsd, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
+import { solanaTxUrl } from "@/lib/solana";
+import { getAssetConfig } from "@/lib/assets";
+import { getPositionStrike } from "@/lib/positionMath";
 import { YieldExplainer } from "./yield/YieldExplainer";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
 const EXPLORER = CHAIN.blockExplorers?.default.url ?? null;
+
+function explorerTxUrl(txHash: string, slug: string): string | null {
+  if (slug === "sol") {
+    return solanaTxUrl(txHash);
+  }
+  return EXPLORER ? `${EXPLORER}/tx/${txHash}` : null;
+}
+
+function positionOpenTxUrl(position: Position, slug: string): string | null {
+  return position.tx_url ?? explorerTxUrl(position.tx_hash, slug);
+}
 
 interface YieldInfo {
   asset: string;
@@ -45,8 +59,8 @@ export function RangePositionCard({
   const callLeg = positions.find((p) => !p.is_put);
   if (!putLeg || !callLeg) return null;
 
-  const putStrike = putLeg.strike_price / 1e8;
-  const callStrike = callLeg.strike_price / 1e8;
+  const putStrike = getPositionStrike(putLeg);
+  const callStrike = getPositionStrike(callLeg);
   const isActive = !putLeg.is_settled && !callLeg.is_settled;
   const isSettled = putLeg.is_settled && callLeg.is_settled;
 
@@ -56,8 +70,7 @@ export function RangePositionCard({
   const totalPremium = putPremium + callPremium;
 
   // Combined committed capital (both sides in USD)
-  const isBtc = assetSlug === "btc";
-  const callDec = isBtc ? 1e8 : 1e18;
+  const callDec = 10 ** (getAssetConfig(assetSlug)?.collateralDecimals ?? 18);
   const putCommittedUsd = putLeg.collateral / 1e6;
   const callCommittedUsd = (callLeg.collateral / callDec) * callStrike;
   const totalCommittedUsd = putCommittedUsd + callCommittedUsd;
@@ -220,11 +233,11 @@ export function RangePositionCard({
                   ${fmtUsd(callPremium)}
                 </span>
               </div>
-              {EXPLORER && (
+              {(putLeg.tx_hash || callLeg.tx_hash) && (
                 <div className="flex gap-3">
-                  {putLeg.tx_hash && (
+                  {putLeg.tx_hash && positionOpenTxUrl(putLeg, assetSlug) && (
                     <a
-                      href={`${EXPLORER}/tx/${putLeg.tx_hash}`}
+                      href={positionOpenTxUrl(putLeg, assetSlug)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[var(--accent)] hover:underline"
@@ -232,9 +245,9 @@ export function RangePositionCard({
                       Lower tx
                     </a>
                   )}
-                  {callLeg.tx_hash && (
+                  {callLeg.tx_hash && positionOpenTxUrl(callLeg, assetSlug) && (
                     <a
-                      href={`${EXPLORER}/tx/${callLeg.tx_hash}`}
+                      href={positionOpenTxUrl(callLeg, assetSlug)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[var(--accent)] hover:underline"
@@ -356,11 +369,11 @@ export function RangePositionCard({
                   ${fmtUsd(callPremium)}
                 </span>
               </div>
-              {EXPLORER && (
+              {(positionOpenTxUrl(putLeg, assetSlug) || positionOpenTxUrl(callLeg, assetSlug)) && (
                 <div className="flex gap-3">
-                  {putLeg.tx_hash && (
+                  {positionOpenTxUrl(putLeg, assetSlug) && (
                     <a
-                      href={`${EXPLORER}/tx/${putLeg.tx_hash}`}
+                      href={positionOpenTxUrl(putLeg, assetSlug)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[var(--accent)] hover:underline"
@@ -368,9 +381,9 @@ export function RangePositionCard({
                       Lower tx
                     </a>
                   )}
-                  {callLeg.tx_hash && (
+                  {positionOpenTxUrl(callLeg, assetSlug) && (
                     <a
-                      href={`${EXPLORER}/tx/${callLeg.tx_hash}`}
+                      href={positionOpenTxUrl(callLeg, assetSlug)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="text-[var(--accent)] hover:underline"

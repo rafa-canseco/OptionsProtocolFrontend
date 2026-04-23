@@ -6,9 +6,36 @@ import type { Position } from "@/lib/api";
 import { fmtUsd, fmtAsset } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { resolvePositionAsset } from "@/lib/assets";
+import { getPositionExpiryPrice, getPositionStrike } from "@/lib/positionMath";
+import { solanaTxUrl } from "@/lib/solana";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
 const DEFAULT_VISIBLE = 5;
+
+function explorerTxUrl(txHash: string, slug: string): string | null {
+  if (slug === "sol") return solanaTxUrl(txHash);
+  return EXPLORER_BASE ? `${EXPLORER_BASE}/tx/${txHash}` : null;
+}
+
+function positionTxUrl(
+  position: Position,
+  kind: "open" | "settlement" | "delivery",
+  slug: string,
+): string | null {
+  if (kind === "open") {
+    return position.tx_url ?? explorerTxUrl(position.tx_hash, slug);
+  }
+  if (kind === "settlement") {
+    return position.settlement_tx_url ??
+      (position.settlement_tx_hash
+        ? explorerTxUrl(position.settlement_tx_hash, slug)
+        : null);
+  }
+  return position.delivery_tx_url ??
+    (position.delivery_tx_hash
+      ? explorerTxUrl(position.delivery_tx_hash, slug)
+      : null);
+}
 
 type DisplayItem =
   | { type: "single"; position: Position }
@@ -114,8 +141,8 @@ function RangeTradeRow({
   const assetSymbol = posAsset.symbol;
   const earnBase = `/earn/${posAsset.slug}`;
 
-  const putStrike = putLeg.strike_price / 1e8;
-  const callStrike = callLeg.strike_price / 1e8;
+  const putStrike = getPositionStrike(putLeg);
+  const callStrike = getPositionStrike(callLeg);
 
   const putPremium = Number(putLeg.net_premium) / 1e6;
   const callPremium = Number(callLeg.net_premium) / 1e6;
@@ -127,14 +154,13 @@ function RangeTradeRow({
   const indexedTime = date.getTime();
   const expiryDays = Math.max(1, Math.floor((putLeg.expiry * 1000 - indexedTime) / 86_400_000));
 
-  const expiryPriceUsd = putLeg.expiry_price != null ? putLeg.expiry_price / 1e8 : null;
+  const expiryPriceUsd = getPositionExpiryPrice(putLeg);
 
   const putItm = putLeg.is_itm === true;
   const callItm = callLeg.is_itm === true;
   const outcome = putItm || callItm ? "Assigned" : "Earned";
 
-  const isBtc = posAsset.slug === "btc";
-  const callDec = isBtc ? 1e8 : 1e18;
+  const callDec = 10 ** posAsset.collateralDecimals;
   const putCommittedDisplay = `$${(putLeg.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
   const callCommittedDisplay = `${fmtAsset(callLeg.collateral / callDec)} ${assetSymbol}`;
   const putAmount = fmtAsset(putLeg.amount / 1e8);
@@ -208,27 +234,22 @@ function RangeTradeRow({
               {expiryPriceUsd != null && (
                 <p>Maturity price: ${expiryPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}/{assetSymbol}</p>
               )}
-              {EXPLORER_BASE && (
+              {(positionTxUrl(putLeg, "open", posAsset.slug) ||
+                positionTxUrl(callLeg, "open", posAsset.slug) ||
+                positionTxUrl(putLeg, "settlement", posAsset.slug) ||
+                positionTxUrl(callLeg, "settlement", posAsset.slug)) && (
                 <div className="flex gap-3">
-                  {putLeg.tx_hash && (
-                    <a href={`${EXPLORER_BASE}/tx/${putLeg.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
-                      Lower tx
-                    </a>
+                  {positionTxUrl(putLeg, "open", posAsset.slug) && (
+                    <a href={positionTxUrl(putLeg, "open", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">Lower tx</a>
                   )}
-                  {callLeg.tx_hash && (
-                    <a href={`${EXPLORER_BASE}/tx/${callLeg.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
-                      Upper tx
-                    </a>
+                  {positionTxUrl(callLeg, "open", posAsset.slug) && (
+                    <a href={positionTxUrl(callLeg, "open", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">Upper tx</a>
                   )}
-                  {(putLeg.settlement_tx_hash ?? callLeg.settlement_tx_hash) && (
-                    <a
-                      href={`${EXPLORER_BASE}/tx/${(putLeg.settlement_tx_hash ?? callLeg.settlement_tx_hash)!}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-mono text-[var(--accent)] hover:underline"
-                    >
-                      Settle tx
-                    </a>
+                  {positionTxUrl(putLeg, "settlement", posAsset.slug) && (
+                    <a href={positionTxUrl(putLeg, "settlement", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">Lower settle tx</a>
+                  )}
+                  {positionTxUrl(callLeg, "settlement", posAsset.slug) && (
+                    <a href={positionTxUrl(callLeg, "settlement", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">Upper settle tx</a>
                   )}
                 </div>
               )}
@@ -254,7 +275,7 @@ function TradeRow({
   const earnBase = `/earn/${posAsset.slug}`;
   const isBuy = p.is_put;
   const isItm = p.is_itm === true;
-  const strike = p.strike_price / 1e8;
+  const strike = getPositionStrike(p);
   const premiumUsd = Number(p.net_premium) / 1e6;
   const ethAmount = p.amount / 1e8;
   const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
@@ -275,7 +296,7 @@ function TradeRow({
 
   // Cost basis + settlement price (for expanded detail)
   const costBasis = isBuy ? strike - premiumPerEth : strike + premiumPerEth;
-  const expiryPriceUsd = p.expiry_price != null ? p.expiry_price / 1e8 : null;
+  const expiryPriceUsd = getPositionExpiryPrice(p);
 
   // Next step link
   let nextLabel: string;
@@ -288,8 +309,8 @@ function TradeRow({
     nextSide = isBuy ? "buy" : "sell";
   }
 
-  // Expanded detail — call collateral decimals: WETH=18, WBTC=8
-  const collateralDecimals = posAsset.slug === "btc" ? 1e8 : 1e18;
+  // Expanded detail — call collateral decimals come from the asset registry.
+  const collateralDecimals = 10 ** posAsset.collateralDecimals;
   const committedDisplay = isBuy
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${fmtAsset(p.collateral / collateralDecimals)} ${assetSymbol}`;
@@ -383,20 +404,22 @@ function TradeRow({
                 </>
               )}
 
-              {EXPLORER_BASE && (
+              {(positionTxUrl(p, "open", posAsset.slug) ||
+                positionTxUrl(p, "settlement", posAsset.slug) ||
+                positionTxUrl(p, "delivery", posAsset.slug)) && (
                 <div className="flex gap-3">
-                  {p.tx_hash && (
-                    <a href={`${EXPLORER_BASE}/tx/${p.tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                  {positionTxUrl(p, "open", posAsset.slug) && (
+                    <a href={positionTxUrl(p, "open", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
                       Open tx
                     </a>
                   )}
-                  {p.settlement_tx_hash && (
-                    <a href={`${EXPLORER_BASE}/tx/${p.settlement_tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                  {positionTxUrl(p, "settlement", posAsset.slug) && (
+                    <a href={positionTxUrl(p, "settlement", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
                       Settle tx
                     </a>
                   )}
-                  {p.delivery_tx_hash && (
-                    <a href={`${EXPLORER_BASE}/tx/${p.delivery_tx_hash}`} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
+                  {positionTxUrl(p, "delivery", posAsset.slug) && (
+                    <a href={positionTxUrl(p, "delivery", posAsset.slug)!} target="_blank" rel="noopener noreferrer" className="font-mono text-[var(--accent)] hover:underline">
                       Delivery tx
                     </a>
                   )}

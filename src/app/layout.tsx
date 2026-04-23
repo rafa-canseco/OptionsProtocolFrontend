@@ -5,13 +5,15 @@ import "./globals.css";
 
 export const dynamic = "force-dynamic";
 
+const description =
+  "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents.";
+
 export const metadata: Metadata = {
   title: {
     default: "b1nary · Turn volatility into income",
     template: "%s | b1nary",
   },
-  description:
-    "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents. Live on Base.",
+  description,
   icons: {
     icon: [
       { url: "/favicon.ico", sizes: "48x48" },
@@ -26,14 +28,12 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "b1nary",
     title: "b1nary · Turn volatility into income",
-    description:
-      "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents. Live on Base.",
+    description,
   },
   twitter: {
     card: "summary",
     title: "b1nary · Turn volatility into income",
-    description:
-      "Set your price on any asset. Get paid upfront. The volatility protocol for humans and AI agents. Live on Base.",
+    description,
   },
 };
 

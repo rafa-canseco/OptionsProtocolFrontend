@@ -4,6 +4,7 @@ import {
   type Address,
 } from "viem";
 import { publicClient, ADDRESSES, ERC20_ABI, BATCH_SETTLER_ABI } from "@/lib/contracts";
+import { getAssetConfig } from "@/lib/assets";
 import type { PriceQuote, Position } from "@/lib/api";
 
 export function computeAPR(
@@ -42,9 +43,10 @@ export function computeCollateral(
     return { oTokenAmount, collateral, collateralAsset: ADDRESSES.usdc };
   }
   const oTokenAmount = parseUnits(truncate(amount, 8), 8);
-  const isBtc = assetSlug === "btc";
-  const collateral = isBtc ? oTokenAmount : oTokenAmount * BigInt(1e10);
-  const collateralAsset = isBtc ? ADDRESSES.wbtc : ADDRESSES.weth;
+  const config = getAssetConfig(assetSlug);
+  const scale = BigInt(10) ** BigInt((config?.collateralDecimals ?? 18) - 8);
+  const collateral = oTokenAmount * scale;
+  const collateralAsset = assetSlug === "btc" ? ADDRESSES.wbtc : ADDRESSES.weth;
   return { oTokenAmount, collateral, collateralAsset };
 }
 
@@ -153,7 +155,8 @@ export function buildOptimisticPosition(
   const optOTokenAmt = isBuy
     ? (amount / quote.strike) * 1e8
     : amount * 1e8;
-  const callDecimals = assetSlug === "btc" ? 1e8 : 1e18;
+  const config = getAssetConfig(assetSlug);
+  const callDecimals = 10 ** (config?.collateralDecimals ?? 18);
   const optCollateral = isBuy ? amount * 1e6 : amount * callDecimals;
   const optPremium = isBuy
     ? String(((quote.premium * amount) / quote.strike) * 1e6)

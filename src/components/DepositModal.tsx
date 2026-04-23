@@ -1,13 +1,17 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { encodeFunctionData, formatUnits, parseUnits } from "viem";
-import { useWallet } from "@/hooks/useWallet";
+import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
+import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
+import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
+import { isSolanaOffInProd } from "@/lib/marketState";
+import { SOLANA_TSLAX_MINT, solanaTxUrl } from "@/lib/solana";
 
 type Tab = "deposit" | "withdraw";
-type Token = "usdc" | "eth" | "weth" | "btc";
+type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "tslax";
+type AccountBalanceToken = Token | "wsol";
 
 interface TokenConfig {
   label: string;
@@ -15,18 +19,26 @@ interface TokenConfig {
   decimals: number;
 }
 
-const TOKEN_META: Record<Token, TokenConfig> = {
+const TOKEN_META: Record<AccountBalanceToken, TokenConfig> = {
   usdc: { label: "USDC", icon: "/usdc.svg", decimals: 6 },
   eth: { label: "ETH", icon: "/eth.png", decimals: 18 },
   weth: { label: "WETH", icon: "/weth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
+  sol: { label: "SOL", icon: "/sol.png", decimals: 9 },
+  tslax: { label: "TSLAx", icon: "/tslax.svg", decimals: 8 },
+  wsol: { label: "wSOL", icon: "/sol.png", decimals: 9 },
 };
+
+const TOKENS_BY_CHAIN: Record<"base" | "solana", Token[]> = {
+  base: ["usdc", "eth", "weth", "btc"],
+  solana: ["usdc", "sol", "tslax"],
+};
+
+const SOL_FEE_RESERVE_LAMPORTS = BigInt(5_000_000);
 
 interface Props {
   onClose: () => void;
-  /** Pre-select a token when opened from a trade interception */
   requiredToken?: Token;
-  /** Called after a successful deposit */
   onComplete?: () => void;
 }
 
@@ -34,71 +46,298 @@ function truncate(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
-  const { address, fundingAddress, withdrawAddress, hasExternalWallet, sendBatchTx, sendFundingTx, activateSmartWallet, disconnect } = useWallet();
-  const smartBalances = useBalances(address);
-  const eoaBalances = useBalances(fundingAddress);
+function chainLabel(chain: "base" | "solana"): string {
+  return chain === "base" ? "Base" : "Solana";
+}
 
-  const [tab, setTab] = useState<Tab>("deposit");
-  const [token, setToken] = useState<Token>(requiredToken ?? "usdc");
-  const [amountStr, setAmountStr] = useState("");
-  const [status, setStatus] = useState<"idle" | "pending" | "done" | "activating">("idle");
-  const [error, setError] = useState<string | null>(null);
+function refetchBalancesSoon() {
+  window.dispatchEvent(new Event("balance:refetch"));
+}
 
+function TokenIcon({
+  token,
+  className,
+}: {
+  token: AccountBalanceToken;
+  className: string;
+}) {
   const meta = TOKEN_META[token];
+  return (
+    <span className={`relative inline-flex shrink-0 ${className}`}>
+      <img
+        src={meta.icon}
+        alt={meta.label}
+        className="h-full w-full rounded-full"
+      />
+      {token === "wsol" && (
+        <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold leading-none text-[var(--bg)]">
+          W
+        </span>
+      )}
+    </span>
+  );
+}
 
-  // Available balance depends on direction
-  const availableBalance = tab === "deposit"
-    ? token === "usdc" ? eoaBalances.usd
-      : token === "eth" ? eoaBalances.eth
-      : token === "weth" ? eoaBalances.weth
-      : eoaBalances.wbtc
-    : token === "usdc" ? smartBalances.usd
-      : token === "eth" || token === "weth" ? smartBalances.weth
-      : smartBalances.wbtc;
+export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
+  const {
+    address,
+    fundingAddress,
+    withdrawAddress,
+    hasExternalWallet,
+    solanaAddress,
+    externalWallets: rawExternalWallets,
+    sendBatchTx,
+    sendFundingTx,
+    sendSolanaDeposit,
+    sendSolanaSolDeposit,
+    sendSolanaWithdraw,
+    sendSolanaSolWithdraw,
+    activateSmartWallet,
+    connectWallet,
+    disconnect,
+  } = useWallet();
+  const solanaDisabled = isSolanaOffInProd();
+  const externalWallets = solanaDisabled
+    ? rawExternalWallets.filter((w) => w.chain !== "solana")
+    : rawExternalWallets;
+  const [tab, setTab] = useState<Tab>("deposit");
+  const [selectedWallet, setSelectedWallet] =
+    useState<ExternalWallet | null>(null);
+  const initialToken: Token =
+    requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax"))
+      ? requiredToken
+      : "usdc";
+  const [token, setToken] = useState<Token>(initialToken);
 
-  // Use raw bigint balance for Max to avoid float precision issues
-  const rawBalance = tab === "deposit"
-    ? token === "usdc" ? eoaBalances.usdRaw
-      : token === "eth" ? eoaBalances.ethRaw
-      : token === "weth" ? eoaBalances.wethRaw
-      : eoaBalances.wbtcRaw
-    : token === "usdc" ? smartBalances.usdRaw
-      : token === "eth" || token === "weth" ? smartBalances.wethRaw
-      : smartBalances.wbtcRaw;
+  const smartBalances = useBalances(address);
+  const selectedBaseAddress =
+    selectedWallet?.chain === "base"
+      ? (selectedWallet.address as Address)
+      : undefined;
+  const eoaBalances = useBalances(selectedBaseAddress ?? fundingAddress);
+  const solBalance = useSolanaBalance(solanaAddress);
+  const solExternalBalance = useSolanaBalance(
+    selectedWallet?.chain === "solana" ? selectedWallet.address : undefined,
+  );
+  const [amountStr, setAmountStr] = useState("");
+  const [status, setStatus] = useState<
+    "idle" | "pending" | "done" | "activating"
+  >("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [txHash, setTxHash] = useState<string | null>(null);
+  const [txChain, setTxChain] = useState<"base" | "solana" | null>(null);
+  const [assetMenuOpen, setAssetMenuOpen] = useState(false);
+  const [assetSearch, setAssetSearch] = useState("");
+  const [baseBalanceMenuOpen, setBaseBalanceMenuOpen] = useState(false);
+  const [solanaBalanceMenuOpen, setSolanaBalanceMenuOpen] = useState(false);
+  const [baseBalanceSearch, setBaseBalanceSearch] = useState("");
+  const [solanaBalanceSearch, setSolanaBalanceSearch] = useState("");
+  const [baseBalanceToken, setBaseBalanceToken] =
+    useState<AccountBalanceToken>("usdc");
+  const [solanaBalanceToken, setSolanaBalanceToken] =
+    useState<AccountBalanceToken>("sol");
+
+  // Auto-select a useful wallet when the list populates.
+  useEffect(() => {
+    if (!selectedWallet && externalWallets.length > 0) {
+      const preferredChain =
+        !solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax")
+          ? "solana"
+          : "base";
+      setSelectedWallet(
+        externalWallets.find((w) => w.chain === preferredChain) ??
+          externalWallets[0],
+      );
+    }
+  }, [selectedWallet, externalWallets, requiredToken, solanaDisabled]);
+
+  // Reset token if selected token not available for chain
+  useEffect(() => {
+    if (!selectedWallet) return;
+    const available = TOKENS_BY_CHAIN[selectedWallet.chain];
+    if (!available.includes(token)) {
+      setToken(available[0]);
+      setAmountStr("");
+    }
+  }, [selectedWallet, token]);
+
+  const chain = selectedWallet?.chain ?? (
+    !solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax")
+      ? "solana"
+      : "base"
+  );
+  const meta = TOKEN_META[token];
+  const availableTokens = TOKENS_BY_CHAIN[chain];
+  const filteredAssetTokens = availableTokens.filter((asset) =>
+    TOKEN_META[asset].label.toLowerCase().includes(assetSearch.trim().toLowerCase()),
+  );
+  const baseBalanceTokens: AccountBalanceToken[] = ["usdc", "eth", "weth", "btc"];
+  const solanaBalanceTokens: AccountBalanceToken[] = ["usdc", "sol", "tslax", "wsol"];
+  const filteredBaseBalanceTokens = baseBalanceTokens.filter((asset) =>
+    TOKEN_META[asset].label.toLowerCase().includes(baseBalanceSearch.trim().toLowerCase()),
+  );
+  const filteredSolanaBalanceTokens = solanaBalanceTokens.filter((asset) =>
+    TOKEN_META[asset].label.toLowerCase().includes(solanaBalanceSearch.trim().toLowerCase()),
+  );
+
+  // --- Available balance for deposit/withdraw ---
+  const solanaWalletBalance =
+    tab === "deposit" ? solExternalBalance : solBalance;
+
+  const getRawBalance = useCallback((asset: Token): bigint => {
+    if (chain === "solana") {
+      if (asset === "sol") return solanaWalletBalance.solanaSolRaw;
+      if (asset === "usdc") return solanaWalletBalance.solanaUsdcRaw;
+      if (asset === "tslax") return solanaWalletBalance.solanaTslaxRaw;
+      return BigInt(0);
+    }
+    if (tab === "deposit") {
+      if (asset === "usdc") return eoaBalances.usdRaw;
+      if (asset === "eth") return eoaBalances.ethRaw;
+      if (asset === "weth") return eoaBalances.wethRaw;
+      if (asset === "btc") return eoaBalances.wbtcRaw;
+      return BigInt(0);
+    }
+    if (asset === "usdc") return smartBalances.usdRaw;
+    if (asset === "eth") return smartBalances.ethRaw;
+    if (asset === "weth") return smartBalances.wethRaw;
+    if (asset === "btc") return smartBalances.wbtcRaw;
+    return BigInt(0);
+  }, [chain, eoaBalances, smartBalances, solanaWalletBalance, tab]);
+
+  const getSpendableRaw = useCallback((asset: Token): bigint => {
+    const balance = getRawBalance(asset);
+    if (asset !== "sol") return balance;
+    return balance > SOL_FEE_RESERVE_LAMPORTS
+      ? balance - SOL_FEE_RESERVE_LAMPORTS
+      : BigInt(0);
+  }, [getRawBalance]);
+
+  const maxSpendableRaw = getSpendableRaw(token);
+  const maxSpendableBalance = Number(formatUnits(maxSpendableRaw, meta.decimals));
+  const selectedWalletAddress = selectedWallet?.address;
+
+  const formatTokenBalance = useCallback((asset: Token): string => {
+    const tokenMeta = TOKEN_META[asset];
+    const balance = Number(formatUnits(getSpendableRaw(asset), tokenMeta.decimals));
+    if (asset === "usdc") {
+      return `$${balance.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    return `${balance.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: tokenMeta.decimals === 8 ? 6 : 4,
+    })} ${tokenMeta.label}`;
+  }, [getSpendableRaw]);
+
+  const handleConnectWallet = useCallback(() => {
+    connectWallet({
+      walletList: ["metamask", "coinbase_wallet", "rainbow", "phantom"],
+      walletChainType: "ethereum-and-solana",
+      description: "Choose the wallet you want to use for deposits and withdrawals.",
+    });
+  }, [connectWallet]);
 
   const handleMax = useCallback(() => {
-    setAmountStr(formatUnits(rawBalance, meta.decimals));
-  }, [rawBalance, meta.decimals]);
+    if (maxSpendableRaw > BigInt(0)) {
+      setAmountStr(formatUnits(maxSpendableRaw, meta.decimals));
+    }
+  }, [maxSpendableRaw, meta.decimals]);
 
-  const handleDeposit = useCallback(async () => {
+  const needsBaseActivation = !address;
+
+  const getTradingBalanceRaw = useCallback((
+    account: "base" | "solana",
+    asset: AccountBalanceToken,
+  ): bigint => {
+    if (account === "base") {
+      if (asset === "usdc") return smartBalances.usdRaw;
+      if (asset === "eth") return smartBalances.ethRaw;
+      if (asset === "weth") return smartBalances.wethRaw;
+      if (asset === "btc") return smartBalances.wbtcRaw;
+      return BigInt(0);
+    }
+    if (asset === "usdc") return solBalance.solanaUsdcRaw;
+    if (asset === "sol") return solBalance.solanaSolRaw;
+    if (asset === "tslax") return solBalance.solanaTslaxRaw;
+    if (asset === "wsol") return solBalance.solanaWsolRaw;
+    return BigInt(0);
+  }, [smartBalances, solBalance]);
+
+  const formatTradingBalance = useCallback((
+    account: "base" | "solana",
+    asset: AccountBalanceToken,
+  ): string => {
+    const tokenMeta = TOKEN_META[asset];
+    const balance = Number(formatUnits(
+      getTradingBalanceRaw(account, asset),
+      tokenMeta.decimals,
+    ));
+    if (asset === "usdc") {
+      return `$${balance.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })}`;
+    }
+    return balance.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: tokenMeta.decimals === 8 ? 6 : 4,
+    });
+  }, [getTradingBalanceRaw]);
+
+  const parseAmount = useCallback((): bigint | null => {
+    try {
+      const amount = parseUnits(amountStr, meta.decimals);
+      if (amount === BigInt(0)) {
+        setError("Enter an amount.");
+        return null;
+      }
+      if (amount > maxSpendableRaw) {
+        setError(
+          token === "sol"
+            ? "Leave at least 0.005 SOL in your wallet for network fees."
+            : "Amount exceeds available balance.",
+        );
+        return null;
+      }
+      return amount;
+    } catch (err) {
+      console.error("[DepositModal] parseUnits failed:", err);
+      setError("Invalid amount.");
+      return null;
+    }
+  }, [amountStr, maxSpendableRaw, meta.decimals, token]);
+
+  // --- Base deposit (existing EVM flow) ---
+  const handleBaseDeposit = useCallback(async () => {
     if (!address || !fundingAddress) {
       setError("Wallet not ready. Please reconnect.");
       return;
     }
-    let amount: bigint;
-    try {
-      amount = parseUnits(amountStr, meta.decimals);
-    } catch {
-      setError("Invalid amount.");
-      return;
-    }
-    if (amount === BigInt(0)) {
-      setError("Enter an amount.");
-      return;
-    }
+    const amount = parseAmount();
+    if (amount == null) return;
 
     setError(null);
     setStatus("pending");
+    setTxHash(null);
+    setTxChain(null);
     try {
       let hash: `0x${string}`;
       if (token === "eth") {
-        // Native ETH: send value directly to smart wallet
-        hash = await sendFundingTx({ to: address, data: "0x", value: amount });
+        hash = await sendFundingTx({
+          to: address,
+          data: "0x",
+          value: amount,
+        });
       } else {
-        const tokenAddress = token === "usdc" ? ADDRESSES.usdc
-          : token === "weth" ? ADDRESSES.weth
-          : ADDRESSES.wbtc;
+        const tokenAddress =
+          token === "usdc"
+            ? ADDRESSES.usdc
+            : token === "weth"
+              ? ADDRESSES.weth
+              : ADDRESSES.wbtc;
         hash = await sendFundingTx({
           to: tokenAddress,
           data: encodeFunctionData({
@@ -109,254 +348,704 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         });
       }
       await publicClient.waitForTransactionReceipt({ hash });
+      setTxHash(hash);
+      setTxChain("base");
       setStatus("done");
-      window.dispatchEvent(new Event("balance:refetch"));
-      setTimeout(() => window.dispatchEvent(new Event("balance:refetch")), 2000);
+      refetchBalancesSoon();
       onComplete?.();
     } catch (err) {
-      console.error("[DepositModal] deposit failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed. Please try again.");
+      console.error("[DepositModal] base deposit failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Transaction failed.",
+      );
       setStatus("idle");
     }
-  }, [address, fundingAddress, amountStr, meta.decimals, token, sendFundingTx, onComplete]);
+  }, [
+    address, fundingAddress, parseAmount,
+    token, sendFundingTx, onComplete,
+  ]);
 
-  const handleWithdraw = useCallback(async () => {
-    if (!hasExternalWallet) {
-      setError(
-        "Connect your external wallet to withdraw. " +
-        "Funds can only be sent to the wallet you connected with.",
-      );
+  // --- Solana deposit (SPL USDC or native SOL transfer) ---
+  const handleSolanaDeposit = useCallback(async () => {
+    if (solanaDisabled) {
+      setError("Solana deposits are disabled in production.");
       return;
     }
-    if (!address || !withdrawAddress) {
-      setError("Wallet not ready. Please reconnect.");
+    if (!selectedWallet || selectedWallet.chain !== "solana") {
+      setError("No Solana wallet selected.");
       return;
     }
-    let amount: bigint;
-    try {
-      amount = parseUnits(amountStr, meta.decimals);
-    } catch {
-      setError("Invalid amount.");
-      return;
-    }
-    if (amount === BigInt(0)) {
-      setError("Enter an amount.");
-      return;
-    }
+    const amount = parseAmount();
+    if (amount == null) return;
 
     setError(null);
     setStatus("pending");
+    setTxHash(null);
+    setTxChain(null);
     try {
-      // Withdraw: transfer from smart wallet back to external EOA
-      const tokenAddress = token === "usdc" ? ADDRESSES.usdc
-        : token === "eth" || token === "weth" ? ADDRESSES.weth
-        : ADDRESSES.wbtc;
-
-      const result = await sendBatchTx([{
-        to: tokenAddress,
-        data: encodeFunctionData({
-          abi: ERC20_ABI,
-          functionName: "transfer",
-          args: [withdrawAddress, amount],
-        }),
-      }]);
-      if (typeof result !== "string" || !result.startsWith("0x")) {
-        throw new Error("Unexpected response from smart wallet");
+      let signature: string;
+      if (token === "sol") {
+        signature = await sendSolanaSolDeposit(selectedWallet.address, amount);
+      } else {
+        signature = await sendSolanaDeposit(
+          selectedWallet.address,
+          amount,
+          token === "tslax" ? "tslax" : "usdc",
+        );
       }
-      const hash = result as `0x${string}`;
-
-      await publicClient.waitForTransactionReceipt({ hash });
+      setTxHash(signature);
+      setTxChain("solana");
       setStatus("done");
-      window.dispatchEvent(new Event("balance:refetch"));
-      setTimeout(() => window.dispatchEvent(new Event("balance:refetch")), 2000);
+      refetchBalancesSoon();
+      onComplete?.();
     } catch (err) {
-      console.error("[DepositModal] withdraw failed:", err);
-      setError(err instanceof Error ? err.message : "Transaction failed. Please try again.");
+      console.error("[DepositModal] solana deposit failed:", err);
+      const msg = err instanceof Error ? err.message : "";
+      if (/reject|denied|cancel/i.test(msg)) {
+        setError("Transaction cancelled.");
+      } else {
+        setError(msg || "Transaction failed.");
+      }
       setStatus("idle");
     }
-  }, [address, withdrawAddress, hasExternalWallet, amountStr, meta.decimals, token, sendBatchTx]);
+  }, [
+    solanaDisabled, selectedWallet, parseAmount, token,
+    sendSolanaDeposit, sendSolanaSolDeposit, onComplete,
+  ]);
 
-  const isPending = status === "pending" || status === "activating";
-  const isDone = status === "done";
-  const needsActivation = !address;
-
-  // After loginOrLink(), Privy creates the embedded wallet (signer) and
-  // then the smart wallet asynchronously. When address appears,
-  // transition out of "activating" state.
-  useEffect(() => {
-    if (address && status === "activating") {
-      console.log("[DepositModal] Smart wallet ready:", address);
-      setStatus("idle");
-    }
-  }, [address, status]);
-
-  // Timeout: if smart wallet doesn't appear within 15s, show error
-  useEffect(() => {
-    if (status !== "activating") return;
-    const timer = setTimeout(() => {
-      console.error("[DepositModal] Smart wallet activation timed out. address:", address);
-      setError("Activation is taking longer than expected. Please refresh the page and try again.");
-      setStatus("idle");
-    }, 15_000);
-    return () => clearTimeout(timer);
-  }, [status, address]);
+  const handleDeposit =
+    chain === "solana" ? handleSolanaDeposit : handleBaseDeposit;
+  const needsWallet = !selectedWallet;
 
   const handleActivate = useCallback(async () => {
     setError(null);
     setStatus("activating");
     try {
-      console.log("[DepositModal] Calling activateSmartWallet (loginOrLink)...");
-      await activateSmartWallet();
-      console.log("[DepositModal] loginOrLink resolved. Waiting for smart wallet...");
-      // Don't set status to "idle" here. The effect above will do it
-      // when the smart wallet address becomes available.
+      await activateSmartWallet(
+        selectedWallet?.chain === "base" ? selectedWallet.address : undefined,
+      );
+      setStatus("idle");
     } catch (err) {
       console.error("[DepositModal] activation failed:", err);
       const msg = err instanceof Error ? err.message : "";
-      if (msg.match(/reject|denied|cancel/i)) {
+      if (/reject|denied|cancel/i.test(msg)) {
         setError("Signature cancelled.");
       } else {
-        setError("Activation failed. Please try again.");
+        setError(msg || "Activation failed. Please try again.");
       }
       setStatus("idle");
     }
-  }, [activateSmartWallet]);
+  }, [activateSmartWallet, selectedWallet]);
+
+  const handleBaseWithdraw = useCallback(async () => {
+    if (!selectedWallet || selectedWallet.chain !== "base") {
+      setError("Connect an external wallet to withdraw.");
+      return;
+    }
+    const baseWithdrawAddr = selectedWallet.address as Address;
+    if (!address) {
+      setError("Smart wallet not ready. Please reconnect.");
+      return;
+    }
+    const amount = parseAmount();
+    if (amount == null) return;
+
+    setError(null);
+    setStatus("pending");
+    setTxHash(null);
+    setTxChain(null);
+    try {
+      const tokenAddress =
+        token === "usdc"
+          ? ADDRESSES.usdc
+          : token === "eth"
+            ? null
+            : token === "weth"
+              ? ADDRESSES.weth
+              : ADDRESSES.wbtc;
+
+      const result = await sendBatchTx([
+        tokenAddress
+          ? {
+              to: tokenAddress,
+              data: encodeFunctionData({
+                abi: ERC20_ABI,
+                functionName: "transfer",
+                args: [baseWithdrawAddr, amount],
+              }),
+            }
+          : {
+              to: baseWithdrawAddr,
+              data: "0x",
+              value: amount,
+            },
+      ]);
+      if (typeof result !== "string" || !result.startsWith("0x")) {
+        throw new Error("Unexpected response from smart wallet");
+      }
+      const hash = result as `0x${string}`;
+      await publicClient.waitForTransactionReceipt({ hash });
+      setTxHash(hash);
+      setTxChain("base");
+      setStatus("done");
+      refetchBalancesSoon();
+    } catch (err) {
+      console.error("[DepositModal] withdraw failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Transaction failed.",
+      );
+      setStatus("idle");
+    }
+  }, [
+    address, selectedWallet, parseAmount,
+    token, sendBatchTx,
+  ]);
+
+  const handleSolanaWithdraw = useCallback(async () => {
+    if (solanaDisabled) {
+      setError("Solana withdrawals are disabled in production.");
+      return;
+    }
+    if (!selectedWallet || selectedWallet.chain !== "solana") {
+      setError("Select a Solana wallet to receive funds.");
+      return;
+    }
+    const amount = parseAmount();
+    if (amount == null) return;
+
+    setError(null);
+    setStatus("pending");
+    setTxHash(null);
+    setTxChain(null);
+    try {
+      const signature = token === "sol"
+        ? await sendSolanaSolWithdraw(selectedWallet.address, amount)
+        : await sendSolanaWithdraw(
+            selectedWallet.address,
+            amount,
+            token === "tslax" ? "tslax" : "usdc",
+          );
+      setTxHash(signature);
+      setTxChain("solana");
+      setStatus("done");
+      refetchBalancesSoon();
+    } catch (err) {
+      console.error("[DepositModal] solana withdraw failed:", err);
+      setError(
+        err instanceof Error ? err.message : "Transaction failed.",
+      );
+      setStatus("idle");
+    }
+  }, [
+    solanaDisabled, selectedWallet, parseAmount, token,
+    sendSolanaSolWithdraw, sendSolanaWithdraw,
+  ]);
+
+  const handleWithdraw =
+    chain === "solana" ? handleSolanaWithdraw : handleBaseWithdraw;
+
+  const isPending = status === "pending" || status === "activating";
+  const isDone = status === "done";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="fixed inset-0 bg-black/50" onClick={isPending ? undefined : onClose} />
-      <div className="relative w-full max-w-sm bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5">
-
+      <div
+        className="fixed inset-0 bg-black/50"
+        onClick={isPending ? undefined : onClose}
+      />
+      <div
+        className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5"
+        onWheel={(e) => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-base font-semibold text-[var(--text)]">Your trading account</h2>
-            {address && (
-              <button
-                onClick={() => navigator.clipboard.writeText(address)}
-                className="text-xs text-[var(--text-secondary)] font-mono mt-0.5 hover:text-[var(--text)] transition-colors cursor-pointer break-all text-left"
-                title="Copy address"
-              >
-                {address}
-              </button>
-            )}
-          </div>
+          <h2 className="text-base font-semibold text-[var(--text)]">
+            Manage funds
+          </h2>
           <button
             onClick={onClose}
             disabled={isPending}
             className="text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40 text-xl leading-none"
           >
-            ×
+            &times;
           </button>
         </div>
 
-        {needsActivation ? (
-          /* Smart wallet not set up yet — one-time activation */
-          <>
-            <p className="text-sm text-[var(--text-secondary)]">
-              Activate your self-custodial trading account with a one-time signature. After this, you can deposit funds and trade with zero gas fees.
+        {/* Trading accounts */}
+        <div className="space-y-2">
+          {/* Base account */}
+          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <img src="/base.svg" alt="Base" className="w-4 h-4" />
+                <span className="text-sm font-semibold text-[var(--text)]">
+                  Base trading account
+                </span>
+              </div>
+              <span className={`text-xs font-semibold ${
+                address ? "text-[var(--accent)]" : "text-amber-400"
+              }`}>
+                {address ? "Active" : "Activation needed"}
+              </span>
+            </div>
+            <div className="relative mt-3 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setBaseBalanceMenuOpen((open) => !open);
+                  setBaseBalanceSearch("");
+                }}
+                className="flex items-center gap-2 text-xs font-semibold text-[var(--text)]"
+              >
+                <TokenIcon token={baseBalanceToken} className="h-5 w-5" />
+                {TOKEN_META[baseBalanceToken].label}
+                <span className="text-[var(--text-secondary)]">⌄</span>
+              </button>
+              <span className="font-mono text-sm font-semibold text-[var(--text)]">
+                {formatTradingBalance("base", baseBalanceToken)}
+                {baseBalanceToken !== "usdc" ? ` ${TOKEN_META[baseBalanceToken].label}` : ""}
+              </span>
+              {baseBalanceMenuOpen && (
+                <div
+                  className="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl"
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <div className="border-b border-[var(--border)] p-2">
+                    <input
+                      type="text"
+                      value={baseBalanceSearch}
+                      onChange={(e) => setBaseBalanceSearch(e.target.value)}
+                      placeholder="Search asset"
+                      autoFocus
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto overscroll-contain">
+                    {filteredBaseBalanceTokens.map((asset) => (
+                      <button
+                        key={asset}
+                        type="button"
+                        onClick={() => {
+                          setBaseBalanceToken(asset);
+                          setBaseBalanceMenuOpen(false);
+                          setBaseBalanceSearch("");
+                        }}
+                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${
+                          baseBalanceToken === asset
+                            ? "bg-[var(--accent)]/10"
+                            : "hover:bg-[var(--surface)]"
+                        }`}
+                      >
+                        <TokenIcon token={asset} className="h-5 w-5" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-semibold text-[var(--text)]">
+                            {TOKEN_META[asset].label}
+                          </span>
+                          <span className="block text-xs font-mono text-[var(--text-secondary)]">
+                            {formatTradingBalance("base", asset)}
+                            {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                    {filteredBaseBalanceTokens.length === 0 && (
+                      <p className="px-3 py-4 text-sm text-[var(--text-secondary)]">
+                        No assets found.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            {address ? (
+              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
+                {truncate(address)}
+              </p>
+            ) : (
+              <p className="text-[10px] text-amber-400 mt-1">
+                Needs one-time activation to trade on Base
+              </p>
+            )}
+          </div>
+
+          {/* Solana account */}
+          {!solanaDisabled && (
+          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <img src="/sol.png" alt="Solana" className="w-4 h-4 rounded-full" />
+                <span className="text-sm font-semibold text-[var(--text)]">
+                  Solana trading account
+                </span>
+              </div>
+              <span className={`text-xs font-semibold ${
+                solanaAddress ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"
+              }`}>
+                {solanaAddress ? "Active" : "Ready on deposit"}
+              </span>
+            </div>
+            <div className="relative mt-3 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setSolanaBalanceMenuOpen((open) => !open);
+                  setSolanaBalanceSearch("");
+                }}
+                className="flex items-center gap-2 text-xs font-semibold text-[var(--text)]"
+              >
+                <TokenIcon token={solanaBalanceToken} className="h-5 w-5" />
+                {TOKEN_META[solanaBalanceToken].label}
+                <span className="text-[var(--text-secondary)]">⌄</span>
+              </button>
+              <span className="font-mono text-sm font-semibold text-[var(--text)]">
+                {formatTradingBalance("solana", solanaBalanceToken)}
+                {solanaBalanceToken !== "usdc" ? ` ${TOKEN_META[solanaBalanceToken].label}` : ""}
+              </span>
+              {solanaBalanceMenuOpen && (
+                <div
+                  className="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl"
+                  onWheel={(e) => e.stopPropagation()}
+                >
+                  <div className="border-b border-[var(--border)] p-2">
+                    <input
+                      type="text"
+                      value={solanaBalanceSearch}
+                      onChange={(e) => setSolanaBalanceSearch(e.target.value)}
+                      placeholder="Search asset"
+                      autoFocus
+                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                    />
+                  </div>
+                  <div className="max-h-48 overflow-y-auto overscroll-contain">
+                    {filteredSolanaBalanceTokens.map((asset) => (
+                      <button
+                        key={asset}
+                        type="button"
+                        onClick={() => {
+                          setSolanaBalanceToken(asset);
+                          setSolanaBalanceMenuOpen(false);
+                          setSolanaBalanceSearch("");
+                        }}
+                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${
+                          solanaBalanceToken === asset
+                            ? "bg-[var(--accent)]/10"
+                            : "hover:bg-[var(--surface)]"
+                        }`}
+                      >
+                        <TokenIcon token={asset} className="h-5 w-5" />
+                        <span className="min-w-0 flex-1">
+                          <span className="block font-semibold text-[var(--text)]">
+                            {TOKEN_META[asset].label}
+                          </span>
+                          <span className="block text-xs font-mono text-[var(--text-secondary)]">
+                            {formatTradingBalance("solana", asset)}
+                            {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
+                          </span>
+                        </span>
+                      </button>
+                    ))}
+                    {filteredSolanaBalanceTokens.length === 0 && (
+                      <p className="px-3 py-4 text-sm text-[var(--text-secondary)]">
+                        No assets found.
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+            <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
+              {solanaAddress ? truncate(solanaAddress) : "Set up on first deposit"}
             </p>
-            {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+          </div>
+          )}
+        </div>
+
+        {/* Tabs */}
+        <div className="flex rounded-xl bg-[var(--surface)] p-1 gap-1">
+          {(["deposit", "withdraw"] as Tab[]).map((t) => (
+            <button
+              key={t}
+              onClick={() => {
+                setTab(t);
+                setAmountStr("");
+                setError(null);
+                setStatus("idle");
+                setTxHash(null);
+                setTxChain(null);
+              }}
+              disabled={isPending}
+              className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors capitalize ${
+                tab === t
+                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              } disabled:opacity-40`}
+            >
+              {t}
+            </button>
+          ))}
+        </div>
+
+        {/* Wallet selector */}
+        <div className="space-y-2">
+          <p className="text-xs text-[var(--text-secondary)]">
+            {tab === "deposit" ? "From wallet" : "Withdraw to"}
+          </p>
+          {externalWallets.length === 0 ? (
+            <button
+              onClick={handleConnectWallet}
+              className="w-full rounded-xl border border-dashed border-[var(--border)] py-3 text-sm text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+            >
+              + Connect another wallet
+            </button>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {externalWallets.map((w) => (
+                <button
+                  key={`${w.chain}-${w.address}`}
+                  onClick={() => {
+                    setSelectedWallet(w);
+                    setAmountStr("");
+                    setError(null);
+                    setStatus("idle");
+                    setTxHash(null);
+                    setTxChain(null);
+                  }}
+                  disabled={isPending}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors text-left ${
+                    selectedWallet?.address === w.address &&
+                    selectedWallet?.chain === w.chain
+                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
+                      : "border-[var(--border)] hover:border-[var(--text-secondary)]"
+                  } disabled:opacity-40`}
+                >
+                  <div className="flex-1 min-w-0">
+                    <span className="font-semibold text-[var(--text)]">
+                      {w.name}
+                    </span>
+                    <span className="ml-2 text-[var(--text-secondary)] font-mono text-xs">
+                      {truncate(w.address)}
+                    </span>
+                  </div>
+                  <span className="text-xs text-[var(--text-secondary)] shrink-0">
+                    {chainLabel(w.chain)}
+                  </span>
+                </button>
+              ))}
+              <button
+                onClick={handleConnectWallet}
+                disabled={isPending}
+                className="w-full rounded-xl border border-dashed border-[var(--border)] py-2.5 text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors disabled:opacity-40"
+              >
+                + Connect another wallet
+              </button>
+            </div>
+          )}
+          {selectedWallet && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              {tab === "deposit"
+                ? `${selectedWallet.name} → ${chainLabel(chain)} trading account`
+                : `${chainLabel(chain)} trading account → ${selectedWallet.name}`}
+            </p>
+          )}
+        </div>
+
+        {/* Base activation gate — show activate button instead of deposit/withdraw UI */}
+        {needsWallet ? (
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Connect the wallet you want to use for deposits and withdrawals.
+            </p>
+          </div>
+        ) : needsBaseActivation && chain === "base" ? (
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--text-secondary)]">
+              Activate your Base trading account with a one-time signature.
+              After this you can deposit, withdraw, and trade with zero gas fees.
+            </p>
+            {error && (
+              <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
             <button
               onClick={handleActivate}
               disabled={isPending}
               className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
             >
-              {status === "activating" ? "Activating..." : "Activate account"}
+              {status === "activating"
+                ? "Activating..."
+                : "Activate Base Trading Account"}
             </button>
-          </>
+          </div>
         ) : (
-          /* Normal deposit/withdraw flow */
           <>
-
-            {/* Tabs */}
-            <div className="flex rounded-xl bg-[var(--surface)] p-1 gap-1">
-              {(["deposit", "withdraw"] as Tab[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setTab(t); setAmountStr(""); setError(null); setStatus("idle"); }}
-                  disabled={isPending}
-                  className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors capitalize ${
-                    tab === t
-                      ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
-                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-                  } disabled:opacity-40`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-
-            {/* Token selector */}
-            <div className="grid grid-cols-4 gap-2">
-              {(["usdc", "eth", "weth", "btc"] as Token[]).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => { setToken(t); setAmountStr(""); setError(null); }}
-                  disabled={isPending}
-                  className={`flex items-center justify-center gap-1.5 py-2 rounded-xl text-sm font-semibold border transition-colors ${
-                    token === t
-                      ? "border-[var(--accent)] text-[var(--accent)] bg-[var(--accent)]/10"
-                      : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--text-secondary)]"
-                  } disabled:opacity-40`}
-                >
-                  <img src={TOKEN_META[t].icon} alt={TOKEN_META[t].label} className="w-4 h-4 rounded-full" />
-                  {TOKEN_META[t].label}
-                </button>
-              ))}
-            </div>
-
             {/* Amount input */}
             <div>
-              <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-                <input
-                  type="text"
-                  inputMode="decimal"
-                  placeholder="0"
-                  value={amountStr}
-                  disabled={isPending || isDone}
-                  onChange={(e) => {
-                    const raw = e.target.value;
-                    if (raw === "" || /^(0|[1-9]\d*)?\.?\d*$/.test(raw)) {
-                      setAmountStr(raw);
+              <div className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      placeholder="0"
+                      value={amountStr}
+                      disabled={isPending || isDone}
+                      onChange={(e) => {
+                        const raw = e.target.value;
+                        if (
+                          raw === "" ||
+                          /^(0|[1-9]\d*)?\.?\d*$/.test(raw)
+                        ) {
+                          setAmountStr(raw);
+                        }
+                      }}
+                      className="w-full bg-transparent text-[var(--text)] font-semibold text-3xl focus:outline-none"
+                    />
+                    <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                      {tab === "deposit" ? "Deposit" : "Withdraw"} on {chainLabel(chain)}
+                    </p>
+                  </div>
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAssetMenuOpen((open) => !open);
+                        setAssetSearch("");
+                      }}
+                      disabled={isPending || isDone}
+                      className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] disabled:opacity-40"
+                    >
+                      <TokenIcon token={token} className="h-5 w-5" />
+                      <span>{meta.label}</span>
+                      <span className="text-[var(--text-secondary)]">⌄</span>
+                    </button>
+                    {assetMenuOpen && (
+                      <div
+                        className="absolute right-0 top-full z-10 mt-2 w-64 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl"
+                        onWheel={(e) => e.stopPropagation()}
+                      >
+                        <div className="border-b border-[var(--border)] p-2">
+                          <input
+                            type="text"
+                            value={assetSearch}
+                            onChange={(e) => setAssetSearch(e.target.value)}
+                            placeholder="Search asset"
+                            autoFocus
+                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
+                          />
+                        </div>
+                        <div className="max-h-56 overflow-y-auto overscroll-contain">
+                          {filteredAssetTokens.map((t) => (
+                            <button
+                              key={t}
+                              type="button"
+                              onClick={() => {
+                                setToken(t);
+                                setAmountStr("");
+                                setError(null);
+                                setStatus("idle");
+                                setTxHash(null);
+                                setTxChain(null);
+                                setAssetMenuOpen(false);
+                                setAssetSearch("");
+                              }}
+                              className={`flex w-full items-center gap-3 px-3 py-3 text-left transition-colors ${
+                                token === t
+                                  ? "bg-[var(--accent)]/10"
+                                  : "hover:bg-[var(--surface)]"
+                              }`}
+                            >
+                              <TokenIcon token={t} className="h-6 w-6" />
+                              <span className="min-w-0 flex-1">
+                                <span className="block text-sm font-semibold text-[var(--text)]">
+                                  {TOKEN_META[t].label}
+                                </span>
+                                <span className="block text-xs font-mono text-[var(--text-secondary)]">
+                                  {formatTokenBalance(t)}
+                                </span>
+                              </span>
+                            </button>
+                          ))}
+                          {filteredAssetTokens.length === 0 && (
+                            <p className="px-3 py-4 text-sm text-[var(--text-secondary)]">
+                              No assets found.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="mt-4 flex items-center justify-between gap-3">
+                  <p className="text-xs text-[var(--text-secondary)]">
+                    Balance {formatTokenBalance(token)}
+                  </p>
+                  <button
+                    onClick={handleMax}
+                    disabled={
+                      isPending || isDone || maxSpendableBalance <= 0
                     }
-                  }}
-                  className="flex-1 bg-transparent text-[var(--text)] font-semibold text-base focus:outline-none"
-                />
-                <button
-                  onClick={handleMax}
-                  disabled={isPending || isDone || availableBalance <= 0}
-                  className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
-                >
-                  Max
-                </button>
+                    className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
+                  >
+                    Max
+                  </button>
+                </div>
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-                Available: {token === "usdc"
-                  ? `$${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${availableBalance.toLocaleString(undefined, { minimumFractionDigits: 4, maximumFractionDigits: 6 })} ${meta.label}`}
-                {tab === "withdraw" && token === "eth" ? " (WETH)" : ""}
+                {tab === "deposit"
+                  ? `From ${selectedWallet?.name ?? "wallet"}`
+                  : `To ${selectedWallet?.name ?? "wallet"}`}
               </p>
+              {token === "sol" && (
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Leaving 0.005 SOL for network fees.
+                </p>
+              )}
+              {chain === "solana" && token === "usdc" && (
+                <p className="text-xs text-[var(--text-secondary)] mt-1">
+                  Solana USDC transactions need a little SOL for network fees.
+                </p>
+              )}
+              {chain === "solana" && token === "tslax" && !SOLANA_TSLAX_MINT && (
+                <p className="text-xs text-amber-400 mt-1">
+                  TSLAx mint is not configured in this deployment.
+                </p>
+              )}
             </div>
 
             {/* Withdraw gas note */}
-            {tab === "withdraw" && withdrawAddress && (
+            {tab === "withdraw" && selectedWalletAddress && (
               <p className="text-xs text-[var(--text-secondary)]">
-                Withdraw to {truncate(withdrawAddress)}. Gas is sponsored.
-              </p>
-            )}
-            {tab === "withdraw" && !hasExternalWallet && (
-              <p className="text-xs text-[var(--danger)]">
-                Connect your external wallet to withdraw.
+                Withdraw to {truncate(selectedWalletAddress)}.
+                {chain === "base" ? " Gas is sponsored." : ""}
               </p>
             )}
 
-            {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+            {error && (
+              <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
 
             {isDone ? (
               <div className="space-y-3">
                 <p className="text-sm text-center text-[var(--accent)] font-semibold">
-                  {tab === "deposit" ? "Deposit complete." : "Withdrawal complete."}
+                  {tab === "deposit"
+                    ? "Deposit confirmed."
+                    : "Withdrawal confirmed."}
+                </p>
+                {txHash && txChain && (
+                  <a
+                    href={
+                      txChain === "solana"
+                        ? solanaTxUrl(txHash)
+                        : `${CHAIN.blockExplorers?.default.url}/tx/${txHash}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-sm text-[var(--accent)] hover:underline"
+                  >
+                    View transaction ↗
+                  </a>
+                )}
+                <p className="text-center text-xs text-[var(--text-secondary)]">
+                  Balance can take a few seconds to refresh.
                 </p>
                 <button
                   onClick={onClose}
@@ -368,12 +1057,18 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             ) : (
               <button
                 onClick={tab === "deposit" ? handleDeposit : handleWithdraw}
-                disabled={isPending || !amountStr || !(Number(amountStr) > 0) || (tab === "withdraw" && !hasExternalWallet)}
+                disabled={
+                  isPending || !amountStr || !(Number(amountStr) > 0)
+                }
                 className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
               >
                 {isPending
-                  ? tab === "deposit" ? "Depositing..." : "Withdrawing..."
-                  : tab === "deposit" ? `Deposit ${meta.label} on Base` : `Withdraw ${meta.label}`}
+                  ? tab === "deposit"
+                    ? "Depositing..."
+                    : "Withdrawing..."
+                  : tab === "deposit"
+                    ? `Deposit ${meta.label}`
+                    : `Withdraw ${meta.label}`}
               </button>
             )}
           </>
@@ -381,7 +1076,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
         {/* Disconnect */}
         <button
-          onClick={async () => { await disconnect(); onClose(); }}
+          onClick={async () => {
+            try {
+              await disconnect();
+            } catch (err) {
+              console.error("[DepositModal] disconnect failed:", err);
+            }
+            onClose();
+          }}
           disabled={isPending}
           className="w-full text-center text-xs text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:opacity-40"
         >
