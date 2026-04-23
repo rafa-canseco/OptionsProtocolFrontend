@@ -30,7 +30,7 @@ vi.mock("@/lib/api", () => ({
 }));
 
 vi.mock("@/lib/execution", () => ({
-  computeCollateral: (_isBuy: boolean, _amount: number, _strike: number, _slug: string) => ({
+  computeCollateral: () => ({
     collateral: BigInt(10_000_000),
   }),
 }));
