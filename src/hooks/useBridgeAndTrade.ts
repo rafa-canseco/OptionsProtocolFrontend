@@ -20,6 +20,7 @@ import {
   buildEvmTradeCalls,
   buildSolanaTradeTransaction,
 } from "@/lib/bridgeTx";
+import { isSolanaOffInProd } from "@/lib/marketState";
 import { SOLANA_NATIVE_RESERVE_LAMPORTS, toPublicKey } from "@/lib/solana";
 
 // ---------------------------------------------------------------------------
@@ -98,6 +99,15 @@ export function useBridgeAndTrade() {
         );
       }
 
+      // Production gate: Solana is read-only in mainnet. Throwing (rather
+      // than silent zero-deficit) is deliberate defense-in-depth: if
+      // `marketReadOnly` ever bypasses the button guard in AcceptModal,
+      // the thrown error surfaces through its catch block instead of
+      // quietly advancing the flow with fabricated state.
+      if (isSolanaOffInProd() && quote.chain === "solana") {
+        throw new Error("Solana flows are disabled in production.");
+      }
+
       const { collateral } = computeCollateral(
         isBuy, amount, quote.strike, assetSlug,
       );
@@ -169,6 +179,17 @@ export function useBridgeAndTrade() {
         params;
       const destChain: ChainId =
         sourceChain === "base" ? "solana" : "base";
+
+      // Production gate: refuse any Solana source or destination before
+      // signing or hitting the network.
+      if (
+        isSolanaOffInProd() &&
+        (sourceChain === "solana" ||
+          destChain === "solana" ||
+          quote.chain === "solana")
+      ) {
+        throw new Error("Solana flows are disabled in production.");
+      }
 
       if (!address) throw new Error("Smart wallet not connected");
       if (!solanaAddress) throw new Error("Solana wallet not ready");

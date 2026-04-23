@@ -6,6 +6,7 @@ import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
+import { isSolanaOffInProd } from "@/lib/marketState";
 import { SOLANA_TSLAX_MINT, solanaTxUrl } from "@/lib/solana";
 
 type Tab = "deposit" | "withdraw";
@@ -84,7 +85,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     withdrawAddress,
     hasExternalWallet,
     solanaAddress,
-    externalWallets,
+    externalWallets: rawExternalWallets,
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,
@@ -95,10 +96,18 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     connectWallet,
     disconnect,
   } = useWallet();
+  const solanaDisabled = isSolanaOffInProd();
+  const externalWallets = solanaDisabled
+    ? rawExternalWallets.filter((w) => w.chain !== "solana")
+    : rawExternalWallets;
   const [tab, setTab] = useState<Tab>("deposit");
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
-  const [token, setToken] = useState<Token>(requiredToken ?? "usdc");
+  const initialToken: Token =
+    requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax"))
+      ? requiredToken
+      : "usdc";
+  const [token, setToken] = useState<Token>(initialToken);
 
   const smartBalances = useBalances(address);
   const selectedBaseAddress =
@@ -132,7 +141,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   useEffect(() => {
     if (!selectedWallet && externalWallets.length > 0) {
       const preferredChain =
-        requiredToken === "sol" || requiredToken === "tslax"
+        !solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax")
           ? "solana"
           : "base";
       setSelectedWallet(
@@ -140,7 +149,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           externalWallets[0],
       );
     }
-  }, [selectedWallet, externalWallets, requiredToken]);
+  }, [selectedWallet, externalWallets, requiredToken, solanaDisabled]);
 
   // Reset token if selected token not available for chain
   useEffect(() => {
@@ -153,7 +162,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [selectedWallet, token]);
 
   const chain = selectedWallet?.chain ?? (
-    requiredToken === "sol" || requiredToken === "tslax" ? "solana" : "base"
+    !solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax")
+      ? "solana"
+      : "base"
   );
   const meta = TOKEN_META[token];
   const availableTokens = TOKENS_BY_CHAIN[chain];
@@ -356,6 +367,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   // --- Solana deposit (SPL USDC or native SOL transfer) ---
   const handleSolanaDeposit = useCallback(async () => {
+    if (solanaDisabled) {
+      setError("Solana deposits are disabled in production.");
+      return;
+    }
     if (!selectedWallet || selectedWallet.chain !== "solana") {
       setError("No Solana wallet selected.");
       return;
@@ -394,7 +409,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setStatus("idle");
     }
   }, [
-    selectedWallet, parseAmount, token,
+    solanaDisabled, selectedWallet, parseAmount, token,
     sendSolanaDeposit, sendSolanaSolDeposit, onComplete,
   ]);
 
@@ -487,6 +502,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   ]);
 
   const handleSolanaWithdraw = useCallback(async () => {
+    if (solanaDisabled) {
+      setError("Solana withdrawals are disabled in production.");
+      return;
+    }
     if (!selectedWallet || selectedWallet.chain !== "solana") {
       setError("Select a Solana wallet to receive funds.");
       return;
@@ -518,7 +537,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setStatus("idle");
     }
   }, [
-    selectedWallet, parseAmount, token,
+    solanaDisabled, selectedWallet, parseAmount, token,
     sendSolanaSolWithdraw, sendSolanaWithdraw,
   ]);
 
@@ -650,6 +669,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           </div>
 
           {/* Solana account */}
+          {!solanaDisabled && (
           <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -737,6 +757,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               {solanaAddress ? truncate(solanaAddress) : "Set up on first deposit"}
             </p>
           </div>
+          )}
         </div>
 
         {/* Tabs */}

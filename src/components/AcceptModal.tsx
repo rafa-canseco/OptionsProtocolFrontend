@@ -502,7 +502,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
       const msg = err instanceof Error ? err.message : "";
-      if (msg.includes("Timed out") || msg.includes("Lost connection")) {
+      if (msg.includes("Solana flows are disabled")) {
+        setError(msg);
+      } else if (msg.includes("Timed out") || msg.includes("Lost connection")) {
         setError(msg);
       } else if (msg.includes("collateral vault is not initialized")) {
         setError(msg);
