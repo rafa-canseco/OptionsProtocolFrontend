@@ -61,6 +61,23 @@ describe("marketState helpers", () => {
     expect(mod.isProductionReadOnlyAsset({ slug: "sol", chain: "solana" })).toBe(false);
   });
 
+  it("flags Solana as off in production (mainnet)", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isSolanaOffInProd()).toBe(true);
+  });
+
+  it("keeps Solana on outside production (devnet/testnet)", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
+    const devnetMod = await loadMarketStateModule();
+    expect(devnetMod.isSolanaOffInProd()).toBe(false);
+
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "testnet";
+    const testnetMod = await loadMarketStateModule();
+    expect(testnetMod.isSolanaOffInProd()).toBe(false);
+  });
+
   it("detects executable quotes from backend execution fields", async () => {
     const mod = await loadMarketStateModule();
 

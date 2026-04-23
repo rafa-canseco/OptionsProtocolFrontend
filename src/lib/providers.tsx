@@ -1,10 +1,12 @@
 "use client";
 
 import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
+import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
+import { getDeploymentEnv } from "@/lib/deployment";
 import { SOLANA_RPC_URL } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
@@ -18,54 +20,57 @@ function getPrivyAppId(): string {
   return id;
 }
 
-const PRIVY_APP_ID = getPrivyAppId();
+export function buildPrivyConfig(
+  env: ReturnType<typeof getDeploymentEnv> = getDeploymentEnv(),
+): PrivyClientConfig {
+  const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
+  const plugins = BUILDER_CODE
+    ? [dataSuffix(Attribution.toDataSuffix({ codes: [BUILDER_CODE] }))]
+    : [];
 
-const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
-const plugins = BUILDER_CODE
-  ? [dataSuffix(Attribution.toDataSuffix({ codes: [BUILDER_CODE] }))]
-  : [];
+  const solanaCreateOnLogin = env === "mainnet" ? "off" : "all-users";
+
+  return {
+    loginMethods: ["wallet"],
+    appearance: {
+      theme: "dark",
+      accentColor: "#22D3EE",
+      walletChainType: "ethereum-and-solana",
+    },
+    externalWallets: {
+      solana: {
+        connectors: toSolanaWalletConnectors(),
+      },
+    },
+    supportedChains: [CHAIN],
+    solana: {
+      rpcs: {
+        "solana:devnet": {
+          rpc: createSolanaRpc(
+            SOLANA_RPC_URL || "https://api.devnet.solana.com",
+          ),
+          rpcSubscriptions: createSolanaRpcSubscriptions(
+            "wss://api.devnet.solana.com",
+          ),
+        },
+      },
+    },
+    embeddedWallets: {
+      showWalletUIs: false,
+      ethereum: {
+        createOnLogin: "all-users",
+      },
+      solana: {
+        createOnLogin: solanaCreateOnLogin,
+      },
+    },
+    plugins,
+  };
+}
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <PrivyProvider
-      appId={PRIVY_APP_ID}
-      config={{
-        loginMethods: ["wallet"],
-        appearance: {
-          theme: "dark",
-          accentColor: "#22D3EE",
-          walletChainType: "ethereum-and-solana",
-        },
-        externalWallets: {
-          solana: {
-            connectors: toSolanaWalletConnectors(),
-          },
-        },
-        supportedChains: [CHAIN],
-        solana: {
-          rpcs: {
-            "solana:devnet": {
-              rpc: createSolanaRpc(
-                SOLANA_RPC_URL || "https://api.devnet.solana.com",
-              ),
-              rpcSubscriptions: createSolanaRpcSubscriptions(
-                "wss://api.devnet.solana.com",
-              ),
-            },
-          },
-        },
-        embeddedWallets: {
-          showWalletUIs: false,
-          ethereum: {
-            createOnLogin: "all-users",
-          },
-          solana: {
-            createOnLogin: "all-users",
-          },
-        },
-        plugins,
-      }}
-    >
+    <PrivyProvider appId={getPrivyAppId()} config={buildPrivyConfig()}>
       <SmartWalletsProvider>{children}</SmartWalletsProvider>
     </PrivyProvider>
   );

@@ -14,6 +14,10 @@ export function isProductionReadOnlyAsset(
   );
 }
 
+export function isSolanaOffInProd(): boolean {
+  return getDeploymentEnv() === "mainnet";
+}
+
 export function isExecutableQuote(quote: PriceQuote): boolean {
   return !!(
     quote.otoken_address &&
