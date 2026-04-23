@@ -23,6 +23,7 @@ import {
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const bs58 = require("bs58") as { encode(data: Uint8Array): string };
 import { CHAIN } from "@/lib/contracts";
+import { isSolanaOffInProd } from "@/lib/marketState";
 import {
   SOLANA_RPC_URL,
   SOLANA_TSLAX_MINT,
@@ -31,6 +32,14 @@ import {
   solanaConnection,
   toPublicKey,
 } from "@/lib/solana";
+
+const SOLANA_DISABLED_ERROR = "Solana flows are disabled in production.";
+
+function assertSolanaEnabled(): void {
+  if (isSolanaOffInProd()) {
+    throw new Error(SOLANA_DISABLED_ERROR);
+  }
+}
 
 export type BatchCall = {
   to: Address;
@@ -202,6 +211,7 @@ export function useWallet() {
       amount: bigint,
       token: "usdc" | "tslax" = "usdc",
     ): Promise<string> => {
+      assertSolanaEnabled();
       const receiverAddress = await getSolanaTradingAddress();
       if (!SOLANA_RPC_URL) {
         throw new Error(
@@ -297,6 +307,7 @@ export function useWallet() {
   // Native SOL transfer from external Solana wallet to embedded wallet
   const sendSolanaSolDeposit = useCallback(
     async (fromAddress: string, lamports: bigint): Promise<string> => {
+      assertSolanaEnabled();
       const receiverAddress = await getSolanaTradingAddress();
       if (!SOLANA_RPC_URL) {
         throw new Error("Solana RPC URL not configured");
@@ -358,6 +369,7 @@ export function useWallet() {
   // Gas-sponsored Solana trade execution (equivalent of sendBatchTx for Base)
   const sendSolanaTransaction = useCallback(
     async (tx: Transaction | VersionedTransaction): Promise<string> => {
+      assertSolanaEnabled();
       if (!solanaEmbedded) {
         throw new Error("Solana embedded wallet not ready");
       }
@@ -390,6 +402,7 @@ export function useWallet() {
       amount: bigint,
       token: "usdc" | "tslax" = "usdc",
     ): Promise<string> => {
+      assertSolanaEnabled();
       if (!solanaEmbedded || !solanaAddress) {
         throw new Error("Solana embedded wallet not ready");
       }
@@ -445,6 +458,7 @@ export function useWallet() {
   // Native SOL transfer from embedded Solana wallet to an external Solana wallet
   const sendSolanaSolWithdraw = useCallback(
     async (toAddress: string, lamports: bigint): Promise<string> => {
+      assertSolanaEnabled();
       if (!solanaAddress) {
         throw new Error("Solana embedded wallet not ready");
       }
@@ -471,6 +485,7 @@ export function useWallet() {
   // Sign a Solana transaction without broadcasting (for bridge pre-signing)
   const signSolanaTransaction = useCallback(
     async (serializedTx: Uint8Array): Promise<Uint8Array> => {
+      assertSolanaEnabled();
       if (!solanaEmbedded) {
         throw new Error("Solana embedded wallet not ready");
       }

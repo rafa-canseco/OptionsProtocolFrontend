@@ -8,6 +8,10 @@ const mockBridgeAndTrade = vi.fn();
 const mockGetBridgeStatus = vi.fn();
 const mockSendBatchTx = vi.fn();
 const mockSignSolanaTransaction = vi.fn();
+const mockBuildEvmBurnCalls = vi.fn(() => []);
+const mockBuildSolanaBurnTransaction = vi.fn();
+const mockBuildEvmTradeCalls = vi.fn(() => []);
+const mockBuildSolanaTradeTransaction = vi.fn();
 
 vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ user: { id: "user-1" } }),
@@ -36,15 +40,15 @@ vi.mock("@/lib/execution", () => ({
 }));
 
 vi.mock("@/lib/cctp", () => ({
-  buildEvmBurnCalls: () => [],
-  buildSolanaBurnTransaction: vi.fn(),
+  buildEvmBurnCalls: mockBuildEvmBurnCalls,
+  buildSolanaBurnTransaction: mockBuildSolanaBurnTransaction,
   evmToBytes32: () => new Uint8Array(32),
   solanaToBytes32: () => new Uint8Array(32),
 }));
 
 vi.mock("@/lib/bridgeTx", () => ({
-  buildEvmTradeCalls: () => [],
-  buildSolanaTradeTransaction: vi.fn(),
+  buildEvmTradeCalls: mockBuildEvmTradeCalls,
+  buildSolanaTradeTransaction: mockBuildSolanaTradeTransaction,
 }));
 
 vi.mock("@/lib/solana", () => ({
@@ -79,6 +83,17 @@ function buildSolanaQuote(overrides: Partial<PriceQuote> = {}): PriceQuote {
   };
 }
 
+function expectNoSideEffects() {
+  expect(mockSendBatchTx).not.toHaveBeenCalled();
+  expect(mockSignSolanaTransaction).not.toHaveBeenCalled();
+  expect(mockBridgeAndTrade).not.toHaveBeenCalled();
+  expect(mockGetBridgeStatus).not.toHaveBeenCalled();
+  expect(mockBuildEvmBurnCalls).not.toHaveBeenCalled();
+  expect(mockBuildSolanaBurnTransaction).not.toHaveBeenCalled();
+  expect(mockBuildEvmTradeCalls).not.toHaveBeenCalled();
+  expect(mockBuildSolanaTradeTransaction).not.toHaveBeenCalled();
+}
+
 async function loadHook() {
   vi.resetModules();
   const mod = await import("@/hooks/useBridgeAndTrade");
@@ -95,27 +110,24 @@ describe("useBridgeAndTrade production gate", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("returns zero deficit for Solana quotes in mainnet", async () => {
+  it("throws in checkDeficit for Solana quotes in mainnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
     const useBridgeAndTrade = await loadHook();
 
     const { result } = renderHook(() => useBridgeAndTrade());
 
-    const deficit = result.current.checkDeficit(
-      buildSolanaQuote(),
-      1,
-      true,
-      "sol",
-      BigInt(0),
-      BigInt(0),
-    );
+    expect(() =>
+      result.current.checkDeficit(
+        buildSolanaQuote(),
+        1,
+        true,
+        "sol",
+        BigInt(0),
+        BigInt(0),
+      ),
+    ).toThrow(/Solana flows are disabled in production/i);
 
-    expect(deficit).toEqual({
-      needsBridge: false,
-      needsDeposit: false,
-      sourceChain: null,
-      deficit: BigInt(0),
-    });
+    expectNoSideEffects();
   });
 
   it("refuses executeBridgeAndTrade for Solana source in mainnet", async () => {
@@ -135,9 +147,7 @@ describe("useBridgeAndTrade production gate", () => {
       }),
     ).rejects.toThrow(/Solana flows are disabled in production/i);
 
-    expect(mockSendBatchTx).not.toHaveBeenCalled();
-    expect(mockSignSolanaTransaction).not.toHaveBeenCalled();
-    expect(mockBridgeAndTrade).not.toHaveBeenCalled();
+    expectNoSideEffects();
   });
 
   it("refuses executeBridgeAndTrade for Solana destination in mainnet", async () => {
@@ -157,17 +167,18 @@ describe("useBridgeAndTrade production gate", () => {
       }),
     ).rejects.toThrow(/Solana flows are disabled in production/i);
 
-    expect(mockSendBatchTx).not.toHaveBeenCalled();
-    expect(mockSignSolanaTransaction).not.toHaveBeenCalled();
-    expect(mockBridgeAndTrade).not.toHaveBeenCalled();
+    expectNoSideEffects();
   });
 
-  it("allows Solana deficit routing in devnet", async () => {
+  it("allows Solana deficit routing in devnet with the expected deficit value", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     const useBridgeAndTrade = await loadHook();
 
     const { result } = renderHook(() => useBridgeAndTrade());
 
+    // baseUsdcRaw = 10_000_000 (sufficient to bridge), solanaUsdcRaw = 0,
+    // mocked collateral = 10_000_000 — so deficit should equal the full
+    // collateral and the hook should route via Base.
     const deficit = result.current.checkDeficit(
       buildSolanaQuote(),
       1,
@@ -177,8 +188,9 @@ describe("useBridgeAndTrade production gate", () => {
       BigInt(0),
     );
 
-    // Base has enough USDC to bridge to the Solana quote target.
     expect(deficit.needsBridge).toBe(true);
+    expect(deficit.needsDeposit).toBe(false);
     expect(deficit.sourceChain).toBe("base");
+    expect(deficit.deficit).toBe(BigInt(10_000_000));
   });
 });

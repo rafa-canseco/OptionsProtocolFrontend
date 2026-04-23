@@ -1,5 +1,7 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook } from "@testing-library/react";
+
+const ORIGINAL_ENV = { ...process.env };
 
 const mockWallets: any[] = [];
 const mockClient: any = { account: { address: "0xSmartWallet" } };
@@ -98,5 +100,65 @@ describe("useWallet", () => {
 
     expect(result.current.fundingAddress).toBe("0xCoinbase");
     expect(result.current.withdrawAddress).toBe("0xCoinbase");
+  });
+});
+
+describe("useWallet Solana production gate", () => {
+  beforeEach(() => {
+    mockWallets.length = 0;
+    vi.resetModules();
+    process.env = { ...ORIGINAL_ENV };
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+  });
+
+  async function getHook() {
+    const mod = await import("@/hooks/useWallet");
+    return renderHook(() => mod.useWallet());
+  }
+
+  it("sendSolanaDeposit throws in mainnet", async () => {
+    const { result } = await getHook();
+    await expect(
+      result.current.sendSolanaDeposit("SomeSolAddr", BigInt(1)),
+    ).rejects.toThrow(/Solana flows are disabled in production/i);
+  });
+
+  it("sendSolanaSolDeposit throws in mainnet", async () => {
+    const { result } = await getHook();
+    await expect(
+      result.current.sendSolanaSolDeposit("SomeSolAddr", BigInt(1)),
+    ).rejects.toThrow(/Solana flows are disabled in production/i);
+  });
+
+  it("sendSolanaWithdraw throws in mainnet", async () => {
+    const { result } = await getHook();
+    await expect(
+      result.current.sendSolanaWithdraw("SomeSolAddr", BigInt(1)),
+    ).rejects.toThrow(/Solana flows are disabled in production/i);
+  });
+
+  it("sendSolanaSolWithdraw throws in mainnet", async () => {
+    const { result } = await getHook();
+    await expect(
+      result.current.sendSolanaSolWithdraw("SomeSolAddr", BigInt(1)),
+    ).rejects.toThrow(/Solana flows are disabled in production/i);
+  });
+
+  it("sendSolanaTransaction throws in mainnet", async () => {
+    const { result } = await getHook();
+    await expect(
+      result.current.sendSolanaTransaction({} as never),
+    ).rejects.toThrow(/Solana flows are disabled in production/i);
+  });
+
+  it("signSolanaTransaction throws in mainnet", async () => {
+    const { result } = await getHook();
+    await expect(
+      result.current.signSolanaTransaction(new Uint8Array()),
+    ).rejects.toThrow(/Solana flows are disabled in production/i);
   });
 });

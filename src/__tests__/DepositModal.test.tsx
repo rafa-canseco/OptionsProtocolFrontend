@@ -259,4 +259,32 @@ describe("DepositModal Solana production gate", () => {
       screen.getByText(/Deposit on Base/i),
     ).toBeInTheDocument();
   });
+
+  it("ignores requiredToken=sol in mainnet and falls back to Base", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      externalWallets: [baseExternalWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} requiredToken="sol" />);
+
+    expect(
+      screen.getByText(/Deposit on Base/i),
+    ).toBeInTheDocument();
+  });
+
+  it("auto-selects the Base wallet when Solana wallets are filtered in mainnet", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    walletOverrides = {
+      externalWallets: [baseExternalWallet, solanaWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    // Phantom is filtered, MetaMask remains and should be auto-selected.
+    expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
+    expect(screen.getByText("MetaMask")).toBeInTheDocument();
+    // "From MetaMask" under the amount input confirms Base auto-selection.
+    expect(screen.getByText(/From MetaMask/i)).toBeInTheDocument();
+  });
 });

@@ -99,16 +99,13 @@ export function useBridgeAndTrade() {
         );
       }
 
-      // Production gate: Solana is read-only in mainnet. Do not route any
-      // deficit through a Solana chain. Callers should never reach this
-      // path — AcceptModal disables the button via isProductionReadOnlyAsset.
+      // Production gate: Solana is read-only in mainnet. Throwing (rather
+      // than silent zero-deficit) is deliberate defense-in-depth: if
+      // `marketReadOnly` ever bypasses the button guard in AcceptModal,
+      // the thrown error surfaces through its catch block instead of
+      // quietly advancing the flow with fabricated state.
       if (isSolanaOffInProd() && quote.chain === "solana") {
-        return {
-          needsBridge: false,
-          needsDeposit: false,
-          sourceChain: null,
-          deficit: BigInt(0),
-        };
+        throw new Error("Solana flows are disabled in production.");
       }
 
       const { collateral } = computeCollateral(
