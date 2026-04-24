@@ -12,7 +12,6 @@ import { getDefaultAssetSlug } from "@/lib/assets";
 const LINKS = [
   { href: "/earn", label: "Earn" },
   { href: "/positions", label: "My earnings" },
-  { href: "/leaderboard", label: "Leaderboard" },
 ];
 
 const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
