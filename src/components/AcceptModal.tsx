@@ -580,7 +580,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
               <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                 <div className="flex items-center gap-1.5 shrink-0">
                   <img
-                    src={isBuy ? "/usdc.svg" : isSol ? "/sol.png" : `/${assetSlug === "btc" ? "cbbtc.webp" : "eth.png"}`}
+                    src={
+                      isBuy
+                        ? "/usdc.svg"
+                        : assetSlug === "sol"
+                          ? "/sol.png"
+                          : assetSlug === "btc"
+                            ? "/cbbtc.webp"
+                            : assetSlug === "tslax"
+                              ? "/tslax.svg"
+                              : "/eth.png"
+                    }
                     alt={isBuy ? "USDC" : assetSymbol}
                     className="w-5 h-5 rounded-full"
                   />
