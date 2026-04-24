@@ -602,8 +602,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 <span className="text-[var(--text-secondary)]">⌄</span>
               </button>
               <span className="font-mono text-sm font-semibold text-[var(--text)]">
-                {formatTradingBalance("base", baseBalanceToken)}
-                {baseBalanceToken !== "usdc" ? ` ${TOKEN_META[baseBalanceToken].label}` : ""}
+                {address ? (
+                  <>
+                    {formatTradingBalance("base", baseBalanceToken)}
+                    {baseBalanceToken !== "usdc" ? ` ${TOKEN_META[baseBalanceToken].label}` : ""}
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
               {baseBalanceMenuOpen && (
                 <div
@@ -642,8 +648,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                             {TOKEN_META[asset].label}
                           </span>
                           <span className="block text-xs font-mono text-[var(--text-secondary)]">
-                            {formatTradingBalance("base", asset)}
-                            {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
+                            {address ? (
+                              <>
+                                {formatTradingBalance("base", asset)}
+                                {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
+                              </>
+                            ) : (
+                              "—"
+                            )}
                           </span>
                         </span>
                       </button>
@@ -698,8 +710,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 <span className="text-[var(--text-secondary)]">⌄</span>
               </button>
               <span className="font-mono text-sm font-semibold text-[var(--text)]">
-                {formatTradingBalance("solana", solanaBalanceToken)}
-                {solanaBalanceToken !== "usdc" ? ` ${TOKEN_META[solanaBalanceToken].label}` : ""}
+                {solanaAddress ? (
+                  <>
+                    {formatTradingBalance("solana", solanaBalanceToken)}
+                    {solanaBalanceToken !== "usdc" ? ` ${TOKEN_META[solanaBalanceToken].label}` : ""}
+                  </>
+                ) : (
+                  "—"
+                )}
               </span>
               {solanaBalanceMenuOpen && (
                 <div
@@ -738,8 +756,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                             {TOKEN_META[asset].label}
                           </span>
                           <span className="block text-xs font-mono text-[var(--text-secondary)]">
-                            {formatTradingBalance("solana", asset)}
-                            {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
+                            {solanaAddress ? (
+                              <>
+                                {formatTradingBalance("solana", asset)}
+                                {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
+                              </>
+                            ) : (
+                              "—"
+                            )}
                           </span>
                         </span>
                       </button>
