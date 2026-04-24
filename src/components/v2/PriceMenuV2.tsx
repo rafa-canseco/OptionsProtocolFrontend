@@ -612,11 +612,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
           {/* Context line — explains the benefit and why you get paid */}
           <div className="animate-fade-in-up space-y-1" data-tour="context-line">
-            {marketReadOnly && (
-              <p className="text-xs text-amber-400/90">
-                Live quotes are visible in production. Trading for {asset.symbol} remains read-only for now.
-              </p>
-            )}
             {side === "buy" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">
