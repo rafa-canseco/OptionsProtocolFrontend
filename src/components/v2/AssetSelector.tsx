@@ -81,7 +81,7 @@ export function AssetSelector({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-[220px] p-0 border-[var(--border)]
+        className="w-[280px] p-0 border-[var(--border)]
           bg-[var(--bg)]"
         align="start"
       >
@@ -119,11 +119,12 @@ export function AssetSelector({
                       ${disabled ? "opacity-50 cursor-default" : "cursor-pointer"}`}
                   >
                     <AssetIcon slug={slug} size={18} />
-                    <span className="font-medium">{asset.symbol}</span>
-                    <span className="text-xs text-[var(--text-secondary)]">
+                    <span className="font-medium shrink-0">{asset.symbol}</span>
+                    <span className="text-xs text-[var(--text-secondary)]
+                      min-w-0 flex-1 truncate">
                       {asset.name}
                     </span>
-                    <span className="ml-auto flex items-center gap-1.5">
+                    <span className="ml-auto flex shrink-0 items-center gap-1.5">
                       {asset.chain === "base" && (
                         <span className="text-[9px] font-medium text-blue-400
                           bg-blue-500/10 px-1 py-0.5 rounded">
