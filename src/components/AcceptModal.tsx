@@ -415,29 +415,35 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       const { oTokenAmount, collateral, collateralAsset } =
         computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
-      // On-chain balance check for sells — redirect to deposit if underfunded
+      // On-chain collateral check for sells only. Buys use USDC collateral
+      // which was already validated in checkDeficit above; running the
+      // WETH/cbBTC branch on a buy compares USDC-denominated collateral
+      // (6 decimals) against WETH/cbBTC balances (18/8 decimals), which
+      // redirects a sufficiently funded buyer to the deposit modal.
       let wrapAmount = BigInt(0);
-      if (isBtc) {
-        // BTC calls: cbBTC is already ERC20, no wrapping needed
-        const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
-        if (wbtcBal < collateral) {
-          setDepositToken("btc");
-          setShowDeposit(true);
-          return;
-        }
-      } else {
-        // ETH calls: accept native ETH + WETH combined, wrap if needed
-        const [wethBal, nativeBal] = await Promise.all([
-          readTokenBalance(ADDRESSES.weth, address),
-          publicClient.getBalance({ address }),
-        ]);
-        if (wethBal + nativeBal < collateral) {
-          setDepositToken("eth");
-          setShowDeposit(true);
-          return;
-        }
-        if (wethBal < collateral) {
-          wrapAmount = collateral - wethBal;
+      if (!isBuy) {
+        if (isBtc) {
+          // BTC calls: cbBTC is already ERC20, no wrapping needed
+          const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
+          if (wbtcBal < collateral) {
+            setDepositToken("btc");
+            setShowDeposit(true);
+            return;
+          }
+        } else {
+          // ETH calls: accept native ETH + WETH combined, wrap if needed
+          const [wethBal, nativeBal] = await Promise.all([
+            readTokenBalance(ADDRESSES.weth, address),
+            publicClient.getBalance({ address }),
+          ]);
+          if (wethBal + nativeBal < collateral) {
+            setDepositToken("eth");
+            setShowDeposit(true);
+            return;
+          }
+          if (wethBal < collateral) {
+            wrapAmount = collateral - wethBal;
+          }
         }
       }
 
