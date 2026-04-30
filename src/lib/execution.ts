@@ -137,6 +137,17 @@ export async function fireAndPoll(
   // confirms. Only fail if both fail.
   await Promise.any([txP, pollP]);
 
+  // If the on-chain poll won, give the wallet response a brief grace
+  // window to land so callers can still capture the tx hash. Without
+  // this, downstream flows that key off the hash (e.g., tagging Range
+  // legs with a shared group_id) silently skip.
+  if (hash === null) {
+    await Promise.race([
+      txP.catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 2000)),
+    ]);
+  }
+
   // Suppress unhandled rejection from the loser
   txP.catch(() => {});
   pollP.catch(() => {});
