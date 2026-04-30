@@ -354,16 +354,33 @@ export function RangeAcceptModal({
               return;
             } catch (err: unknown) {
               const msg = err instanceof Error ? err.message : "";
-              if (msg.includes("409") && i < retries - 1) {
+              // Retry on transient failures: 409 (positions not yet
+              // indexed), 404 (same), 5xx, network/fetch errors. Stop
+              // early on persistent 4xx (400/401/403/422) since those
+              // won't change with a retry.
+              const isTransient =
+                /\b(409|404|5\d\d)\b/.test(msg) ||
+                /fetch|network|timeout/i.test(msg);
+              if (isTransient && i < retries - 1) {
                 await new Promise((r) => setTimeout(r, 3000 * (i + 1)));
                 continue;
               }
-              console.warn("[RangeAcceptModal] Could not group positions:", err);
+              console.error(
+                "[RangeAcceptModal] Could not group positions after",
+                i + 1,
+                "attempt(s):",
+                err,
+              );
               return;
             }
           }
         };
         tagGroup();
+      } else {
+        console.error(
+          "[RangeAcceptModal] Skipping group tag: missing tx hash(es).",
+          { putHash, callHash, groupId },
+        );
       }
 
       // Done

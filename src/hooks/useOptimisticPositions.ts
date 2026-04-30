@@ -21,10 +21,25 @@ export function useOptimisticPositions(realPositions: Position[]): Position[] {
       removeMatchingOptimistic(realPositions);
       setOptimistic(getAllOptimistic());
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [realPositions, optimistic.length]);
 
-  // Merge: optimistic (not yet matched) first, then real
+  // Merge: optimistic (not yet matched) first, then real positions
+  // patched with any group_id the optimistic still carries — covers the
+  // window between backend indexing the leg and POST /positions/group
+  // tagging it, which would otherwise flicker a Range to two singles.
+  const realsWithOptGroupId = realPositions.map((real) => {
+    if (real.group_id) return real;
+    const matchingOpt = optimistic.find(
+      (o) =>
+        o.group_id != null &&
+        o.otoken_address.toLowerCase() === real.otoken_address.toLowerCase() &&
+        o.user_address.toLowerCase() === real.user_address.toLowerCase(),
+    );
+    return matchingOpt?.group_id
+      ? { ...real, group_id: matchingOpt.group_id }
+      : real;
+  });
+
   return [
     ...optimistic.filter(
       (o) =>
@@ -34,6 +49,6 @@ export function useOptimisticPositions(realPositions: Position[]): Position[] {
             p.user_address.toLowerCase() === o.user_address.toLowerCase(),
         ),
     ),
-    ...realPositions,
+    ...realsWithOptGroupId,
   ];
 }

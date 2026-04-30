@@ -15,98 +15,10 @@ import { useNotificationStatus } from "@/hooks/useNotificationStatus";
 import { useYield } from "@/hooks/useYield";
 import { useAaveRates } from "@/hooks/useAaveRates";
 import { resolvePositionAsset } from "@/lib/assets";
-import { getPositionStrike } from "@/lib/positionMath";
+import { groupPositions } from "@/lib/positionGrouping";
 import { NotificationBanner } from "@/components/NotificationBanner";
 import { DistributionHistory } from "@/components/yield/DistributionHistory";
 import type { YieldMetric } from "@/components/YieldToggle";
-import type { Position } from "@/lib/api";
-
-type DisplayItem =
-  | { type: "single"; position: Position }
-  | { type: "range"; positions: Position[]; groupId: string };
-
-const PAIR_WINDOW_MS = 60_000;
-
-function inferAsset(pos: Position): string {
-  if (pos.asset) return pos.asset;
-  const strike = getPositionStrike(pos);
-  if (strike > 10_000) return "btc";
-  if (strike < 500) return "sol";
-  return "eth";
-}
-
-function groupPositions(positions: Position[]): DisplayItem[] {
-  const grouped = new Map<string, Position[]>();
-  const ungrouped: Position[] = [];
-
-  for (const pos of positions) {
-    if (pos.group_id) {
-      const existing = grouped.get(pos.group_id) || [];
-      existing.push(pos);
-      grouped.set(pos.group_id, existing);
-    } else {
-      ungrouped.push(pos);
-    }
-  }
-
-  // Heuristic: pair ungrouped positions that look like range legs
-  const remaining: Position[] = [];
-  const used = new Set<string>();
-
-  for (const pos of ungrouped) {
-    if (used.has(pos.id)) continue;
-    const posTime = new Date(pos.indexed_at).getTime();
-    const posAsset = inferAsset(pos);
-
-    const match = ungrouped.find((other) => {
-      if (other.id === pos.id || used.has(other.id)) return false;
-      if (other.is_put === pos.is_put) return false;
-      if (other.expiry !== pos.expiry) return false;
-      if (inferAsset(other) !== posAsset) return false;
-      const dt = Math.abs(
-        new Date(other.indexed_at).getTime() - posTime,
-      );
-      return dt <= PAIR_WINDOW_MS;
-    });
-
-    if (match) {
-      used.add(pos.id);
-      used.add(match.id);
-      const syntheticId = `heuristic-${pos.id}-${match.id}`;
-      grouped.set(syntheticId, [pos, match]);
-    } else {
-      remaining.push(pos);
-    }
-  }
-
-  const items: DisplayItem[] = [];
-  for (const [groupId, group] of grouped) {
-    const hasPut = group.some((p) => p.is_put);
-    const hasCall = group.some((p) => !p.is_put);
-    if (hasPut && hasCall) {
-      items.push({ type: "range", positions: group, groupId });
-    } else {
-      for (const pos of group) {
-        items.push({ type: "single", position: pos });
-      }
-    }
-  }
-  for (const pos of remaining) {
-    items.push({ type: "single", position: pos });
-  }
-
-  items.sort((a, b) => {
-    const aTime = a.type === "range"
-      ? Math.max(...a.positions.map((p) => new Date(p.indexed_at).getTime()))
-      : new Date(a.position.indexed_at).getTime();
-    const bTime = b.type === "range"
-      ? Math.max(...b.positions.map((p) => new Date(p.indexed_at).getTime()))
-      : new Date(b.position.indexed_at).getTime();
-    return bTime - aTime;
-  });
-
-  return items;
-}
 
 export default function PositionsPage() {
   const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
