@@ -61,6 +61,18 @@ export const solanaConnection = SOLANA_RPC_URL
   ? new Connection(SOLANA_RPC_URL)
   : null;
 
+/**
+ * Derive a websocket URL for Solana subscriptions from the configured HTTP RPC URL.
+ * Falls back to the public devnet wss endpoint only when the env var is empty.
+ *
+ * Privy/`@solana/kit` `createSolanaRpcSubscriptions` requires a wss URL distinct
+ * from the http one, but providers like Helius accept the same host via wss.
+ */
+export function solanaWsUrl(): string {
+  if (!SOLANA_RPC_URL) return "wss://api.devnet.solana.com";
+  return SOLANA_RPC_URL.replace(/^http/, "ws");
+}
+
 export function toPublicKey(value: string, label: string): PublicKey {
   // Trim defensively: Vercel/Railway env vars can carry trailing newlines.
   const trimmed = value?.trim() ?? "";
