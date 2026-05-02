@@ -658,8 +658,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               )}
             </div>
             {address ? (
-              <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
-                {truncate(address)}
+              <p className="text-[10px] text-[var(--text-secondary)] mt-1">
+                <span className="font-mono">{truncate(address)}</span>
+                <span className="ml-1.5 opacity-70">· Privy smart wallet (used for trading)</span>
               </p>
             ) : (
               <p className="text-[10px] text-amber-400 mt-1">
@@ -753,8 +754,15 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 </div>
               )}
             </div>
-            <p className="text-[10px] text-[var(--text-secondary)] font-mono mt-1">
-              {solanaAddress ? truncate(solanaAddress) : "Set up on first deposit"}
+            <p className="text-[10px] text-[var(--text-secondary)] mt-1">
+              {solanaAddress ? (
+                <>
+                  <span className="font-mono">{truncate(solanaAddress)}</span>
+                  <span className="ml-1.5 opacity-70">· Privy embedded (used for trading)</span>
+                </>
+              ) : (
+                "Set up on first deposit"
+              )}
             </p>
           </div>
           )}
@@ -788,7 +796,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         {/* Wallet selector */}
         <div className="space-y-2">
           <p className="text-xs text-[var(--text-secondary)]">
-            {tab === "deposit" ? "From wallet" : "Withdraw to"}
+            {tab === "deposit"
+              ? "Send from (your external wallet)"
+              : "Send to (your external wallet)"}
           </p>
           {externalWallets.length === 0 ? (
             <button
@@ -843,8 +853,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           {selectedWallet && (
             <p className="text-xs text-[var(--text-secondary)]">
               {tab === "deposit"
-                ? `${selectedWallet.name} → ${chainLabel(chain)} trading account`
-                : `${chainLabel(chain)} trading account → ${selectedWallet.name}`}
+                ? `${selectedWallet.name} (${truncate(selectedWallet.address)}) → ${chainLabel(chain)} trading account`
+                : `${chainLabel(chain)} trading account → ${selectedWallet.name} (${truncate(selectedWallet.address)})`}
             </p>
           )}
         </div>
