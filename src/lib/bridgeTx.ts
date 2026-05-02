@@ -463,8 +463,14 @@ export async function buildSolanaTradeTransaction(
   );
 
   const quoteIdLe8 = u64Le(BigInt(quote.quote_id!));
+  const makerNonceLe8 = u64Le(BigInt(quote.maker_nonce!));
   const [quoteFillPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("quote_fill"), makerPubkey.toBuffer(), quoteIdLe8],
+    [
+      Buffer.from("quote_fill"),
+      makerPubkey.toBuffer(),
+      makerNonceLe8,
+      quoteIdLe8,
+    ],
     SOLANA_PROGRAMS.batchSettler,
   );
 
@@ -684,14 +690,15 @@ export async function buildSolanaTradeTransaction(
   // Ed25519 precompile instruction — verify maker signature
   // ---------------------------------------------------------------------------
 
-  // Build the 72-byte quote message that the maker signed
-  const quoteMessage = Buffer.alloc(72);
+  // Build the 104-byte quote message that the maker signed.
+  const quoteMessage = Buffer.alloc(104);
   oTokenMint.toBuffer().copy(quoteMessage, 0);                              // 32 bytes
-  quoteMessage.writeBigUInt64LE(BigInt(quote.bid_price_raw!), 32);          //  8 bytes
-  quoteMessage.writeBigInt64LE(BigInt(quote.deadline!), 40);                //  8 bytes (signed)
-  quoteMessage.writeBigUInt64LE(BigInt(quote.quote_id!), 48);               //  8 bytes
-  quoteMessage.writeBigUInt64LE(BigInt(quote.max_amount_raw!), 56);         //  8 bytes
-  quoteMessage.writeBigUInt64LE(BigInt(quote.maker_nonce!), 64);            //  8 bytes
+  premiumMint.toBuffer().copy(quoteMessage, 32);                            // 32 bytes
+  quoteMessage.writeBigUInt64LE(BigInt(quote.bid_price_raw!), 64);          //  8 bytes
+  quoteMessage.writeBigInt64LE(BigInt(quote.deadline!), 72);                //  8 bytes (signed)
+  quoteMessage.writeBigUInt64LE(BigInt(quote.quote_id!), 80);               //  8 bytes
+  quoteMessage.writeBigUInt64LE(BigInt(quote.max_amount_raw!), 88);         //  8 bytes
+  quoteMessage.writeBigUInt64LE(BigInt(quote.maker_nonce!), 96);            //  8 bytes
 
   const signatureBytes: Uint8Array = bs58.decode(quote.signature!);
 
@@ -709,11 +716,12 @@ export async function buildSolanaTradeTransaction(
   const discriminator = Buffer.from("733db418a820d714", "hex");
 
   // Args: discriminator(8) + amount(8) + bid_price(8) + deadline(8, signed)
-  //       + quote_id(8) + max_amount(8) + maker_nonce(8) + collateral_amount(8)
-  //       + collateral_mint(32) = 88 bytes total
+  //       + quote_id(8) + max_amount(8) + maker_nonce(8) + premium_mint(32)
+  //       + collateral_amount(8) + collateral_mint(32) = 128 bytes total
   const deadlineBuf = Buffer.alloc(8);
   deadlineBuf.writeBigInt64LE(BigInt(quote.deadline!), 0);
 
+  const premiumMintBuf = premiumMint.toBuffer();
   const collateralMintBuf = collateralMint.toBuffer();
 
   const ixData = Buffer.concat([
@@ -723,7 +731,8 @@ export async function buildSolanaTradeTransaction(
     deadlineBuf,
     u64Le(BigInt(quote.quote_id!)),
     u64Le(BigInt(quote.max_amount_raw!)),
-    u64Le(BigInt(quote.maker_nonce!)),
+    makerNonceLe8,
+    premiumMintBuf,
     u64Le(collateral),
     collateralMintBuf,
   ]);
