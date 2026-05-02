@@ -38,6 +38,7 @@ vi.mock("@/lib/contracts", () => ({
 
 vi.mock("@/lib/solana", () => ({
   SOLANA_RPC_URL: "https://api.devnet.solana.com",
+  solanaWsUrl: () => "wss://api.devnet.solana.com",
 }));
 
 type PrivyConfig = {

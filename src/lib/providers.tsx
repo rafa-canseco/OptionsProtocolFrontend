@@ -7,7 +7,7 @@ import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
 import { getDeploymentEnv } from "@/lib/deployment";
-import { SOLANA_RPC_URL } from "@/lib/solana";
+import { SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
 function getPrivyAppId(): string {
@@ -49,9 +49,7 @@ export function buildPrivyConfig(
           rpc: createSolanaRpc(
             SOLANA_RPC_URL || "https://api.devnet.solana.com",
           ),
-          rpcSubscriptions: createSolanaRpcSubscriptions(
-            "wss://api.devnet.solana.com",
-          ),
+          rpcSubscriptions: createSolanaRpcSubscriptions(solanaWsUrl()),
         },
       },
     },
