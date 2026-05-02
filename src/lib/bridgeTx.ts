@@ -56,28 +56,44 @@ const bs58 = require("bs58");
 // Solana b1nary program addresses (from CONTEXT.md — devnet)
 // ---------------------------------------------------------------------------
 
+// Trim env values: Vercel/Railway can store secrets with trailing whitespace
+// or newlines, which breaks `new PublicKey()` with "Non-base58 character".
+const envAddr = (raw: string | undefined, fallback: string): string =>
+  (raw && raw.trim()) || fallback;
+
 const SOLANA_PROGRAMS = {
   batchSettler: new PublicKey(
-    process.env.NEXT_PUBLIC_SOLANA_BATCH_SETTLER ??
+    envAddr(
+      process.env.NEXT_PUBLIC_SOLANA_BATCH_SETTLER,
       "GpR6id2cHu5fUGsFm7NUKkB4NzfuEDa6brPzkSrgAzvS",
+    ),
   ),
   marginPool: new PublicKey(
-    process.env.NEXT_PUBLIC_SOLANA_MARGIN_POOL ??
+    envAddr(
+      process.env.NEXT_PUBLIC_SOLANA_MARGIN_POOL,
       "Hp7XDp9USyoid2f7cJKPxmDrvHM2D8izeeGzkViPiy5r",
+    ),
   ),
   controller: new PublicKey(
-    process.env.NEXT_PUBLIC_SOLANA_CONTROLLER ??
+    envAddr(
+      process.env.NEXT_PUBLIC_SOLANA_CONTROLLER,
       "FH3z4BYRZMFU8YzpJoFXUbrdoYksdERnWbZvDAEc3qcC",
+    ),
   ),
 } as const;
 
-const SOLANA_ALT_ADDRESS = process.env.NEXT_PUBLIC_SOLANA_ALT_ADDRESS ?? "";
-const SOLANA_USDC_POOL_TOKEN_ACCOUNT =
-  process.env.NEXT_PUBLIC_SOLANA_USDC_POOL_TOKEN_ACCOUNT ??
-  "Gd27sN9HKzBhQmedn6twMTmqSvsHqzSWhTcBt7nnz2hx";
-const SOLANA_WSOL_POOL_TOKEN_ACCOUNT =
-  process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT ??
-  "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg";
+const SOLANA_ALT_ADDRESS = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_ALT_ADDRESS,
+  "",
+);
+const SOLANA_USDC_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_USDC_POOL_TOKEN_ACCOUNT,
+  "Gd27sN9HKzBhQmedn6twMTmqSvsHqzSWhTcBt7nnz2hx",
+);
+const SOLANA_WSOL_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
+  "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg",
+);
 
 let cachedAlt: AddressLookupTableAccount | null = null;
 

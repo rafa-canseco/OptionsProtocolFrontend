@@ -1,11 +1,17 @@
 import { Connection, PublicKey } from "@solana/web3.js";
 
-export const SOLANA_RPC_URL = process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "";
-export const SOLANA_USDC_MINT = process.env.NEXT_PUBLIC_SOLANA_USDC_MINT ?? "";
-export const SOLANA_TSLAX_MINT =
-  process.env.NEXT_PUBLIC_SOLANA_TSLAX_MINT ?? "";
-export const SOLANA_CHAIN =
-  process.env.NEXT_PUBLIC_SOLANA_CHAIN ?? "solana:devnet";
+// Vercel/Railway env values can be stored with trailing whitespace or newlines,
+// which would slip into PublicKey/Connection ctors and fail at runtime.
+const envStr = (raw: string | undefined, fallback = ""): string =>
+  (raw && raw.trim()) || fallback;
+
+export const SOLANA_RPC_URL = envStr(process.env.NEXT_PUBLIC_SOLANA_RPC_URL);
+export const SOLANA_USDC_MINT = envStr(process.env.NEXT_PUBLIC_SOLANA_USDC_MINT);
+export const SOLANA_TSLAX_MINT = envStr(process.env.NEXT_PUBLIC_SOLANA_TSLAX_MINT);
+export const SOLANA_CHAIN = envStr(
+  process.env.NEXT_PUBLIC_SOLANA_CHAIN,
+  "solana:devnet",
+);
 
 /** Native SOL mint address — used as wSOL when wrapped into SPL token */
 export const SOLANA_WSOL_MINT =
@@ -18,9 +24,10 @@ export const SOLANA_WSOL_MINT =
 export const SOLANA_NATIVE_RESERVE_LAMPORTS = BigInt(15_000_000);
 
 /** Block explorer for Solana transaction links */
-export const SOLANA_EXPLORER_URL =
-  process.env.NEXT_PUBLIC_SOLANA_EXPLORER_URL ??
-  "https://solscan.io";
+export const SOLANA_EXPLORER_URL = envStr(
+  process.env.NEXT_PUBLIC_SOLANA_EXPLORER_URL,
+  "https://solscan.io",
+);
 
 export function solanaTxUrl(signature: string): string {
   const baseUrl = `${SOLANA_EXPLORER_URL.replace(/\/$/, "")}/tx/${signature}`;
@@ -55,8 +62,10 @@ export const solanaConnection = SOLANA_RPC_URL
   : null;
 
 export function toPublicKey(value: string, label: string): PublicKey {
+  // Trim defensively: Vercel/Railway env vars can carry trailing newlines.
+  const trimmed = value?.trim() ?? "";
   try {
-    return new PublicKey(value);
+    return new PublicKey(trimmed);
   } catch {
     throw new Error(
       `Invalid Solana public key for ${label}: "${value}"`,
