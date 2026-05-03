@@ -37,6 +37,7 @@ vi.mock("@/lib/contracts", () => ({
 }));
 
 vi.mock("@/lib/solana", () => ({
+  SOLANA_CHAIN: "solana:mainnet",
   SOLANA_RPC_URL: "https://api.devnet.solana.com",
   solanaWsUrl: () => "wss://api.devnet.solana.com",
 }));
@@ -45,6 +46,9 @@ type PrivyConfig = {
   embeddedWallets?: {
     solana?: { createOnLogin?: string };
     ethereum?: { createOnLogin?: string };
+  };
+  solana?: {
+    rpcs?: Record<string, unknown>;
   };
 };
 
@@ -73,6 +77,7 @@ describe("buildPrivyConfig", () => {
 
     expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
     expect(config.embeddedWallets?.ethereum?.createOnLogin).toBe("all-users");
+    expect(config.solana?.rpcs).toHaveProperty("solana:mainnet");
   });
 
   it("keeps Solana embedded wallet creation on in devnet", async () => {
