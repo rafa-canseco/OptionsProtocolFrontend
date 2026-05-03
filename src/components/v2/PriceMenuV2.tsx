@@ -538,7 +538,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 navigator.clipboard.writeText(url).then(() => {
                   setCopied(true);
                   setTimeout(() => setCopied(false), 2000);
-                }).catch(() => {});
+                }).catch((err) => {
+                  console.warn("[PriceMenuV2] Clipboard write failed:", err);
+                });
               }}
               className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none inline-flex items-center gap-1.5"
             >

@@ -10,7 +10,6 @@ import { isSolanaOffInProd } from "@/lib/marketState";
 import { SOLANA_TSLAX_MINT, solanaTxUrl } from "@/lib/solana";
 
 type Tab = "deposit" | "withdraw";
-type Method = "crypto" | "cash";
 type Chain = "base" | "solana";
 type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "tslax";
 type AccountBalanceToken = Token | "wsol";
@@ -119,7 +118,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     ? rawExternalWallets.filter((w) => w.chain !== "solana")
     : rawExternalWallets;
   const [tab, setTab] = useState<Tab>("deposit");
-  const [method, setMethod] = useState<Method>("crypto");
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
   const initialToken: Token =
@@ -578,35 +576,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           ))}
         </div>
 
-        <div className="grid grid-cols-2 rounded-xl bg-[var(--surface)] p-1 gap-1">
-          {(["crypto", "cash"] as Method[]).map((m) => (
-            <button
-              key={m}
-              type="button"
-              onClick={() => setMethod(m)}
-              disabled={isPending}
-              className={`rounded-lg py-3 text-sm font-semibold transition-colors ${
-                method === m
-                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              } disabled:opacity-40`}
-            >
-              {m === "crypto" ? "Use Crypto" : "Use Cash"}
-            </button>
-          ))}
-        </div>
-
-        {method === "cash" ? (
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-6 text-center">
-            <p className="text-sm font-semibold text-[var(--text)]">
-              Cash onramp/offramp coming soon
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-secondary)]">
-              For now, use crypto deposits and withdrawals from Base or Solana wallets.
-            </p>
-          </div>
-        ) : (
-          <>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -892,18 +861,16 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             )}
           </>
         )}
-          </>
-        )}
 
         {/* Disconnect */}
         <button
           onClick={async () => {
             try {
               await disconnect();
+              onClose();
             } catch (err) {
               console.error("[DepositModal] disconnect failed:", err);
             }
-            onClose();
           }}
           disabled={isPending}
           className="w-full text-center text-xs text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:opacity-40"
