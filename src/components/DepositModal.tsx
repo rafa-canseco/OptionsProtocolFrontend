@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
@@ -10,6 +10,8 @@ import { isSolanaOffInProd } from "@/lib/marketState";
 import { SOLANA_TSLAX_MINT, solanaTxUrl } from "@/lib/solana";
 
 type Tab = "deposit" | "withdraw";
+type Method = "crypto" | "cash";
+type Chain = "base" | "solana";
 type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "tslax";
 type AccountBalanceToken = Token | "wsol";
 
@@ -29,7 +31,7 @@ const TOKEN_META: Record<AccountBalanceToken, TokenConfig> = {
   wsol: { label: "wSOL", icon: "/sol.png", decimals: 9 },
 };
 
-const TOKENS_BY_CHAIN: Record<"base" | "solana", Token[]> = {
+const TOKENS_BY_CHAIN: Record<Chain, Token[]> = {
   base: ["usdc", "eth", "weth", "btc"],
   solana: ["usdc", "sol", "tslax"],
 };
@@ -46,8 +48,12 @@ function truncate(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
-function chainLabel(chain: "base" | "solana"): string {
+function chainLabel(chain: Chain): string {
   return chain === "base" ? "Base" : "Solana";
+}
+
+function chainIcon(chain: Chain): string {
+  return chain === "base" ? "/base.svg" : "/sol.png";
 }
 
 function refetchBalancesSoon() {
@@ -66,7 +72,8 @@ function TokenIcon({
     <span className={`relative inline-flex shrink-0 ${className}`}>
       <img
         src={meta.icon}
-        alt={meta.label}
+        alt=""
+        aria-hidden="true"
         className="h-full w-full rounded-full"
       />
       {token === "wsol" && (
@@ -78,12 +85,23 @@ function TokenIcon({
   );
 }
 
+function ChainIcon({ chain, className }: { chain: Chain; className: string }) {
+  return (
+    <span className={`inline-flex shrink-0 ${className}`}>
+      <img
+        src={chainIcon(chain)}
+        alt=""
+        aria-hidden="true"
+        className={`h-full w-full ${chain === "solana" ? "rounded-full" : ""}`}
+      />
+    </span>
+  );
+}
+
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const {
     address,
     fundingAddress,
-    withdrawAddress,
-    hasExternalWallet,
     solanaAddress,
     externalWallets: rawExternalWallets,
     sendBatchTx,
@@ -101,12 +119,18 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     ? rawExternalWallets.filter((w) => w.chain !== "solana")
     : rawExternalWallets;
   const [tab, setTab] = useState<Tab>("deposit");
+  const [method, setMethod] = useState<Method>("crypto");
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
   const initialToken: Token =
     requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax"))
       ? requiredToken
       : "usdc";
+  const initialChain: Chain =
+    !solanaDisabled && (initialToken === "sol" || initialToken === "tslax")
+      ? "solana"
+      : "base";
+  const [activeChain, setActiveChain] = useState<Chain>(initialChain);
   const [token, setToken] = useState<Token>(initialToken);
 
   const smartBalances = useBalances(address);
@@ -126,59 +150,32 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [txChain, setTxChain] = useState<"base" | "solana" | null>(null);
-  const [assetMenuOpen, setAssetMenuOpen] = useState(false);
-  const [assetSearch, setAssetSearch] = useState("");
-  const [baseBalanceMenuOpen, setBaseBalanceMenuOpen] = useState(false);
-  const [solanaBalanceMenuOpen, setSolanaBalanceMenuOpen] = useState(false);
-  const [baseBalanceSearch, setBaseBalanceSearch] = useState("");
-  const [solanaBalanceSearch, setSolanaBalanceSearch] = useState("");
-  const [baseBalanceToken, setBaseBalanceToken] =
-    useState<AccountBalanceToken>("usdc");
-  const [solanaBalanceToken, setSolanaBalanceToken] =
-    useState<AccountBalanceToken>("sol");
+  const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
+  const [chainMenuOpen, setChainMenuOpen] = useState(false);
 
-  // Auto-select a useful wallet when the list populates.
-  useEffect(() => {
-    if (!selectedWallet && externalWallets.length > 0) {
-      const preferredChain =
-        !solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax")
-          ? "solana"
-          : "base";
-      setSelectedWallet(
-        externalWallets.find((w) => w.chain === preferredChain) ??
-          externalWallets[0],
-      );
-    }
-  }, [selectedWallet, externalWallets, requiredToken, solanaDisabled]);
+  const chainWallets = useMemo(
+    () => externalWallets.filter((w) => w.chain === activeChain),
+    [activeChain, externalWallets],
+  );
 
-  // Reset token if selected token not available for chain
+  // Keep the selected external wallet scoped to the chosen network.
   useEffect(() => {
-    if (!selectedWallet) return;
-    const available = TOKENS_BY_CHAIN[selectedWallet.chain];
+    if (selectedWallet?.chain === activeChain) return;
+    setSelectedWallet(chainWallets[0] ?? null);
+  }, [activeChain, chainWallets, selectedWallet]);
+
+  useEffect(() => {
+    const available = TOKENS_BY_CHAIN[activeChain];
     if (!available.includes(token)) {
       setToken(available[0]);
       setAmountStr("");
     }
-  }, [selectedWallet, token]);
+  }, [activeChain, token]);
 
-  const chain = selectedWallet?.chain ?? (
-    !solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax")
-      ? "solana"
-      : "base"
-  );
+  const chain = activeChain;
   const meta = TOKEN_META[token];
   const availableTokens = TOKENS_BY_CHAIN[chain];
-  const filteredAssetTokens = availableTokens.filter((asset) =>
-    TOKEN_META[asset].label.toLowerCase().includes(assetSearch.trim().toLowerCase()),
-  );
-  const baseBalanceTokens: AccountBalanceToken[] = ["usdc", "eth", "weth", "btc"];
-  const solanaBalanceTokens: AccountBalanceToken[] = ["usdc", "sol", "tslax", "wsol"];
-  const filteredBaseBalanceTokens = baseBalanceTokens.filter((asset) =>
-    TOKEN_META[asset].label.toLowerCase().includes(baseBalanceSearch.trim().toLowerCase()),
-  );
-  const filteredSolanaBalanceTokens = solanaBalanceTokens.filter((asset) =>
-    TOKEN_META[asset].label.toLowerCase().includes(solanaBalanceSearch.trim().toLowerCase()),
-  );
+  const availableChains: Chain[] = solanaDisabled ? ["base"] : ["base", "solana"];
 
   // --- Available balance for deposit/withdraw ---
   const solanaWalletBalance =
@@ -215,7 +212,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const maxSpendableRaw = getSpendableRaw(token);
   const maxSpendableBalance = Number(formatUnits(maxSpendableRaw, meta.decimals));
-  const selectedWalletAddress = selectedWallet?.address;
 
   const formatTokenBalance = useCallback((asset: Token): string => {
     const tokenMeta = TOKEN_META[asset];
@@ -248,44 +244,31 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const needsBaseActivation = !address;
 
-  const getTradingBalanceRaw = useCallback((
-    account: "base" | "solana",
-    asset: AccountBalanceToken,
-  ): bigint => {
-    if (account === "base") {
-      if (asset === "usdc") return smartBalances.usdRaw;
-      if (asset === "eth") return smartBalances.ethRaw;
-      if (asset === "weth") return smartBalances.wethRaw;
-      if (asset === "btc") return smartBalances.wbtcRaw;
-      return BigInt(0);
-    }
-    if (asset === "usdc") return solBalance.solanaUsdcRaw;
-    if (asset === "sol") return solBalance.solanaSolRaw;
-    if (asset === "tslax") return solBalance.solanaTslaxRaw;
-    if (asset === "wsol") return solBalance.solanaWsolRaw;
-    return BigInt(0);
-  }, [smartBalances, solBalance]);
+  const selectToken = useCallback((nextToken: Token) => {
+    setToken(nextToken);
+    setAmountStr("");
+    setError(null);
+    setStatus("idle");
+    setTxHash(null);
+    setTxChain(null);
+    setTokenMenuOpen(false);
+  }, []);
 
-  const formatTradingBalance = useCallback((
-    account: "base" | "solana",
-    asset: AccountBalanceToken,
-  ): string => {
-    const tokenMeta = TOKEN_META[asset];
-    const balance = Number(formatUnits(
-      getTradingBalanceRaw(account, asset),
-      tokenMeta.decimals,
-    ));
-    if (asset === "usdc") {
-      return `$${balance.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
-    }
-    return balance.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: tokenMeta.decimals === 8 ? 6 : 4,
-    });
-  }, [getTradingBalanceRaw]);
+  const selectChain = useCallback((nextChain: Chain) => {
+    setActiveChain(nextChain);
+    setAmountStr("");
+    setError(null);
+    setStatus("idle");
+    setTxHash(null);
+    setTxChain(null);
+    setChainMenuOpen(false);
+    setTokenMenuOpen(false);
+    setToken((currentToken) =>
+      TOKENS_BY_CHAIN[nextChain].includes(currentToken)
+        ? currentToken
+        : TOKENS_BY_CHAIN[nextChain][0],
+    );
+  }, []);
 
   const parseAmount = useCallback((): bigint | null => {
     try {
@@ -558,217 +541,19 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         onWheel={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-[var(--text)]">
-            Manage funds
+        <div className="relative text-center">
+          <h2 className="text-2xl font-semibold text-[var(--text)]">
+            {tab === "deposit" ? "Deposit" : "Withdraw"}
           </h2>
           <button
             onClick={onClose}
             disabled={isPending}
-            className="text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40 text-xl leading-none"
+            className="absolute right-0 top-0 text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40 text-2xl leading-none"
           >
             &times;
           </button>
         </div>
 
-        {/* Trading accounts */}
-        <div className="space-y-2">
-          {/* Base account */}
-          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <img src="/base.svg" alt="Base" className="w-4 h-4" />
-                <span className="text-sm font-semibold text-[var(--text)]">
-                  Base trading account
-                </span>
-              </div>
-              <span className={`text-xs font-semibold ${
-                address ? "text-[var(--accent)]" : "text-amber-400"
-              }`}>
-                {address ? "Active" : "Activation needed"}
-              </span>
-            </div>
-            <div className="relative mt-3 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setBaseBalanceMenuOpen((open) => !open);
-                  setBaseBalanceSearch("");
-                }}
-                className="flex items-center gap-2 text-xs font-semibold text-[var(--text)]"
-              >
-                <TokenIcon token={baseBalanceToken} className="h-5 w-5" />
-                {TOKEN_META[baseBalanceToken].label}
-                <span className="text-[var(--text-secondary)]">⌄</span>
-              </button>
-              <span className="font-mono text-sm font-semibold text-[var(--text)]">
-                {formatTradingBalance("base", baseBalanceToken)}
-                {baseBalanceToken !== "usdc" ? ` ${TOKEN_META[baseBalanceToken].label}` : ""}
-              </span>
-              {baseBalanceMenuOpen && (
-                <div
-                  className="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl"
-                  onWheel={(e) => e.stopPropagation()}
-                >
-                  <div className="border-b border-[var(--border)] p-2">
-                    <input
-                      type="text"
-                      value={baseBalanceSearch}
-                      onChange={(e) => setBaseBalanceSearch(e.target.value)}
-                      placeholder="Search asset"
-                      autoFocus
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
-                    />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto overscroll-contain">
-                    {filteredBaseBalanceTokens.map((asset) => (
-                      <button
-                        key={asset}
-                        type="button"
-                        onClick={() => {
-                          setBaseBalanceToken(asset);
-                          setBaseBalanceMenuOpen(false);
-                          setBaseBalanceSearch("");
-                        }}
-                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${
-                          baseBalanceToken === asset
-                            ? "bg-[var(--accent)]/10"
-                            : "hover:bg-[var(--surface)]"
-                        }`}
-                      >
-                        <TokenIcon token={asset} className="h-5 w-5" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-semibold text-[var(--text)]">
-                            {TOKEN_META[asset].label}
-                          </span>
-                          <span className="block text-xs font-mono text-[var(--text-secondary)]">
-                            {formatTradingBalance("base", asset)}
-                            {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                    {filteredBaseBalanceTokens.length === 0 && (
-                      <p className="px-3 py-4 text-sm text-[var(--text-secondary)]">
-                        No assets found.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            {address ? (
-              <p className="text-[10px] text-[var(--text-secondary)] mt-1">
-                <span className="font-mono">{truncate(address)}</span>
-                <span className="ml-1.5 opacity-70">· Privy smart wallet (used for trading)</span>
-              </p>
-            ) : (
-              <p className="text-[10px] text-amber-400 mt-1">
-                Needs one-time activation to trade on Base
-              </p>
-            )}
-          </div>
-
-          {/* Solana account */}
-          {!solanaDisabled && (
-          <div className="rounded-xl bg-[var(--surface)] px-4 py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <img src="/sol.png" alt="Solana" className="w-4 h-4 rounded-full" />
-                <span className="text-sm font-semibold text-[var(--text)]">
-                  Solana trading account
-                </span>
-              </div>
-              <span className={`text-xs font-semibold ${
-                solanaAddress ? "text-[var(--accent)]" : "text-[var(--text-secondary)]"
-              }`}>
-                {solanaAddress ? "Active" : "Ready on deposit"}
-              </span>
-            </div>
-            <div className="relative mt-3 flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2">
-              <button
-                type="button"
-                onClick={() => {
-                  setSolanaBalanceMenuOpen((open) => !open);
-                  setSolanaBalanceSearch("");
-                }}
-                className="flex items-center gap-2 text-xs font-semibold text-[var(--text)]"
-              >
-                <TokenIcon token={solanaBalanceToken} className="h-5 w-5" />
-                {TOKEN_META[solanaBalanceToken].label}
-                <span className="text-[var(--text-secondary)]">⌄</span>
-              </button>
-              <span className="font-mono text-sm font-semibold text-[var(--text)]">
-                {formatTradingBalance("solana", solanaBalanceToken)}
-                {solanaBalanceToken !== "usdc" ? ` ${TOKEN_META[solanaBalanceToken].label}` : ""}
-              </span>
-              {solanaBalanceMenuOpen && (
-                <div
-                  className="absolute left-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl"
-                  onWheel={(e) => e.stopPropagation()}
-                >
-                  <div className="border-b border-[var(--border)] p-2">
-                    <input
-                      type="text"
-                      value={solanaBalanceSearch}
-                      onChange={(e) => setSolanaBalanceSearch(e.target.value)}
-                      placeholder="Search asset"
-                      autoFocus
-                      className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
-                    />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto overscroll-contain">
-                    {filteredSolanaBalanceTokens.map((asset) => (
-                      <button
-                        key={asset}
-                        type="button"
-                        onClick={() => {
-                          setSolanaBalanceToken(asset);
-                          setSolanaBalanceMenuOpen(false);
-                          setSolanaBalanceSearch("");
-                        }}
-                        className={`flex w-full items-center gap-3 px-3 py-2.5 text-left text-sm ${
-                          solanaBalanceToken === asset
-                            ? "bg-[var(--accent)]/10"
-                            : "hover:bg-[var(--surface)]"
-                        }`}
-                      >
-                        <TokenIcon token={asset} className="h-5 w-5" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-semibold text-[var(--text)]">
-                            {TOKEN_META[asset].label}
-                          </span>
-                          <span className="block text-xs font-mono text-[var(--text-secondary)]">
-                            {formatTradingBalance("solana", asset)}
-                            {asset !== "usdc" ? ` ${TOKEN_META[asset].label}` : ""}
-                          </span>
-                        </span>
-                      </button>
-                    ))}
-                    {filteredSolanaBalanceTokens.length === 0 && (
-                      <p className="px-3 py-4 text-sm text-[var(--text-secondary)]">
-                        No assets found.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-            </div>
-            <p className="text-[10px] text-[var(--text-secondary)] mt-1">
-              {solanaAddress ? (
-                <>
-                  <span className="font-mono">{truncate(solanaAddress)}</span>
-                  <span className="ml-1.5 opacity-70">· Privy embedded (used for trading)</span>
-                </>
-              ) : (
-                "Set up on first deposit"
-              )}
-            </p>
-          </div>
-          )}
-        </div>
-
-        {/* Tabs */}
         <div className="flex rounded-xl bg-[var(--surface)] p-1 gap-1">
           {(["deposit", "withdraw"] as Tab[]).map((t) => (
             <button
@@ -793,79 +578,182 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           ))}
         </div>
 
-        {/* Wallet selector */}
-        <div className="space-y-2">
-          <p className="text-xs text-[var(--text-secondary)]">
-            {tab === "deposit"
-              ? "Send from (your external wallet)"
-              : "Send to (your external wallet)"}
-          </p>
-          {externalWallets.length === 0 ? (
+        <div className="grid grid-cols-2 rounded-xl bg-[var(--surface)] p-1 gap-1">
+          {(["crypto", "cash"] as Method[]).map((m) => (
             <button
-              onClick={handleConnectWallet}
-              className="w-full rounded-xl border border-dashed border-[var(--border)] py-3 text-sm text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors"
+              key={m}
+              type="button"
+              onClick={() => setMethod(m)}
+              disabled={isPending}
+              className={`rounded-lg py-3 text-sm font-semibold transition-colors ${
+                method === m
+                  ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+              } disabled:opacity-40`}
             >
-              + Connect another wallet
+              {m === "crypto" ? "Use Crypto" : "Use Cash"}
             </button>
-          ) : (
-            <div className="flex flex-col gap-1.5">
-              {externalWallets.map((w) => (
-                <button
-                  key={`${w.chain}-${w.address}`}
-                  onClick={() => {
-                    setSelectedWallet(w);
-                    setAmountStr("");
-                    setError(null);
-                    setStatus("idle");
-                    setTxHash(null);
-                    setTxChain(null);
-                  }}
-                  disabled={isPending}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm border transition-colors text-left ${
-                    selectedWallet?.address === w.address &&
-                    selectedWallet?.chain === w.chain
-                      ? "border-[var(--accent)] bg-[var(--accent)]/10"
-                      : "border-[var(--border)] hover:border-[var(--text-secondary)]"
-                  } disabled:opacity-40`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <span className="font-semibold text-[var(--text)]">
-                      {w.name}
-                    </span>
-                    <span className="ml-2 text-[var(--text-secondary)] font-mono text-xs">
-                      {truncate(w.address)}
-                    </span>
-                  </div>
-                  <span className="text-xs text-[var(--text-secondary)] shrink-0">
-                    {chainLabel(w.chain)}
-                  </span>
-                </button>
-              ))}
+          ))}
+        </div>
+
+        {method === "cash" ? (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-6 text-center">
+            <p className="text-sm font-semibold text-[var(--text)]">
+              Cash onramp/offramp coming soon
+            </p>
+            <p className="mt-2 text-sm text-[var(--text-secondary)]">
+              For now, use crypto deposits and withdrawals from Base or Solana wallets.
+            </p>
+          </div>
+        ) : (
+          <>
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-base font-semibold text-[var(--text)]">
+                Transfer Crypto
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
+                {tab === "deposit" ? "From your wallet to trading" : "From trading to your wallet"}
+              </p>
+            </div>
+            <span className="text-xs text-[var(--text-secondary)]">No limit</span>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <div className="relative space-y-1.5">
+              <span className="text-xs font-semibold text-[var(--text)]">Token</span>
               <button
+                type="button"
+                aria-label={`Token ${meta.label}`}
+                onClick={() => {
+                  setTokenMenuOpen((open) => !open);
+                  setChainMenuOpen(false);
+                }}
+                disabled={isPending || isDone}
+                className="flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-40"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <TokenIcon token={token} className="h-6 w-6" />
+                  <span className="truncate">{meta.label}</span>
+                </span>
+                <span className="text-[var(--text-secondary)]">⌄</span>
+              </button>
+              {tokenMenuOpen && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl">
+                  {availableTokens.map((asset) => (
+                    <button
+                      key={asset}
+                      type="button"
+                      onClick={() => selectToken(asset)}
+                      className={`flex w-full items-center gap-2 px-3 py-3 text-left text-sm ${
+                        token === asset
+                          ? "bg-[var(--accent)]/10"
+                          : "hover:bg-[var(--surface)]"
+                      }`}
+                    >
+                      <TokenIcon token={asset} className="h-5 w-5" />
+                      <span className="font-semibold text-[var(--text)]">
+                        {TOKEN_META[asset].label}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+            <div className="relative space-y-1.5">
+              <span className="text-xs font-semibold text-[var(--text)]">Network</span>
+              <button
+                type="button"
+                aria-label={`Network ${chainLabel(activeChain)}`}
+                onClick={() => {
+                  setChainMenuOpen((open) => !open);
+                  setTokenMenuOpen(false);
+                }}
+                disabled={isPending || isDone}
+                className="flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-40"
+              >
+                <span className="flex min-w-0 items-center gap-2">
+                  <ChainIcon chain={activeChain} className="h-6 w-6" />
+                  <span className="truncate">{chainLabel(activeChain)}</span>
+                </span>
+                <span className="text-[var(--text-secondary)]">⌄</span>
+              </button>
+              {chainMenuOpen && (
+                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl">
+                  {availableChains.map((network) => (
+                    <button
+                      key={network}
+                      type="button"
+                      onClick={() => selectChain(network)}
+                      className={`flex w-full items-center gap-2 px-3 py-3 text-left text-sm ${
+                        activeChain === network
+                          ? "bg-[var(--accent)]/10"
+                          : "hover:bg-[var(--surface)]"
+                      }`}
+                    >
+                      <ChainIcon chain={network} className="h-5 w-5" />
+                      <span className="font-semibold text-[var(--text)]">
+                        {chainLabel(network)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {/* Contextual external wallet */}
+        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+          {selectedWallet ? (
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                  {tab === "deposit" ? "From" : "To"}
+                </p>
+                <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
+                  {truncate(selectedWallet.address)}
+                  <span className="ml-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
+                    {chainLabel(chain)} wallet
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
                 onClick={handleConnectWallet}
                 disabled={isPending}
-                className="w-full rounded-xl border border-dashed border-[var(--border)] py-2.5 text-xs text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] transition-colors disabled:opacity-40"
+                className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
               >
-                + Connect another wallet
+                Change
               </button>
             </div>
-          )}
-          {selectedWallet && (
-            <p className="text-xs text-[var(--text-secondary)]">
-              {tab === "deposit"
-                ? `${selectedWallet.name} (${truncate(selectedWallet.address)}) → ${chainLabel(chain)} trading account`
-                : `${chainLabel(chain)} trading account → ${selectedWallet.name} (${truncate(selectedWallet.address)})`}
-            </p>
+          ) : (
+            <div className="space-y-3">
+              <div>
+                <p className="text-sm font-semibold text-[var(--text)]">
+                  No {chainLabel(chain)} wallet connected
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  {tab === "deposit"
+                    ? "Connect the wallet you want to deposit from."
+                    : "Connect the wallet you want to withdraw to."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleConnectWallet}
+                disabled={isPending}
+                className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
+              >
+                Connect {chainLabel(chain)} wallet
+              </button>
+            </div>
           )}
         </div>
 
         {/* Base activation gate — show activate button instead of deposit/withdraw UI */}
         {needsWallet ? (
-          <div className="space-y-3">
-            <p className="text-sm text-[var(--text-secondary)]">
-              Connect the wallet you want to use for deposits and withdrawals.
-            </p>
-          </div>
+          null
         ) : needsBaseActivation && chain === "base" ? (
           <div className="space-y-3">
             <p className="text-sm text-[var(--text-secondary)]">
@@ -913,75 +801,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                       {tab === "deposit" ? "Deposit" : "Withdraw"} on {chainLabel(chain)}
                     </p>
                   </div>
-                  <div className="relative shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAssetMenuOpen((open) => !open);
-                        setAssetSearch("");
-                      }}
-                      disabled={isPending || isDone}
-                      className="flex items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] disabled:opacity-40"
-                    >
-                      <TokenIcon token={token} className="h-5 w-5" />
-                      <span>{meta.label}</span>
-                      <span className="text-[var(--text-secondary)]">⌄</span>
-                    </button>
-                    {assetMenuOpen && (
-                      <div
-                        className="absolute right-0 top-full z-10 mt-2 w-64 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl"
-                        onWheel={(e) => e.stopPropagation()}
-                      >
-                        <div className="border-b border-[var(--border)] p-2">
-                          <input
-                            type="text"
-                            value={assetSearch}
-                            onChange={(e) => setAssetSearch(e.target.value)}
-                            placeholder="Search asset"
-                            autoFocus
-                            className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)] focus:border-[var(--accent)] focus:outline-none"
-                          />
-                        </div>
-                        <div className="max-h-56 overflow-y-auto overscroll-contain">
-                          {filteredAssetTokens.map((t) => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => {
-                                setToken(t);
-                                setAmountStr("");
-                                setError(null);
-                                setStatus("idle");
-                                setTxHash(null);
-                                setTxChain(null);
-                                setAssetMenuOpen(false);
-                                setAssetSearch("");
-                              }}
-                              className={`flex w-full items-center gap-3 px-3 py-3 text-left transition-colors ${
-                                token === t
-                                  ? "bg-[var(--accent)]/10"
-                                  : "hover:bg-[var(--surface)]"
-                              }`}
-                            >
-                              <TokenIcon token={t} className="h-6 w-6" />
-                              <span className="min-w-0 flex-1">
-                                <span className="block text-sm font-semibold text-[var(--text)]">
-                                  {TOKEN_META[t].label}
-                                </span>
-                                <span className="block text-xs font-mono text-[var(--text-secondary)]">
-                                  {formatTokenBalance(t)}
-                                </span>
-                              </span>
-                            </button>
-                          ))}
-                          {filteredAssetTokens.length === 0 && (
-                            <p className="px-3 py-4 text-sm text-[var(--text-secondary)]">
-                              No assets found.
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
+                  <div className="flex shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-semibold text-[var(--text)]">
+                    <TokenIcon token={token} className="h-5 w-5" />
+                    <span>{meta.label}</span>
                   </div>
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-3">
@@ -1009,25 +831,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   Leaving 0.005 SOL for network fees.
                 </p>
               )}
-              {chain === "solana" && token === "usdc" && (
-                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Solana USDC transactions need a little SOL for network fees.
-                </p>
-              )}
               {chain === "solana" && token === "tslax" && !SOLANA_TSLAX_MINT && (
                 <p className="text-xs text-amber-400 mt-1">
                   TSLAx mint is not configured in this deployment.
                 </p>
               )}
             </div>
-
-            {/* Withdraw gas note */}
-            {tab === "withdraw" && selectedWalletAddress && (
-              <p className="text-xs text-[var(--text-secondary)]">
-                Withdraw to {truncate(selectedWalletAddress)}.
-                {chain === "base" ? " Gas is sponsored." : ""}
-              </p>
-            )}
 
             {error && (
               <p className="text-sm text-[var(--danger)]">{error}</p>
@@ -1081,6 +890,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     : `Withdraw ${meta.label}`}
               </button>
             )}
+          </>
+        )}
           </>
         )}
 
