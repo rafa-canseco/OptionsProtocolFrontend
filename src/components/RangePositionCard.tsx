@@ -3,12 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
+import { fmtUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { solanaTxUrl } from "@/lib/solana";
 import { getAssetConfig } from "@/lib/assets";
 import { getPositionStrike } from "@/lib/positionMath";
-import { YieldExplainer } from "./yield/YieldExplainer";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
@@ -25,13 +24,6 @@ function positionOpenTxUrl(position: Position, slug: string): string | null {
   return position.tx_url ?? explorerTxUrl(position.tx_hash, slug);
 }
 
-interface YieldInfo {
-  asset: string;
-  deposited_at: string;
-  is_active: boolean;
-  estimated_yield: number;
-}
-
 interface Props {
   positions: Position[];
   spot?: number;
@@ -40,7 +32,6 @@ interface Props {
   yieldMetric?: YieldMetric;
   assetSymbol?: string;
   assetSlug?: string;
-  yieldByVault?: Map<number, YieldInfo>;
 }
 
 export function RangePositionCard({
@@ -51,7 +42,6 @@ export function RangePositionCard({
   yieldMetric = "apr",
   assetSymbol = "ETH",
   assetSlug = "eth",
-  yieldByVault,
 }: Props) {
   const [expanded, setExpanded] = useState(false);
 
@@ -183,29 +173,6 @@ export function RangePositionCard({
               maximumFractionDigits: 0,
             })}
           </p>
-
-          {(() => {
-            const putYp = yieldByVault?.get(putLeg.vault_id);
-            const callYp = yieldByVault?.get(callLeg.vault_id);
-            if (!putYp && !callYp) return null;
-            const yp = putYp ?? callYp!;
-            const days = Math.max(1, Math.round((Date.now() - new Date(yp.deposited_at).getTime()) / 86_400_000));
-            const putYieldUsd = (putYp?.estimated_yield ?? 0);
-            const callYieldUsd = (callYp?.estimated_yield ?? 0) * (spot ?? 0);
-            const totalEstYield = putYieldUsd + callYieldUsd;
-            return (
-              <p className="text-xs text-amber-400 flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-                Earning Aave yield
-                {totalEstYield > 0 && (
-                  <span className="font-mono">
-                    · ~${fmtYieldUsd(totalEstYield)} accrued ({days}d)
-                  </span>
-                )}
-                <YieldExplainer />
-              </p>
-            );
-          })()}
 
           {/* Expandable leg details */}
           <button

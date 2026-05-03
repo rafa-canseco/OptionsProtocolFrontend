@@ -125,6 +125,7 @@ vi.mock("@/lib/contracts", () => ({
 }));
 
 vi.mock("@/lib/solana", () => ({
+  SOLANA_NATIVE_RESERVE_LAMPORTS: BigInt(15_000_000),
   SOLANA_RPC_URL: undefined,
   SOLANA_USDC_MINT: undefined,
   SOLANA_TSLAX_MINT: undefined,
@@ -152,9 +153,8 @@ describe("DepositModal withdraw guard", () => {
     const withdrawTab = screen.getByRole("button", { name: /withdraw/i });
     await userEvent.click(withdrawTab);
 
-    // The wallet selector area should show "+ Connect another wallet"
     expect(
-      screen.getByText(/\+ Connect another wallet/),
+      screen.getByRole("button", { name: /Connect Base wallet/i }),
     ).toBeInTheDocument();
   });
 
@@ -164,10 +164,8 @@ describe("DepositModal withdraw guard", () => {
     const withdrawTab = screen.getByRole("button", { name: /withdraw/i });
     await userEvent.click(withdrawTab);
 
-    // "Withdraw to" note with the truncated address and gas info
-    expect(
-      screen.getByText(/Withdraw to.*Gas is sponsored/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("To")).toBeInTheDocument();
+    expect(screen.getByText(/0xFund...ding/)).toBeInTheDocument();
   });
 
   it("does not call sendBatchTx when no external wallets", async () => {
@@ -204,7 +202,7 @@ describe("DepositModal Solana production gate", () => {
     process.env = { ...ORIGINAL_ENV };
   });
 
-  it("hides Solana trading account card in mainnet", () => {
+  it("hides the Solana network option in mainnet", () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
     walletOverrides = {
       solanaAddress: "SolEmbeddedAddr1111111111111111111111111",
@@ -214,7 +212,7 @@ describe("DepositModal Solana production gate", () => {
     render(<DepositModal onClose={vi.fn()} />);
 
     expect(
-      screen.queryByText(/Solana trading account/i),
+      screen.queryByRole("button", { name: /Network Solana/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -226,11 +224,11 @@ describe("DepositModal Solana production gate", () => {
 
     render(<DepositModal onClose={vi.fn()} />);
 
-    expect(screen.getByText("MetaMask")).toBeInTheDocument();
+    expect(screen.getByText(/0xFund...ding/)).toBeInTheDocument();
     expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
   });
 
-  it("still shows Solana trading account in devnet", () => {
+  it("still allows selecting Solana in devnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     walletOverrides = {
       solanaAddress: "SolEmbeddedAddr1111111111111111111111111",
@@ -239,10 +237,11 @@ describe("DepositModal Solana production gate", () => {
 
     render(<DepositModal onClose={vi.fn()} />);
 
-    expect(
-      screen.getByText(/Solana trading account/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Phantom")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /Network Base/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^Solana$/i }));
+
+    expect(screen.getByText(/SolWal...1111/)).toBeInTheDocument();
+    expect(screen.getByText(/Solana wallet/)).toBeInTheDocument();
   });
 
   it("ignores requiredToken=tslax in mainnet and does not preselect Solana", () => {
@@ -281,10 +280,8 @@ describe("DepositModal Solana production gate", () => {
 
     render(<DepositModal onClose={vi.fn()} />);
 
-    // Phantom is filtered, MetaMask remains and should be auto-selected.
     expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
-    expect(screen.getByText("MetaMask")).toBeInTheDocument();
-    // "From MetaMask" under the amount input confirms Base auto-selection.
-    expect(screen.getByText(/From MetaMask/i)).toBeInTheDocument();
+    expect(screen.getByText(/0xFund...ding/)).toBeInTheDocument();
+    expect(screen.getByText(/Base wallet/)).toBeInTheDocument();
   });
 });

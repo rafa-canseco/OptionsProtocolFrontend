@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { Check, Copy } from "lucide-react";
 import { usePrices } from "@/hooks/usePrices";
 import { useSpot } from "@/hooks/useSpot";
 import { useCapacity } from "@/hooks/useCapacity";
@@ -18,8 +19,6 @@ import { CHAIN } from "@/lib/contracts";
 import { isExecutableQuote, isProductionReadOnlyAsset } from "@/lib/marketState";
 import { SOLANA_NATIVE_RESERVE_LAMPORTS, solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
-import { formatApr } from "@/lib/yield";
-import { useAaveRates } from "@/hooks/useAaveRates";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import { AssetSelector } from "./AssetSelector";
@@ -176,7 +175,6 @@ function StrikeCard({
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices(asset.slug);
-  const { rates: aaveRates } = useAaveRates();
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
@@ -212,7 +210,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
-  const isSolanaAsset = asset.chain === "solana";
   const marketReadOnly = isProductionReadOnlyAsset(asset);
   const wrappableSolRaw =
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
@@ -533,18 +530,28 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         >
           How does this work?
         </button>
-        <button
-          onClick={() => {
-            const url = `${window.location.origin}/llms.txt`;
-            navigator.clipboard.writeText(url).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }).catch(() => {});
-          }}
-          className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-        >
-          {copied ? "Copied!" : "Share with your AI"}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/llms.txt`;
+                navigator.clipboard.writeText(url).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }).catch((err) => {
+                  console.warn("[PriceMenuV2] Clipboard write failed:", err);
+                });
+              }}
+              className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none inline-flex items-center gap-1.5"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copied ? "AI context copied" : "Copy AI context"}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Copies our llms.txt link so you can paste it into ChatGPT, Claude, or another AI for context on how B1NARY works.</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-y-3 animate-fade-in-up">
@@ -621,9 +628,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Set a price you&apos;d buy {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
                 </p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while committed
-                </p>
               </>
             )}
             {side === "sell" && (
@@ -635,9 +639,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Set a price you&apos;d sell {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
                 </p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while committed
-                </p>
               </>
             )}
             {side === "range" && (
@@ -648,9 +649,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 <p className="text-sm text-[var(--text-secondary)]">
                   Set a buy price and a sell price. You earn from both commitments.
                   If {asset.symbol} stays in your range, everything comes back. You keep both payments.
-                </p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Collateral earns {isSolanaAsset ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
                 </p>
               </>
             )}

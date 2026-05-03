@@ -1,10 +1,8 @@
 "use client";
 
-import type { Position, Activity, YieldAssetSummary, YieldPositionTotal } from "@/lib/api";
-import { fmtUsd, fmtYieldUsd, getNextMonday } from "@/lib/utils";
-import { toUsd } from "@/lib/pricing";
+import type { Position, Activity } from "@/lib/api";
+import { fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
-import { InfoTooltip } from "./ui/InfoTooltip";
 import { resolvePositionAsset } from "@/lib/assets";
 import { getPositionStrike } from "@/lib/positionMath";
 
@@ -13,10 +11,6 @@ interface Props {
   activity: Activity | null;
   yieldMetric: YieldMetric;
   onYieldMetricChange: (metric: YieldMetric) => void;
-  yieldAssets?: YieldAssetSummary[];
-  yieldPositionTotals?: YieldPositionTotal[];
-  ethSpot: number | undefined;
-  btcSpot: number | undefined;
 }
 
 function formatUSD(n: number): string {
@@ -39,10 +33,6 @@ export function PortfolioSummary({
   activity,
   yieldMetric,
   onYieldMetricChange,
-  yieldAssets,
-  yieldPositionTotals,
-  ethSpot,
-  btcSpot,
 }: Props) {
   const premiumEarned = positions.reduce(
     (sum, p) => sum + Number(p.net_premium) / 1e6,
@@ -76,30 +66,6 @@ export function PortfolioSummary({
 
   const metricValue = yieldMetric === "apr" ? avgApr : avgRoi;
 
-  // Yield from backend — use position totals (same source as card data)
-  let accruingYieldUsd = 0;
-  if (yieldPositionTotals) {
-    for (const t of yieldPositionTotals) {
-      accruingYieldUsd += toUsd(
-        t.estimated_yield, t.asset, ethSpot, btcSpot,
-      );
-    }
-  }
-  let deliveredYieldUsd = 0;
-  if (yieldAssets) {
-    for (const a of yieldAssets) {
-      deliveredYieldUsd += toUsd(a.delivered, a.asset, ethSpot, btcSpot);
-    }
-  }
-
-  const hasActivePositions = positions.some((p) => !p.is_settled);
-  const nextMondayStr = getNextMonday().toLocaleDateString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    timeZone: "UTC",
-  });
-
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-4">
       {/* Status badge */}
@@ -116,7 +82,7 @@ export function PortfolioSummary({
       </div>
 
       {/* Stats grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
             Total Earned
@@ -160,33 +126,6 @@ export function PortfolioSummary({
             {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
           </p>
         </div>
-
-        {hasActivePositions && (
-          <>
-            <div>
-              <div className="flex items-center gap-1.5">
-                <p className="text-xs text-[var(--text-secondary)]">
-                  Aave Yield
-                </p>
-                <InfoTooltip
-                  title="Aave Yield"
-                  text={`Your collateral earns yield in Aave V3 while your position is open. Distributed every Monday via airdrop. Next: ${nextMondayStr}.`}
-                />
-              </div>
-              <p className="text-xl font-bold text-amber-400 font-mono">
-                ${fmtYieldUsd(accruingYieldUsd)}
-              </p>
-            </div>
-            <div>
-              <p className="text-xs text-[var(--text-secondary)]">
-                Distributed
-              </p>
-              <p className="text-xl font-bold text-[var(--bone)] font-mono">
-                ${fmtYieldUsd(deliveredYieldUsd)}
-              </p>
-            </div>
-          </>
-        )}
       </div>
     </div>
   );

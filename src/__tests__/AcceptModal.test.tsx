@@ -64,10 +64,6 @@ vi.mock("@/hooks/useBridgeAndTrade", () => ({
   }),
 }));
 
-vi.mock("@/hooks/useAaveRates", () => ({
-  useAaveRates: () => ({ rates: { usdc: 0.034, eth: 0, btc: 0, sol: 0, tslax: 0 } }),
-}));
-
 vi.mock("@/lib/contracts", () => ({
   publicClient: {
     readContract: (args: { functionName: string }) =>
@@ -140,10 +136,6 @@ vi.mock("@/lib/optimisticPositions", () => ({
 
 vi.mock("@/components/ui/InfoTooltip", () => ({
   InfoTooltip: () => null,
-}));
-
-vi.mock("@/components/yield/YieldExplainer", () => ({
-  YieldExplainer: () => null,
 }));
 
 vi.mock("@/components/DepositModal", () => ({
