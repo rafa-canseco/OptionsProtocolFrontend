@@ -423,7 +423,7 @@ function assertSolanaPremiumScale(
  * Privy's `signSolanaTransaction()`.
  *
  * Single sponsored tx containing: ATA creates (idempotent) +
- * SPL approve + Ed25519 verify + executeOrder (23 accounts).
+ * SPL approve + Ed25519 verify + executeOrder.
  * Uses Address Lookup Table to compress below 1232-byte limit.
  */
 export async function buildSolanaTradeTransaction(
@@ -726,7 +726,7 @@ export async function buildSolanaTradeTransaction(
   instructions.push(ed25519Ix);
 
   // ---------------------------------------------------------------------------
-  // executeOrder instruction — 23 accounts, IDL-correct args
+  // executeOrder instruction — IDL-correct args/accounts.
   // ---------------------------------------------------------------------------
 
   const discriminator = Buffer.from("733db418a820d714", "hex");
@@ -772,35 +772,43 @@ export async function buildSolanaTradeTransaction(
       { pubkey: otokenInfoPda, isSigner: false, isWritable: false },
       // [7]  otokenMint
       { pubkey: oTokenMint, isSigner: false, isWritable: true },
-      // [8]  userCollateralAccount
+      // [8]  collateralMintAccount
+      { pubkey: collateralMint, isSigner: false, isWritable: false },
+      // [9]  premiumMintAccount
+      { pubkey: premiumMint, isSigner: false, isWritable: false },
+      // [10] userCollateralAccount
       { pubkey: userCollateralAccount, isSigner: false, isWritable: true },
-      // [9]  poolTokenAccount
+      // [11] poolTokenAccount
       { pubkey: poolTokenAccountPubkey, isSigner: false, isWritable: true },
-      // [10] poolVaultAuthority
+      // [12] poolVaultAuthority
       { pubkey: poolVaultAuthorityPda, isSigner: false, isWritable: false },
-      // [11] settlerOtokenAccount
+      // [13] settlerOtokenAccount
       { pubkey: settlerOtokenAccount, isSigner: false, isWritable: true },
-      // [12] mmPremiumAccount
+      // [14] mmPremiumAccount
       { pubkey: mmPremiumAccount, isSigner: false, isWritable: true },
-      // [13] userPremiumAccount
+      // [15] userPremiumAccount
       { pubkey: userPremiumAccount, isSigner: false, isWritable: true },
-      // [14] treasuryAccount
+      // [16] treasuryAccount
       { pubkey: treasuryAccount, isSigner: false, isWritable: true },
-      // [15] makerOtokenBalance
+      // [17] makerOtokenBalance
       { pubkey: makerOtokenBalancePda, isSigner: false, isWritable: true },
-      // [16] vaultMm
+      // [18] vaultMm
       { pubkey: vaultMmPda, isSigner: false, isWritable: true },
-      // [17] user
+      // [19] user
       { pubkey: ownerPubkey, isSigner: true, isWritable: true },
-      // [18] maker
+      // [20] maker
       { pubkey: makerPubkey, isSigner: false, isWritable: false },
-      // [19] controllerProgram
+      // [21] controllerProgram
       { pubkey: SOLANA_PROGRAMS.controller, isSigner: false, isWritable: false },
-      // [20] tokenProgram
+      // [22] collateralTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [21] systemProgram
+      // [23] otokenTokenProgram
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      // [24] premiumTokenProgram
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      // [25] systemProgram
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // [22] instructionsSysvar
+      // [26] instructionsSysvar
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
     ],
     data: ixData,
