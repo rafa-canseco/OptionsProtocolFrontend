@@ -304,6 +304,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("pending");
     setTxHash(null);
     setTxChain(null);
+    const BASE_DEPOSIT_TOKEN_ADDRESS: Partial<Record<Token, Address>> = {
+      usdc: ADDRESSES.usdc,
+      weth: ADDRESSES.weth,
+      btc: ADDRESSES.wbtc,
+    };
+
     try {
       let hash: `0x${string}`;
       if (token === "eth") {
@@ -313,12 +319,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           value: amount,
         });
       } else {
-        const tokenAddress =
-          token === "usdc"
-            ? ADDRESSES.usdc
-            : token === "weth"
-              ? ADDRESSES.weth
-              : ADDRESSES.wbtc;
+        const tokenAddress = BASE_DEPOSIT_TOKEN_ADDRESS[token];
+        if (!tokenAddress) {
+          setError(`Unsupported token for Base deposit: ${token}`);
+          setStatus("idle");
+          return;
+        }
         hash = await sendFundingTx({
           to: tokenAddress,
           data: encodeFunctionData({
@@ -435,16 +441,20 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("pending");
     setTxHash(null);
     setTxChain(null);
-    try {
-      const tokenAddress =
-        token === "usdc"
-          ? ADDRESSES.usdc
-          : token === "eth"
-            ? null
-            : token === "weth"
-              ? ADDRESSES.weth
-              : ADDRESSES.wbtc;
+    const BASE_WITHDRAW_TOKEN_ADDRESS: Partial<Record<Token, Address | null>> = {
+      usdc: ADDRESSES.usdc,
+      eth: null,
+      weth: ADDRESSES.weth,
+      btc: ADDRESSES.wbtc,
+    };
 
+    if (!(token in BASE_WITHDRAW_TOKEN_ADDRESS)) {
+      setError(`Unsupported token for Base withdrawal: ${token}`);
+      return;
+    }
+    const tokenAddress = BASE_WITHDRAW_TOKEN_ADDRESS[token];
+
+    try {
       const result = await sendBatchTx([
         tokenAddress
           ? {
