@@ -36,6 +36,38 @@ function fmtAmount(value: number, decimals: number): string {
   });
 }
 
+function BalanceRow({
+  icon,
+  label,
+  value,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2 text-[var(--text-secondary)]">
+      <span className="flex min-w-0 items-center gap-2">
+        <img
+          src={icon}
+          alt=""
+          aria-hidden="true"
+          className="h-4 w-4 rounded-full"
+        />
+        <span className="truncate">{label}</span>
+      </span>
+      <span className="shrink-0 text-right font-mono text-[var(--text)]">{value}</span>
+    </div>
+  );
+}
+
+type BalanceItem = {
+  icon: string;
+  label: string;
+  value: string;
+  amount: number;
+};
+
 export function NavBar() {
   const pathname = usePathname();
   const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
@@ -54,18 +86,27 @@ export function NavBar() {
   const { spot: tslaxSpot } = useSpot("tslax");
 
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
-  const totalSol = solanaSol + solanaWsol;
+  const totalUsdc = usd + solanaUsdc;
   const totalUsd =
-    usd +
-    solanaUsdc +
+    totalUsdc +
     (eth + weth) * (ethSpot ?? ASSETS.eth.fallbackSpot) +
     wbtc * (btcSpot ?? ASSETS.btc.fallbackSpot) +
-    totalSol * (solSpot ?? ASSETS.sol.fallbackSpot) +
+    (solanaSol + solanaWsol) * (solSpot ?? ASSETS.sol.fallbackSpot) +
     solanaTslax * (tslaxSpot ?? ASSETS.tslax.fallbackSpot);
-  const hasAnyBalance =
-    usd > 0 || eth > 0 || weth > 0 || wbtc > 0 ||
-    solanaUsdc > 0 || totalSol > 0 || solanaTslax > 0;
   const balancesLoading = balLoading || solanaBalLoading;
+  const balanceItems: BalanceItem[] = [
+    { icon: "/usdc.svg", label: "USDC", value: fmtUsd(totalUsdc), amount: totalUsdc },
+    { icon: "/eth.png", label: "ETH", value: fmtAmount(eth, 4), amount: eth },
+    { icon: "/weth.png", label: "WETH", value: fmtAmount(weth, 4), amount: weth },
+    { icon: "/cbbtc.webp", label: "cbBTC", value: fmtAmount(wbtc, 6), amount: wbtc },
+    { icon: "/sol.png", label: "SOL", value: fmtAmount(solanaSol, 4), amount: solanaSol },
+    { icon: "/sol.png", label: "wSOL", value: fmtAmount(solanaWsol, 4), amount: solanaWsol },
+    { icon: "/tslax.svg", label: "TSLAx", value: fmtAmount(solanaTslax, 4), amount: solanaTslax },
+  ].sort((a, b) => {
+    if (a.amount > 0 && b.amount <= 0) return -1;
+    if (a.amount <= 0 && b.amount > 0) return 1;
+    return 0;
+  });
 
   return (
     <>
@@ -96,7 +137,7 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
-          {isConnected && (hasAnyBalance || balancesLoading) && (
+          {isConnected && (
             <Popover>
               <PopoverTrigger asChild>
                 <button className="hidden sm:flex items-center gap-1.5 rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors">
@@ -108,53 +149,18 @@ export function NavBar() {
                 </button>
               </PopoverTrigger>
               <PopoverContent
-                className="w-[260px] p-3 border-[var(--border)] bg-[var(--bg)]"
+                className="w-[220px] p-3 border-[var(--border)] bg-[var(--bg)]"
                 align="end"
               >
                 <div className="space-y-2 text-sm">
-                  <div className="flex justify-between text-[var(--text)]">
-                    <span className="font-semibold">Total value</span>
-                    <span className="font-mono">{fmtUsd(totalUsd)}</span>
-                  </div>
-                  <div className="h-px bg-[var(--border)]" />
-                  <div className="flex justify-between text-[var(--text)]">
-                    <span>Base USDC</span>
-                    <span className="font-mono">{fmtUsd(usd)}</span>
-                  </div>
-                  <div className="flex justify-between text-[var(--text)]">
-                    <span>Solana USDC</span>
-                    <span className="font-mono">{fmtUsd(solanaUsdc)}</span>
-                  </div>
-                  {eth > 0 && (
-                    <div className="flex justify-between text-[var(--text-secondary)]">
-                      <span>ETH</span>
-                      <span className="font-mono">{fmtAmount(eth, 4)}</span>
-                    </div>
-                  )}
-                  {weth > 0 && (
-                    <div className="flex justify-between text-[var(--text-secondary)]">
-                      <span>WETH</span>
-                      <span className="font-mono">{fmtAmount(weth, 4)}</span>
-                    </div>
-                  )}
-                  {wbtc > 0 && (
-                    <div className="flex justify-between text-[var(--text-secondary)]">
-                      <span>cbBTC</span>
-                      <span className="font-mono">{fmtAmount(wbtc, 6)}</span>
-                    </div>
-                  )}
-                  {totalSol > 0 && (
-                    <div className="flex justify-between text-[var(--text-secondary)]">
-                      <span>SOL + wSOL</span>
-                      <span className="font-mono">{fmtAmount(totalSol, 4)}</span>
-                    </div>
-                  )}
-                  {solanaTslax > 0 && (
-                    <div className="flex justify-between text-[var(--text-secondary)]">
-                      <span>TSLAx</span>
-                      <span className="font-mono">{fmtAmount(solanaTslax, 4)}</span>
-                    </div>
-                  )}
+                  {balanceItems.map((item) => (
+                    <BalanceRow
+                      key={item.label}
+                      icon={item.icon}
+                      label={item.label}
+                      value={item.value}
+                    />
+                  ))}
                 </div>
               </PopoverContent>
             </Popover>

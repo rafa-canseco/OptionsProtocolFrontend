@@ -34,11 +34,8 @@ import {
   buildOptimisticPosition,
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
-import { formatApr } from "@/lib/yield";
-import { useAaveRates } from "@/hooks/useAaveRates";
 import { isProductionReadOnlyAsset } from "@/lib/marketState";
 import type { YieldMetric } from "./YieldToggle";
-import { YieldExplainer } from "./yield/YieldExplainer";
 import { DepositModal } from "@/components/DepositModal";
 
 interface Props {
@@ -93,7 +90,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   } = useSolanaBalance(solanaAddress);
   const balancesLoading = baseBalLoading || solBalLoading;
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
-  const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [chainExecuted, setChainExecuted] = useState<"base" | "solana" | null>(null);
@@ -106,7 +102,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const isBtc = assetSlug === "btc";
   const assetConfig = getAssetConfig(assetSlug);
   const isSol = assetSlug === "sol";
-  const isSolanaAsset = assetConfig?.chain === "solana";
   const marketReadOnly = isProductionReadOnlyAsset(
     assetConfig ?? { slug: assetSlug, chain: quote.chain },
   );
@@ -641,11 +636,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             <div className="h-px bg-[var(--border)]" />
             <p className="text-sm text-[var(--text)]">
               You commit {commitDisplay} for {quote.expiry_days} days
-            </p>
-
-            <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
-              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while open
-              <YieldExplainer />
             </p>
 
             {renderExtra ? (

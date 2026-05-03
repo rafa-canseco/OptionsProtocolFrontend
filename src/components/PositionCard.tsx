@@ -3,14 +3,11 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd, fmtAsset, fmtYieldUsd, buildCalendarUrl } from "@/lib/utils";
+import { fmtUsd, fmtAsset, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { solanaTxUrl } from "@/lib/solana";
 import { getAssetConfig } from "@/lib/assets";
 import { getPositionExpiryPrice, getPositionStrike } from "@/lib/positionMath";
-import { formatApr } from "@/lib/yield";
-import type { AaveRates } from "@/hooks/useAaveRates";
-import { YieldExplainer } from "./yield/YieldExplainer";
 
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
@@ -47,13 +44,6 @@ function positionTxUrl(
       : null);
 }
 
-interface YieldInfo {
-  asset: string;
-  deposited_at: string;
-  is_active: boolean;
-  estimated_yield: number;
-}
-
 interface Props {
   position: Position;
   onSettled?: () => void;
@@ -69,13 +59,9 @@ interface Props {
   assetSymbol?: string;
   /** Asset slug for collateral logic, e.g. "eth", "btc" */
   assetSlug?: string;
-  /** Yield position data keyed by vault_id */
-  yieldByVault?: Map<number, YieldInfo>;
-  /** Live Aave APR rates per asset */
-  aaveRates?: AaveRates;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth", yieldByVault, aaveRates }: Props) {
+export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -156,24 +142,6 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const ctaEarnHref = (side: string, amount?: number) =>
     amount ? `${earnBase}?side=${side}&amount=${amount}` : `${earnBase}?side=${side}`;
 
-  // Aave yield tracking for this position (from backend)
-  const yieldInfo = yieldByVault?.get(position.vault_id);
-  const collateralAsset = isBuy ? "usdc" : assetSlug;
-  const aaveApr = aaveRates?.[collateralAsset] ?? 0;
-  const yieldDays = yieldInfo
-    ? Math.max(
-        1,
-        Math.round(
-          (Date.now() - new Date(yieldInfo.deposited_at).getTime()) /
-            86_400_000,
-        ),
-      )
-    : null;
-  // estimated_yield is in native asset units from the backend (real contract data)
-  const estYieldUsd = yieldInfo
-    ? yieldInfo.estimated_yield * (collateralAsset === "usdc" ? 1 : (spot ?? 0))
-    : null;
-
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
       {/* ── ACTIVE POSITION ── */}
@@ -226,19 +194,6 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           <p className="text-xs text-[var(--text-secondary)]">
             Committed {committedDisplay}
           </p>
-
-          {yieldInfo && (
-            <p className="text-xs text-amber-400 flex items-center gap-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              <span className="font-mono">{formatApr(aaveApr)}</span> APR via {config?.chain === "solana" ? "Kamino" : "Aave"}
-              {estYieldUsd != null && estYieldUsd > 0 && (
-                <span className="font-mono">
-                  · ~${fmtYieldUsd(estYieldUsd)} accrued ({yieldDays}d)
-                </span>
-              )}
-              <YieldExplainer />
-            </p>
-          )}
 
           <div className="flex items-center gap-4">
             {position.tx_hash && (() => {
