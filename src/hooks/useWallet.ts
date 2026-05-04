@@ -11,7 +11,7 @@ import {
 import { createWalletClient, custom, type Address } from "viem";
 import { useCallback, useMemo } from "react";
 import {
-  Connection, PublicKey, Transaction, VersionedTransaction, SystemProgram,
+  Connection, Transaction, VersionedTransaction, SystemProgram,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
@@ -83,7 +83,7 @@ function getSplMintConfig(token: "usdc" | "tslax"): {
 }
 
 export function useWallet() {
-  const { logout, ready } = usePrivy();
+  const { authenticated, login, logout, ready } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -114,9 +114,16 @@ export function useWallet() {
 
   const getSolanaTradingAddress = useCallback(async (): Promise<string> => {
     if (solanaAddress) return solanaAddress;
+    if (!ready) {
+      throw new Error("Wallet session is still loading. Please try again.");
+    }
+    if (!authenticated) {
+      await login();
+      throw new Error("Please connect your wallet before depositing to Solana.");
+    }
     const { wallet } = await createSolanaWallet();
     return wallet.address;
-  }, [solanaAddress, createSolanaWallet]);
+  }, [authenticated, createSolanaWallet, login, ready, solanaAddress]);
 
   // --- Unified external wallets list ---
   const externalWalletsList = useMemo<ExternalWallet[]>(() => {

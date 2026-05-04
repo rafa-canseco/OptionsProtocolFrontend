@@ -3,11 +3,27 @@ import { renderHook } from "@testing-library/react";
 
 const ORIGINAL_ENV = { ...process.env };
 
-const mockWallets: any[] = [];
-const mockClient: any = { account: { address: "0xSmartWallet" } };
+type MockEvmWallet = ReturnType<typeof makeWallet>;
+type MockSolanaWallet = ReturnType<typeof makeSolanaWallet>;
+
+const mockWallets: MockEvmWallet[] = [];
+const mockSolanaWallets: MockSolanaWallet[] = [];
+const mockClient = { account: { address: "0xSmartWallet" } };
+const mockLogin = vi.fn();
+const mockLogout = vi.fn();
+const mockCreateSolanaWallet = vi.fn();
+let mockPrivyState = {
+  authenticated: true,
+  ready: true,
+};
 
 vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ logout: vi.fn(), ready: true }),
+  usePrivy: () => ({
+    authenticated: mockPrivyState.authenticated,
+    login: mockLogin,
+    logout: mockLogout,
+    ready: mockPrivyState.ready,
+  }),
   useWallets: () => ({ wallets: mockWallets }),
   useConnectWallet: () => ({ connectWallet: vi.fn() }),
 }));
@@ -17,8 +33,8 @@ vi.mock("@privy-io/react-auth/smart-wallets", () => ({
 }));
 
 vi.mock("@privy-io/react-auth/solana", () => ({
-  useWallets: () => ({ wallets: [] }),
-  useCreateWallet: () => ({ createWallet: vi.fn() }),
+  useWallets: () => ({ wallets: mockSolanaWallets }),
+  useCreateWallet: () => ({ createWallet: mockCreateSolanaWallet }),
   useSignAndSendTransaction: () => ({ signAndSendTransaction: vi.fn() }),
   useSignTransaction: () => ({ signTransaction: vi.fn() }),
 }));
@@ -46,9 +62,23 @@ function makeWallet(type: string, address: string) {
   };
 }
 
+function makeSolanaWallet(address: string, isEmbedded = false) {
+  return {
+    address,
+    standardWallet: isEmbedded
+      ? { name: "Privy", isPrivyWallet: true }
+      : { name: "Phantom" },
+  };
+}
+
 describe("useWallet", () => {
   beforeEach(() => {
     mockWallets.length = 0;
+    mockSolanaWallets.length = 0;
+    mockPrivyState = { authenticated: true, ready: true };
+    mockLogin.mockReset();
+    mockLogout.mockReset();
+    mockCreateSolanaWallet.mockReset();
     vi.resetModules();
   });
 
@@ -101,11 +131,46 @@ describe("useWallet", () => {
     expect(result.current.fundingAddress).toBe("0xCoinbase");
     expect(result.current.withdrawAddress).toBe("0xCoinbase");
   });
+
+  it("prompts Privy login before creating a Solana embedded wallet", async () => {
+    process.env = { ...ORIGINAL_ENV };
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
+    mockPrivyState = { authenticated: false, ready: true };
+    mockSolanaWallets.push(makeSolanaWallet("ExternalSolanaWallet"));
+    const { result } = await getHook();
+
+    await expect(
+      result.current.sendSolanaDeposit("ExternalSolanaWallet", BigInt(1)),
+    ).rejects.toThrow(/connect your wallet before depositing to Solana/i);
+
+    expect(mockLogin).toHaveBeenCalledTimes(1);
+    expect(mockCreateSolanaWallet).not.toHaveBeenCalled();
+  });
+
+  it("does not create a Solana embedded wallet before Privy is ready", async () => {
+    process.env = { ...ORIGINAL_ENV };
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
+    mockPrivyState = { authenticated: true, ready: false };
+    mockSolanaWallets.push(makeSolanaWallet("ExternalSolanaWallet"));
+    const { result } = await getHook();
+
+    await expect(
+      result.current.sendSolanaDeposit("ExternalSolanaWallet", BigInt(1)),
+    ).rejects.toThrow(/wallet session is still loading/i);
+
+    expect(mockLogin).not.toHaveBeenCalled();
+    expect(mockCreateSolanaWallet).not.toHaveBeenCalled();
+  });
 });
 
 describe("useWallet Solana production gate", () => {
   beforeEach(() => {
     mockWallets.length = 0;
+    mockSolanaWallets.length = 0;
+    mockPrivyState = { authenticated: true, ready: true };
+    mockLogin.mockReset();
+    mockLogout.mockReset();
+    mockCreateSolanaWallet.mockReset();
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
