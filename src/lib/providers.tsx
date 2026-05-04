@@ -6,8 +6,6 @@ import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
-import { getDeploymentEnv } from "@/lib/deployment";
-import { isSolanaEnabled } from "@/lib/marketState";
 import { SOLANA_CHAIN, SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
@@ -21,16 +19,11 @@ function getPrivyAppId(): string {
   return id;
 }
 
-export function buildPrivyConfig(
-  env: ReturnType<typeof getDeploymentEnv> = getDeploymentEnv(),
-): PrivyClientConfig {
+export function buildPrivyConfig(): PrivyClientConfig {
   const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
   const plugins = BUILDER_CODE
     ? [dataSuffix(Attribution.toDataSuffix({ codes: [BUILDER_CODE] }))]
     : [];
-
-  const solanaCreateOnLogin =
-    env === "mainnet" && !isSolanaEnabled() ? "off" : "all-users";
 
   return {
     loginMethods: ["wallet"],
@@ -61,7 +54,7 @@ export function buildPrivyConfig(
         createOnLogin: "all-users",
       },
       solana: {
-        createOnLogin: solanaCreateOnLogin,
+        createOnLogin: "off",
       },
     },
     plugins,

@@ -81,32 +81,32 @@ describe("buildPrivyConfig", () => {
     expect(config.solana?.rpcs).toHaveProperty("solana:mainnet");
   });
 
-  it("keeps Solana embedded wallet creation on in devnet", async () => {
+  it("keeps Solana embedded wallet creation off in devnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     const mod = await loadProvidersModule();
 
     const config = mod.buildPrivyConfig();
 
-    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 
-  it("keeps Solana embedded wallet creation on in mainnet when explicitly enabled", async () => {
+  it("keeps Solana embedded wallet creation off in mainnet when explicitly enabled", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
     process.env.NEXT_PUBLIC_SOLANA_ENABLED = "true";
     const mod = await loadProvidersModule();
 
     const config = mod.buildPrivyConfig();
 
-    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 
-  it("keeps Solana embedded wallet creation on in testnet", async () => {
+  it("keeps Solana embedded wallet creation off in testnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "testnet";
     const mod = await loadProvidersModule();
 
     const config = mod.buildPrivyConfig();
 
-    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 });
 
@@ -141,7 +141,7 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
     expect(call.config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 
-  it("passes createOnLogin all-users to PrivyProvider in devnet", async () => {
+  it("passes Solana createOnLogin off to PrivyProvider in devnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     const { Providers } = await loadProvidersModule();
 
@@ -155,6 +155,6 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
 
     expect(privyProviderSpy).toHaveBeenCalledTimes(1);
     const call = privyProviderSpy.mock.calls[0][0] as { config: PrivyConfig };
-    expect(call.config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(call.config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 });
