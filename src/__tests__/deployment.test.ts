@@ -101,6 +101,11 @@ describe("deployment helpers", () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
     mod = await loadDeploymentModule();
     expect(mod.getHeroChainLine()).toBe("Now live on Base. Solana devnet preview.");
+
+    process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN = "solana";
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    mod = await loadDeploymentModule();
+    expect(mod.getHeroChainLine()).toBe("Now live on Solana. Base mainnet live.");
   });
 
   it("returns the alternate subdomain link", async () => {

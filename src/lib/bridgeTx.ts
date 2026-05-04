@@ -35,6 +35,7 @@ import {
   createApproveInstruction,
   createSyncNativeInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import type { PriceQuote } from "@/lib/api";
@@ -94,6 +95,10 @@ const SOLANA_WSOL_POOL_TOKEN_ACCOUNT = envAddr(
   process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
   "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg",
 );
+const SOLANA_TSLAX_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_TSLAX_POOL_TOKEN_ACCOUNT,
+  "",
+);
 
 let cachedAlt: AddressLookupTableAccount | null = null;
 
@@ -119,6 +124,8 @@ async function findControllerPoolTokenAccount(
   poolVaultAuthority: PublicKey,
   usdcMint: PublicKey,
   wsolMint: PublicKey,
+  tslaxMint: PublicKey,
+  tokenProgramId: PublicKey,
 ): Promise<PublicKey> {
   if (mint.equals(usdcMint) && SOLANA_USDC_POOL_TOKEN_ACCOUNT) {
     return toPublicKey(
@@ -130,6 +137,12 @@ async function findControllerPoolTokenAccount(
     return toPublicKey(
       SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
       "Solana wSOL pool token account",
+    );
+  }
+  if (mint.equals(tslaxMint) && SOLANA_TSLAX_POOL_TOKEN_ACCOUNT) {
+    return toPublicKey(
+      SOLANA_TSLAX_POOL_TOKEN_ACCOUNT,
+      "Solana TSLAx pool token account",
     );
   }
   if (!solanaConnection) {
@@ -148,8 +161,15 @@ async function findControllerPoolTokenAccount(
     mint,
     poolVaultAuthority,
     true,
-    TOKEN_PROGRAM_ID,
+    tokenProgramId,
   );
+}
+
+function getCollateralTokenProgram(assetSlug: string, isBuy: boolean): PublicKey {
+  if (!isBuy && assetSlug === "tslax") {
+    return TOKEN_2022_PROGRAM_ID;
+  }
+  return TOKEN_PROGRAM_ID;
 }
 
 // ---------------------------------------------------------------------------
@@ -459,8 +479,10 @@ export async function buildSolanaTradeTransaction(
       ? "wSOL"
       : assetSlug.toUpperCase();
   const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
+  const collateralTokenProgram = getCollateralTokenProgram(assetSlug, isBuy);
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+  const tslaxMint = toPublicKey(SOLANA_TSLAX_MINT, "TSLAx mint");
   const oTokenMint = toPublicKey(quote.otoken_address!, "oToken mint");
   const makerPubkey = toPublicKey(quote.mm_address!, "maker pubkey");
 
@@ -470,6 +492,11 @@ export async function buildSolanaTradeTransaction(
 
   const [settlerConfigPda] = PublicKey.findProgramAddressSync(
     [Buffer.from("settler_config")],
+    SOLANA_PROGRAMS.batchSettler,
+  );
+
+  const [rentReservePda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rent_reserve")],
     SOLANA_PROGRAMS.batchSettler,
   );
 
@@ -560,6 +587,8 @@ export async function buildSolanaTradeTransaction(
     poolVaultAuthorityPda,
     usdcMint,
     toPublicKey(SOLANA_WSOL_MINT, "wSOL mint"),
+    tslaxMint,
+    collateralTokenProgram,
   );
 
   const poolTokenInfo = await solanaConnection.getAccountInfo(poolTokenAccountPubkey);
@@ -605,7 +634,7 @@ export async function buildSolanaTradeTransaction(
   const premiumMint = usdcMint;
 
   const userCollateralAccount = await getAssociatedTokenAddress(
-    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+    collateralMint, ownerPubkey, false, collateralTokenProgram,
   );
 
   // settlerConfig owns ATAs — must allow off-curve
@@ -670,7 +699,7 @@ export async function buildSolanaTradeTransaction(
           userCollateralAccount,
           ownerPubkey,
           collateralMint,
-          TOKEN_PROGRAM_ID,
+          collateralTokenProgram,
           ASSOCIATED_TOKEN_PROGRAM_ID,
         ),
       );
@@ -698,7 +727,7 @@ export async function buildSolanaTradeTransaction(
       ownerPubkey,
       collateral,
       [],
-      TOKEN_PROGRAM_ID,
+      collateralTokenProgram,
     ));
   }
 
@@ -758,57 +787,59 @@ export async function buildSolanaTradeTransaction(
     keys: [
       // [0]  settlerConfig
       { pubkey: settlerConfigPda, isSigner: false, isWritable: true },
-      // [1]  makerState
+      // [1]  rentReserve
+      { pubkey: rentReservePda, isSigner: false, isWritable: true },
+      // [2]  makerState
       { pubkey: makerStatePda, isSigner: false, isWritable: false },
-      // [2]  quoteFill
+      // [3]  quoteFill
       { pubkey: quoteFillPda, isSigner: false, isWritable: true },
-      // [3]  controllerConfig
+      // [4]  controllerConfig
       { pubkey: controllerConfigPda, isSigner: false, isWritable: false },
-      // [4]  vault
+      // [5]  vault
       { pubkey: vaultPda, isSigner: false, isWritable: true },
-      // [5]  vaultCounter
+      // [6]  vaultCounter
       { pubkey: vaultCounterPda, isSigner: false, isWritable: true },
-      // [6]  otokenInfo
+      // [7]  otokenInfo
       { pubkey: otokenInfoPda, isSigner: false, isWritable: false },
-      // [7]  otokenMint
+      // [8]  otokenMint
       { pubkey: oTokenMint, isSigner: false, isWritable: true },
-      // [8]  collateralMintAccount
+      // [9]  collateralMintAccount
       { pubkey: collateralMint, isSigner: false, isWritable: false },
-      // [9]  premiumMintAccount
+      // [10] premiumMintAccount
       { pubkey: premiumMint, isSigner: false, isWritable: false },
-      // [10] userCollateralAccount
+      // [11] userCollateralAccount
       { pubkey: userCollateralAccount, isSigner: false, isWritable: true },
-      // [11] poolTokenAccount
+      // [12] poolTokenAccount
       { pubkey: poolTokenAccountPubkey, isSigner: false, isWritable: true },
-      // [12] poolVaultAuthority
+      // [13] poolVaultAuthority
       { pubkey: poolVaultAuthorityPda, isSigner: false, isWritable: false },
-      // [13] settlerOtokenAccount
+      // [14] settlerOtokenAccount
       { pubkey: settlerOtokenAccount, isSigner: false, isWritable: true },
-      // [14] mmPremiumAccount
+      // [15] mmPremiumAccount
       { pubkey: mmPremiumAccount, isSigner: false, isWritable: true },
-      // [15] userPremiumAccount
+      // [16] userPremiumAccount
       { pubkey: userPremiumAccount, isSigner: false, isWritable: true },
-      // [16] treasuryAccount
+      // [17] treasuryAccount
       { pubkey: treasuryAccount, isSigner: false, isWritable: true },
-      // [17] makerOtokenBalance
+      // [18] makerOtokenBalance
       { pubkey: makerOtokenBalancePda, isSigner: false, isWritable: true },
-      // [18] vaultMm
+      // [19] vaultMm
       { pubkey: vaultMmPda, isSigner: false, isWritable: true },
-      // [19] user
+      // [20] user
       { pubkey: ownerPubkey, isSigner: true, isWritable: true },
-      // [20] maker
+      // [21] maker
       { pubkey: makerPubkey, isSigner: false, isWritable: false },
-      // [21] controllerProgram
+      // [22] controllerProgram
       { pubkey: SOLANA_PROGRAMS.controller, isSigner: false, isWritable: false },
-      // [22] collateralTokenProgram
+      // [23] collateralTokenProgram
+      { pubkey: collateralTokenProgram, isSigner: false, isWritable: false },
+      // [24] otokenTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [23] otokenTokenProgram
+      // [25] premiumTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [24] premiumTokenProgram
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [25] systemProgram
+      // [26] systemProgram
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // [26] instructionsSysvar
+      // [27] instructionsSysvar
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
     ],
     data: ixData,

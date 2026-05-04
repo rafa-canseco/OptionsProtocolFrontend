@@ -4,10 +4,15 @@ import { getDeploymentEnv } from "@/lib/deployment";
 
 const PRODUCTION_READ_ONLY_ASSETS = new Set(["sol", "tslax"]);
 
+export function isSolanaEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_SOLANA_ENABLED === "true";
+}
+
 export function isProductionReadOnlyAsset(
   asset: Pick<AssetConfig, "slug" | "chain">,
 ): boolean {
   return (
+    !isSolanaEnabled() &&
     getDeploymentEnv() === "mainnet" &&
     asset.chain === "solana" &&
     PRODUCTION_READ_ONLY_ASSETS.has(asset.slug)
@@ -15,7 +20,7 @@ export function isProductionReadOnlyAsset(
 }
 
 export function isSolanaOffInProd(): boolean {
-  return getDeploymentEnv() === "mainnet";
+  return !isSolanaEnabled() && getDeploymentEnv() === "mainnet";
 }
 
 export function isExecutableQuote(quote: PriceQuote): boolean {
