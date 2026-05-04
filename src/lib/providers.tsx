@@ -51,7 +51,7 @@ export function buildPrivyConfig(): PrivyClientConfig {
     embeddedWallets: {
       showWalletUIs: false,
       ethereum: {
-        createOnLogin: "all-users",
+        createOnLogin: "off",
       },
       solana: {
         createOnLogin: "off",
