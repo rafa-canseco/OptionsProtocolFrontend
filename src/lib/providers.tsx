@@ -7,6 +7,7 @@ import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
 import { getDeploymentEnv } from "@/lib/deployment";
+import { isSolanaEnabled } from "@/lib/marketState";
 import { SOLANA_CHAIN, SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 
@@ -28,7 +29,8 @@ export function buildPrivyConfig(
     ? [dataSuffix(Attribution.toDataSuffix({ codes: [BUILDER_CODE] }))]
     : [];
 
-  const solanaCreateOnLogin = env === "mainnet" ? "off" : "all-users";
+  const solanaCreateOnLogin =
+    env === "mainnet" && !isSolanaEnabled() ? "off" : "all-users";
 
   return {
     loginMethods: ["wallet"],

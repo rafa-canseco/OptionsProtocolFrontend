@@ -61,6 +61,7 @@ describe("buildPrivyConfig", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
+    delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     privyProviderSpy.mockClear();
   });
@@ -89,6 +90,16 @@ describe("buildPrivyConfig", () => {
     expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
   });
 
+  it("keeps Solana embedded wallet creation on in mainnet when explicitly enabled", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    process.env.NEXT_PUBLIC_SOLANA_ENABLED = "true";
+    const mod = await loadProvidersModule();
+
+    const config = mod.buildPrivyConfig();
+
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+  });
+
   it("keeps Solana embedded wallet creation on in testnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "testnet";
     const mod = await loadProvidersModule();
@@ -103,6 +114,7 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
+    delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = "test-app-id";
     privyProviderSpy.mockClear();
