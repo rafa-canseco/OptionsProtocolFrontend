@@ -35,6 +35,7 @@ import {
   createApproveInstruction,
   createSyncNativeInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import type { PriceQuote } from "@/lib/api";
@@ -94,6 +95,10 @@ const SOLANA_WSOL_POOL_TOKEN_ACCOUNT = envAddr(
   process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
   "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg",
 );
+const SOLANA_TSLAX_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_TSLAX_POOL_TOKEN_ACCOUNT,
+  "",
+);
 
 let cachedAlt: AddressLookupTableAccount | null = null;
 
@@ -119,6 +124,8 @@ async function findControllerPoolTokenAccount(
   poolVaultAuthority: PublicKey,
   usdcMint: PublicKey,
   wsolMint: PublicKey,
+  tslaxMint: PublicKey,
+  tokenProgramId: PublicKey,
 ): Promise<PublicKey> {
   if (mint.equals(usdcMint) && SOLANA_USDC_POOL_TOKEN_ACCOUNT) {
     return toPublicKey(
@@ -130,6 +137,12 @@ async function findControllerPoolTokenAccount(
     return toPublicKey(
       SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
       "Solana wSOL pool token account",
+    );
+  }
+  if (mint.equals(tslaxMint) && SOLANA_TSLAX_POOL_TOKEN_ACCOUNT) {
+    return toPublicKey(
+      SOLANA_TSLAX_POOL_TOKEN_ACCOUNT,
+      "Solana TSLAx pool token account",
     );
   }
   if (!solanaConnection) {
@@ -148,8 +161,15 @@ async function findControllerPoolTokenAccount(
     mint,
     poolVaultAuthority,
     true,
-    TOKEN_PROGRAM_ID,
+    tokenProgramId,
   );
+}
+
+function getCollateralTokenProgram(assetSlug: string, isBuy: boolean): PublicKey {
+  if (!isBuy && assetSlug === "tslax") {
+    return TOKEN_2022_PROGRAM_ID;
+  }
+  return TOKEN_PROGRAM_ID;
 }
 
 // ---------------------------------------------------------------------------
@@ -459,8 +479,10 @@ export async function buildSolanaTradeTransaction(
       ? "wSOL"
       : assetSlug.toUpperCase();
   const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
+  const collateralTokenProgram = getCollateralTokenProgram(assetSlug, isBuy);
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+  const tslaxMint = toPublicKey(SOLANA_TSLAX_MINT, "TSLAx mint");
   const oTokenMint = toPublicKey(quote.otoken_address!, "oToken mint");
   const makerPubkey = toPublicKey(quote.mm_address!, "maker pubkey");
 
@@ -560,6 +582,8 @@ export async function buildSolanaTradeTransaction(
     poolVaultAuthorityPda,
     usdcMint,
     toPublicKey(SOLANA_WSOL_MINT, "wSOL mint"),
+    tslaxMint,
+    collateralTokenProgram,
   );
 
   const poolTokenInfo = await solanaConnection.getAccountInfo(poolTokenAccountPubkey);
@@ -605,7 +629,7 @@ export async function buildSolanaTradeTransaction(
   const premiumMint = usdcMint;
 
   const userCollateralAccount = await getAssociatedTokenAddress(
-    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+    collateralMint, ownerPubkey, false, collateralTokenProgram,
   );
 
   // settlerConfig owns ATAs — must allow off-curve
@@ -670,7 +694,7 @@ export async function buildSolanaTradeTransaction(
           userCollateralAccount,
           ownerPubkey,
           collateralMint,
-          TOKEN_PROGRAM_ID,
+          collateralTokenProgram,
           ASSOCIATED_TOKEN_PROGRAM_ID,
         ),
       );
@@ -698,7 +722,7 @@ export async function buildSolanaTradeTransaction(
       ownerPubkey,
       collateral,
       [],
-      TOKEN_PROGRAM_ID,
+      collateralTokenProgram,
     ));
   }
 
@@ -801,7 +825,7 @@ export async function buildSolanaTradeTransaction(
       // [21] controllerProgram
       { pubkey: SOLANA_PROGRAMS.controller, isSigner: false, isWritable: false },
       // [22] collateralTokenProgram
-      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      { pubkey: collateralTokenProgram, isSigner: false, isWritable: false },
       // [23] otokenTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
       // [24] premiumTokenProgram
