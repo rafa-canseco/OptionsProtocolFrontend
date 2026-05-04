@@ -11,8 +11,6 @@ const mockSolanaWallets: MockSolanaWallet[] = [];
 const mockClient = { account: { address: "0xSmartWallet" } };
 const mockLogout = vi.fn();
 const mockCreateSolanaWallet = vi.fn();
-const mockGenerateSiwsMessage = vi.fn();
-const mockLoginWithSiws = vi.fn();
 let mockPrivyState = {
   authenticated: true,
   ready: true,
@@ -25,10 +23,6 @@ vi.mock("@privy-io/react-auth", () => ({
     logout: mockLogout,
     ready: mockPrivyState.ready,
     user: mockPrivyState.user,
-  }),
-  useLoginWithSiws: () => ({
-    generateSiwsMessage: mockGenerateSiwsMessage,
-    loginWithSiws: mockLoginWithSiws,
   }),
   useWallets: () => ({ wallets: mockWallets }),
   useConnectWallet: () => ({ connectWallet: vi.fn() }),
@@ -92,9 +86,6 @@ describe("useWallet", () => {
     };
     mockLogout.mockReset();
     mockCreateSolanaWallet.mockReset();
-    mockGenerateSiwsMessage.mockReset();
-    mockGenerateSiwsMessage.mockResolvedValue("Sign in with Solana");
-    mockLoginWithSiws.mockReset();
     mockCreateSolanaWallet.mockResolvedValue({
       wallet: { address: "EmbeddedSolanaWallet" },
     });
@@ -151,44 +142,16 @@ describe("useWallet", () => {
     expect(result.current.withdrawAddress).toBe("0xCoinbase");
   });
 
-  it("authenticates the selected Solana wallet before creating an embedded wallet", async () => {
+  it("does not authenticate Solana wallets from the global wallet hook", async () => {
     process.env = { ...ORIGINAL_ENV };
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     mockPrivyState = { authenticated: false, ready: true, user: null };
-    const solanaWallet = makeSolanaWallet("ExternalSolanaWallet");
-    mockSolanaWallets.push(solanaWallet);
-    const { result } = await getHook();
-
-    await expect(
-      result.current.sendSolanaDeposit("ExternalSolanaWallet", BigInt(1)),
-    ).rejects.toThrow(/Solana RPC URL not configured/i);
-
-    expect(mockGenerateSiwsMessage).toHaveBeenCalledWith({
-      address: "ExternalSolanaWallet",
-    });
-    expect(solanaWallet.signMessage).toHaveBeenCalledWith({
-      message: new TextEncoder().encode("Sign in with Solana"),
-    });
-    expect(mockLoginWithSiws).toHaveBeenCalledWith({
-      message: "Sign in with Solana",
-      signature: "AQID",
-      walletClientType: "phantom",
-      connectorType: "injected",
-    });
-    expect(mockCreateSolanaWallet).toHaveBeenCalledTimes(1);
-  });
-
-  it("does not create a Solana embedded wallet when Solana verification fails", async () => {
-    process.env = { ...ORIGINAL_ENV };
-    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
-    mockPrivyState = { authenticated: false, ready: true, user: null };
-    mockLoginWithSiws.mockRejectedValue(new Error("SIWS rejected"));
     mockSolanaWallets.push(makeSolanaWallet("ExternalSolanaWallet"));
     const { result } = await getHook();
 
     await expect(
       result.current.sendSolanaDeposit("ExternalSolanaWallet", BigInt(1)),
-    ).rejects.toThrow(/Solana wallet verification failed/i);
+    ).rejects.toThrow(/connect your wallet before depositing to Solana/i);
 
     expect(mockCreateSolanaWallet).not.toHaveBeenCalled();
   });
@@ -219,8 +182,6 @@ describe("useWallet Solana production gate", () => {
     };
     mockLogout.mockReset();
     mockCreateSolanaWallet.mockReset();
-    mockGenerateSiwsMessage.mockReset();
-    mockLoginWithSiws.mockReset();
     vi.resetModules();
     process.env = { ...ORIGINAL_ENV };
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
