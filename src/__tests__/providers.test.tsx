@@ -77,7 +77,7 @@ describe("buildPrivyConfig", () => {
     const config = mod.buildPrivyConfig();
 
     expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
-    expect(config.embeddedWallets?.ethereum?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.ethereum?.createOnLogin).toBe("off");
     expect(config.solana?.rpcs).toHaveProperty("solana:mainnet");
   });
 
