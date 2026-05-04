@@ -495,6 +495,11 @@ export async function buildSolanaTradeTransaction(
     SOLANA_PROGRAMS.batchSettler,
   );
 
+  const [rentReservePda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rent_reserve")],
+    SOLANA_PROGRAMS.batchSettler,
+  );
+
   const [makerStatePda] = PublicKey.findProgramAddressSync(
     [Buffer.from("maker"), makerPubkey.toBuffer()],
     SOLANA_PROGRAMS.batchSettler,
@@ -782,57 +787,59 @@ export async function buildSolanaTradeTransaction(
     keys: [
       // [0]  settlerConfig
       { pubkey: settlerConfigPda, isSigner: false, isWritable: true },
-      // [1]  makerState
+      // [1]  rentReserve
+      { pubkey: rentReservePda, isSigner: false, isWritable: true },
+      // [2]  makerState
       { pubkey: makerStatePda, isSigner: false, isWritable: false },
-      // [2]  quoteFill
+      // [3]  quoteFill
       { pubkey: quoteFillPda, isSigner: false, isWritable: true },
-      // [3]  controllerConfig
+      // [4]  controllerConfig
       { pubkey: controllerConfigPda, isSigner: false, isWritable: false },
-      // [4]  vault
+      // [5]  vault
       { pubkey: vaultPda, isSigner: false, isWritable: true },
-      // [5]  vaultCounter
+      // [6]  vaultCounter
       { pubkey: vaultCounterPda, isSigner: false, isWritable: true },
-      // [6]  otokenInfo
+      // [7]  otokenInfo
       { pubkey: otokenInfoPda, isSigner: false, isWritable: false },
-      // [7]  otokenMint
+      // [8]  otokenMint
       { pubkey: oTokenMint, isSigner: false, isWritable: true },
-      // [8]  collateralMintAccount
+      // [9]  collateralMintAccount
       { pubkey: collateralMint, isSigner: false, isWritable: false },
-      // [9]  premiumMintAccount
+      // [10] premiumMintAccount
       { pubkey: premiumMint, isSigner: false, isWritable: false },
-      // [10] userCollateralAccount
+      // [11] userCollateralAccount
       { pubkey: userCollateralAccount, isSigner: false, isWritable: true },
-      // [11] poolTokenAccount
+      // [12] poolTokenAccount
       { pubkey: poolTokenAccountPubkey, isSigner: false, isWritable: true },
-      // [12] poolVaultAuthority
+      // [13] poolVaultAuthority
       { pubkey: poolVaultAuthorityPda, isSigner: false, isWritable: false },
-      // [13] settlerOtokenAccount
+      // [14] settlerOtokenAccount
       { pubkey: settlerOtokenAccount, isSigner: false, isWritable: true },
-      // [14] mmPremiumAccount
+      // [15] mmPremiumAccount
       { pubkey: mmPremiumAccount, isSigner: false, isWritable: true },
-      // [15] userPremiumAccount
+      // [16] userPremiumAccount
       { pubkey: userPremiumAccount, isSigner: false, isWritable: true },
-      // [16] treasuryAccount
+      // [17] treasuryAccount
       { pubkey: treasuryAccount, isSigner: false, isWritable: true },
-      // [17] makerOtokenBalance
+      // [18] makerOtokenBalance
       { pubkey: makerOtokenBalancePda, isSigner: false, isWritable: true },
-      // [18] vaultMm
+      // [19] vaultMm
       { pubkey: vaultMmPda, isSigner: false, isWritable: true },
-      // [19] user
+      // [20] user
       { pubkey: ownerPubkey, isSigner: true, isWritable: true },
-      // [20] maker
+      // [21] maker
       { pubkey: makerPubkey, isSigner: false, isWritable: false },
-      // [21] controllerProgram
+      // [22] controllerProgram
       { pubkey: SOLANA_PROGRAMS.controller, isSigner: false, isWritable: false },
-      // [22] collateralTokenProgram
+      // [23] collateralTokenProgram
       { pubkey: collateralTokenProgram, isSigner: false, isWritable: false },
-      // [23] otokenTokenProgram
+      // [24] otokenTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [24] premiumTokenProgram
+      // [25] premiumTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [25] systemProgram
+      // [26] systemProgram
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // [26] instructionsSysvar
+      // [27] instructionsSysvar
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
     ],
     data: ixData,
