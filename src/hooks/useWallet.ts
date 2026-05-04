@@ -4,7 +4,6 @@ import {
   usePrivy,
   useWallets,
   useConnectWallet,
-  useLoginWithSiws,
 } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
@@ -45,14 +44,6 @@ function assertSolanaEnabled(): void {
   if (isSolanaOffInProd()) {
     throw new Error(SOLANA_DISABLED_ERROR);
   }
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
 }
 
 export type BatchCall = {
@@ -103,7 +94,6 @@ export function useWallet() {
   const { client } = useSmartWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
-  const { generateSiwsMessage, loginWithSiws } = useLoginWithSiws();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction: privySignSolanaTx } = useSolanaSignTransaction();
   // --- EVM wallets ---
@@ -127,20 +117,6 @@ export function useWallet() {
   );
   const solanaAddress = solanaEmbedded?.address;
 
-  const authenticateWithSolanaWallet = useCallback(async (
-    wallet: ConnectedStandardSolanaWallet,
-  ): Promise<void> => {
-    const message = await generateSiwsMessage({ address: wallet.address });
-    const encodedMessage = new TextEncoder().encode(message);
-    const { signature } = await wallet.signMessage({ message: encodedMessage });
-    await loginWithSiws({
-      message,
-      signature: bytesToBase64(signature),
-      walletClientType: wallet.standardWallet.name.toLowerCase(),
-      connectorType: "injected",
-    });
-  }, [generateSiwsMessage, loginWithSiws]);
-
   const getSolanaTradingAddress = useCallback(async (
     sourceWallet?: ConnectedStandardSolanaWallet,
   ): Promise<string> => {
@@ -152,20 +128,14 @@ export function useWallet() {
       if (!sourceWallet) {
         throw new Error("Please connect your wallet before depositing to Solana.");
       }
-      try {
-        await authenticateWithSolanaWallet(sourceWallet);
-      } catch (err) {
-        console.error("[useWallet] Solana SIWS authentication failed:", err);
-        throw new Error(
-          "Solana wallet verification failed. Please try again or verify with a Base wallet first.",
-        );
-      }
+      throw new Error(
+        "Please connect your wallet before depositing to Solana.",
+      );
     }
     const { wallet } = await createSolanaWallet();
     return wallet.address;
   }, [
     authenticated,
-    authenticateWithSolanaWallet,
     createSolanaWallet,
     ready,
     solanaAddress,
