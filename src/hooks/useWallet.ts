@@ -1,8 +1,14 @@
 "use client";
 
-import { usePrivy, useWallets, useConnectWallet } from "@privy-io/react-auth";
+import {
+  usePrivy,
+  useWallets,
+  useConnectWallet,
+  useLoginWithSiws,
+} from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
+  type ConnectedStandardSolanaWallet,
   useWallets as useSolanaWallets,
   useCreateWallet as useCreateSolanaWallet,
   useSignAndSendTransaction,
@@ -39,6 +45,14 @@ function assertSolanaEnabled(): void {
   if (isSolanaOffInProd()) {
     throw new Error(SOLANA_DISABLED_ERROR);
   }
+}
+
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
 }
 
 export type BatchCall = {
@@ -83,12 +97,13 @@ function getSplMintConfig(token: "usdc" | "tslax"): {
 }
 
 export function useWallet() {
-  const { authenticated, login, logout, ready } = usePrivy();
+  const { authenticated, logout, ready, user } = usePrivy();
   const { connectWallet } = useConnectWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
   const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
+  const { generateSiwsMessage, loginWithSiws } = useLoginWithSiws();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction: privySignSolanaTx } = useSolanaSignTransaction();
   // --- EVM wallets ---
@@ -112,18 +127,50 @@ export function useWallet() {
   );
   const solanaAddress = solanaEmbedded?.address;
 
-  const getSolanaTradingAddress = useCallback(async (): Promise<string> => {
+  const authenticateWithSolanaWallet = useCallback(async (
+    wallet: ConnectedStandardSolanaWallet,
+  ): Promise<void> => {
+    const message = await generateSiwsMessage({ address: wallet.address });
+    const encodedMessage = new TextEncoder().encode(message);
+    const { signature } = await wallet.signMessage({ message: encodedMessage });
+    await loginWithSiws({
+      message,
+      signature: bytesToBase64(signature),
+      walletClientType: wallet.standardWallet.name.toLowerCase(),
+      connectorType: "injected",
+    });
+  }, [generateSiwsMessage, loginWithSiws]);
+
+  const getSolanaTradingAddress = useCallback(async (
+    sourceWallet?: ConnectedStandardSolanaWallet,
+  ): Promise<string> => {
     if (solanaAddress) return solanaAddress;
     if (!ready) {
       throw new Error("Wallet session is still loading. Please try again.");
     }
-    if (!authenticated) {
-      await login();
-      throw new Error("Please connect your wallet before depositing to Solana.");
+    if (!authenticated || !user?.id) {
+      if (!sourceWallet) {
+        throw new Error("Please connect your wallet before depositing to Solana.");
+      }
+      try {
+        await authenticateWithSolanaWallet(sourceWallet);
+      } catch (err) {
+        console.error("[useWallet] Solana SIWS authentication failed:", err);
+        throw new Error(
+          "Solana wallet verification failed. Please try again or verify with a Base wallet first.",
+        );
+      }
     }
     const { wallet } = await createSolanaWallet();
     return wallet.address;
-  }, [authenticated, createSolanaWallet, login, ready, solanaAddress]);
+  }, [
+    authenticated,
+    authenticateWithSolanaWallet,
+    createSolanaWallet,
+    ready,
+    solanaAddress,
+    user?.id,
+  ]);
 
   // --- Unified external wallets list ---
   const externalWalletsList = useMemo<ExternalWallet[]>(() => {
@@ -219,18 +266,17 @@ export function useWallet() {
       token: "usdc" | "tslax" = "usdc",
     ): Promise<string> => {
       assertSolanaEnabled();
-      const receiverAddress = await getSolanaTradingAddress();
-      if (!SOLANA_RPC_URL) {
-        throw new Error(
-          "Solana RPC URL not configured",
-        );
-      }
-
       const sourceWallet = solanaWallets.find(
         (w) => w.address === fromAddress,
       );
       if (!sourceWallet) {
         throw new Error("Solana wallet not found: " + fromAddress);
+      }
+      const receiverAddress = await getSolanaTradingAddress(sourceWallet);
+      if (!SOLANA_RPC_URL) {
+        throw new Error(
+          "Solana RPC URL not configured",
+        );
       }
 
       const conn = new Connection(SOLANA_RPC_URL);
@@ -315,16 +361,15 @@ export function useWallet() {
   const sendSolanaSolDeposit = useCallback(
     async (fromAddress: string, lamports: bigint): Promise<string> => {
       assertSolanaEnabled();
-      const receiverAddress = await getSolanaTradingAddress();
-      if (!SOLANA_RPC_URL) {
-        throw new Error("Solana RPC URL not configured");
-      }
-
       const sourceWallet = solanaWallets.find(
         (w) => w.address === fromAddress,
       );
       if (!sourceWallet) {
         throw new Error("Solana wallet not found: " + fromAddress);
+      }
+      const receiverAddress = await getSolanaTradingAddress(sourceWallet);
+      if (!SOLANA_RPC_URL) {
+        throw new Error("Solana RPC URL not configured");
       }
 
       const conn = new Connection(SOLANA_RPC_URL);
