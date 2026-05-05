@@ -34,6 +34,22 @@ export function getPositionExpiryPrice(position: Position): number | null {
   return price > 0 ? price : null;
 }
 
+export function normalizeUsdAmount(rawValue: unknown): number {
+  const raw = finiteNumber(rawValue);
+  if (raw == null || raw <= 0) return 0;
+
+  if (typeof rawValue === "string" && rawValue.includes(".")) {
+    return raw;
+  }
+  if (raw > 0 && raw < 1) return raw;
+
+  return raw / 1e6;
+}
+
+export function getPositionPremiumUsd(position: Position): number {
+  return normalizeUsdAmount(position.net_premium);
+}
+
 export function getCallCollateralDecimals(position: Position): number {
   const decimals = finiteNumber((position as Position & {
     collateral_decimals?: number | string | null;

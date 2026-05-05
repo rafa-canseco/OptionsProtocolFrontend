@@ -2,7 +2,7 @@ import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
 import type { Position } from "@/lib/api"
 import { getAssetConfig } from "@/lib/assets"
-import { getPositionStrike } from "@/lib/positionMath"
+import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -19,6 +19,11 @@ export function fmtYieldUsd(n: number): string {
   if (n >= 0.01) return n.toFixed(2);
   const magnitude = Math.floor(Math.log10(Math.abs(n)));
   return n.toFixed(Math.abs(magnitude) + 2);
+}
+
+export function fmtPremiumUsd(n: number): string {
+  if (n > 0 && n < 0.01) return "<$0.01";
+  return `$${fmtUsd(n)}`;
 }
 
 export function getNextMonday(): Date {
@@ -61,7 +66,7 @@ export function buildCalendarUrl(
   const dates = `${day}T080000Z/${day}T090000Z`;
 
   const callDec = 10 ** (getAssetConfig(assetSlug)?.collateralDecimals ?? 18);
-  const premiumUsd = Number(position.net_premium) / 1e6;
+  const premiumUsd = getPositionPremiumUsd(position);
   const committedDisplay = position.is_put
     ? `$${(position.collateral / 1e6).toLocaleString("en-US", { maximumFractionDigits: 0 })}`
     : `${(position.collateral / callDec).toFixed(4)} ${assetSymbol}`;
