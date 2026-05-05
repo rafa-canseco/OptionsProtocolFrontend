@@ -8,6 +8,7 @@ export function usePositions(
   fundingAddress: string | undefined,
   solanaAddresses?: string | string[] | undefined,
   pollInterval = 15_000,
+  baseAddresses?: string[],
 ) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,8 +23,13 @@ export function usePositions(
         ).filter((value): value is string => Boolean(value)),
       ),
     );
+    const uniqueBaseAddresses = Array.from(
+      new Set([address, fundingAddress, ...(baseAddresses ?? [])].filter(
+        (value): value is string => Boolean(value),
+      )),
+    );
 
-    if (!address && !fundingAddress && uniqueSolanaAddresses.length === 0) {
+    if (uniqueBaseAddresses.length === 0 && uniqueSolanaAddresses.length === 0) {
       setPositions([]);
       setLoading(false);
       return;
@@ -31,9 +37,8 @@ export function usePositions(
     try {
       // Fetch from both addresses, deduplicate by id
       const queries: Promise<Position[]>[] = [];
-      if (address) queries.push(api.getPositions(address));
-      if (fundingAddress && fundingAddress !== address) {
-        queries.push(api.getPositions(fundingAddress));
+      for (const baseAddress of uniqueBaseAddresses) {
+        queries.push(api.getPositions(baseAddress));
       }
       for (const solanaAddress of uniqueSolanaAddresses) {
         queries.push(api.getPositions(solanaAddress));
@@ -56,14 +61,17 @@ export function usePositions(
     } finally {
       setLoading(false);
     }
-  }, [address, fundingAddress, solanaAddresses]);
+  }, [address, baseAddresses, fundingAddress, solanaAddresses]);
 
   useEffect(() => {
     refresh();
     const hasSolanaAddress = Array.isArray(solanaAddresses)
       ? solanaAddresses.some(Boolean)
       : Boolean(solanaAddresses);
-    if (!address && !fundingAddress && !hasSolanaAddress) return;
+    const hasBaseAddress = Boolean(
+      address || fundingAddress || (baseAddresses?.length ?? 0) > 0,
+    );
+    if (!hasBaseAddress && !hasSolanaAddress) return;
 
     // Poll faster for the first 30s after mount (new position may still be indexing)
     const fastPoll = setInterval(refresh, 3_000);
@@ -75,7 +83,7 @@ export function usePositions(
       clearTimeout(stopFastPoll);
       clearInterval(slowPoll);
     };
-  }, [refresh, address, fundingAddress, solanaAddresses, pollInterval]);
+  }, [refresh, address, baseAddresses, fundingAddress, solanaAddresses, pollInterval]);
 
   useEffect(() => {
     const handler = () => refresh();

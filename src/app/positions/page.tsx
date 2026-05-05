@@ -21,25 +21,21 @@ export default function PositionsPage() {
   const {
     address,
     fundingAddress,
-    solanaAddress,
-    externalWallets,
+    portfolioAddresses,
     isConnected,
   } = useWallet();
   const solanaPositionAddresses = useMemo(
-    () => [
-      solanaAddress,
-      ...externalWallets
-        .filter((wallet) => wallet.chain === "solana")
-        .map((wallet) => wallet.address),
-    ].filter((value, index, arr): value is string =>
+    () => portfolioAddresses.solana.filter((value, index, arr): value is string =>
       Boolean(value) && arr.indexOf(value) === index,
     ),
-    [externalWallets, solanaAddress],
+    [portfolioAddresses.solana],
   );
   const { positions, loading, refresh } = usePositions(
     address,
     fundingAddress,
     solanaPositionAddresses,
+    15_000,
+    portfolioAddresses.base,
   );
   const { activity } = useActivity(address, fundingAddress ?? undefined);
   const { spot: ethSpot } = useSpot("eth");

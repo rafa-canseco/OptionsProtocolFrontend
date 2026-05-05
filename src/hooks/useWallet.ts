@@ -4,6 +4,7 @@ import {
   usePrivy,
   useWallets,
   useConnectWallet,
+  type User,
 } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
 import {
@@ -67,6 +68,28 @@ const WALLET_NAMES: Record<string, string> = {
   phantom: "Phantom",
   privy: "Privy",
 };
+
+type WalletAccount = User["linkedAccounts"][number] & {
+  address?: string;
+  chainType?: "ethereum" | "solana";
+  walletClientType?: string;
+};
+
+function walletAccounts(user: User | null): WalletAccount[] {
+  return (user?.linkedAccounts ?? []).filter(
+    (account): account is WalletAccount => account.type === "wallet",
+  );
+}
+
+function isPrivyWalletClient(walletClientType: string | undefined): boolean {
+  return walletClientType === "privy" || walletClientType === "privy-v2";
+}
+
+function uniqueAddresses(values: Array<string | undefined>): string[] {
+  return values.filter((value, index, arr): value is string =>
+    Boolean(value) && arr.indexOf(value) === index,
+  );
+}
 
 function prettyWalletName(raw: string): string {
   return WALLET_NAMES[raw] ?? raw;
@@ -140,9 +163,10 @@ export function useWallet() {
   const { createWallet: createSolanaWallet } = useCreateSolanaWallet();
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction: privySignSolanaTx } = useSolanaSignTransaction();
+  const linkedWallets = useMemo(() => walletAccounts(user ?? null), [user]);
   // --- EVM wallets ---
-  const externalWallet = wallets.find((w) => w.walletClientType !== "privy");
-  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+  const externalWallet = wallets.find((w) => !isPrivyWalletClient(w.walletClientType));
+  const embeddedWallet = wallets.find((w) => isPrivyWalletClient(w.walletClientType));
   const fundingWallet = externalWallet ?? embeddedWallet;
 
   // Trading address: always the smart wallet (gas-sponsored, batched)
@@ -159,7 +183,39 @@ export function useWallet() {
   const solanaEmbedded = solanaWallets.find(
     (w) => "isPrivyWallet" in w.standardWallet,
   );
-  const solanaAddress = solanaEmbedded?.address;
+  const linkedSolanaEmbedded = linkedWallets.find(
+    (wallet) =>
+      wallet.chainType === "solana" &&
+      isPrivyWalletClient(wallet.walletClientType),
+  );
+  const solanaAddress = solanaEmbedded?.address ?? linkedSolanaEmbedded?.address;
+
+  const portfolioAddresses = useMemo(() => ({
+    base: uniqueAddresses([
+      address,
+      fundingAddress,
+      withdrawAddress,
+      ...linkedWallets
+        .filter((wallet) => wallet.chainType === "ethereum")
+        .map((wallet) => wallet.address),
+      ...wallets.map((wallet) => wallet.address),
+    ]),
+    solana: uniqueAddresses([
+      solanaAddress,
+      ...linkedWallets
+        .filter((wallet) => wallet.chainType === "solana")
+        .map((wallet) => wallet.address),
+      ...solanaWallets.map((wallet) => wallet.address),
+    ]),
+  }), [
+    address,
+    fundingAddress,
+    linkedWallets,
+    solanaAddress,
+    solanaWallets,
+    wallets,
+    withdrawAddress,
+  ]);
 
   const getSolanaTradingAddress = useCallback(async (
     sourceWallet?: ConnectedStandardSolanaWallet,
@@ -628,6 +684,7 @@ export function useWallet() {
     hasExternalWallet: !!externalWallet,
     solanaAddress,
     externalWallets: externalWalletsList,
+    portfolioAddresses,
     sendBatchTx,
     sendFundingTx,
     sendSolanaDeposit,

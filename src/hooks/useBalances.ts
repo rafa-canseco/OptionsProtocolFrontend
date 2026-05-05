@@ -37,38 +37,66 @@ const ZERO: Balances = {
   ethFormatted: "0.00",
 };
 
-export function useBalances(address: Address | undefined, pollInterval = 15_000) {
+export function useBalances(
+  address: Address | Address[] | undefined,
+  pollInterval = 15_000,
+) {
   const [balances, setBalances] = useState<Balances>(ZERO);
   const [loading, setLoading] = useState(true);
 
   const refetch = useCallback(async () => {
-    if (!address) {
+    const addresses = (Array.isArray(address) ? address : [address]).filter(
+      (value, index, arr): value is Address =>
+        Boolean(value) && arr.indexOf(value) === index,
+    );
+
+    if (addresses.length === 0) {
       setBalances(ZERO);
       setLoading(false);
       return;
     }
     try {
-      const [usdRaw, wethRaw, wbtcRaw, ethRaw] = await Promise.all([
-        publicClient.readContract({
-          address: ADDRESSES.usdc,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [address],
-        }),
-        publicClient.readContract({
-          address: ADDRESSES.weth,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [address],
-        }),
-        publicClient.readContract({
-          address: ADDRESSES.wbtc,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [address],
-        }),
-        publicClient.getBalance({ address }),
-      ]);
+      const balancesByAddress = await Promise.all(addresses.map(async (addr) => {
+        const [usdRaw, wethRaw, wbtcRaw, ethRaw] = await Promise.all([
+          publicClient.readContract({
+            address: ADDRESSES.usdc,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [addr],
+          }),
+          publicClient.readContract({
+            address: ADDRESSES.weth,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [addr],
+          }),
+          publicClient.readContract({
+            address: ADDRESSES.wbtc,
+            abi: ERC20_ABI,
+            functionName: "balanceOf",
+            args: [addr],
+          }),
+          publicClient.getBalance({ address: addr }),
+        ]);
+        return { usdRaw, wethRaw, wbtcRaw, ethRaw };
+      }));
+
+      const usdRaw = balancesByAddress.reduce(
+        (sum, item) => sum + item.usdRaw,
+        BigInt(0),
+      );
+      const wethRaw = balancesByAddress.reduce(
+        (sum, item) => sum + item.wethRaw,
+        BigInt(0),
+      );
+      const wbtcRaw = balancesByAddress.reduce(
+        (sum, item) => sum + item.wbtcRaw,
+        BigInt(0),
+      );
+      const ethRaw = balancesByAddress.reduce(
+        (sum, item) => sum + item.ethRaw,
+        BigInt(0),
+      );
 
       const usd = Number(formatUnits(usdRaw, 6));
       const eth = Number(formatUnits(ethRaw, 18));
@@ -96,7 +124,10 @@ export function useBalances(address: Address | undefined, pollInterval = 15_000)
 
   useEffect(() => {
     refetch();
-    if (!address) return;
+    const hasAddress = Array.isArray(address)
+      ? address.some(Boolean)
+      : Boolean(address);
+    if (!hasAddress) return;
     const id = setInterval(refetch, pollInterval);
     return () => clearInterval(id);
   }, [refetch, address, pollInterval]);

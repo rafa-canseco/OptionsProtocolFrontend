@@ -20,6 +20,12 @@ function isEmbeddedWallet(account: WalletAccount): boolean {
   return account.walletClientType === "privy" || account.walletClientType === "privy-v2";
 }
 
+function uniqueAddresses(values: Array<string | undefined>): string[] {
+  return values.filter((value, index, arr): value is string =>
+    Boolean(value) && arr.indexOf(value) === index,
+  );
+}
+
 export function useWalletSummary() {
   const { authenticated, ready, user } = usePrivy();
 
@@ -40,11 +46,24 @@ export function useWalletSummary() {
       | Address
       | undefined;
     const solanaAddress = solanaEmbeddedWallet?.address;
+    const baseAddresses = uniqueAddresses([
+      smartWalletAddress,
+      ...wallets
+        .filter((wallet) => wallet.chainType === "ethereum")
+        .map((wallet) => wallet.address),
+    ]) as Address[];
+    const solanaAddresses = uniqueAddresses(
+      wallets
+        .filter((wallet) => wallet.chainType === "solana")
+        .map((wallet) => wallet.address),
+    );
 
     return {
       address: smartWalletAddress,
       fundingAddress,
       solanaAddress,
+      baseAddresses,
+      solanaAddresses,
       isConnected: authenticated && !!(fundingAddress || solanaAddress || smartWalletAddress),
       isReady: ready,
     };

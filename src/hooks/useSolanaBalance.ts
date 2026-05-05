@@ -38,7 +38,7 @@ const ZERO: SolanaBalance = {
 };
 
 export function useSolanaBalance(
-  address: string | undefined,
+  address: string | string[] | undefined,
   pollInterval = 15_000,
 ): SolanaBalance {
   const [balance, setBalance] = useState<SolanaBalance>(ZERO);
@@ -48,58 +48,68 @@ export function useSolanaBalance(
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
-    if (!address || !SOLANA_USDC_MINT || !solanaConnection) {
+    const addresses = (Array.isArray(address) ? address : [address]).filter(
+      (value, index, arr): value is string =>
+        Boolean(value) && arr.indexOf(value) === index,
+    );
+
+    if (addresses.length === 0 || !SOLANA_USDC_MINT || !solanaConnection) {
       setBalance({ ...ZERO, loading: false, refetch });
       return;
     }
     try {
-      const owner = toPublicKey(address, "wallet address");
+      const conn = solanaConnection;
       const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
       const wsolMint = toPublicKey(SOLANA_WSOL_MINT, "wSOL mint");
       const tslaxMint = SOLANA_TSLAX_MINT
         ? toPublicKey(SOLANA_TSLAX_MINT, "TSLAx mint")
         : null;
 
-      const [usdcResp, wsolResp, tslaxResp, solLamports] = await Promise.all([
-        solanaConnection.getParsedTokenAccountsByOwner(owner, {
-          mint: usdcMint,
-        }, "confirmed"),
-        solanaConnection.getParsedTokenAccountsByOwner(owner, {
-          mint: wsolMint,
-        }, "confirmed"),
-        tslaxMint
-          ? solanaConnection.getParsedTokenAccountsByOwner(owner, {
-              mint: tslaxMint,
-            }, "confirmed")
-          : Promise.resolve({ value: [] }),
-        solanaConnection.getBalance(owner, "confirmed"),
-      ]);
-
       let usdcRaw = BigInt(0);
-      for (const { account } of usdcResp.value) {
-        const info = account.data.parsed?.info;
-        if (info?.tokenAmount?.amount) {
-          usdcRaw += BigInt(info.tokenAmount.amount);
-        }
-      }
-
       let wsolRaw = BigInt(0);
-      for (const { account } of wsolResp.value) {
-        const info = account.data.parsed?.info;
-        if (info?.tokenAmount?.amount) {
-          wsolRaw += BigInt(info.tokenAmount.amount);
-        }
-      }
-
       let tslaxRaw = BigInt(0);
-      for (const { account } of tslaxResp.value) {
-        const info = account.data.parsed?.info;
-        if (info?.tokenAmount?.amount) {
-          tslaxRaw += BigInt(info.tokenAmount.amount);
-        }
-      }
+      let solRaw = BigInt(0);
 
-      const solRaw = BigInt(solLamports);
+      await Promise.all(addresses.map(async (addr) => {
+        const owner = toPublicKey(addr, "wallet address");
+        const [usdcResp, wsolResp, tslaxResp, solLamports] = await Promise.all([
+          conn.getParsedTokenAccountsByOwner(owner, {
+            mint: usdcMint,
+          }, "confirmed"),
+          conn.getParsedTokenAccountsByOwner(owner, {
+            mint: wsolMint,
+          }, "confirmed"),
+          tslaxMint
+            ? conn.getParsedTokenAccountsByOwner(owner, {
+                mint: tslaxMint,
+              }, "confirmed")
+            : Promise.resolve({ value: [] }),
+          conn.getBalance(owner, "confirmed"),
+        ]);
+
+        for (const { account } of usdcResp.value) {
+          const info = account.data.parsed?.info;
+          if (info?.tokenAmount?.amount) {
+            usdcRaw += BigInt(info.tokenAmount.amount);
+          }
+        }
+
+        for (const { account } of wsolResp.value) {
+          const info = account.data.parsed?.info;
+          if (info?.tokenAmount?.amount) {
+            wsolRaw += BigInt(info.tokenAmount.amount);
+          }
+        }
+
+        for (const { account } of tslaxResp.value) {
+          const info = account.data.parsed?.info;
+          if (info?.tokenAmount?.amount) {
+            tslaxRaw += BigInt(info.tokenAmount.amount);
+          }
+        }
+
+        solRaw += BigInt(solLamports);
+      }));
 
       if (requestId !== requestIdRef.current) return;
 
@@ -130,7 +140,10 @@ export function useSolanaBalance(
 
   useEffect(() => {
     refetch();
-    if (!address) return;
+    const hasAddress = Array.isArray(address)
+      ? address.some(Boolean)
+      : Boolean(address);
+    if (!hasAddress) return;
     const id = setInterval(refetch, pollInterval);
     return () => clearInterval(id);
   }, [refetch, address, pollInterval]);
