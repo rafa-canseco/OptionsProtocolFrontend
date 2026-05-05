@@ -18,8 +18,29 @@ import { NotificationBanner } from "@/components/NotificationBanner";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
-  const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
-  const { positions, loading, refresh } = usePositions(address, fundingAddress, solanaAddress);
+  const {
+    address,
+    fundingAddress,
+    solanaAddress,
+    externalWallets,
+    isConnected,
+  } = useWallet();
+  const solanaPositionAddresses = useMemo(
+    () => [
+      solanaAddress,
+      ...externalWallets
+        .filter((wallet) => wallet.chain === "solana")
+        .map((wallet) => wallet.address),
+    ].filter((value, index, arr): value is string =>
+      Boolean(value) && arr.indexOf(value) === index,
+    ),
+    [externalWallets, solanaAddress],
+  );
+  const { positions, loading, refresh } = usePositions(
+    address,
+    fundingAddress,
+    solanaPositionAddresses,
+  );
   const { activity } = useActivity(address, fundingAddress ?? undefined);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
