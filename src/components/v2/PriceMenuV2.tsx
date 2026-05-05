@@ -54,6 +54,7 @@ function daysUntil(expiryDate: string): number {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 const MIN_DISPLAY_APR = 3;
+const RAW_COLLATERAL_BUFFER = BigInt(1);
 
 function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
   const divisor = BigInt(10) ** BigInt(9 - decimals);
@@ -214,6 +215,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
       : BigInt(0);
+  const solMaxByBalanceRaw =
+    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
+      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
+      : BigInt(0);
   const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
   const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   const walletBalance = isBuy
@@ -318,8 +323,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   function handlePercentShortcut(pct: number) {
     if (!isBuy && isSol) {
       const capRaw = BigInt(Math.floor(capEth * 1e9));
-      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
-      const rawAvailable = solTotalRaw < capRaw ? solTotalRaw : capRaw;
+      const rawAvailable = solMaxByBalanceRaw < capRaw ? solMaxByBalanceRaw : capRaw;
       const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
       setAmountStr(formatSolRawAmount(raw));
       return;

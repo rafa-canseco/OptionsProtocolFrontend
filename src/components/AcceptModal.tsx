@@ -144,9 +144,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   function handlePercent(pct: number) {
     setActivePercent(pct);
     if (!isBuy && isSol) {
-      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
       const quoteMaxRaw = BigInt(Math.floor(maxAmount * 1e9));
-      const rawAvailable = solTotalRaw < quoteMaxRaw ? solTotalRaw : quoteMaxRaw;
+      const rawAvailable = solMaxByBalanceRaw < quoteMaxRaw ? solMaxByBalanceRaw : quoteMaxRaw;
       const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
       setAmountStr(formatSolRawAmount(raw));
       return;
