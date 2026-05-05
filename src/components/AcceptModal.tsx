@@ -112,7 +112,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   const solCollateralBalance =
     (Number(solanaWsolRaw + wrappableSolRaw) / 1e9);
-  const solReservedBalance = Math.max(solTotalBalance - solCollateralBalance, 0);
   // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
   // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
   const walletBalance = isBuy
@@ -145,7 +144,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   function handlePercent(pct: number) {
     setActivePercent(pct);
     if (!isBuy && isSol) {
-      const raw = (solMaxByBalanceRaw * BigInt(pct)) / BigInt(100);
+      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
+      const quoteMaxRaw = BigInt(Math.floor(maxAmount * 1e9));
+      const rawAvailable = solTotalRaw < quoteMaxRaw ? solTotalRaw : quoteMaxRaw;
+      const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
       setAmountStr(formatSolRawAmount(raw));
       return;
     }
@@ -623,14 +625,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                     ? (
                       <>
                         Balance {floorTo(solTotalBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
-                        <span className="ml-2">
-                          Available {floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
-                        </span>
-                        {solReservedBalance > 0 && (
-                          <span className="ml-2">
-                            Reserved {floorTo(solReservedBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
-                          </span>
-                        )}
                       </>
                     )
                     : isBuy
