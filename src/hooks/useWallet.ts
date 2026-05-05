@@ -21,7 +21,7 @@ import {
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
-  createTransferInstruction,
+  createTransferCheckedInstruction,
   TOKEN_PROGRAM_ID,
   TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -75,17 +75,18 @@ function prettyWalletName(raw: string): string {
 function getSplMintConfig(token: "usdc" | "tslax"): {
   mint: string;
   label: string;
+  decimals: number;
 } {
   if (token === "tslax") {
     if (!SOLANA_TSLAX_MINT) {
       throw new Error("Solana TSLAx mint not configured");
     }
-    return { mint: SOLANA_TSLAX_MINT, label: "TSLAx" };
+    return { mint: SOLANA_TSLAX_MINT, label: "TSLAx", decimals: 8 };
   }
   if (!SOLANA_USDC_MINT) {
     throw new Error("Solana USDC mint not configured");
   }
-  return { mint: SOLANA_USDC_MINT, label: "USDC" };
+  return { mint: SOLANA_USDC_MINT, label: "USDC", decimals: 6 };
 }
 
 async function getMintTokenProgram(
@@ -336,9 +337,15 @@ export function useWallet() {
       }
 
       tx.add(
-        createTransferInstruction(
-          sourceAccount, destAta, sender, amount,
-          [], tokenProgram,
+        createTransferCheckedInstruction(
+          sourceAccount,
+          mint,
+          destAta,
+          sender,
+          amount,
+          splConfig.decimals,
+          [],
+          tokenProgram,
         ),
       );
 
@@ -522,9 +529,15 @@ export function useWallet() {
         );
       }
       tx.add(
-        createTransferInstruction(
-          sourceAccount, destAta, sender, amount,
-          [], tokenProgram,
+        createTransferCheckedInstruction(
+          sourceAccount,
+          mint,
+          destAta,
+          sender,
+          amount,
+          splConfig.decimals,
+          [],
+          tokenProgram,
         ),
       );
       const { blockhash } = await conn.getLatestBlockhash();
