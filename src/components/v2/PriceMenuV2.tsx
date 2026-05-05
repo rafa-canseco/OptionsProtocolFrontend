@@ -316,7 +316,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       const solTotalRaw = solanaWsolRaw + solanaSolRaw;
       const rawAvailable = solTotalRaw < capRaw ? solTotalRaw : capRaw;
       const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
-      setAmountStr(formatSolRawAmount(raw));
+      setAmountStr(formatSolRawAmount(raw, asset.displayDecimals));
       return;
     }
 

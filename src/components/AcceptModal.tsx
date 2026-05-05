@@ -139,7 +139,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       const quoteMaxRaw = BigInt(Math.floor(maxAmount * 1e9));
       const rawAvailable = solTotalRaw < quoteMaxRaw ? solTotalRaw : quoteMaxRaw;
       const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
-      setAmountStr(formatSolRawAmount(raw));
+      setAmountStr(formatSolRawAmount(raw, assetConfig?.displayDecimals ?? 4));
       return;
     }
 
