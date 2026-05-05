@@ -78,7 +78,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
+  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, signSolanaTransaction, isConnected } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
   const {
     solanaUsdcRaw,
@@ -349,7 +349,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             const setupTx = VersionedTransaction.deserialize(
               Buffer.from(setup.transaction, "base64"),
             );
-            await sendSolanaTransaction(setupTx);
+            const signedSetup = await signSolanaTransaction(setupTx.serialize());
+            await api.completeSolanaSponsoredSetup({
+              user: solanaPk.toBase58(),
+              transaction: Buffer.from(signedSetup).toString("base64"),
+            });
             window.dispatchEvent(new Event("balance:refetch"));
           } else {
             const setupTx = await buildSolanaTradeSetupTransaction(

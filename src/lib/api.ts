@@ -242,6 +242,15 @@ export interface SolanaSponsoredSetupResponse {
   sponsor: string;
 }
 
+export interface SolanaCompleteSponsoredSetupRequest {
+  user: string;
+  transaction: string;
+}
+
+export interface SolanaCompleteSponsoredSetupResponse {
+  signature: string;
+}
+
 
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
@@ -366,6 +375,15 @@ export const api = {
         otoken_mint: params.otokenMint,
         wrap_lamports: params.wrapLamports,
         approve_amount: params.approveAmount,
+      }),
+    }),
+
+  completeSolanaSponsoredSetup: (params: SolanaCompleteSponsoredSetupRequest) =>
+    fetchAPI<SolanaCompleteSponsoredSetupResponse>("/solana/sponsored-setup/complete", {
+      method: "POST",
+      body: JSON.stringify({
+        user: params.user,
+        transaction: params.transaction,
       }),
     }),
 
