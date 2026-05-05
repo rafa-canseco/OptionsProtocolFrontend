@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useWallet } from "@/hooks/useWallet";
+import { useConnectWallet } from "@privy-io/react-auth";
+import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
-  const { isConnected, isReady, connectWallet } = useWallet();
+  const { isConnected, isReady } = useWalletSummary();
+  const { connectWallet } = useConnectWallet();
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
