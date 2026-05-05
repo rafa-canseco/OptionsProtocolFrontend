@@ -4,7 +4,7 @@ import type { Position, Activity } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { resolvePositionAsset } from "@/lib/assets";
-import { getPositionStrike } from "@/lib/positionMath";
+import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
 
 interface Props {
   positions: Position[];
@@ -35,7 +35,7 @@ export function PortfolioSummary({
   onYieldMetricChange,
 }: Props) {
   const premiumEarned = positions.reduce(
-    (sum, p) => sum + Number(p.net_premium) / 1e6,
+    (sum, p) => sum + getPositionPremiumUsd(p),
     0,
   );
 
@@ -50,7 +50,7 @@ export function PortfolioSummary({
 
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = capitalUsd(p);
-    const premium = Number(p.net_premium) / 1e6;
+    const premium = getPositionPremiumUsd(p);
     const indexedTime = new Date(p.indexed_at).getTime();
     const days = Math.max(
       1,

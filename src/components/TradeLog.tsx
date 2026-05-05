@@ -6,7 +6,7 @@ import type { Position } from "@/lib/api";
 import { fmtUsd, fmtAsset } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { resolvePositionAsset } from "@/lib/assets";
-import { getPositionExpiryPrice, getPositionStrike } from "@/lib/positionMath";
+import { getPositionExpiryPrice, getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
 import { solanaTxUrl } from "@/lib/solana";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
@@ -144,8 +144,8 @@ function RangeTradeRow({
   const putStrike = getPositionStrike(putLeg);
   const callStrike = getPositionStrike(callLeg);
 
-  const putPremium = Number(putLeg.net_premium) / 1e6;
-  const callPremium = Number(callLeg.net_premium) / 1e6;
+  const putPremium = getPositionPremiumUsd(putLeg);
+  const callPremium = getPositionPremiumUsd(callLeg);
   const totalPremium = putPremium + callPremium;
 
   const date = new Date(putLeg.indexed_at);
@@ -276,7 +276,7 @@ function TradeRow({
   const isBuy = p.is_put;
   const isItm = p.is_itm === true;
   const strike = getPositionStrike(p);
-  const premiumUsd = Number(p.net_premium) / 1e6;
+  const premiumUsd = getPositionPremiumUsd(p);
   const ethAmount = p.amount / 1e8;
   const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
 
