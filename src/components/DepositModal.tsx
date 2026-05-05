@@ -805,11 +805,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   ? `From ${selectedWallet?.name ?? "wallet"}`
                   : `To ${selectedWallet?.name ?? "wallet"}`}
               </p>
-              {token === "sol" && (
-                <p className="text-xs text-[var(--text-secondary)] mt-1">
-                  Leaving 0.005 SOL for network fees.
-                </p>
-              )}
               {chain === "solana" && token === "tslax" && !SOLANA_TSLAX_MINT && (
                 <p className="text-xs text-amber-400 mt-1">
                   TSLAx mint is not configured in this deployment.
