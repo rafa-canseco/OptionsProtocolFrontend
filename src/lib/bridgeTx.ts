@@ -396,6 +396,13 @@ function readSplTokenOwner(data: Buffer): PublicKey {
   return readPubkeyAt(data, 32);
 }
 
+function readSplTokenAmount(data: Buffer): bigint {
+  if (data.length < 72) {
+    throw new Error("SPL token account data is too short to read amount");
+  }
+  return data.readBigUInt64LE(64);
+}
+
 function expectedNetPremiumRaw(
   quote: PriceQuote,
   amount: number,
@@ -714,10 +721,27 @@ export async function buildSolanaTradeTransaction(
     instructions.push(createSyncNativeInstruction(userCollateralAccount, TOKEN_PROGRAM_ID));
   }
 
-  if (!isBuy && (wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
-    throw new Error(
-      "Insufficient wSOL for this trade. Wrap SOL before executing.",
-    );
+  if (!isBuy) {
+    if (assetSlug === "sol") {
+      if ((wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
+        throw new Error(
+          "Insufficient wSOL for this trade. Wrap SOL before executing.",
+        );
+      }
+    } else if (!userCollateralAccountInfo) {
+      throw new Error(
+        `No ${collateralLabel} token account found in your Solana trading account.`,
+      );
+    } else {
+      const userCollateralBalance = readSplTokenAmount(
+        Buffer.from(userCollateralAccountInfo.data),
+      );
+      if (userCollateralBalance < collateral) {
+        throw new Error(
+          `Insufficient ${collateralLabel} in your Solana trading account.`,
+        );
+      }
+    }
   }
 
   if (includeApproveInstruction) {
