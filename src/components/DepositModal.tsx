@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
+import { useLogin, usePrivy } from "@privy-io/react-auth";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -98,6 +99,8 @@ function ChainIcon({ chain, className }: { chain: Chain; className: string }) {
 }
 
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
+  const { authenticated } = usePrivy();
+  const { login } = useLogin();
   const {
     address,
     fundingAddress,
@@ -227,12 +230,19 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [getSpendableRaw]);
 
   const handleConnectWallet = useCallback(() => {
+    if (!authenticated) {
+      login({
+        loginMethods: ["wallet"],
+        walletChainType: "ethereum-and-solana",
+      });
+      return;
+    }
     connectWallet({
       walletList: ["metamask", "coinbase_wallet", "rainbow", "phantom"],
       walletChainType: "ethereum-and-solana",
       description: "Choose the wallet you want to use for deposits and withdrawals.",
     });
-  }, [connectWallet]);
+  }, [authenticated, connectWallet, login]);
 
   const handleMax = useCallback(() => {
     if (maxSpendableRaw > BigInt(0)) {
