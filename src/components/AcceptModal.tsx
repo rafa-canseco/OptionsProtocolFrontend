@@ -109,8 +109,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
       ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
       : BigInt(0);
+  const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   const solCollateralBalance =
     (Number(solanaWsolRaw + wrappableSolRaw) / 1e9);
+  const solReservedBalance = Math.max(solTotalBalance - solCollateralBalance, 0);
   // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
   // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
   const walletBalance = isBuy
@@ -615,11 +617,25 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                 />
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-                Balance {balancesLoading
-                  ? "..."
-                  : isBuy
-                    ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : `${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
+                {balancesLoading
+                  ? "Balance ..."
+                  : isSol && !isBuy
+                    ? (
+                      <>
+                        Balance {floorTo(solTotalBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
+                        <span className="ml-2">
+                          Available {floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
+                        </span>
+                        {solReservedBalance > 0 && (
+                          <span className="ml-2">
+                            Reserved {floorTo(solReservedBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
+                          </span>
+                        )}
+                      </>
+                    )
+                    : isBuy
+                      ? `Balance $${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `Balance ${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
               </p>
               {amount > 0 && amount < minAmount && (
                 <p className="text-xs text-[var(--danger)] mt-1">

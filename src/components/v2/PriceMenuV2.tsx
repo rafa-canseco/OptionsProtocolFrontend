@@ -220,6 +220,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
       : BigInt(0);
   const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
+  const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
+  const solReservedBalance = Math.max(solTotalBalance - solCollateralBalance, 0);
   const walletBalance = isBuy
     ? usd + solanaUsdc
     : asset.slug === "tslax"
@@ -740,9 +742,31 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
-                Balance: <span className="font-mono">{isBuy
-                  ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
+                {isSol && !isBuy ? (
+                  <>
+                    Balance: <span className="font-mono">
+                      {floorTo(solTotalBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} {asset.symbol}
+                    </span>
+                    <span className="ml-2">
+                      Available: <span className="font-mono">
+                        {floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} {asset.symbol}
+                      </span>
+                    </span>
+                    {solReservedBalance > 0 && (
+                      <span className="ml-2">
+                        Reserved: <span className="font-mono">
+                          {floorTo(solReservedBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} {asset.symbol}
+                        </span>
+                      </span>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    Balance: <span className="font-mono">{isBuy
+                      ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
+                  </>
+                )}
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
