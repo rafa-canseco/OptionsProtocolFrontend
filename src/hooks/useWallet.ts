@@ -16,13 +16,14 @@ import {
 import { createWalletClient, custom, type Address } from "viem";
 import { useCallback, useMemo } from "react";
 import {
-  Connection, Transaction, VersionedTransaction, SystemProgram,
+  Connection, Transaction, VersionedTransaction, SystemProgram, PublicKey,
 } from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   createTransferInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -85,6 +86,48 @@ function getSplMintConfig(token: "usdc" | "tslax"): {
     throw new Error("Solana USDC mint not configured");
   }
   return { mint: SOLANA_USDC_MINT, label: "USDC" };
+}
+
+async function getMintTokenProgram(
+  conn: Connection,
+  mint: PublicKey,
+  label: string,
+): Promise<PublicKey> {
+  const mintAccount = await conn.getAccountInfo(mint, "confirmed");
+  if (!mintAccount) {
+    throw new Error(`${label} mint account not found.`);
+  }
+  if (
+    mintAccount.owner.equals(TOKEN_PROGRAM_ID) ||
+    mintAccount.owner.equals(TOKEN_2022_PROGRAM_ID)
+  ) {
+    return mintAccount.owner;
+  }
+  throw new Error(`${label} mint is not owned by a supported SPL token program.`);
+}
+
+async function findTokenAccountForMint(
+  conn: Connection,
+  owner: PublicKey,
+  mint: PublicKey,
+  tokenProgram: PublicKey,
+  requireBalance: boolean,
+) {
+  const resp = await conn.getParsedTokenAccountsByOwner(
+    owner,
+    { mint },
+    "confirmed",
+  );
+  const matching = resp.value.filter((entry) =>
+    entry.account.owner.equals(tokenProgram),
+  );
+  if (!requireBalance) return matching[0]?.pubkey;
+
+  return matching.find(({ account }) => {
+    const parsed = account.data.parsed;
+    const amount = parsed?.info?.tokenAmount?.amount;
+    return amount != null && BigInt(amount) > BigInt(0);
+  })?.pubkey;
 }
 
 export function useWallet() {
@@ -254,16 +297,24 @@ export function useWallet() {
       const mint = toPublicKey(splConfig.mint, `${splConfig.label} mint`);
       const sender = toPublicKey(fromAddress, "sender");
       const receiver = toPublicKey(receiverAddress, "receiver");
-
-      const sourceAta = await getAssociatedTokenAddress(
-        mint, sender, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      const tokenProgram = await getMintTokenProgram(
+        conn,
+        mint,
+        splConfig.label,
       );
+
       const destAta = await getAssociatedTokenAddress(
-        mint, receiver, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+        mint, receiver, false, tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID,
       );
 
       // Verify source token account exists and has enough balance
-      const sourceAccount = await conn.getAccountInfo(sourceAta);
+      const sourceAccount = await findTokenAccountForMint(
+        conn,
+        sender,
+        mint,
+        tokenProgram,
+        true,
+      );
       if (!sourceAccount) {
         throw new Error(
           `No ${splConfig.label} token account found for this wallet. ` +
@@ -279,15 +330,15 @@ export function useWallet() {
         tx.add(
           createAssociatedTokenAccountInstruction(
             sender, destAta, receiver, mint,
-            TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+            tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID,
           ),
         );
       }
 
       tx.add(
         createTransferInstruction(
-          sourceAta, destAta, sender, amount,
-          [], TOKEN_PROGRAM_ID,
+          sourceAccount, destAta, sender, amount,
+          [], tokenProgram,
         ),
       );
 
@@ -437,15 +488,23 @@ export function useWallet() {
       const mint = toPublicKey(splConfig.mint, `${splConfig.label} mint`);
       const sender = toPublicKey(solanaAddress, "sender");
       const receiver = toPublicKey(toAddress, "receiver");
-
-      const sourceAta = await getAssociatedTokenAddress(
-        mint, sender, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+      const tokenProgram = await getMintTokenProgram(
+        conn,
+        mint,
+        splConfig.label,
       );
+
       const destAta = await getAssociatedTokenAddress(
-        mint, receiver, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+        mint, receiver, false, tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID,
       );
 
-      const sourceAccount = await conn.getAccountInfo(sourceAta);
+      const sourceAccount = await findTokenAccountForMint(
+        conn,
+        sender,
+        mint,
+        tokenProgram,
+        true,
+      );
       if (!sourceAccount) {
         throw new Error(
           `No ${splConfig.label} balance found in your Solana trading account.`,
@@ -458,14 +517,14 @@ export function useWallet() {
         tx.add(
           createAssociatedTokenAccountInstruction(
             sender, destAta, receiver, mint,
-            TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID,
+            tokenProgram, ASSOCIATED_TOKEN_PROGRAM_ID,
           ),
         );
       }
       tx.add(
         createTransferInstruction(
-          sourceAta, destAta, sender, amount,
-          [], TOKEN_PROGRAM_ID,
+          sourceAccount, destAta, sender, amount,
+          [], tokenProgram,
         ),
       );
       const { blockhash } = await conn.getLatestBlockhash();
