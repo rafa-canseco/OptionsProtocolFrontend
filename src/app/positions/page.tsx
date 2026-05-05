@@ -17,47 +17,6 @@ import { groupPositions } from "@/lib/positionGrouping";
 import { NotificationBanner } from "@/components/NotificationBanner";
 import type { YieldMetric } from "@/components/YieldToggle";
 
-function shortAddress(address: string): string {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function PortfolioAddressList({
-  base,
-  solana,
-}: {
-  base: string[];
-  solana: string[];
-}) {
-  const hasAny = base.length > 0 || solana.length > 0;
-  if (!hasAny) return null;
-
-  return (
-    <div className="mx-auto mt-6 max-w-md rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 text-left">
-      <p className="text-xs font-semibold uppercase text-[var(--text-secondary)]">
-        Accounts checked
-      </p>
-      <div className="mt-3 space-y-3 text-sm">
-        {base.length > 0 && (
-          <div>
-            <p className="text-xs text-[var(--text-secondary)]">Base</p>
-            <div className="mt-1 space-y-1 font-mono text-xs text-[var(--text)]">
-              {base.map((addr) => <p key={addr}>{shortAddress(addr)}</p>)}
-            </div>
-          </div>
-        )}
-        {solana.length > 0 && (
-          <div>
-            <p className="text-xs text-[var(--text-secondary)]">Solana</p>
-            <div className="mt-1 space-y-1 font-mono text-xs text-[var(--text)]">
-              {solana.map((addr) => <p key={addr}>{shortAddress(addr)}</p>)}
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
 export default function PositionsPage() {
   const {
     address,
@@ -115,10 +74,6 @@ export default function PositionsPage() {
           <p className="text-sm text-[var(--text-secondary)] mt-1">
             Accept a price on the <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
           </p>
-          <PortfolioAddressList
-            base={portfolioAddresses.base}
-            solana={solanaPositionAddresses}
-          />
         </div>
       </main>
     );
