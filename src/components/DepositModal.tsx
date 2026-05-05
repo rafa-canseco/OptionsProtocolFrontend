@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
+import { useLogin } from "@privy-io/react-auth";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -98,6 +99,7 @@ function ChainIcon({ chain, className }: { chain: Chain; className: string }) {
 }
 
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
+  const { login } = useLogin();
   const {
     address,
     fundingAddress,
@@ -120,6 +122,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [tab, setTab] = useState<Tab>("deposit");
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
+  const [canSwitchAccount, setCanSwitchAccount] = useState(false);
   const initialToken: Token =
     requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax"))
       ? requiredToken
@@ -227,6 +230,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [getSpendableRaw]);
 
   const handleConnectWallet = useCallback(() => {
+    setCanSwitchAccount(false);
     connectWallet({
       walletList: ["metamask", "coinbase_wallet", "rainbow", "phantom"],
       walletChainType: "ethereum-and-solana",
@@ -249,6 +253,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("idle");
     setTxHash(null);
     setTxChain(null);
+    setCanSwitchAccount(false);
     setTokenMenuOpen(false);
   }, []);
 
@@ -259,6 +264,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("idle");
     setTxHash(null);
     setTxChain(null);
+    setCanSwitchAccount(false);
     setChainMenuOpen(false);
     setTokenMenuOpen(false);
     setToken((currentToken) =>
@@ -406,6 +412,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const handleActivate = useCallback(async () => {
     setError(null);
+    setCanSwitchAccount(false);
     setStatus("activating");
     try {
       await activateSmartWallet(
@@ -417,12 +424,37 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       const msg = err instanceof Error ? err.message : "";
       if (/reject|denied|cancel/i.test(msg)) {
         setError("Signature cancelled.");
+      } else if (/already exists|already linked|wallet.*exists/i.test(msg)) {
+        setError(
+          "This wallet is already linked to another account. Switch accounts to sign in with this wallet.",
+        );
+        setCanSwitchAccount(true);
       } else {
         setError(msg || "Activation failed. Please try again.");
       }
       setStatus("idle");
     }
   }, [activateSmartWallet, selectedWallet]);
+
+  const handleSwitchAccount = useCallback(async () => {
+    setError(null);
+    setCanSwitchAccount(false);
+    setStatus("activating");
+    try {
+      await disconnect();
+      onClose();
+      login({
+        loginMethods: ["wallet"],
+        walletChainType: "ethereum-only",
+        disableSignup: false,
+      });
+    } catch (err) {
+      console.error("[DepositModal] account switch failed:", err);
+      const msg = err instanceof Error ? err.message : "";
+      setError(msg || "Could not switch accounts. Please try again.");
+      setStatus("idle");
+    }
+  }, [disconnect, login, onClose]);
 
   const handleBaseWithdraw = useCallback(async () => {
     if (!selectedWallet || selectedWallet.chain !== "base") {
@@ -741,6 +773,16 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             </p>
             {error && (
               <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
+            {canSwitchAccount && (
+              <button
+                type="button"
+                onClick={handleSwitchAccount}
+                disabled={isPending}
+                className="w-full rounded-xl border border-[var(--border)] py-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40 transition-colors"
+              >
+                Switch to this wallet
+              </button>
             )}
             <button
               onClick={handleActivate}
