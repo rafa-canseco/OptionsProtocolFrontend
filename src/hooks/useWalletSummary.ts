@@ -49,12 +49,12 @@ export function useWalletSummary() {
     const baseAddresses = uniqueAddresses([
       smartWalletAddress,
       ...wallets
-        .filter((wallet) => wallet.chainType === "ethereum")
+        .filter((wallet) => wallet.chainType === "ethereum" && isEmbeddedWallet(wallet))
         .map((wallet) => wallet.address),
     ]) as Address[];
     const solanaAddresses = uniqueAddresses(
       wallets
-        .filter((wallet) => wallet.chainType === "solana")
+        .filter((wallet) => wallet.chainType === "solana" && isEmbeddedWallet(wallet))
         .map((wallet) => wallet.address),
     );
 

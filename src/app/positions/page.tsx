@@ -20,7 +20,6 @@ import type { YieldMetric } from "@/components/YieldToggle";
 export default function PositionsPage() {
   const {
     address,
-    fundingAddress,
     portfolioAddresses,
     isConnected,
   } = useWallet();
@@ -32,12 +31,12 @@ export default function PositionsPage() {
   );
   const { positions, loading, refresh } = usePositions(
     address,
-    fundingAddress,
+    undefined,
     solanaPositionAddresses,
     15_000,
     portfolioAddresses.base,
   );
-  const { activity } = useActivity(address, fundingAddress ?? undefined);
+  const { activity } = useActivity(address, undefined);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const { spot: solSpot } = useSpot("sol");

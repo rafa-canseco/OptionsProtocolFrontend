@@ -193,28 +193,28 @@ export function useWallet() {
   const portfolioAddresses = useMemo(() => ({
     base: uniqueAddresses([
       address,
-      fundingAddress,
-      withdrawAddress,
       ...linkedWallets
-        .filter((wallet) => wallet.chainType === "ethereum")
+        .filter((wallet) =>
+          wallet.chainType === "ethereum" &&
+          isPrivyWalletClient(wallet.walletClientType),
+        )
         .map((wallet) => wallet.address),
-      ...wallets.map((wallet) => wallet.address),
+      embeddedWallet?.address,
     ]),
     solana: uniqueAddresses([
       solanaAddress,
       ...linkedWallets
-        .filter((wallet) => wallet.chainType === "solana")
+        .filter((wallet) =>
+          wallet.chainType === "solana" &&
+          isPrivyWalletClient(wallet.walletClientType),
+        )
         .map((wallet) => wallet.address),
-      ...solanaWallets.map((wallet) => wallet.address),
     ]),
   }), [
     address,
-    fundingAddress,
+    embeddedWallet?.address,
     linkedWallets,
     solanaAddress,
-    solanaWallets,
-    wallets,
-    withdrawAddress,
   ]);
 
   const getSolanaTradingAddress = useCallback(async (
