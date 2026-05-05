@@ -17,7 +17,7 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import { isExecutableQuote, isProductionReadOnlyAsset } from "@/lib/marketState";
-import { SOLANA_NATIVE_RESERVE_LAMPORTS, solanaTxUrl } from "@/lib/solana";
+import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
@@ -54,7 +54,6 @@ function daysUntil(expiryDate: string): number {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 const MIN_DISPLAY_APR = 3;
-const RAW_COLLATERAL_BUFFER = BigInt(1);
 
 function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
   const divisor = BigInt(10) ** BigInt(9 - decimals);
@@ -211,22 +210,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
   const marketReadOnly = isProductionReadOnlyAsset(asset);
-  const wrappableSolRaw =
-    solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
-      ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
-      : BigInt(0);
-  const solMaxByBalanceRaw =
-    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
-      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
-      : BigInt(0);
-  const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
   const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   const walletBalance = isBuy
     ? usd + solanaUsdc
     : asset.slug === "tslax"
       ? solanaTslax
       : isSol
-        ? solCollateralBalance
+        ? solTotalBalance
         : isBtc
           ? wbtc
           : eth + weth;
@@ -323,7 +313,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   function handlePercentShortcut(pct: number) {
     if (!isBuy && isSol) {
       const capRaw = BigInt(Math.floor(capEth * 1e9));
-      const rawAvailable = solMaxByBalanceRaw < capRaw ? solMaxByBalanceRaw : capRaw;
+      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
+      const rawAvailable = solTotalRaw < capRaw ? solTotalRaw : capRaw;
       const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
       setAmountStr(formatSolRawAmount(raw));
       return;

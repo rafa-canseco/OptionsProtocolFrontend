@@ -230,6 +230,18 @@ export interface BridgeJob {
   updated_at: string;
 }
 
+export interface SolanaSponsoredSetupRequest {
+  user: string;
+  otokenMint: string;
+  wrapLamports: string;
+  approveAmount: string;
+}
+
+export interface SolanaSponsoredSetupResponse {
+  transaction: string;
+  sponsor: string;
+}
+
 
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
@@ -345,5 +357,16 @@ export const api = {
 
   getBridgeStatus: (jobId: string) =>
     fetchAPI<BridgeJob>(`/api/bridge-status/${jobId}`),
+
+  prepareSolanaSponsoredSetup: (params: SolanaSponsoredSetupRequest) =>
+    fetchAPI<SolanaSponsoredSetupResponse>("/solana/sponsored-setup", {
+      method: "POST",
+      body: JSON.stringify({
+        user: params.user,
+        otoken_mint: params.otokenMint,
+        wrap_lamports: params.wrapLamports,
+        approve_amount: params.approveAmount,
+      }),
+    }),
 
 };
