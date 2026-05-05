@@ -1,7 +1,7 @@
 "use client";
 
 import type { Position, Activity } from "@/lib/api";
-import { fmtUsd } from "@/lib/utils";
+import { fmtPremiumUsd, fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { resolvePositionAsset } from "@/lib/assets";
 import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
@@ -47,6 +47,11 @@ export function PortfolioSummary({
     (sum, p) => sum + capitalUsd(p),
     0,
   );
+  const activityVolume = activity
+    ? Math.max(activity.totalVolume, activity.totalCollateralUsd)
+    : 0;
+  const totalTraded = Math.max(activityVolume, totalCapital);
+  const positionCount = Math.max(activity?.positionCount ?? 0, positions.length);
 
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = capitalUsd(p);
@@ -88,7 +93,7 @@ export function PortfolioSummary({
             Total Earned
           </p>
           <p className="text-xl font-bold text-[var(--accent)] font-mono">
-            ${fmtUsd(premiumEarned)}
+            {fmtPremiumUsd(premiumEarned)}
           </p>
         </div>
         <div>
@@ -117,13 +122,13 @@ export function PortfolioSummary({
         <div>
           <p className="text-xs text-[var(--text-secondary)]">Positions</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
-            {activity?.positionCount ?? positions.length}
+            {positionCount}
           </p>
         </div>
         <div>
           <p className="text-xs text-[var(--text-secondary)]">Total Traded</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
-            {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
+            {formatUSD(totalTraded)}
           </p>
         </div>
       </div>
