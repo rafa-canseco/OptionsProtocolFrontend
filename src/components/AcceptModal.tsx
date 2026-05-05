@@ -58,7 +58,9 @@ interface Props {
 type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
-const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1290;
+// Solana's packet limit is 1232 raw bytes. This guard receives base64 length,
+// where the equivalent ceiling is 4 * ceil(1232 / 3) = 1644.
+const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1644;
 const SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES = 1260;
 type DepositToken = "usdc" | "eth" | "btc" | "sol" | "tslax";
 
