@@ -238,7 +238,15 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       return;
     }
     connectWallet({
-      walletList: ["metamask", "coinbase_wallet", "rainbow", "phantom"],
+      walletList: [
+        "detected_ethereum_wallets",
+        "detected_solana_wallets",
+        "metamask",
+        "coinbase_wallet",
+        "rainbow",
+        "phantom",
+        "wallet_connect",
+      ],
       walletChainType: "ethereum-and-solana",
       description: "Choose the wallet you want to use for deposits and withdrawals.",
     });
