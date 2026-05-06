@@ -26,6 +26,11 @@ export interface TrustedB1naryWalletCandidate {
   walletClientType: string;
 }
 
+interface B1naryWalletLookupCandidate {
+  chain: B1naryWalletChain;
+  address: string;
+}
+
 interface UseB1naryAccountOptions {
   autoSyncTrustedWallets?: boolean;
 }
@@ -48,6 +53,10 @@ function candidateKey(candidate: TrustedB1naryWalletCandidate): string {
   return `${candidate.chain}:${normalizeAddress(candidate.chain, candidate.address)}`;
 }
 
+function lookupKey(candidate: B1naryWalletLookupCandidate): string {
+  return `${candidate.chain}:${normalizeAddress(candidate.chain, candidate.address)}`;
+}
+
 function uniqueCandidates(
   candidates: Array<TrustedB1naryWalletCandidate | undefined>,
 ): TrustedB1naryWalletCandidate[] {
@@ -56,6 +65,21 @@ function uniqueCandidates(
   for (const candidate of candidates) {
     if (!candidate?.address) continue;
     const key = candidateKey(candidate);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push(candidate);
+  }
+  return unique;
+}
+
+function uniqueLookupCandidates(
+  candidates: Array<B1naryWalletLookupCandidate | undefined>,
+): B1naryWalletLookupCandidate[] {
+  const seen = new Set<string>();
+  const unique: B1naryWalletLookupCandidate[] = [];
+  for (const candidate of candidates) {
+    if (!candidate?.address) continue;
+    const key = lookupKey(candidate);
     if (seen.has(key)) continue;
     seen.add(key);
     unique.push(candidate);
@@ -79,6 +103,51 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
 
   const privyUserId = user?.id;
   const linkedAccounts = useMemo(() => walletAccounts(user ?? null), [user]);
+
+  const walletLookupCandidates = useMemo(() => {
+    const smartWalletAddress = client?.account?.address ?? user?.smartWallet?.address;
+    const evmWalletCandidates = wallets.map((wallet) =>
+      wallet.address
+        ? {
+            chain: "base" as const,
+            address: wallet.address,
+          }
+        : undefined,
+    );
+    const solanaWalletCandidates = solanaWallets.map((wallet) =>
+      wallet.address
+        ? {
+            chain: "solana" as const,
+            address: wallet.address,
+          }
+        : undefined,
+    );
+    const linkedWalletCandidates = linkedAccounts.map((wallet) => {
+      if (!wallet.address || !wallet.chainType) return undefined;
+      return {
+        chain: wallet.chainType === "solana" ? "solana" as const : "base" as const,
+        address: wallet.address,
+      };
+    });
+
+    return uniqueLookupCandidates([
+      smartWalletAddress
+        ? {
+            chain: "base",
+            address: smartWalletAddress,
+          }
+        : undefined,
+      ...evmWalletCandidates,
+      ...solanaWalletCandidates,
+      ...linkedWalletCandidates,
+    ]);
+  }, [
+    client?.account?.address,
+    linkedAccounts,
+    solanaWallets,
+    user?.smartWallet?.address,
+    wallets,
+  ]);
 
   const trustedWalletCandidates = useMemo(() => {
     const smartWalletAddress = client?.account?.address ?? user?.smartWallet?.address;
@@ -163,16 +232,61 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
     setLoading(true);
     try {
       const response = await api.getB1naryAccount(privyUserId);
-      setAccount(response.account);
-      setMembers(response.members);
-      setLinkedWallets(response.wallets);
+      if (response.account) {
+        setAccount(response.account);
+        setMembers(response.members);
+        setLinkedWallets(response.wallets);
+        setError(null);
+        return;
+      }
+
+      for (const candidate of walletLookupCandidates) {
+        let walletResponse;
+        try {
+          walletResponse = await api.getB1naryAccountByWallet(
+            candidate.chain,
+            candidate.address,
+          );
+        } catch (walletErr) {
+          console.warn(
+            "[useB1naryAccount] wallet account lookup failed:",
+            walletErr,
+          );
+          continue;
+        }
+        if (!walletResponse.account) continue;
+
+        try {
+          const memberResponse = await api.addTrustedB1naryMember(
+            walletResponse.account.id,
+            privyUserId,
+          );
+          setAccount(memberResponse.account);
+          setMembers(memberResponse.members);
+          setLinkedWallets(memberResponse.wallets);
+        } catch (memberErr) {
+          console.warn(
+            "[useB1naryAccount] trusted member link failed:",
+            memberErr,
+          );
+          setAccount(walletResponse.account);
+          setMembers(walletResponse.members);
+          setLinkedWallets(walletResponse.wallets);
+        }
+        setError(null);
+        return;
+      }
+
+      setAccount(null);
+      setMembers([]);
+      setLinkedWallets([]);
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load b1nary account");
     } finally {
       setLoading(false);
     }
-  }, [authenticated, privyUserId, ready]);
+  }, [authenticated, privyUserId, ready, walletLookupCandidates]);
 
   useEffect(() => {
     void refresh();
@@ -265,7 +379,12 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
     loading,
     syncing,
     error,
-    needsOnboarding: ready && authenticated && !loading && !account,
+    needsOnboarding:
+      ready &&
+      authenticated &&
+      !loading &&
+      !account &&
+      trustedWalletCandidates.length > 0,
     createAccount,
     refresh,
     syncTrustedWallets,

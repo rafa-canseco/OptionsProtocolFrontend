@@ -467,6 +467,7 @@ export async function buildSolanaTradeTransaction(
   wrapSolLamports: bigint = BigInt(0),
   includeSetupInstructions = true,
   includeApproveInstruction = true,
+  feePayerPubkey: PublicKey = ownerPubkey,
 ): Promise<VersionedTransaction> {
   if (!solanaConnection) {
     throw new Error("Solana RPC not configured");
@@ -877,7 +878,7 @@ export async function buildSolanaTradeTransaction(
   const { blockhash } = await solanaConnection.getLatestBlockhash();
 
   const msgV0 = new TransactionMessage({
-    payerKey: ownerPubkey,
+    payerKey: feePayerPubkey,
     recentBlockhash: blockhash,
     instructions,
   }).compileToV0Message([altAccount]);

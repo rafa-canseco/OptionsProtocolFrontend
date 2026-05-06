@@ -3,10 +3,15 @@ import {
   pad,
   type Address,
 } from "viem";
-import { PublicKey, Transaction, TransactionInstruction } from "@solana/web3.js";
+import {
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  Transaction,
+  TransactionInstruction,
+} from "@solana/web3.js";
 import {
   getAssociatedTokenAddress,
-  createApproveInstruction,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import type { BatchCall } from "@/hooks/useWallet";
@@ -19,6 +24,9 @@ import { SOLANA_USDC_MINT, solanaConnection, toPublicKey } from "@/lib/solana";
 
 export const DOMAIN_BASE = 6;
 export const DOMAIN_SOLANA = 5;
+const CIRCLE_IRIS_API = "https://iris-api.circle.com";
+export const CCTP_FAST_FINALITY_THRESHOLD = 1000;
+const CCTP_FEE_BUFFER_BPS = 2_000; // 20%
 
 // ---------------------------------------------------------------------------
 // Contract / Program addresses
@@ -85,6 +93,28 @@ export function bytes32ToSolana(bytes32: `0x${string}`): PublicKey {
   return new PublicKey(Buffer.from(bytes32.slice(2), "hex"));
 }
 
+export async function getSolanaUsdcTokenAccount(owner: PublicKey): Promise<PublicKey> {
+  if (!solanaConnection) {
+    throw new Error("Solana RPC not configured");
+  }
+  if (!SOLANA_USDC_MINT) {
+    throw new Error("Solana USDC mint not configured");
+  }
+
+  const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+  const accounts = await solanaConnection.getTokenAccountsByOwner(owner, { mint });
+  if (accounts.value.length > 0) {
+    return accounts.value[0].pubkey;
+  }
+
+  return getAssociatedTokenAddress(
+    mint,
+    owner,
+    false,
+    TOKEN_PROGRAM_ID,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // EVM burn builder — returns BatchCall[] for sendBatchTx()
 // ---------------------------------------------------------------------------
@@ -118,7 +148,7 @@ export function buildEvmBurnCalls(
       ADDRESSES.usdc,
       "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
       maxFee,
-      0, // minFinalityThreshold: 0 = default finality
+      CCTP_FAST_FINALITY_THRESHOLD,
     ],
   });
 
@@ -126,6 +156,43 @@ export function buildEvmBurnCalls(
     { to: ADDRESSES.usdc, data: approveData },
     { to: CCTP_EVM.tokenMessenger, data: burnData },
   ];
+}
+
+type CircleFeeQuote = {
+  finalityThreshold: number;
+  minimumFee: number;
+};
+
+export async function getFastCctpMaxFee(
+  sourceDomain: number,
+  destinationDomain: number,
+  amount: bigint,
+): Promise<bigint> {
+  const response = await fetch(
+    `${CIRCLE_IRIS_API}/v2/burn/USDC/fees/${sourceDomain}/${destinationDomain}`,
+    { headers: { Accept: "application/json" } },
+  );
+  if (!response.ok) {
+    throw new Error(`Could not fetch CCTP fees (${response.status}).`);
+  }
+
+  const fees = (await response.json()) as CircleFeeQuote[];
+  const fastFee = fees.find(
+    (fee) => fee.finalityThreshold === CCTP_FAST_FINALITY_THRESHOLD,
+  );
+  if (!fastFee) {
+    throw new Error("CCTP fast-transfer fee is unavailable for this route.");
+  }
+
+  const minimumFeeMicros = BigInt(Math.ceil(fastFee.minimumFee * 1_000_000));
+  const numerator =
+    amount *
+    minimumFeeMicros *
+    BigInt(10_000 + CCTP_FEE_BUFFER_BPS);
+  const denominator = BigInt(10_000 * 10_000 * 1_000_000);
+  const fee = (numerator + denominator - BigInt(1)) / denominator;
+
+  return fee > BigInt(0) ? fee : BigInt(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -162,6 +229,7 @@ function u64Le(value: bigint): Buffer {
  */
 function deriveCctpPdas(
   mint: PublicKey,
+  owner: PublicKey,
   destDomain: number,
 ) {
   const tmm = CCTP_SOLANA.tokenMessengerMinter;
@@ -170,6 +238,14 @@ function deriveCctpPdas(
   return {
     senderAuthority: findPda(
       [Buffer.from("sender_authority")],
+      tmm,
+    ),
+    denylist: findPda(
+      [Buffer.from("denylist_account"), owner.toBuffer()],
+      tmm,
+    ),
+    tokenMessenger: findPda(
+      [Buffer.from("token_messenger")],
       tmm,
     ),
     tokenMinter: findPda(
@@ -181,18 +257,19 @@ function deriveCctpPdas(
       tmm,
     ),
     remoteTokenMessenger: findPda(
-      [Buffer.from("remote_token_messenger"), u32Le(destDomain)],
+      [Buffer.from("remote_token_messenger"), Buffer.from(String(destDomain))],
       tmm,
     ),
-    authorityPda: findPda(
-      [
-        Buffer.from("message_transmitter_authority"),
-        tmm.toBuffer(),
-      ],
-      mt,
+    eventAuthority: findPda(
+      [Buffer.from("__event_authority")],
+      tmm,
     ),
     messageTransmitterConfig: findPda(
       [Buffer.from("message_transmitter")],
+      mt,
+    ),
+    messageTransmitterEventAuthority: findPda(
+      [Buffer.from("__event_authority")],
       mt,
     ),
   };
@@ -221,25 +298,14 @@ export async function buildSolanaBurnTransaction(
   }
 
   const mint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
-  const pdas = deriveCctpPdas(mint, DOMAIN_BASE);
+  const pdas = deriveCctpPdas(mint, ownerPubkey, DOMAIN_BASE);
 
   const ownerAta = await getAssociatedTokenAddress(
     mint, ownerPubkey, false, TOKEN_PROGRAM_ID,
   );
 
-  // Approve TokenMessengerMinter to spend USDC
-  const approveIx = createApproveInstruction(
-    ownerAta,
-    pdas.senderAuthority,
-    ownerPubkey,
-    amount,
-    [],
-    TOKEN_PROGRAM_ID,
-  );
-
   // CCTP V2 depositForBurn instruction data (Anchor convention):
   // sha256("global:deposit_for_burn")[0..8] + Borsh-encoded args.
-  // Verify against on-chain IDL during devnet testing.
   const discriminator = Buffer.from(
     "d73c3d2e723780b0", "hex",
   );
@@ -256,17 +322,9 @@ export async function buildSolanaBurnTransaction(
     u32Le(0), // minFinalityThreshold
   ]);
 
-  // Message sent event data account (ephemeral keypair).
-  // The backend only needs the burnTxHash to find the attestation,
-  // so we use a deterministic address derived from the owner + amount.
-  const messageSentEventData = findPda(
-    [
-      Buffer.from("message_sent"),
-      ownerPubkey.toBuffer(),
-      u64Le(amount),
-    ],
-    CCTP_SOLANA.messageTransmitter,
-  );
+  // Circle's MessageTransmitter stores MessageSent data in a client-generated
+  // account. It must be a signer so the program can assign it during the CPI.
+  const messageSentEventData = Keypair.generate();
 
   const burnIx = new TransactionInstruction({
     programId: CCTP_SOLANA.tokenMessengerMinter,
@@ -275,31 +333,33 @@ export async function buildSolanaBurnTransaction(
       { pubkey: ownerPubkey, isSigner: true, isWritable: true },
       { pubkey: pdas.senderAuthority, isSigner: false, isWritable: false },
       { pubkey: ownerAta, isSigner: false, isWritable: true },
+      { pubkey: pdas.denylist, isSigner: false, isWritable: false },
       { pubkey: pdas.messageTransmitterConfig, isSigner: false, isWritable: true },
+      { pubkey: pdas.tokenMessenger, isSigner: false, isWritable: false },
+      { pubkey: pdas.remoteTokenMessenger, isSigner: false, isWritable: false },
       { pubkey: pdas.tokenMinter, isSigner: false, isWritable: false },
       { pubkey: pdas.localToken, isSigner: false, isWritable: true },
-      { pubkey: pdas.remoteTokenMessenger, isSigner: false, isWritable: false },
-      { pubkey: pdas.authorityPda, isSigner: false, isWritable: false },
-      { pubkey: messageSentEventData, isSigner: false, isWritable: true },
+      { pubkey: mint, isSigner: false, isWritable: true },
+      { pubkey: messageSentEventData.publicKey, isSigner: true, isWritable: true },
       { pubkey: CCTP_SOLANA.messageTransmitter, isSigner: false, isWritable: false },
       { pubkey: CCTP_SOLANA.tokenMessengerMinter, isSigner: false, isWritable: false },
-      { pubkey: mint, isSigner: false, isWritable: true },
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      {
-        pubkey: new PublicKey("11111111111111111111111111111111"),
-        isSigner: false,
-        isWritable: false,
-      },
+      { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+      { pubkey: pdas.eventAuthority, isSigner: false, isWritable: false },
+      { pubkey: CCTP_SOLANA.tokenMessengerMinter, isSigner: false, isWritable: false },
+      { pubkey: pdas.messageTransmitterEventAuthority, isSigner: false, isWritable: false },
+      { pubkey: CCTP_SOLANA.messageTransmitter, isSigner: false, isWritable: false },
     ],
     data: ixData,
   });
 
   const tx = new Transaction();
-  tx.add(approveIx, burnIx);
+  tx.add(burnIx);
 
   const { blockhash } = await solanaConnection.getLatestBlockhash();
   tx.recentBlockhash = blockhash;
   tx.feePayer = ownerPubkey;
+  tx.partialSign(messageSentEventData);
 
   return tx;
 }

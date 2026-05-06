@@ -1,5 +1,6 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
@@ -9,6 +10,8 @@ import { CHAIN } from "@/lib/contracts";
 import { SOLANA_CHAIN, SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
 import { B1naryAccountOnboarding } from "@/components/B1naryAccountOnboarding";
+
+const B1NARY_ACCOUNT_ROUTES = ["/earn", "/positions"];
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -63,11 +66,16 @@ export function buildPrivyConfig(): PrivyClientConfig {
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const showB1naryAccountOnboarding = B1NARY_ACCOUNT_ROUTES.some((route) =>
+    pathname?.startsWith(route),
+  );
+
   return (
     <PrivyProvider appId={getPrivyAppId()} config={buildPrivyConfig()}>
       <SmartWalletsProvider>
         {children}
-        <B1naryAccountOnboarding />
+        {showB1naryAccountOnboarding && <B1naryAccountOnboarding />}
       </SmartWalletsProvider>
     </PrivyProvider>
   );

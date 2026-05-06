@@ -39,7 +39,7 @@ const ZERO: Balances = {
 
 export function useBalances(
   address: Address | Address[] | undefined,
-  pollInterval = 15_000,
+  pollInterval = 60_000,
 ) {
   const [balances, setBalances] = useState<Balances>(ZERO);
   const [loading, setLoading] = useState(true);
@@ -136,7 +136,7 @@ export function useBalances(
   useEffect(() => {
     const handler = () => {
       refetch();
-      for (const delay of [500, 1500, 3000, 6000]) {
+      for (const delay of [1_500, 6_000]) {
         window.setTimeout(() => refetch(), delay);
       }
     };

@@ -9,6 +9,7 @@ import { useCapacity } from "@/hooks/useCapacity";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
 import { HowItWorksDrawer } from "../HowItWorksDrawer";
@@ -21,6 +22,7 @@ import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
+import type { Address } from "viem";
 import { AssetSelector } from "./AssetSelector";
 import { RangeEarn } from "./RangeEarn";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
@@ -178,13 +180,33 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
   const { address, solanaAddress, isConnected } = useWallet();
-  const { usd, eth, weth, wbtc } = useBalances(address);
+  const { wallets: b1naryWallets } = useB1naryAccount({
+    autoSyncTrustedWallets: false,
+  });
+  const b1naryTradingWallets = b1naryWallets.filter((wallet) =>
+    wallet.role === "trading" &&
+    wallet.verified_at &&
+    (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+  );
+  const b1naryBaseAddresses = b1naryTradingWallets
+    .filter((wallet) => wallet.chain === "base")
+    .map((wallet) => wallet.address as Address);
+  const b1narySolanaAddresses = b1naryTradingWallets
+    .filter((wallet) => wallet.chain === "solana")
+    .map((wallet) => wallet.address);
+  const { usd, eth, weth, wbtc } = useBalances(
+    b1naryBaseAddresses.length > 0 ? b1naryBaseAddresses : address,
+  );
   const {
     solanaUsdc,
     solanaWsolRaw,
     solanaSolRaw,
     solanaTslax,
-  } = useSolanaBalance(solanaAddress);
+  } = useSolanaBalance(
+    b1narySolanaAddresses.length > 0
+      ? b1narySolanaAddresses
+      : solanaAddress,
+  );
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
@@ -926,6 +948,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           assetSlug={asset.slug}
           yieldMetric={yieldMetric}
           onClose={() => setConfirming(false)}
+          onQuoteInvalid={() => {
+            setConfirming(false);
+            setSelectedQuote(null);
+            void refresh();
+          }}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);
             setAccepted({ quote: selectedQuote, side: side as "buy" | "sell", amount: amt, txHash: hash });

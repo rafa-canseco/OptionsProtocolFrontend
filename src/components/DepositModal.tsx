@@ -3,12 +3,22 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
 import { useLogin, usePrivy, type WalletListEntry } from "@privy-io/react-auth";
-import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
+import { useWallet, type BatchCall, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
+import {
+  buildEvmBurnCalls,
+  DOMAIN_BASE,
+  DOMAIN_SOLANA,
+  getFastCctpMaxFee,
+  getSolanaUsdcTokenAccount,
+  solanaToBytes32,
+} from "@/lib/cctp";
 import { isSolanaOffInProd } from "@/lib/marketState";
-import { SOLANA_TSLAX_MINT, solanaTxUrl } from "@/lib/solana";
+import { SOLANA_TSLAX_MINT, solanaTxUrl, toPublicKey } from "@/lib/solana";
+import { api, type BridgeJob, type BridgeJobStatus } from "@/lib/api";
 
 type Tab = "deposit" | "withdraw";
 type Chain = "base" | "solana";
@@ -37,6 +47,14 @@ const TOKENS_BY_CHAIN: Record<Chain, Token[]> = {
 };
 
 const SOL_FEE_RESERVE_LAMPORTS = BigInt(5_000_000);
+const BRIDGE_POLL_INTERVAL_MS = 2_000;
+const BRIDGE_MAX_POLL_ATTEMPTS = 180;
+const BRIDGE_TERMINAL_STATUSES: BridgeJobStatus[] = [
+  "completed",
+  "failed",
+  "mint_completed",
+  "mint_completed_trade_failed",
+];
 
 interface Props {
   onClose: () => void;
@@ -98,8 +116,134 @@ function ChainIcon({ chain, className }: { chain: Chain; className: string }) {
   );
 }
 
+async function pollBridgeJob(
+  jobId: string,
+  setProgressMessage: (message: string) => void,
+): Promise<BridgeJob> {
+  let lastStatus: BridgeJobStatus | null = null;
+
+  for (let i = 0; i < BRIDGE_MAX_POLL_ATTEMPTS; i++) {
+    const job = await api.getBridgeStatus(jobId);
+    if (job.status !== lastStatus) {
+      lastStatus = job.status;
+      console.log("[DepositModal] withdrawal bridge status:", jobId, job.status);
+      setProgressMessage(bridgeStatusMessage(job));
+    }
+
+    if (BRIDGE_TERMINAL_STATUSES.includes(job.status)) {
+      return job;
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, BRIDGE_POLL_INTERVAL_MS));
+  }
+
+  throw new Error(
+    "Timed out waiting for bridge completion. Your USDC may still be in transit.",
+  );
+}
+
+function bridgeStatusMessage(job: BridgeJob): string {
+  switch (job.status) {
+    case "completed":
+    case "mint_completed":
+      return `USDC arrived on ${chainLabel(job.dest_chain)}.`;
+    case "mint_completed_trade_failed":
+      return `USDC arrived on ${chainLabel(job.dest_chain)}.`;
+    case "failed":
+      return "Bridge failed.";
+    default:
+      return `Waiting for USDC to arrive on ${chainLabel(job.dest_chain)}...`;
+  }
+}
+
+async function bridgeBaseUsdcToSolana(
+  solanaRecipient: string,
+  amount: bigint,
+  userId: string,
+  sendBatchTx: (calls: BatchCall[]) => Promise<unknown>,
+  setProgressMessage: (message: string) => void,
+): Promise<BridgeJob> {
+  const solanaRecipientPk = toPublicKey(solanaRecipient, "Solana recipient");
+  setProgressMessage("Resolving Solana USDC account...");
+  const solanaUsdcAccount = await getSolanaUsdcTokenAccount(solanaRecipientPk);
+  const recipient = solanaToBytes32(solanaUsdcAccount);
+  setProgressMessage("Checking bridge fee...");
+  const maxFee = await getFastCctpMaxFee(DOMAIN_BASE, DOMAIN_SOLANA, amount);
+  const burnCalls = buildEvmBurnCalls(amount, recipient, maxFee);
+
+  setProgressMessage("Sending USDC from Base to Solana...");
+  const burnTxHash = (await sendBatchTx(burnCalls)) as string;
+  if (!burnTxHash || !burnTxHash.startsWith("0x")) {
+    throw new Error("Base bridge transaction did not return a hash.");
+  }
+  console.log("[DepositModal] Base withdrawal bridge burn tx:", burnTxHash);
+
+  setProgressMessage("Starting bridge confirmation...");
+  const { job_id: jobId } = await api.bridgeAndTrade({
+    burnTxHash,
+    signedTradeTx: null,
+    quoteId: null,
+    sourceChain: "base",
+    destChain: "solana",
+    userId,
+    mintRecipient: solanaUsdcAccount.toBase58(),
+    burnAmount: amount.toString(),
+  });
+  console.log("[DepositModal] Base withdrawal bridge job:", jobId);
+
+  setProgressMessage("Waiting for USDC to arrive on Solana...");
+  const job = await pollBridgeJob(jobId, setProgressMessage);
+  if (job.status === "failed") {
+    throw new Error(job.error_message ?? "Bridge failed.");
+  }
+  return job;
+}
+
+async function bridgeSolanaUsdcToBase(
+  solanaOwner: string,
+  baseRecipient: Address,
+  amount: bigint,
+  userId: string,
+  signSolanaTransaction: (serializedTx: Uint8Array) => Promise<Uint8Array>,
+  setProgressMessage: (message: string) => void,
+): Promise<BridgeJob> {
+  setProgressMessage("Preparing sponsored Solana transfer...");
+  const preparedBurn = await api.prepareSolanaCctpBurn({
+    owner: solanaOwner,
+    destChain: "base",
+    mintRecipient: baseRecipient,
+    burnAmount: amount.toString(),
+    maxFee: "0",
+    minFinalityThreshold: 2000,
+  });
+
+  setProgressMessage("Confirming Solana transfer...");
+  const signedBurnBytes = await signSolanaTransaction(
+    new Uint8Array(Buffer.from(preparedBurn.transaction_base64, "base64")),
+  );
+
+  setProgressMessage("Sending USDC to Base...");
+  const { job_id: jobId } = await api.submitSolanaCctpBurn({
+    signedTransactionBase64: Buffer.from(signedBurnBytes).toString("base64"),
+    destChain: "base",
+    userId,
+    mintRecipient: baseRecipient,
+    burnAmount: amount.toString(),
+    quoteId: `withdraw:${userId}:${Date.now()}`,
+    signedTradeTx: null,
+  });
+  console.log("[DepositModal] Solana withdrawal bridge job:", jobId);
+
+  setProgressMessage("Waiting for USDC to arrive on Base...");
+  const job = await pollBridgeJob(jobId, setProgressMessage);
+  if (job.status === "failed") {
+    throw new Error(job.error_message ?? "Bridge failed.");
+  }
+  return job;
+}
+
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
-  const { authenticated } = usePrivy();
+  const { authenticated, user } = usePrivy();
   const { login } = useLogin();
   const {
     address,
@@ -112,6 +256,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     sendSolanaSolDeposit,
     sendSolanaWithdraw,
     sendSolanaSolWithdraw,
+    signSolanaTransaction,
     activateSmartWallet,
     connectWallet,
     disconnect,
@@ -134,13 +279,36 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [activeChain, setActiveChain] = useState<Chain>(initialChain);
   const [token, setToken] = useState<Token>(initialToken);
 
-  const smartBalances = useBalances(address);
+  const { wallets: b1naryWallets } = useB1naryAccount({
+    autoSyncTrustedWallets: false,
+  });
+  const b1naryTradingWallets = b1naryWallets.filter((wallet) =>
+    wallet.role === "trading" &&
+    wallet.verified_at &&
+    (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+  );
+  const b1naryBaseTradingAddresses = b1naryTradingWallets
+    .filter((wallet) => wallet.chain === "base")
+    .map((wallet) => wallet.address as Address);
+  const b1narySolanaTradingAddresses = b1naryTradingWallets
+    .filter((wallet) => wallet.chain === "solana")
+    .map((wallet) => wallet.address);
+
+  const smartBalances = useBalances(
+    b1naryBaseTradingAddresses.length > 0
+      ? b1naryBaseTradingAddresses
+      : address,
+  );
   const selectedBaseAddress =
     selectedWallet?.chain === "base"
       ? (selectedWallet.address as Address)
       : undefined;
   const eoaBalances = useBalances(selectedBaseAddress ?? fundingAddress);
-  const solBalance = useSolanaBalance(solanaAddress);
+  const solBalance = useSolanaBalance(
+    b1narySolanaTradingAddresses.length > 0
+      ? b1narySolanaTradingAddresses
+      : solanaAddress,
+  );
   const solExternalBalance = useSolanaBalance(
     selectedWallet?.chain === "solana" ? selectedWallet.address : undefined,
   );
@@ -153,6 +321,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [txChain, setTxChain] = useState<"base" | "solana" | null>(null);
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
   const [chainMenuOpen, setChainMenuOpen] = useState(false);
+  const [progressMessage, setProgressMessage] = useState("Preparing transfer...");
 
   const chainWallets = useMemo(
     () => externalWallets.filter((w) => w.chain === activeChain),
@@ -183,6 +352,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     tab === "deposit" ? solExternalBalance : solBalance;
 
   const getRawBalance = useCallback((asset: Token): bigint => {
+    if (tab === "withdraw" && asset === "usdc") {
+      return smartBalances.usdRaw + solBalance.solanaUsdcRaw;
+    }
     if (chain === "solana") {
       if (asset === "sol") return solanaWalletBalance.solanaSolRaw;
       if (asset === "usdc") return solanaWalletBalance.solanaUsdcRaw;
@@ -201,7 +373,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     if (asset === "weth") return smartBalances.wethRaw;
     if (asset === "btc") return smartBalances.wbtcRaw;
     return BigInt(0);
-  }, [chain, eoaBalances, smartBalances, solanaWalletBalance, tab]);
+  }, [
+    chain,
+    eoaBalances,
+    smartBalances,
+    solBalance.solanaUsdcRaw,
+    solanaWalletBalance,
+    tab,
+  ]);
 
   const getSpendableRaw = useCallback((asset: Token): bigint => {
     const balance = getRawBalance(asset);
@@ -272,6 +451,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("idle");
     setTxHash(null);
     setTxChain(null);
+    setProgressMessage("Preparing transfer...");
     setTokenMenuOpen(false);
   }, []);
 
@@ -282,6 +462,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("idle");
     setTxHash(null);
     setTxChain(null);
+    setProgressMessage("Preparing transfer...");
     setChainMenuOpen(false);
     setTokenMenuOpen(false);
     setToken((currentToken) =>
@@ -460,6 +641,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
     setError(null);
     setStatus("pending");
+    setProgressMessage("Preparing withdrawal...");
     setTxHash(null);
     setTxChain(null);
     const BASE_WITHDRAW_TOKEN_ADDRESS: Partial<Record<Token, Address | null>> = {
@@ -476,30 +658,79 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     const tokenAddress = BASE_WITHDRAW_TOKEN_ADDRESS[token];
 
     try {
-      const result = await sendBatchTx([
-        tokenAddress
-          ? {
-              to: tokenAddress,
-              data: encodeFunctionData({
-                abi: ERC20_ABI,
-                functionName: "transfer",
-                args: [baseWithdrawAddr, amount],
-              }),
-            }
-          : {
-              to: baseWithdrawAddr,
-              data: "0x",
-              value: amount,
-            },
-      ]);
-      if (typeof result !== "string" || !result.startsWith("0x")) {
-        throw new Error("Unexpected response from smart wallet");
+      let hash: `0x${string}` | null = null;
+      let bridgeJob: BridgeJob | null = null;
+
+      if (token === "usdc") {
+        const bridgeAmount =
+          smartBalances.usdRaw >= amount ? BigInt(0) : amount - smartBalances.usdRaw;
+
+        if (bridgeAmount > BigInt(0)) {
+          if (!solanaAddress) {
+            throw new Error("Solana trading account not ready.");
+          }
+          if (!user?.id) {
+            throw new Error("User session not ready.");
+          }
+          setProgressMessage("Consolidating USDC on Base...");
+          bridgeJob = await bridgeSolanaUsdcToBase(
+            solanaAddress,
+            address,
+            bridgeAmount,
+            user.id,
+            signSolanaTransaction,
+            setProgressMessage,
+          );
+        }
+
+        setProgressMessage("Withdrawing USDC from Base...");
+        const result = await sendBatchTx([
+          {
+            to: ADDRESSES.usdc,
+            data: encodeFunctionData({
+              abi: ERC20_ABI,
+              functionName: "transfer",
+              args: [baseWithdrawAddr, amount],
+            }),
+          },
+        ]);
+        if (typeof result !== "string" || !result.startsWith("0x")) {
+          throw new Error("Unexpected response from smart wallet");
+        }
+        hash = result as `0x${string}`;
+        await publicClient.waitForTransactionReceipt({ hash });
+      } else {
+        setProgressMessage(`Withdrawing ${meta.label} from Base...`);
+        const result = await sendBatchTx([
+          tokenAddress
+            ? {
+                to: tokenAddress,
+                data: encodeFunctionData({
+                  abi: ERC20_ABI,
+                  functionName: "transfer",
+                  args: [baseWithdrawAddr, amount],
+                }),
+              }
+            : {
+                to: baseWithdrawAddr,
+                data: "0x",
+                value: amount,
+              },
+        ]);
+        if (typeof result !== "string" || !result.startsWith("0x")) {
+          throw new Error("Unexpected response from smart wallet");
+        }
+        hash = result as `0x${string}`;
+        await publicClient.waitForTransactionReceipt({ hash });
       }
-      const hash = result as `0x${string}`;
-      await publicClient.waitForTransactionReceipt({ hash });
-      setTxHash(hash);
-      setTxChain("base");
+
+      const finalHash = bridgeJob?.mint_tx_hash ?? hash;
+      if (finalHash) {
+        setTxHash(finalHash);
+        setTxChain(finalHash.startsWith("0x") ? "base" : "solana");
+      }
       setStatus("done");
+      setProgressMessage("Withdrawal confirmed.");
       refetchBalancesSoon();
     } catch (err) {
       console.error("[DepositModal] withdraw failed:", err);
@@ -507,10 +738,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         err instanceof Error ? err.message : "Transaction failed.",
       );
       setStatus("idle");
+      setProgressMessage("Preparing transfer...");
     }
   }, [
     address, selectedWallet, parseAmount,
-    token, sendBatchTx,
+    token, sendBatchTx, smartBalances.usdRaw, solanaAddress,
+    user, signSolanaTransaction, meta.label,
   ]);
 
   const handleSolanaWithdraw = useCallback(async () => {
@@ -527,19 +760,58 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
     setError(null);
     setStatus("pending");
+    setProgressMessage("Preparing withdrawal...");
     setTxHash(null);
     setTxChain(null);
     try {
-      const signature = token === "sol"
-        ? await sendSolanaSolWithdraw(selectedWallet.address, amount)
-        : await sendSolanaWithdraw(
-            selectedWallet.address,
-            amount,
-            token === "tslax" ? "tslax" : "usdc",
+      let signature: string | null = null;
+      let bridgeJob: BridgeJob | null = null;
+
+      if (token === "usdc") {
+        const bridgeAmount =
+          solBalance.solanaUsdcRaw >= amount ? BigInt(0) : amount - solBalance.solanaUsdcRaw;
+
+        if (bridgeAmount > BigInt(0)) {
+          if (!solanaAddress) {
+            throw new Error("Solana trading account not ready.");
+          }
+          if (!user?.id) {
+            throw new Error("User session not ready.");
+          }
+          setProgressMessage("Consolidating USDC on Solana...");
+          bridgeJob = await bridgeBaseUsdcToSolana(
+            solanaAddress,
+            bridgeAmount,
+            user.id,
+            sendBatchTx,
+            setProgressMessage,
           );
-      setTxHash(signature);
-      setTxChain("solana");
+        }
+
+        setProgressMessage("Withdrawing USDC from Solana...");
+        signature = await sendSolanaWithdraw(
+          selectedWallet.address,
+          amount,
+          "usdc",
+        );
+      } else {
+        setProgressMessage(`Withdrawing ${meta.label} from Solana...`);
+        signature = token === "sol"
+          ? await sendSolanaSolWithdraw(selectedWallet.address, amount)
+          : await sendSolanaWithdraw(
+              selectedWallet.address,
+              amount,
+              token === "tslax" ? "tslax" : "usdc",
+            );
+      }
+
+      const finalHash = bridgeJob?.mint_tx_hash ?? signature;
+      if (finalHash) {
+        setTxHash(finalHash);
+        setTxChain(finalHash.startsWith("0x") ? "base" : "solana");
+      }
       setStatus("done");
+      setProgressMessage("Withdrawal confirmed.");
       refetchBalancesSoon();
     } catch (err) {
       console.error("[DepositModal] solana withdraw failed:", err);
@@ -547,10 +819,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         err instanceof Error ? err.message : "Transaction failed.",
       );
       setStatus("idle");
+      setProgressMessage("Preparing transfer...");
     }
   }, [
     solanaDisabled, selectedWallet, parseAmount, token,
-    sendSolanaSolWithdraw, sendSolanaWithdraw,
+    sendSolanaSolWithdraw, sendSolanaWithdraw, solBalance.solanaUsdcRaw,
+    solanaAddress, user, sendBatchTx, meta.label,
   ]);
 
   const handleWithdraw =
@@ -862,6 +1136,23 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
             {error && (
               <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
+
+            {isPending && status !== "activating" && (
+              <div className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2">
+                <div className="flex items-center gap-2 text-sm font-medium text-[var(--text)]">
+                  <span className="relative flex h-2.5 w-2.5 shrink-0">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-50" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+                  </span>
+                  <span>{progressMessage}</span>
+                </div>
+                <p className="mt-1 pl-4 text-xs text-[var(--text-secondary)]">
+                  {tab === "withdraw"
+                    ? "Cross-chain withdrawals can take a few minutes."
+                    : "This can take a few moments."}
+                </p>
+              </div>
             )}
 
             {isDone ? (

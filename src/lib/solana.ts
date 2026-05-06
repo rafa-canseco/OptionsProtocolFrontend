@@ -12,6 +12,10 @@ export const SOLANA_CHAIN = envStr(
   process.env.NEXT_PUBLIC_SOLANA_CHAIN,
   "solana:devnet",
 );
+export const SOLANA_OPERATOR_ADDRESS = envStr(
+  process.env.NEXT_PUBLIC_SOLANA_OPERATOR_ADDRESS,
+  "BiJR9NWtY7Q9EY2JU1UcWz5AHq1JatUYWDLKfNtgRdyY",
+);
 
 /** Native SOL mint address — used as wSOL when wrapped into SPL token */
 export const SOLANA_WSOL_MINT =

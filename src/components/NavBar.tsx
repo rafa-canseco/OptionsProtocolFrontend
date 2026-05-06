@@ -12,6 +12,7 @@ import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
 import { ASSETS } from "@/lib/assets";
 import type { B1naryWallet } from "@/lib/api";
+import type { Address } from "viem";
 import {
   Popover,
   PopoverContent,
@@ -131,7 +132,30 @@ export function NavBar() {
     isConnected,
   } = useWalletSummary();
 
-  const balanceAddresses = baseAddresses.length > 0 ? baseAddresses : address;
+  const { account: b1naryAccount, wallets: b1naryWallets } =
+    useB1naryAccount({ autoSyncTrustedWallets: false });
+  const tradingAccounts = b1naryWallets
+    .filter((wallet) =>
+      wallet.role === "trading" &&
+      wallet.verified_at &&
+      (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+    )
+    .sort((a, b) => {
+      if (a.chain !== b.chain) return a.chain === "base" ? -1 : 1;
+      if (a.wallet_type !== b.wallet_type) return a.wallet_type === "smart" ? -1 : 1;
+      return a.address.localeCompare(b.address);
+    });
+  const accountBaseAddresses = tradingAccounts
+    .filter((wallet) => wallet.chain === "base")
+    .map((wallet) => wallet.address as Address);
+  const accountSolanaAddresses = tradingAccounts
+    .filter((wallet) => wallet.chain === "solana")
+    .map((wallet) => wallet.address);
+  const balanceAddresses = accountBaseAddresses.length > 0
+    ? accountBaseAddresses
+    : baseAddresses.length > 0
+      ? baseAddresses
+      : address;
   const { usd, eth, weth, wbtc, loading: balLoading, refetch } =
     useBalances(balanceAddresses);
   const {
@@ -140,14 +164,17 @@ export function NavBar() {
     solanaWsol,
     solanaTslax,
     loading: solanaBalLoading,
-  } = useSolanaBalance(solanaAddresses.length > 0 ? solanaAddresses : solanaAddress);
+  } = useSolanaBalance(
+    accountSolanaAddresses.length > 0
+      ? accountSolanaAddresses
+      : solanaAddresses.length > 0
+        ? solanaAddresses
+        : solanaAddress,
+  );
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const { spot: solSpot } = useSpot("sol");
   const { spot: tslaxSpot } = useSpot("tslax");
-  const { account: b1naryAccount, wallets: b1naryWallets } =
-    useB1naryAccount({ autoSyncTrustedWallets: false });
-
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
   const totalUsdc = usd + solanaUsdc;
   const totalUsd =
@@ -170,17 +197,6 @@ export function NavBar() {
     if (a.amount <= 0 && b.amount > 0) return 1;
     return 0;
   });
-  const tradingAccounts = b1naryWallets
-    .filter((wallet) =>
-      wallet.role === "trading" &&
-      wallet.verified_at &&
-      (wallet.chain !== "base" || wallet.wallet_type === "smart"),
-    )
-    .sort((a, b) => {
-      if (a.chain !== b.chain) return a.chain === "base" ? -1 : 1;
-      if (a.wallet_type !== b.wallet_type) return a.wallet_type === "smart" ? -1 : 1;
-      return a.address.localeCompare(b.address);
-    });
   useEffect(() => {
     if (!copiedAddress) return;
     const timeout = window.setTimeout(() => setCopiedAddress(null), 1_500);

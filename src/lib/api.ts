@@ -246,6 +246,12 @@ export interface TrustedWalletRequest {
   walletClientType?: string | null;
 }
 
+export interface TrustedMemberResponse {
+  account: B1naryAccount;
+  members: B1naryAccountMember[];
+  wallets: B1naryWallet[];
+}
+
 // ---------------------------------------------------------------------------
 // Bridge types (B1N-260 — aligned with backend relayer API)
 // ---------------------------------------------------------------------------
@@ -267,8 +273,64 @@ export interface BridgeAndTradeRequest {
   userId: string;
   mintRecipient: string;
   burnAmount: string;
+  quoteId: string | null;
+  signedTradeTx: string | null;
+}
+
+export interface BridgeAndTradeReserveRequest {
+  sourceChain: "base";
+  destChain: "solana";
+  userId: string;
+  mintRecipient: string;
+  burnAmount: string;
   quoteId: string;
   signedTradeTx: string | null;
+}
+
+export interface BridgeAndTradeReserveResponse {
+  job_id: string;
+  status: string;
+}
+
+export interface SolanaCctpBurnPrepareRequest {
+  owner: string;
+  destChain: "base";
+  mintRecipient: string;
+  burnAmount: string;
+  maxFee: string;
+  minFinalityThreshold?: number;
+  destinationCaller?: string | null;
+}
+
+export interface SolanaCctpBurnPrepareResponse {
+  transaction_base64: string;
+  message_sent_event_data: string;
+  fee_payer: string;
+  owner: string;
+  burn_token_account: string;
+  source_chain: "solana";
+  dest_chain: "base";
+  source_domain: number;
+  destination_domain: number;
+  burn_amount: string;
+  max_fee: string;
+  min_finality_threshold: number;
+}
+
+export interface SolanaCctpBurnSubmitRequest {
+  signedTransactionBase64: string;
+  destChain: "base";
+  userId: string;
+  mintRecipient: string;
+  burnAmount: string;
+  quoteId: string | null;
+  signedTradeTx: string | null;
+}
+
+export interface SolanaCctpBurnSubmitResponse {
+  burn_tx_hash: string;
+  job_id: string;
+  status: string;
 }
 
 export interface BridgeJob {
@@ -334,6 +396,11 @@ export const api = {
       `/b1nary-account?privy_user_id=${encodeURIComponent(privyUserId)}`,
     ),
 
+  getB1naryAccountByWallet: (chain: B1naryWalletChain, address: string) =>
+    fetchAPI<B1naryAccountResponse>(
+      `/b1nary-account/by-wallet?chain=${encodeURIComponent(chain)}&address=${encodeURIComponent(address)}`,
+    ),
+
   createB1naryAccount: (username: string, privyUserId: string) =>
     fetchAPI<B1naryAccountResponse>("/b1nary-accounts", {
       method: "POST",
@@ -358,6 +425,17 @@ export const api = {
           wallet_type: params.walletType,
           role: params.role ?? "trading",
           wallet_client_type: params.walletClientType ?? null,
+        }),
+      },
+    ),
+
+  addTrustedB1naryMember: (accountId: string, privyUserId: string) =>
+    fetchAPI<TrustedMemberResponse>(
+      `/b1nary-accounts/${accountId}/members/trusted`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          privy_user_id: privyUserId,
         }),
       },
     ),
@@ -444,12 +522,54 @@ export const api = {
     fetchAPI<YieldStats>("/yield/stats"),
 
   // Bridge (B1N-260)
+  reserveBridgeAndTrade: (params: BridgeAndTradeReserveRequest) =>
+    fetchAPI<BridgeAndTradeReserveResponse>("/api/bridge-and-trade/reserve", {
+      method: "POST",
+      body: JSON.stringify({
+        source_chain: params.sourceChain,
+        dest_chain: params.destChain,
+        user_id: params.userId,
+        mint_recipient: params.mintRecipient,
+        burn_amount: params.burnAmount,
+        quote_id: params.quoteId,
+        signed_trade_tx: params.signedTradeTx,
+      }),
+    }),
+
   bridgeAndTrade: (params: BridgeAndTradeRequest) =>
     fetchAPI<{ job_id: string; status: string }>("/api/bridge-and-trade", {
       method: "POST",
       body: JSON.stringify({
         burn_tx_hash: params.burnTxHash,
         source_chain: params.sourceChain,
+        dest_chain: params.destChain,
+        user_id: params.userId,
+        mint_recipient: params.mintRecipient,
+        burn_amount: params.burnAmount,
+        quote_id: params.quoteId,
+        signed_trade_tx: params.signedTradeTx,
+      }),
+    }),
+
+  prepareSolanaCctpBurn: (params: SolanaCctpBurnPrepareRequest) =>
+    fetchAPI<SolanaCctpBurnPrepareResponse>("/api/bridge/solana-cctp-burn/prepare", {
+      method: "POST",
+      body: JSON.stringify({
+        owner: params.owner,
+        dest_chain: params.destChain,
+        mint_recipient: params.mintRecipient,
+        burn_amount: params.burnAmount,
+        max_fee: params.maxFee,
+        min_finality_threshold: params.minFinalityThreshold ?? 2000,
+        destination_caller: params.destinationCaller ?? null,
+      }),
+    }),
+
+  submitSolanaCctpBurn: (params: SolanaCctpBurnSubmitRequest) =>
+    fetchAPI<SolanaCctpBurnSubmitResponse>("/api/bridge/solana-cctp-burn/submit", {
+      method: "POST",
+      body: JSON.stringify({
+        signed_transaction_base64: params.signedTransactionBase64,
         dest_chain: params.destChain,
         user_id: params.userId,
         mint_recipient: params.mintRecipient,

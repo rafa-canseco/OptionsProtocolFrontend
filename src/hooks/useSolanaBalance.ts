@@ -39,7 +39,7 @@ const ZERO: SolanaBalance = {
 
 export function useSolanaBalance(
   address: string | string[] | undefined,
-  pollInterval = 15_000,
+  pollInterval = 60_000,
 ): SolanaBalance {
   const [balance, setBalance] = useState<SolanaBalance>(ZERO);
   const requestIdRef = useRef(0);
@@ -151,7 +151,7 @@ export function useSolanaBalance(
   useEffect(() => {
     const handler = () => {
       refetch();
-      for (const delay of [500, 1500, 3000, 6000]) {
+      for (const delay of [1_500, 6_000]) {
         window.setTimeout(() => refetch(), delay);
       }
     };

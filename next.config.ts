@@ -7,6 +7,14 @@ const nextConfig: NextConfig = {
       { source: "/positions/v2", destination: "/positions", permanent: true },
     ];
   },
+  async rewrites() {
+    return [
+      {
+        source: "/api-proxy/:path*",
+        destination: "https://api.b1nary.app/:path*",
+      },
+    ];
+  },
 };
 
 export default nextConfig;
