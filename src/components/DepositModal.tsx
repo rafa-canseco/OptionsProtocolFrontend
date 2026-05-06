@@ -431,9 +431,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setError(null);
     setStatus("activating");
     try {
-      await activateSmartWallet(
-        selectedWallet?.chain === "base" ? selectedWallet.address : undefined,
-      );
+      await activateSmartWallet();
       setStatus("idle");
     } catch (err) {
       console.error("[DepositModal] activation failed:", err);
@@ -445,7 +443,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       }
       setStatus("idle");
     }
-  }, [activateSmartWallet, selectedWallet]);
+  }, [activateSmartWallet]);
 
   const handleBaseWithdraw = useCallback(async () => {
     if (!selectedWallet || selectedWallet.chain !== "base") {
