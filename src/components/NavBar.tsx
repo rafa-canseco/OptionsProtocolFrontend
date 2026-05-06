@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -74,11 +75,20 @@ type BalanceItem = {
   amount: number;
 };
 
-function TradingAccountRow({ wallet }: { wallet: B1naryWallet }) {
+function TradingAccountRow({
+  wallet,
+  copiedAddress,
+  onCopy,
+}: {
+  wallet: B1naryWallet;
+  copiedAddress: string | null;
+  onCopy: (address: string) => void;
+}) {
   const isBase = wallet.chain === "base";
   const label = isBase ? "Base" : "Solana";
   const icon = isBase ? "/base.svg" : "/sol.png";
   const accountType = wallet.wallet_type === "smart" ? "Smart" : "Embedded";
+  const copied = copiedAddress === wallet.address;
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] px-3 py-2">
@@ -98,15 +108,20 @@ function TradingAccountRow({ wallet }: { wallet: B1naryWallet }) {
           </span>
         </span>
       </span>
-      <span className="shrink-0 font-mono text-xs text-[var(--text-secondary)]">
-        {truncateAddress(wallet.address)}
-      </span>
+      <button
+        type="button"
+        onClick={() => onCopy(wallet.address)}
+        className="shrink-0 rounded-md px-1.5 py-1 font-mono text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)]"
+      >
+        {copied ? "Copied" : truncateAddress(wallet.address)}
+      </button>
     </div>
   );
 }
 
 export function NavBar() {
   const pathname = usePathname();
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const {
     address,
     fundingAddress,
@@ -156,12 +171,30 @@ export function NavBar() {
     return 0;
   });
   const tradingAccounts = b1naryWallets
-    .filter((wallet) => wallet.role === "trading" && wallet.verified_at)
+    .filter((wallet) =>
+      wallet.role === "trading" &&
+      wallet.verified_at &&
+      (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+    )
     .sort((a, b) => {
       if (a.chain !== b.chain) return a.chain === "base" ? -1 : 1;
       if (a.wallet_type !== b.wallet_type) return a.wallet_type === "smart" ? -1 : 1;
       return a.address.localeCompare(b.address);
     });
+  useEffect(() => {
+    if (!copiedAddress) return;
+    const timeout = window.setTimeout(() => setCopiedAddress(null), 1_500);
+    return () => window.clearTimeout(timeout);
+  }, [copiedAddress]);
+
+  async function copyAddress(addressToCopy: string) {
+    try {
+      await navigator.clipboard.writeText(addressToCopy);
+      setCopiedAddress(addressToCopy);
+    } catch (err) {
+      console.warn("[NavBar] Could not copy address:", err);
+    }
+  }
 
   return (
     <>
@@ -221,6 +254,8 @@ export function NavBar() {
                         <TradingAccountRow
                           key={`${wallet.chain}-${wallet.address_normalized}`}
                           wallet={wallet}
+                          copiedAddress={copiedAddress}
+                          onCopy={copyAddress}
                         />
                       ))}
                     </div>
