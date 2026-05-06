@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
-import { useLogin, usePrivy } from "@privy-io/react-auth";
+import { useLinkAccount, useLogin, usePrivy } from "@privy-io/react-auth";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -112,7 +112,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     sendSolanaSolDeposit,
     sendSolanaWithdraw,
     sendSolanaSolWithdraw,
-    activateSmartWallet,
     connectWallet,
     disconnect,
   } = useWallet();
@@ -149,10 +148,37 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     "idle" | "pending" | "done" | "activating"
   >("idle");
   const [error, setError] = useState<string | null>(null);
+  const [baseAccountConflict, setBaseAccountConflict] = useState(false);
   const [txHash, setTxHash] = useState<string | null>(null);
   const [txChain, setTxChain] = useState<"base" | "solana" | null>(null);
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
   const [chainMenuOpen, setChainMenuOpen] = useState(false);
+  const { linkWallet } = useLinkAccount({
+    onSuccess: () => {
+      setBaseAccountConflict(false);
+      setError(null);
+      setStatus("idle");
+      window.dispatchEvent(new Event("balance:refetch"));
+    },
+    onError: (err) => {
+      console.error("[DepositModal] base wallet link failed:", err);
+      const msg =
+        err && typeof err === "object" && "message" in err
+          ? String((err as { message?: unknown }).message ?? "")
+          : String(err ?? "");
+      if (/already|exists|another user|linked/i.test(msg)) {
+        setBaseAccountConflict(true);
+        setError(
+          "This Base wallet belongs to another b1nary account. Continue with that account or choose a different Base wallet.",
+        );
+      } else if (/reject|denied|cancel|exited/i.test(msg)) {
+        setError("Signature cancelled.");
+      } else {
+        setError(msg || "Could not link Base wallet. Please try again.");
+      }
+      setStatus("idle");
+    },
+  });
 
   const chainWallets = useMemo(
     () => externalWallets.filter((w) => w.chain === activeChain),
@@ -424,23 +450,32 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const handleActivate = useCallback(async () => {
     setError(null);
+    setBaseAccountConflict(false);
     setStatus("activating");
-    try {
-      await activateSmartWallet(
-        selectedWallet?.chain === "base" ? selectedWallet.address : undefined,
-      );
+    if (!authenticated) {
+      login({
+        loginMethods: ["wallet"],
+        walletChainType: "ethereum-only",
+      });
       setStatus("idle");
-    } catch (err) {
-      console.error("[DepositModal] activation failed:", err);
-      const msg = err instanceof Error ? err.message : "";
-      if (/reject|denied|cancel/i.test(msg)) {
-        setError("Signature cancelled.");
-      } else {
-        setError(msg || "Activation failed. Please try again.");
-      }
-      setStatus("idle");
+      return;
     }
-  }, [activateSmartWallet, selectedWallet]);
+    linkWallet({
+      walletChainType: "ethereum-only",
+      description:
+        "Link the Base wallet you want to use with this b1nary account.",
+    });
+  }, [authenticated, linkWallet, login]);
+
+  const handleContinueWithBaseWallet = useCallback(async () => {
+    setError(null);
+    setBaseAccountConflict(false);
+    await disconnect();
+    login({
+      loginMethods: ["wallet"],
+      walletChainType: "ethereum-only",
+    });
+  }, [disconnect, login]);
 
   const handleBaseWithdraw = useCallback(async () => {
     if (!selectedWallet || selectedWallet.chain !== "base") {
@@ -781,11 +816,21 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         ) : needsBaseActivation && chain === "base" ? (
           <div className="space-y-3">
             <p className="text-sm text-[var(--text-secondary)]">
-              Activate your Base trading account with a one-time signature.
-              After this you can deposit, withdraw, and trade with zero gas fees.
+              Link a Base wallet to activate your Base trading account.
+              Your connected wallets are only used for deposits and withdrawals.
             </p>
             {error && (
               <p className="text-sm text-[var(--danger)]">{error}</p>
+            )}
+            {baseAccountConflict && (
+              <button
+                type="button"
+                onClick={handleContinueWithBaseWallet}
+                disabled={isPending}
+                className="w-full rounded-xl border border-[var(--border)] py-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40 transition-colors"
+              >
+                Continue with this Base wallet
+              </button>
             )}
             <button
               onClick={handleActivate}
@@ -793,8 +838,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
             >
               {status === "activating"
-                ? "Activating..."
-                : "Activate Base Trading Account"}
+                ? "Opening wallet..."
+                : baseAccountConflict
+                  ? "Choose another Base wallet"
+                  : "Link Base wallet"}
             </button>
           </div>
         ) : (
