@@ -7,6 +7,7 @@ const ORIGINAL_ENV = { ...process.env };
 const mockBridgeAndTrade = vi.fn();
 const mockGetBridgeStatus = vi.fn();
 const mockSendBatchTx = vi.fn();
+const mockSendSolanaTransaction = vi.fn();
 const mockSignSolanaTransaction = vi.fn();
 const mockBuildEvmBurnCalls = vi.fn(() => []);
 const mockBuildSolanaBurnTransaction = vi.fn();
@@ -22,6 +23,7 @@ vi.mock("@/hooks/useWallet", () => ({
     address: "0xSmartWallet",
     solanaAddress: "SolEmbeddedAddr1111111111111111111111111",
     sendBatchTx: mockSendBatchTx,
+    sendSolanaTransaction: mockSendSolanaTransaction,
     signSolanaTransaction: mockSignSolanaTransaction,
   }),
 }));
@@ -85,6 +87,7 @@ function buildSolanaQuote(overrides: Partial<PriceQuote> = {}): PriceQuote {
 
 function expectNoSideEffects() {
   expect(mockSendBatchTx).not.toHaveBeenCalled();
+  expect(mockSendSolanaTransaction).not.toHaveBeenCalled();
   expect(mockSignSolanaTransaction).not.toHaveBeenCalled();
   expect(mockBridgeAndTrade).not.toHaveBeenCalled();
   expect(mockGetBridgeStatus).not.toHaveBeenCalled();
@@ -192,5 +195,61 @@ describe("useBridgeAndTrade production gate", () => {
     expect(deficit.needsDeposit).toBe(false);
     expect(deficit.sourceChain).toBe("base");
     expect(deficit.deficit).toBe(BigInt(10_000_000));
+  });
+
+  it("broadcasts the Solana burn and sends its signature to the bridge relayer", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
+    mockBuildSolanaBurnTransaction.mockResolvedValue({
+      serialize: vi.fn(() => new Uint8Array([1, 2, 3])),
+    });
+    mockSendSolanaTransaction.mockResolvedValue("solana-burn-signature");
+    mockBridgeAndTrade.mockResolvedValue({ job_id: "bridge-job-1" });
+    mockGetBridgeStatus.mockResolvedValue({
+      id: "bridge-job-1",
+      status: "mint_completed",
+      source_chain: "solana",
+      dest_chain: "base",
+      burn_tx_hash: "solana-burn-signature",
+      burn_amount: "10000000",
+      mint_recipient: "0xSmartWallet",
+      quote_id: "quote-1",
+      mint_tx_hash: "0xmint",
+      trade_tx_hash: null,
+      error_message: null,
+      created_at: "",
+      updated_at: "",
+    });
+    const tradeCalls = [{ to: "0xTrade", data: "0x" }];
+    mockBuildEvmTradeCalls.mockReturnValue(tradeCalls as never);
+    mockSendBatchTx.mockResolvedValue("0xtrade");
+    const useBridgeAndTrade = await loadHook();
+
+    const { result } = renderHook(() => useBridgeAndTrade());
+    const bridgeResult = await result.current.executeBridgeAndTrade({
+      quote: buildSolanaQuote({ chain: "base" }),
+      amount: 1,
+      isBuy: true,
+      assetSlug: "eth",
+      sourceChain: "solana",
+      deficit: BigInt(10_000_000),
+    });
+
+    expect(mockSendSolanaTransaction).toHaveBeenCalledTimes(1);
+    expect(mockSignSolanaTransaction).not.toHaveBeenCalled();
+    expect(mockBridgeAndTrade).toHaveBeenCalledWith(
+      expect.objectContaining({
+        burnTxHash: "solana-burn-signature",
+        signedTradeTx: null,
+        sourceChain: "solana",
+        destChain: "base",
+      }),
+    );
+    expect(mockSendBatchTx).toHaveBeenCalledWith(tradeCalls);
+    expect(bridgeResult).toEqual({
+      success: true,
+      jobId: "bridge-job-1",
+      chainExecuted: "base",
+      txHash: "0xtrade",
+    });
   });
 });

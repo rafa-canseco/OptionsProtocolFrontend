@@ -77,6 +77,7 @@ export function useBridgeAndTrade() {
     address,
     solanaAddress,
     sendBatchTx,
+    sendSolanaTransaction,
     signSolanaTransaction,
   } = useWallet();
 
@@ -206,7 +207,14 @@ export function useBridgeAndTrade() {
         address, solanaAddress, user.id,
       );
     },
-    [address, solanaAddress, user, sendBatchTx, signSolanaTransaction],
+    [
+      address,
+      solanaAddress,
+      user,
+      sendBatchTx,
+      sendSolanaTransaction,
+      signSolanaTransaction,
+    ],
   );
 
   // -----------------------------------------------------------------------
@@ -278,15 +286,7 @@ export function useBridgeAndTrade() {
     const burnTx = await buildSolanaBurnTransaction(
       solanaPk, deficit, evmRecipient, maxFee,
     );
-    const serialized = burnTx.serialize({
-      requireAllSignatures: false,
-      verifySignatures: false,
-    });
-    await signSolanaTransaction(serialized);
-    const burnTxHash = burnTx.signature
-      ? Buffer.from(burnTx.signature).toString("hex")
-      : "";
-
+    const burnTxHash = await sendSolanaTransaction(burnTx);
     if (!burnTxHash) {
       throw new Error("Solana burn transaction did not return a hash");
     }
