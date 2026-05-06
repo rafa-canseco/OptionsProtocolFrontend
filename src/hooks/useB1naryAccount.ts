@@ -26,6 +26,10 @@ export interface TrustedB1naryWalletCandidate {
   walletClientType: string;
 }
 
+interface UseB1naryAccountOptions {
+  autoSyncTrustedWallets?: boolean;
+}
+
 function walletAccounts(user: User | null): WalletAccount[] {
   return (user?.linkedAccounts ?? []).filter(
     (account): account is WalletAccount => account.type === "wallet",
@@ -59,7 +63,8 @@ function uniqueCandidates(
   return unique;
 }
 
-export function useB1naryAccount() {
+export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
+  const { autoSyncTrustedWallets = true } = options;
   const { authenticated, ready, user } = usePrivy();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -246,11 +251,11 @@ export function useB1naryAccount() {
   }, [account, linkedWallets, privyUserId, trustedWalletCandidates]);
 
   useEffect(() => {
-    if (!account || loading || syncing) return;
+    if (!autoSyncTrustedWallets || !account || loading || syncing) return;
     void syncTrustedWallets().catch((err) => {
       console.warn("[useB1naryAccount] trusted wallet sync failed:", err);
     });
-  }, [account, loading, syncing, syncTrustedWallets]);
+  }, [account, autoSyncTrustedWallets, loading, syncing, syncTrustedWallets]);
 
   return {
     account,
