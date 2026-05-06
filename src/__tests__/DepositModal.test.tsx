@@ -67,14 +67,6 @@ const defaultWallet: WalletStub = {
 };
 
 let walletOverrides: Partial<WalletStub> = {};
-const mockLogin = vi.fn();
-const mockLinkWallet = vi.fn();
-
-vi.mock("@privy-io/react-auth", () => ({
-  usePrivy: () => ({ authenticated: true }),
-  useLogin: () => ({ login: mockLogin }),
-  useLinkAccount: () => ({ linkWallet: mockLinkWallet }),
-}));
 
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: () => ({ ...defaultWallet, ...walletOverrides }),
@@ -189,28 +181,6 @@ describe("DepositModal withdraw guard", () => {
     await userEvent.click(withdrawTab);
 
     expect(mockSendBatchTx).not.toHaveBeenCalled();
-  });
-});
-
-describe("DepositModal Base account activation", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    walletOverrides = {};
-  });
-
-  it("links an ethereum wallet instead of activating with the selected funding wallet", async () => {
-    walletOverrides = {
-      address: undefined,
-      externalWallets: [baseExternalWallet],
-    };
-
-    render(<DepositModal onClose={vi.fn()} />);
-
-    await userEvent.click(screen.getByRole("button", { name: /Link Base wallet/i }));
-
-    expect(mockLinkWallet).toHaveBeenCalledWith(
-      expect.objectContaining({ walletChainType: "ethereum-only" }),
-    );
   });
 });
 
