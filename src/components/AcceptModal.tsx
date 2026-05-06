@@ -12,7 +12,9 @@ import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
 import {
-  SOLANA_NATIVE_RESERVE_LAMPORTS,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import {
   solanaTxUrl,
   toPublicKey,
 } from "@/lib/solana";
@@ -21,7 +23,7 @@ import {
   buildSolanaTradeTransaction,
 } from "@/lib/bridgeTx";
 import type { BatchCall } from "@/hooks/useWallet";
-import type { PriceQuote } from "@/lib/api";
+import { api, type PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
 import { getAssetConfig } from "@/lib/assets";
 import {
@@ -56,8 +58,9 @@ interface Props {
 type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
-const RAW_COLLATERAL_BUFFER = BigInt(1);
-const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1290;
+// Solana's packet limit is 1232 raw bytes. This guard receives base64 length,
+// where the equivalent ceiling is 4 * ceil(1232 / 3) = 1644.
+const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1644;
 const SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES = 1260;
 type DepositToken = "usdc" | "eth" | "btc" | "sol" | "tslax";
 
@@ -77,7 +80,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
+  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, signSolanaTransaction, isConnected } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
   const {
     solanaUsdcRaw,
@@ -105,12 +108,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const marketReadOnly = isProductionReadOnlyAsset(
     assetConfig ?? { slug: assetSlug, chain: quote.chain },
   );
-  const wrappableSolRaw =
-    solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
-      ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
-      : BigInt(0);
-  const solCollateralBalance =
-    (Number(solanaWsolRaw + wrappableSolRaw) / 1e9);
+  const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
   // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
   const walletBalance = isBuy
@@ -118,21 +116,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     : assetSlug === "tslax"
       ? solanaTslax
     : isSol
-      ? solCollateralBalance
+      ? solTotalBalance
       : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
     ? Math.min(quote.available_amount, capEth) * quote.strike
     : Math.min(quote.available_amount, capEth);
-  const solMaxByBalanceRaw =
-    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
-      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
-      : BigInt(0);
   const maxByBalance = isBuy
     ? walletBalance
     : isSol
-      ? Number(solMaxByBalanceRaw) / 1e9
+      ? solTotalBalance
       : walletBalance;
   const maxInputAmount = Math.min(maxByBalance, maxAmount);
 
@@ -143,8 +137,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   function handlePercent(pct: number) {
     setActivePercent(pct);
     if (!isBuy && isSol) {
-      const raw = (solMaxByBalanceRaw * BigInt(pct)) / BigInt(100);
-      setAmountStr(formatSolRawAmount(raw));
+      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
+      const quoteMaxRaw = BigInt(Math.floor(maxAmount * 1e9));
+      const rawAvailable = solTotalRaw < quoteMaxRaw ? solTotalRaw : quoteMaxRaw;
+      const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
+      setAmountStr(formatSolRawAmount(raw, assetConfig?.displayDecimals ?? 4));
       return;
     }
 
@@ -253,9 +250,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         }
 
         if (deficit.needsBridge && deficit.sourceChain) {
-          if (!address || !solanaAddress) {
-            setDepositToken("usdc");
-            setShowDeposit(true);
+          if (!address) {
+            setError("Base smart wallet not ready. Reconnect your Base account and try again.");
+            return;
+          }
+          if (!solanaAddress) {
+            setError("Solana wallet not ready. Reconnect your Solana account and try again.");
             return;
           }
           updateStep("executing");
@@ -325,7 +325,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         let wrapAmount = BigInt(0);
         if (!isBuy && assetSlug === "sol" && solanaWsolRaw < collateral) {
           wrapAmount = collateral - solanaWsolRaw;
-          if (wrappableSolRaw < wrapAmount) {
+          if (solanaSolRaw < wrapAmount) {
             setDepositToken("sol");
             setShowDeposit(true);
             setStep("idle");
@@ -341,20 +341,39 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         const tradeTxBase64Length = getSerializedBase64Length(tradeTx);
         if (
+          wrapAmount > BigInt(0) ||
           tradeTxBase64Length > SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES
         ) {
-          const setupTx = await buildSolanaTradeSetupTransaction(
-            quote,
-            amount,
-            isBuy,
-            assetSlug,
-            solanaPk,
-            wrapAmount,
-            true,
-          );
-          if (setupTx) {
-            await sendSolanaTransaction(setupTx);
+          if (wrapAmount > BigInt(0)) {
+            const setup = await api.prepareSolanaSponsoredSetup({
+              user: solanaPk.toBase58(),
+              otokenMint: quote.otoken_address!,
+              wrapLamports: wrapAmount.toString(),
+              approveAmount: collateral.toString(),
+            });
+            const setupTx = VersionedTransaction.deserialize(
+              Buffer.from(setup.transaction, "base64"),
+            );
+            const signedSetup = await signSolanaTransaction(setupTx.serialize());
+            await api.completeSolanaSponsoredSetup({
+              user: solanaPk.toBase58(),
+              transaction: Buffer.from(signedSetup).toString("base64"),
+            });
             window.dispatchEvent(new Event("balance:refetch"));
+          } else {
+            const setupTx = await buildSolanaTradeSetupTransaction(
+              quote,
+              amount,
+              isBuy,
+              assetSlug,
+              solanaPk,
+              wrapAmount,
+              true,
+            );
+            if (setupTx) {
+              await sendSolanaTransaction(setupTx);
+              window.dispatchEvent(new Event("balance:refetch"));
+            }
           }
 
           tradeTx = await buildSolanaTradeTransaction(
@@ -615,11 +634,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                 />
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-                Balance {balancesLoading
-                  ? "..."
-                  : isBuy
-                    ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : `${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
+                {balancesLoading
+                  ? "Balance ..."
+                  : isSol && !isBuy
+                    ? (
+                      <>
+                        Balance {floorTo(solTotalBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
+                      </>
+                    )
+                    : isBuy
+                      ? `Balance $${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `Balance ${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
               </p>
               {amount > 0 && amount < minAmount && (
                 <p className="text-xs text-[var(--danger)] mt-1">

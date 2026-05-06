@@ -6,15 +6,30 @@ import { api, type Position } from "@/lib/api";
 export function usePositions(
   address: string | undefined,
   fundingAddress: string | undefined,
-  solanaAddress?: string | undefined,
+  solanaAddresses?: string | string[] | undefined,
   pollInterval = 15_000,
+  baseAddresses?: string[],
 ) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    if (!address && !fundingAddress) {
+    const uniqueSolanaAddresses = Array.from(
+      new Set(
+        (Array.isArray(solanaAddresses)
+          ? solanaAddresses
+          : [solanaAddresses]
+        ).filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const uniqueBaseAddresses = Array.from(
+      new Set([address, fundingAddress, ...(baseAddresses ?? [])].filter(
+        (value): value is string => Boolean(value),
+      )),
+    );
+
+    if (uniqueBaseAddresses.length === 0 && uniqueSolanaAddresses.length === 0) {
       setPositions([]);
       setLoading(false);
       return;
@@ -22,11 +37,10 @@ export function usePositions(
     try {
       // Fetch from both addresses, deduplicate by id
       const queries: Promise<Position[]>[] = [];
-      if (address) queries.push(api.getPositions(address));
-      if (fundingAddress && fundingAddress !== address) {
-        queries.push(api.getPositions(fundingAddress));
+      for (const baseAddress of uniqueBaseAddresses) {
+        queries.push(api.getPositions(baseAddress));
       }
-      if (solanaAddress) {
+      for (const solanaAddress of uniqueSolanaAddresses) {
         queries.push(api.getPositions(solanaAddress));
       }
 
@@ -47,11 +61,17 @@ export function usePositions(
     } finally {
       setLoading(false);
     }
-  }, [address, fundingAddress, solanaAddress]);
+  }, [address, baseAddresses, fundingAddress, solanaAddresses]);
 
   useEffect(() => {
     refresh();
-    if (!address && !fundingAddress) return;
+    const hasSolanaAddress = Array.isArray(solanaAddresses)
+      ? solanaAddresses.some(Boolean)
+      : Boolean(solanaAddresses);
+    const hasBaseAddress = Boolean(
+      address || fundingAddress || (baseAddresses?.length ?? 0) > 0,
+    );
+    if (!hasBaseAddress && !hasSolanaAddress) return;
 
     // Poll faster for the first 30s after mount (new position may still be indexing)
     const fastPoll = setInterval(refresh, 3_000);
@@ -63,7 +83,7 @@ export function usePositions(
       clearTimeout(stopFastPoll);
       clearInterval(slowPoll);
     };
-  }, [refresh, address, fundingAddress, pollInterval]);
+  }, [refresh, address, baseAddresses, fundingAddress, solanaAddresses, pollInterval]);
 
   useEffect(() => {
     const handler = () => refresh();

@@ -6,11 +6,15 @@ import { ConnectButton } from "@/components/ConnectButton";
 const mockWallet = {
   isConnected: true,
   isReady: true,
-  connectWallet: vi.fn(),
 };
+const mockConnectWallet = vi.fn();
 
-vi.mock("@/hooks/useWallet", () => ({
-  useWallet: () => mockWallet,
+vi.mock("@/hooks/useWalletSummary", () => ({
+  useWalletSummary: () => mockWallet,
+}));
+
+vi.mock("@privy-io/react-auth", () => ({
+  useConnectWallet: () => ({ connectWallet: mockConnectWallet }),
 }));
 
 vi.mock("@/components/DepositModal", () => ({

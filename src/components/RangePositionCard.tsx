@@ -7,7 +7,7 @@ import { fmtUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { solanaTxUrl } from "@/lib/solana";
 import { getAssetConfig } from "@/lib/assets";
-import { getPositionStrike } from "@/lib/positionMath";
+import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
@@ -55,8 +55,8 @@ export function RangePositionCard({
   const isSettled = putLeg.is_settled && callLeg.is_settled;
 
   // Combined premium
-  const putPremium = Number(putLeg.net_premium) / 1e6;
-  const callPremium = Number(callLeg.net_premium) / 1e6;
+  const putPremium = getPositionPremiumUsd(putLeg);
+  const callPremium = getPositionPremiumUsd(callLeg);
   const totalPremium = putPremium + callPremium;
 
   // Combined committed capital (both sides in USD)

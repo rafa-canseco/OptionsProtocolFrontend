@@ -281,10 +281,13 @@ export async function buildSolanaTradeSetupTransaction(
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
   const { collateral } = computeCollateral(isBuy, amount, quote.strike, assetSlug);
-  const collateralMint = toPublicKey(
-    isBuy ? SOLANA_USDC_MINT : SOLANA_WSOL_MINT,
-    "collateral mint",
-  );
+  const collateralMintStr = isBuy
+    ? SOLANA_USDC_MINT
+    : assetSlug === "tslax"
+      ? SOLANA_TSLAX_MINT
+      : SOLANA_WSOL_MINT;
+  const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
+  const collateralTokenProgram = getCollateralTokenProgram(assetSlug, isBuy);
   const oTokenMint = toPublicKey(quote.otoken_address!, "oToken mint");
 
   const [settlerConfigPda] = PublicKey.findProgramAddressSync(
@@ -293,7 +296,7 @@ export async function buildSolanaTradeSetupTransaction(
   );
 
   const userCollateralAccount = await getAssociatedTokenAddress(
-    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+    collateralMint, ownerPubkey, false, collateralTokenProgram,
   );
   const settlerOtokenAccount = await getAssociatedTokenAddress(
     oTokenMint, settlerConfigPda, true, TOKEN_PROGRAM_ID,
@@ -340,7 +343,7 @@ export async function buildSolanaTradeSetupTransaction(
           userCollateralAccount,
           ownerPubkey,
           collateralMint,
-          TOKEN_PROGRAM_ID,
+          collateralTokenProgram,
           ASSOCIATED_TOKEN_PROGRAM_ID,
         ),
       );
@@ -361,7 +364,7 @@ export async function buildSolanaTradeSetupTransaction(
       ownerPubkey,
       collateral,
       [],
-      TOKEN_PROGRAM_ID,
+      collateralTokenProgram,
     ));
   }
 
@@ -394,6 +397,13 @@ function readSplTokenOwner(data: Buffer): PublicKey {
     throw new Error("SPL token account data is too short to read owner");
   }
   return readPubkeyAt(data, 32);
+}
+
+function readSplTokenAmount(data: Buffer): bigint {
+  if (data.length < 72) {
+    throw new Error("SPL token account data is too short to read amount");
+  }
+  return data.readBigUInt64LE(64);
 }
 
 function expectedNetPremiumRaw(
@@ -714,10 +724,27 @@ export async function buildSolanaTradeTransaction(
     instructions.push(createSyncNativeInstruction(userCollateralAccount, TOKEN_PROGRAM_ID));
   }
 
-  if (!isBuy && (wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
-    throw new Error(
-      "Insufficient wSOL for this trade. Wrap SOL before executing.",
-    );
+  if (!isBuy) {
+    if (assetSlug === "sol") {
+      if ((wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
+        throw new Error(
+          "Insufficient wSOL for this trade. Wrap SOL before executing.",
+        );
+      }
+    } else if (!userCollateralAccountInfo) {
+      throw new Error(
+        `No ${collateralLabel} token account found in your Solana trading account.`,
+      );
+    } else {
+      const userCollateralBalance = readSplTokenAmount(
+        Buffer.from(userCollateralAccountInfo.data),
+      );
+      if (userCollateralBalance < collateral) {
+        throw new Error(
+          `Insufficient ${collateralLabel} in your Solana trading account.`,
+        );
+      }
+    }
   }
 
   if (includeApproveInstruction) {

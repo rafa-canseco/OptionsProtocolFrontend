@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import { useWallet } from "@/hooks/useWallet";
+import { useLogin } from "@privy-io/react-auth";
+import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { DepositModal } from "@/components/DepositModal";
 
 export function ConnectButton() {
-  const { isConnected, isReady, connectWallet } = useWallet();
+  const { isConnected, isReady } = useWalletSummary();
+  const { login } = useLogin();
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
@@ -33,7 +35,10 @@ export function ConnectButton() {
 
   return (
     <button
-      onClick={connectWallet}
+      onClick={() => login({
+        loginMethods: ["wallet"],
+        walletChainType: "ethereum-and-solana",
+      })}
       className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
     >
       Connect

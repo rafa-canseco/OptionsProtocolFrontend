@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useWallet } from "@/hooks/useWallet";
+import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useSpot } from "@/hooks/useSpot";
@@ -70,16 +70,25 @@ type BalanceItem = {
 
 export function NavBar() {
   const pathname = usePathname();
-  const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
+  const {
+    address,
+    fundingAddress,
+    solanaAddress,
+    baseAddresses,
+    solanaAddresses,
+    isConnected,
+  } = useWalletSummary();
 
-  const { usd, eth, weth, wbtc, loading: balLoading, refetch } = useBalances(address);
+  const balanceAddresses = baseAddresses.length > 0 ? baseAddresses : address;
+  const { usd, eth, weth, wbtc, loading: balLoading, refetch } =
+    useBalances(balanceAddresses);
   const {
     solanaUsdc,
     solanaSol,
     solanaWsol,
     solanaTslax,
     loading: solanaBalLoading,
-  } = useSolanaBalance(solanaAddress);
+  } = useSolanaBalance(solanaAddresses.length > 0 ? solanaAddresses : solanaAddress);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const { spot: solSpot } = useSpot("sol");

@@ -21,7 +21,7 @@ import {
   buildSolanaTradeTransaction,
 } from "@/lib/bridgeTx";
 import { isSolanaOffInProd } from "@/lib/marketState";
-import { SOLANA_NATIVE_RESERVE_LAMPORTS, toPublicKey } from "@/lib/solana";
+import { toPublicKey } from "@/lib/solana";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -145,14 +145,10 @@ export function useBridgeAndTrade() {
           return { needsBridge: false, needsDeposit: true, sourceChain: null, deficit: collateral - available };
         }
 
-        // SOL calls: wSOL + wrappable native SOL. Keep a small native SOL
-        // reserve for rent/account state; gas itself is sponsored.
+        // SOL calls: wSOL + wrappable native SOL. Setup/rent/fees are sponsored
+        // by the backend, so the user's full native SOL balance can be collateral.
         const nativeRaw = solanaSolRaw ?? BigInt(0);
-        const wrappableSolRaw =
-          nativeRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
-            ? nativeRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
-            : BigInt(0);
-        const available = (solanaWsolRaw ?? BigInt(0)) + wrappableSolRaw;
+        const available = (solanaWsolRaw ?? BigInt(0)) + nativeRaw;
         if (available >= collateral) {
           return { needsBridge: false, needsDeposit: false, sourceChain: null, deficit: BigInt(0) };
         }
