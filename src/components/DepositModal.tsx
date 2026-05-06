@@ -311,7 +311,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   // --- Base deposit (existing EVM flow) ---
   const handleBaseDeposit = useCallback(async () => {
-    if (!address || !fundingAddress) {
+    if (!address || !selectedWallet || selectedWallet.chain !== "base") {
       setError("Wallet not ready. Please reconnect.");
       return;
     }
@@ -335,7 +335,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           to: address,
           data: "0x",
           value: amount,
-        });
+        }, selectedWallet.address);
       } else {
         const tokenAddress = BASE_DEPOSIT_TOKEN_ADDRESS[token];
         if (!tokenAddress) {
@@ -350,7 +350,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             functionName: "transfer",
             args: [address, amount],
           }),
-        });
+        }, selectedWallet.address);
       }
       await publicClient.waitForTransactionReceipt({ hash });
       setTxHash(hash);
@@ -366,7 +366,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setStatus("idle");
     }
   }, [
-    address, fundingAddress, parseAmount,
+    address, selectedWallet, parseAmount,
     token, sendFundingTx, onComplete,
   ]);
 
@@ -703,26 +703,53 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         {/* Contextual external wallet */}
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
           {selectedWallet ? (
-            <div className="flex items-center justify-between gap-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                  {tab === "deposit" ? "From" : "To"}
-                </p>
-                <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
-                  {truncate(selectedWallet.address)}
-                  <span className="ml-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
-                    {chainLabel(chain)} wallet
-                  </span>
-                </p>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                    {tab === "deposit" ? "From" : "To"}
+                  </p>
+                  <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
+                    {truncate(selectedWallet.address)}
+                    <span className="ml-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
+                      {selectedWallet.name} · {chainLabel(chain)} wallet
+                    </span>
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleConnectWallet}
+                  disabled={isPending}
+                  className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
+                >
+                  Connect
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={handleConnectWallet}
-                disabled={isPending}
-                className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
-              >
-                Change
-              </button>
+              {chainWallets.length > 1 && (
+                <div className="grid gap-2">
+                  {chainWallets.map((wallet) => {
+                    const selected =
+                      wallet.address.toLowerCase() ===
+                      selectedWallet.address.toLowerCase();
+                    return (
+                      <button
+                        key={`${wallet.chain}-${wallet.address}`}
+                        type="button"
+                        onClick={() => setSelectedWallet(wallet)}
+                        disabled={isPending}
+                        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-40 ${
+                          selected
+                            ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text)]"
+                            : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--text)]"
+                        }`}
+                      >
+                        <span className="text-xs font-semibold">{wallet.name}</span>
+                        <span className="font-mono text-xs">{truncate(wallet.address)}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           ) : (
             <div className="space-y-3">

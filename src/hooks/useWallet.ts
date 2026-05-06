@@ -247,14 +247,15 @@ export function useWallet() {
   const externalWalletsList = useMemo<ExternalWallet[]>(() => {
     const list: ExternalWallet[] = [];
 
-    // EVM external wallet. The embedded Privy wallet is a trading account,
-    // not a user-selected funding/withdrawal wallet.
-    if (externalWallet) {
+    // EVM external wallets. Embedded Privy wallets are trading accounts,
+    // not user-selected funding/withdrawal wallets.
+    for (const wallet of wallets) {
+      if (isPrivyWalletClient(wallet.walletClientType)) continue;
       list.push({
-        address: externalWallet.address,
+        address: wallet.address,
         chain: "base",
-        name: prettyWalletName(externalWallet.walletClientType),
-        walletClientType: externalWallet.walletClientType,
+        name: prettyWalletName(wallet.walletClientType),
+        walletClientType: wallet.walletClientType,
       });
     }
 
@@ -270,7 +271,7 @@ export function useWallet() {
     }
 
     return list;
-  }, [externalWallet, solanaWallets]);
+  }, [solanaWallets, wallets]);
 
   // All trades execute through the smart wallet — gas sponsored
   const sendBatchTx = useCallback(
@@ -308,14 +309,22 @@ export function useWallet() {
 
   // Deposit/withdraw — single tx from the user's EVM EOA
   const sendFundingTx = useCallback(
-    async (call: BatchCall): Promise<`0x${string}`> => {
-      if (!fundingWallet) {
+    async (
+      call: BatchCall,
+      walletAddress?: string,
+    ): Promise<`0x${string}`> => {
+      const sourceWallet = walletAddress
+        ? wallets.find(
+            (w) => w.address.toLowerCase() === walletAddress.toLowerCase(),
+          )
+        : fundingWallet;
+      if (!sourceWallet) {
         throw new Error("No funding wallet connected");
       }
-      await fundingWallet.switchChain(CHAIN.id);
-      const provider = await fundingWallet.getEthereumProvider();
+      await sourceWallet.switchChain(CHAIN.id);
+      const provider = await sourceWallet.getEthereumProvider();
       const walletClient = createWalletClient({
-        account: fundingWallet.address as Address,
+        account: sourceWallet.address as Address,
         chain: CHAIN,
         transport: custom(provider),
       });
@@ -326,7 +335,7 @@ export function useWallet() {
         value: call.value,
       });
     },
-    [fundingWallet],
+    [fundingWallet, wallets],
   );
 
   // SPL USDC transfer from external Solana wallet to embedded Solana wallet
