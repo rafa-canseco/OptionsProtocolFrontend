@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
-import { useLogin, usePrivy } from "@privy-io/react-auth";
+import { useLogin, usePrivy, type WalletListEntry } from "@privy-io/react-auth";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
@@ -230,27 +230,32 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [getSpendableRaw]);
 
   const handleConnectWallet = useCallback(() => {
+    const walletChainType = chain === "base" ? "ethereum-only" : "solana-only";
+    const walletList: WalletListEntry[] = chain === "base"
+      ? [
+          "detected_ethereum_wallets",
+          "metamask",
+          "coinbase_wallet",
+          "rainbow",
+          "wallet_connect",
+        ]
+      : [
+          "detected_solana_wallets",
+          "phantom",
+        ];
     if (!authenticated) {
       login({
         loginMethods: ["wallet"],
-        walletChainType: "ethereum-and-solana",
+        walletChainType,
       });
       return;
     }
     connectWallet({
-      walletList: [
-        "detected_ethereum_wallets",
-        "detected_solana_wallets",
-        "metamask",
-        "coinbase_wallet",
-        "rainbow",
-        "phantom",
-        "wallet_connect",
-      ],
-      walletChainType: "ethereum-and-solana",
-      description: "Choose the wallet you want to use for deposits and withdrawals.",
+      walletList,
+      walletChainType,
+      description: `Choose the ${chainLabel(chain)} wallet you want to use for deposits and withdrawals.`,
     });
-  }, [authenticated, connectWallet, login]);
+  }, [authenticated, chain, connectWallet, login]);
 
   const handleMax = useCallback(() => {
     if (maxSpendableRaw > BigInt(0)) {
