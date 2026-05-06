@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { PositionCard } from "@/components/PositionCard";
 import { RangePositionCard } from "@/components/RangePositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
@@ -18,6 +19,7 @@ import { NotificationBanner } from "@/components/NotificationBanner";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
+  const { user } = usePrivy();
   const {
     address,
     portfolioAddresses,
@@ -35,6 +37,7 @@ export default function PositionsPage() {
     solanaPositionAddresses,
     15_000,
     portfolioAddresses.base,
+    user?.id,
   );
   const { activity } = useActivity(address, undefined);
   const { spot: ethSpot } = useSpot("eth");

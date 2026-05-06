@@ -8,6 +8,7 @@ import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
 import { SOLANA_CHAIN, SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
+import { B1naryAccountOnboarding } from "@/components/B1naryAccountOnboarding";
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -64,7 +65,10 @@ export function buildPrivyConfig(): PrivyClientConfig {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <PrivyProvider appId={getPrivyAppId()} config={buildPrivyConfig()}>
-      <SmartWalletsProvider>{children}</SmartWalletsProvider>
+      <SmartWalletsProvider>
+        {children}
+        <B1naryAccountOnboarding />
+      </SmartWalletsProvider>
     </PrivyProvider>
   );
 }

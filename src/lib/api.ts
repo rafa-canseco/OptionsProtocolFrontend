@@ -189,6 +189,63 @@ export interface AnalyticsEvent {
   data?: Record<string, unknown>;
 }
 
+export type B1naryWalletChain = "base" | "solana";
+export type B1naryWalletRole = "trading" | "funding" | "login";
+export type B1naryWalletType = "smart" | "embedded" | "external";
+
+export interface B1naryAccount {
+  id: string;
+  username: string;
+  username_normalized?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface B1naryAccountMember {
+  account_id: string;
+  privy_user_id: string;
+  role: string;
+  verified_at: string | null;
+  created_at: string;
+}
+
+export interface B1naryWallet {
+  id: string;
+  account_id: string;
+  privy_user_id: string | null;
+  chain: B1naryWalletChain;
+  address: string;
+  address_normalized: string;
+  wallet_type: B1naryWalletType;
+  role: B1naryWalletRole;
+  wallet_client_type: string | null;
+  verification_message: string | null;
+  verification_signature: string | null;
+  verified_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface B1naryAccountResponse {
+  account: B1naryAccount | null;
+  members: B1naryAccountMember[];
+  wallets: B1naryWallet[];
+}
+
+export interface B1naryPositionsResponse {
+  positions: Position[];
+  errors: string[];
+}
+
+export interface TrustedWalletRequest {
+  privyUserId: string;
+  chain: B1naryWalletChain;
+  address: string;
+  walletType: Extract<B1naryWalletType, "smart" | "embedded">;
+  role?: B1naryWalletRole;
+  walletClientType?: string | null;
+}
+
 // ---------------------------------------------------------------------------
 // Bridge types (B1N-260 — aligned with backend relayer API)
 // ---------------------------------------------------------------------------
@@ -271,6 +328,44 @@ export const api = {
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
+
+  getB1naryAccount: (privyUserId: string) =>
+    fetchAPI<B1naryAccountResponse>(
+      `/b1nary-account?privy_user_id=${encodeURIComponent(privyUserId)}`,
+    ),
+
+  createB1naryAccount: (username: string, privyUserId: string) =>
+    fetchAPI<B1naryAccountResponse>("/b1nary-accounts", {
+      method: "POST",
+      body: JSON.stringify({
+        username,
+        privy_user_id: privyUserId,
+      }),
+    }),
+
+  linkTrustedB1naryWallet: (
+    accountId: string,
+    params: TrustedWalletRequest,
+  ) =>
+    fetchAPI<{ wallet: B1naryWallet }>(
+      `/b1nary-accounts/${accountId}/wallets/trusted`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          privy_user_id: params.privyUserId,
+          chain: params.chain,
+          address: params.address,
+          wallet_type: params.walletType,
+          role: params.role ?? "trading",
+          wallet_client_type: params.walletClientType ?? null,
+        }),
+      },
+    ),
+
+  getB1naryPositionsByPrivyUserId: (privyUserId: string) =>
+    fetchAPI<B1naryPositionsResponse>(
+      `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}`,
+    ),
 
   joinWaitlist: (email: string) =>
     fetchAPI<{ ok: boolean; new: boolean }>("/waitlist", {
