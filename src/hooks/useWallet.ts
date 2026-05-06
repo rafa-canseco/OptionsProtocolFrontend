@@ -170,7 +170,8 @@ export function useWallet() {
   const fundingWallet = externalWallet ?? embeddedWallet;
 
   // Trading address: always the smart wallet (gas-sponsored, batched)
-  const address = client?.account?.address as Address | undefined;
+  const address = (client?.account?.address ??
+    user?.smartWallet?.address) as Address | undefined;
 
   // Funding address: the connected EOA (for deposits). Falls back to
   // embedded wallet so deposits work even without an external wallet.

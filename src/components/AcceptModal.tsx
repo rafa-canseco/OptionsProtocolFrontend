@@ -250,9 +250,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         }
 
         if (deficit.needsBridge && deficit.sourceChain) {
-          if (!address || !solanaAddress) {
-            setDepositToken("usdc");
-            setShowDeposit(true);
+          if (!address) {
+            setError("Base smart wallet not ready. Reconnect your Base account and try again.");
+            return;
+          }
+          if (!solanaAddress) {
+            setError("Solana wallet not ready. Reconnect your Solana account and try again.");
             return;
           }
           updateStep("executing");
