@@ -5,6 +5,11 @@ import { createElement, type ReactNode } from "react";
 const ORIGINAL_ENV = { ...process.env };
 
 const privyProviderSpy = vi.fn();
+const mockUsePathname = vi.fn(() => "/");
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockUsePathname(),
+}));
 
 vi.mock("@privy-io/react-auth", () => ({
   PrivyProvider: (props: { config: unknown; children: ReactNode }) => {
@@ -64,6 +69,7 @@ describe("buildPrivyConfig", () => {
     delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     privyProviderSpy.mockClear();
+    mockUsePathname.mockReturnValue("/");
   });
 
   afterEach(() => {
@@ -118,6 +124,7 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = "test-app-id";
     privyProviderSpy.mockClear();
+    mockUsePathname.mockReturnValue("/");
   });
 
   afterEach(() => {

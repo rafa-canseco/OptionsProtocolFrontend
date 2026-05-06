@@ -4,6 +4,7 @@ import {
   usePrivy,
   useWallets,
   useConnectWallet,
+  useCreateWallet,
   type User,
 } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -157,6 +158,7 @@ async function findTokenAccountForMint(
 export function useWallet() {
   const { authenticated, logout, ready, user } = usePrivy();
   const { connectWallet } = useConnectWallet();
+  const { createWallet: createEvmWallet } = useCreateWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
   const { wallets: solanaWallets } = useSolanaWallets();
@@ -659,14 +661,28 @@ export function useWallet() {
     [solanaEmbedded, privySignSolanaTx],
   );
 
-  // Authenticate the connected wallet to create a smart wallet.
-  const activateSmartWallet = useCallback(async (walletAddress?: string) => {
-    const wallet = walletAddress
-      ? wallets.find((w) => w.address.toLowerCase() === walletAddress.toLowerCase())
-      : fundingWallet;
-    if (!wallet) throw new Error("No wallet connected");
-    await wallet.loginOrLink();
-  }, [fundingWallet, wallets]);
+  // Prepare the user's internal Base trading wallet. External wallets such
+  // as Rabby are funding sources and may belong to another Privy login, so
+  // activation must not try to link them to the current Privy user.
+  const activateSmartWallet = useCallback(async () => {
+    if (address) return;
+    if (!ready) {
+      throw new Error("Wallet session is still loading. Please try again.");
+    }
+    if (!authenticated || !user?.id) {
+      throw new Error("Connect Base wallet first.");
+    }
+    if (!embeddedWallet) {
+      await createEvmWallet();
+    }
+  }, [
+    address,
+    authenticated,
+    createEvmWallet,
+    embeddedWallet,
+    ready,
+    user?.id,
+  ]);
 
   const disconnect = useCallback(async () => {
     for (const w of wallets) {

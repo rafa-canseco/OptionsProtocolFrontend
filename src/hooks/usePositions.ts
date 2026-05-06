@@ -9,6 +9,7 @@ export function usePositions(
   solanaAddresses?: string | string[] | undefined,
   pollInterval = 15_000,
   baseAddresses?: string[],
+  b1naryPrivyUserId?: string,
 ) {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
@@ -29,7 +30,11 @@ export function usePositions(
       )),
     );
 
-    if (uniqueBaseAddresses.length === 0 && uniqueSolanaAddresses.length === 0) {
+    if (
+      !b1naryPrivyUserId &&
+      uniqueBaseAddresses.length === 0 &&
+      uniqueSolanaAddresses.length === 0
+    ) {
       setPositions([]);
       setLoading(false);
       return;
@@ -37,6 +42,13 @@ export function usePositions(
     try {
       // Fetch from both addresses, deduplicate by id
       const queries: Promise<Position[]>[] = [];
+      if (b1naryPrivyUserId) {
+        queries.push(
+          api
+            .getB1naryPositionsByPrivyUserId(b1naryPrivyUserId)
+            .then((response) => response.positions),
+        );
+      }
       for (const baseAddress of uniqueBaseAddresses) {
         queries.push(api.getPositions(baseAddress));
       }
@@ -61,7 +73,7 @@ export function usePositions(
     } finally {
       setLoading(false);
     }
-  }, [address, baseAddresses, fundingAddress, solanaAddresses]);
+  }, [address, b1naryPrivyUserId, baseAddresses, fundingAddress, solanaAddresses]);
 
   useEffect(() => {
     refresh();
@@ -71,7 +83,7 @@ export function usePositions(
     const hasBaseAddress = Boolean(
       address || fundingAddress || (baseAddresses?.length ?? 0) > 0,
     );
-    if (!hasBaseAddress && !hasSolanaAddress) return;
+    if (!b1naryPrivyUserId && !hasBaseAddress && !hasSolanaAddress) return;
 
     // Poll faster for the first 30s after mount (new position may still be indexing)
     const fastPoll = setInterval(refresh, 3_000);
@@ -83,7 +95,15 @@ export function usePositions(
       clearTimeout(stopFastPoll);
       clearInterval(slowPoll);
     };
-  }, [refresh, address, baseAddresses, fundingAddress, solanaAddresses, pollInterval]);
+  }, [
+    refresh,
+    address,
+    b1naryPrivyUserId,
+    baseAddresses,
+    fundingAddress,
+    solanaAddresses,
+    pollInterval,
+  ]);
 
   useEffect(() => {
     const handler = () => refresh();

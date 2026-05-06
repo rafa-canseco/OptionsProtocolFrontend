@@ -2,13 +2,17 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useSpot } from "@/hooks/useSpot";
+import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
 import { ASSETS } from "@/lib/assets";
+import type { B1naryWallet } from "@/lib/api";
+import type { Address } from "viem";
 import {
   Popover,
   PopoverContent,
@@ -34,6 +38,10 @@ function fmtAmount(value: number, decimals: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: decimals,
   });
+}
+
+function truncateAddress(address: string): string {
+  return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
 function BalanceRow({
@@ -68,8 +76,53 @@ type BalanceItem = {
   amount: number;
 };
 
+function TradingAccountRow({
+  wallet,
+  copiedAddress,
+  onCopy,
+}: {
+  wallet: B1naryWallet;
+  copiedAddress: string | null;
+  onCopy: (address: string) => void;
+}) {
+  const isBase = wallet.chain === "base";
+  const label = isBase ? "Base" : "Solana";
+  const icon = isBase ? "/base.svg" : "/sol.png";
+  const accountType = wallet.wallet_type === "smart" ? "Smart" : "Embedded";
+  const copied = copiedAddress === wallet.address;
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-md border border-[var(--border)] px-3 py-2">
+      <span className="flex min-w-0 items-center gap-2">
+        <img
+          src={icon}
+          alt=""
+          aria-hidden="true"
+          className={`h-4 w-4 ${isBase ? "" : "rounded-full"}`}
+        />
+        <span className="min-w-0">
+          <span className="block text-xs font-semibold text-[var(--text)]">
+            {label}
+          </span>
+          <span className="block text-[11px] text-[var(--text-secondary)]">
+            {accountType} trading
+          </span>
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={() => onCopy(wallet.address)}
+        className="shrink-0 rounded-md px-1.5 py-1 font-mono text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)]"
+      >
+        {copied ? "Copied" : truncateAddress(wallet.address)}
+      </button>
+    </div>
+  );
+}
+
 export function NavBar() {
   const pathname = usePathname();
+  const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const {
     address,
     fundingAddress,
@@ -79,7 +132,30 @@ export function NavBar() {
     isConnected,
   } = useWalletSummary();
 
-  const balanceAddresses = baseAddresses.length > 0 ? baseAddresses : address;
+  const { account: b1naryAccount, wallets: b1naryWallets } =
+    useB1naryAccount({ autoSyncTrustedWallets: false });
+  const tradingAccounts = b1naryWallets
+    .filter((wallet) =>
+      wallet.role === "trading" &&
+      wallet.verified_at &&
+      (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+    )
+    .sort((a, b) => {
+      if (a.chain !== b.chain) return a.chain === "base" ? -1 : 1;
+      if (a.wallet_type !== b.wallet_type) return a.wallet_type === "smart" ? -1 : 1;
+      return a.address.localeCompare(b.address);
+    });
+  const accountBaseAddresses = tradingAccounts
+    .filter((wallet) => wallet.chain === "base")
+    .map((wallet) => wallet.address as Address);
+  const accountSolanaAddresses = tradingAccounts
+    .filter((wallet) => wallet.chain === "solana")
+    .map((wallet) => wallet.address);
+  const balanceAddresses = accountBaseAddresses.length > 0
+    ? accountBaseAddresses
+    : baseAddresses.length > 0
+      ? baseAddresses
+      : address;
   const { usd, eth, weth, wbtc, loading: balLoading, refetch } =
     useBalances(balanceAddresses);
   const {
@@ -88,12 +164,17 @@ export function NavBar() {
     solanaWsol,
     solanaTslax,
     loading: solanaBalLoading,
-  } = useSolanaBalance(solanaAddresses.length > 0 ? solanaAddresses : solanaAddress);
+  } = useSolanaBalance(
+    accountSolanaAddresses.length > 0
+      ? accountSolanaAddresses
+      : solanaAddresses.length > 0
+        ? solanaAddresses
+        : solanaAddress,
+  );
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const { spot: solSpot } = useSpot("sol");
   const { spot: tslaxSpot } = useSpot("tslax");
-
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
   const totalUsdc = usd + solanaUsdc;
   const totalUsd =
@@ -116,6 +197,20 @@ export function NavBar() {
     if (a.amount <= 0 && b.amount > 0) return 1;
     return 0;
   });
+  useEffect(() => {
+    if (!copiedAddress) return;
+    const timeout = window.setTimeout(() => setCopiedAddress(null), 1_500);
+    return () => window.clearTimeout(timeout);
+  }, [copiedAddress]);
+
+  async function copyAddress(addressToCopy: string) {
+    try {
+      await navigator.clipboard.writeText(addressToCopy);
+      setCopiedAddress(addressToCopy);
+    } catch (err) {
+      console.warn("[NavBar] Could not copy address:", err);
+    }
+  }
 
   return (
     <>
@@ -146,6 +241,49 @@ export function NavBar() {
           </nav>
         </div>
         <div className="flex items-center gap-4">
+          {isConnected && b1naryAccount && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <button className="hidden md:flex max-w-[180px] items-center gap-1.5 rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors">
+                  <span className="truncate">
+                    hello @{b1naryAccount.username}
+                  </span>
+                  <span className="text-[var(--text-secondary)]">⌄</span>
+                </button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-[300px] p-3 border-[var(--border)] bg-[var(--bg)]"
+                align="end"
+              >
+                <div className="space-y-3">
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--text)]">
+                      @{b1naryAccount.username}
+                    </p>
+                    <p className="text-xs text-[var(--text-secondary)]">
+                      Trading accounts
+                    </p>
+                  </div>
+                  {tradingAccounts.length > 0 ? (
+                    <div className="space-y-2">
+                      {tradingAccounts.map((wallet) => (
+                        <TradingAccountRow
+                          key={`${wallet.chain}-${wallet.address_normalized}`}
+                          wallet={wallet}
+                          copiedAddress={copiedAddress}
+                          onCopy={copyAddress}
+                        />
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--text-secondary)]">
+                      No trading accounts linked yet.
+                    </p>
+                  )}
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
           {isConnected && (
             <Popover>
               <PopoverTrigger asChild>

@@ -51,4 +51,11 @@ describe("ConnectButton", () => {
     await userEvent.click(screen.getByText("Deposit"));
     expect(screen.getByTestId("deposit-modal")).toBeInTheDocument();
   });
+
+  it("opens deposit modal when Connect is clicked", async () => {
+    mockWallet.isConnected = false;
+    render(<ConnectButton />);
+    await userEvent.click(screen.getByText("Connect"));
+    expect(screen.getByTestId("deposit-modal")).toBeInTheDocument();
+  });
 });

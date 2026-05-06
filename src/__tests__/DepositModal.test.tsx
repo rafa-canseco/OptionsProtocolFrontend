@@ -72,6 +72,12 @@ vi.mock("@/hooks/useWallet", () => ({
   useWallet: () => ({ ...defaultWallet, ...walletOverrides }),
 }));
 
+vi.mock("@/hooks/useB1naryAccount", () => ({
+  useB1naryAccount: () => ({
+    wallets: [],
+  }),
+}));
+
 vi.mock("@/hooks/useBalances", () => ({
   useBalances: () => ({
     usd: 100,
@@ -98,6 +104,30 @@ vi.mock("@/hooks/useSolanaBalance", () => ({
     solanaTslaxRaw: BigInt(0),
     loading: false,
   }),
+}));
+
+vi.mock("@privy-io/react-auth", () => ({
+  usePrivy: () => ({
+    authenticated: true,
+    user: { id: "privy-user-1" },
+  }),
+  useLogin: () => ({
+    login: vi.fn(),
+  }),
+}));
+
+vi.mock("@/lib/api", () => ({
+  api: {
+    bridgeAndTrade: vi.fn(),
+    getBridgeStatus: vi.fn(),
+    prepareSolanaCctpBurn: vi.fn(),
+    submitSolanaCctpBurn: vi.fn(),
+  },
+}));
+
+vi.mock("@/lib/cctp", () => ({
+  buildEvmBurnCalls: vi.fn(() => []),
+  solanaToBytes32: vi.fn(() => new Uint8Array(32)),
 }));
 
 vi.mock("@/lib/contracts", () => ({
