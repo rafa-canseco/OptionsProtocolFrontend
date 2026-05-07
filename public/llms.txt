@@ -1,6 +1,6 @@
 # b1nary
 
-> Simplified options protocol on Base. Sell cash-secured puts or covered calls on ETH and BTC, earn premium instantly. Fully on-chain, permissionless, no sign-up required.
+> Simplified options protocol on Base and Solana. Sell cash-secured puts or covered calls on ETH, cbBTC, SOL, and TSLAx, earn premium instantly, and let b1nary route USDC across chains when needed.
 
 ---
 
@@ -32,7 +32,7 @@ You deposit USDC as collateral and choose a strike price below the current marke
 
 ### What does "selling a covered call" mean?
 
-You deposit the asset (ETH or cbBTC) as collateral and choose a strike price above the current market price. You earn premium immediately.
+You deposit the asset (ETH, cbBTC, SOL, or TSLAx) as collateral and choose a strike price above the current market price. You earn premium immediately.
 
 - If the asset stays below your strike (OTM): your asset is returned. You keep the premium. Income on your holdings.
 - If the asset rises above your strike (ITM): you sell the asset at your strike price. You keep the premium plus the appreciation from current price to strike. You miss gains above the strike, but you locked in profit.
@@ -68,7 +68,7 @@ You earn premium on every cycle. The wheel works best when you pick strikes you'
 
 ### Income generation
 
-If you hold ETH or BTC and want yield without selling, sell covered calls at strikes well above the current price. Most expire OTM. You keep your asset and collect premium every week. Risk: occasionally you sell your asset if it rallies sharply.
+If you hold ETH, cbBTC, SOL, or TSLAx and want yield without selling, sell covered calls at strikes well above the current price. Most expire OTM. You keep your asset and collect premium every week. Risk: occasionally you sell your asset if it rallies sharply.
 
 ### Buying the dip with yield
 
@@ -80,17 +80,19 @@ If you want to accumulate an asset, sell puts at the price you'd buy at. You eit
 
 b1nary runs on two environments. Use testnet for development and testing, production for real trading.
 
-### Production (Base mainnet)
+### Production (Base mainnet + Solana mainnet)
 
-- **Chain:** Base (chain ID `8453`)
+- **Chains:** Base (chain ID `8453`) and Solana mainnet
 - **API:** `https://api.b1nary.app`
 - **App:** `https://b1nary.app`
-- **Block explorer:** `https://basescan.org`
-- **RPC:** `https://mainnet.base.org`
-- **Assets:** ETH, cbBTC. Puts collateralized with USDC, calls with WETH or cbBTC.
+- **Base explorer:** `https://basescan.org`
+- **Solana explorer:** `https://solscan.io`
+- **Assets:** ETH, cbBTC, SOL, TSLAx. Puts are collateralized with USDC. Covered calls are collateralized with WETH/cbBTC on Base or wSOL/TSLAx on Solana.
+- **Base USDC:** `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
+- **Solana USDC:** `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU`
 
-| Contract | Address |
-|----------|---------|
+| Base Contract | Address |
+|---------------|---------|
 | BatchSettler | `0xd281ADdB8b5574360Fd6BFC245B811ad5C582a3B` |
 | Controller | `0x2Ab6D1c41f0863Bc2324b392f1D8cF073cF42624` |
 | MarginPool | `0xa1e04873F6d112d84824C88c9D6937bE38811657` |
@@ -101,6 +103,16 @@ b1nary runs on two environments. Use testnet for development and testing, produc
 | USDC | `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` |
 | WETH | `0x4200000000000000000000000000000000000006` |
 | cbBTC | `0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf` |
+
+| Solana Program / Account | Address |
+|--------------------------|---------|
+| b1nary Batch Settler | `GpR6id2cHu5fUGsFm7NUKkB4NzfuEDa6brPzkSrgAzvS` |
+| Solana Margin Pool | `FH3z4BYRZMFU8YzpJoFXUbrdoYksdERnWbZvDAEc3qcC` |
+| CCTP V2 Token Messenger Minter | `CCTPV2vPZJS2u2BBsUoscuikbYjnpFmbFsvVuJdgUMQe` |
+| CCTP V2 Message Transmitter | `CCTPV2Sm4AdWt5296sk4P66VBZ7bEhcARwFaaS9YPbeC` |
+| USDC Mint | `4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU` |
+| wSOL Mint | `So11111111111111111111111111111111111111112` |
+| TSLAx Mint | `XsDoVfqeBukxuZHWhdvWHBhgEHjGNst4MLodqsJHzoB` |
 
 ### Testnet (Base Sepolia)
 
@@ -124,7 +136,29 @@ b1nary runs on two environments. Use testnet for development and testing, produc
 | LETH (mock WETH) | `0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6` |
 | LBTC (mock cbBTC) | `0x39fA11EbBE82699Fd9F79C566D7384064571d2b4` |
 
-All contracts are UUPS-proxied and verified on BaseScan.
+Base EVM contracts are UUPS-proxied and verified on BaseScan.
+
+---
+
+## Agent Model: Accounts, Wallets, And Funding
+
+b1nary uses a product-level account to group wallets across chains.
+
+- A **b1nary account** groups one or more Privy users and verified trading wallets.
+- Base trading happens through a gas-sponsored **Base smart trading account**.
+- Solana trading happens through a gas-sponsored **Solana embedded trading account**.
+- External wallets such as Rabby, MetaMask, and Phantom are **funding wallets**. They are used to deposit/withdraw, not as the primary trading identity.
+- Agents should treat the b1nary trading wallets as the user's canonical balances and positions.
+- Funding wallets can hold USDC on either chain; b1nary can consolidate USDC via CCTP before a trade or withdrawal.
+
+For account discovery:
+
+- `GET /b1nary-account?privy_user_id=...` returns `{account, members, wallets}`.
+- `GET /b1nary-account/by-wallet?chain=base&address=0x...` finds a b1nary account from a verified Base wallet.
+- `GET /b1nary-account/by-wallet?chain=solana&address=...` finds a b1nary account from a verified Solana wallet.
+- `GET /b1nary-account/positions?privy_user_id=...` returns unified positions for verified trading wallets.
+
+Only verified trading wallets should be used for aggregated balances/positions.
 
 ---
 
@@ -135,23 +169,33 @@ This is the complete job description for a trading agent on b1nary. Sell cash-se
 ### One-time setup
 
 1. **Get test tokens (testnet only).** Call `POST /faucet` with `{"address": "0xYourWallet"}`. You receive 0.005 ETH (gas), 50 LETH (test WETH), and 100,000 LUSD (test USDC). One claim per wallet.
-2. **Approve collateral to MarginPool.** Call `approve(MarginPool, max)` on the collateral token. For puts: approve USDC. For calls: approve WETH (or cbBTC). One transaction per token.
+2. **Use the correct trading account.** Use the Base smart trading account for Base quotes and the Solana embedded trading account for Solana quotes. Funding wallets should deposit or bridge into trading accounts before execution.
+3. **Approve collateral where required.** On Base, approve collateral to MarginPool/BatchSettler as needed. On Solana, the app/backend prepares sponsored setup transactions for token accounts, wSOL wrapping, and Token-2022/Token approvals where required.
 
 ### Every cycle (run in a loop)
 
-3. **Read prices.** `GET /prices` returns the live option price sheet with signed quotes from market makers. Each entry has strike, expiry, premium, delta, and all the EIP-712 data needed for execution. Optional `?asset=eth` or `?asset=btc` to filter. Returns 503 if circuit breaker is active — wait and retry.
-4. **Pick an option.** Choose based on your strategy. The entry must have `signature` and `otoken_address` present. Filter by `option_type` (PUT or CALL), `strike`, `expiry_days`, `premium`, and `delta`.
-5. **Calculate collateral.**
+4. **Read prices.** `GET /prices` returns the live option price sheet with signed quotes from market makers. Each entry has strike, expiry, premium, delta, chain, asset, and execution data. Optional `?asset=eth`, `?asset=btc`, `?asset=sol`, or `?asset=tslax` to filter. Returns 503 if circuit breaker is active: wait and retry.
+5. **Pick an option.** Choose based on your strategy. The entry must have `signature` and `otoken_address` present. Filter by `chain`, `asset`, `option_type` (PUT or CALL), `strike`, `expiry_days`, `premium`, and `delta`.
+6. **Check target-chain collateral.**
+   - Base ETH/cbBTC quotes need collateral in the Base smart trading account.
+   - Solana SOL/TSLAx quotes need collateral in the Solana embedded trading account.
+   - If USDC is sufficient across chains but not on the target chain, use bridge-and-trade.
+7. **Calculate collateral.**
    - Puts: `collateral = (amount * strike_price_8dec) / 1e10` in USDC (6 decimals)
-   - ETH Calls: `collateral = amount * 1e10` in WETH (18 decimals)
-   - BTC Calls: `collateral = amount` in cbBTC (8 decimals, same as oToken)
-6. **Execute on-chain.** Call `executeOrder(quote, signature, amount, collateral)` on BatchSettler. The quote struct and signature come directly from the `/prices` response. Premium arrives in your wallet in the same transaction.
-7. **Check your position.** `GET /positions/{your_address}` shows all open and settled positions with `outcome` field.
+   - ETH calls: `collateral = amount * 1e10` in WETH (18 decimals)
+   - cbBTC calls: `collateral = amount` in cbBTC (8 decimals, same as oToken)
+   - SOL calls: collateral is wSOL/SOL in Solana units; wrap SOL to wSOL before execution when needed.
+   - TSLAx calls: collateral is TSLAx Token-2022 units (8 decimals).
+8. **Execute on-chain.**
+   - Direct Base trade: call `executeOrder(quote, signature, amount, collateral)` on the Base BatchSettler through the Base smart trading account.
+   - Direct Solana trade: build/sign the Solana `ExecuteOrder` transaction. Backend/hot wallet sponsors fee payer and setup; user signs only as token owner/trading wallet.
+   - Bridge-and-trade: if USDC is on the wrong chain, first burn/mint with Circle CCTP V2, then execute on the destination chain.
+9. **Check your position.** `GET /positions/{address}` for one wallet or `GET /b1nary-account/positions?privy_user_id=...` for unified account positions.
 
 ### At expiry (weekly, 08:00 UTC)
 
-8. **Settlement is automatic.** OTM: your collateral is returned. ITM: physical delivery occurs (you receive the asset for puts, USDC for calls).
-9. **Decide next move.** Check the `outcome` field on your settled position and continue the cycle (see The Wheel strategy above).
+10. **Settlement is automatic.** OTM: your collateral is returned. ITM: physical delivery occurs (you receive the asset for puts, USDC for calls).
+11. **Decide next move.** Check the `outcome` field on your settled position and continue the cycle (see The Wheel strategy above).
 
 ### Recommended strategy: The Wheel
 
@@ -173,12 +217,39 @@ Use the API URL for your target environment (see Environments section above).
 
 ### Public (no auth)
 
-- **GET /prices**: Live option price sheet. Optional `?asset=eth` or `?asset=btc`. Each entry: strike, expiry, premium, delta, IV, spot, available amount, oToken address, and EIP-712 quote data (`signature`, `mm_address`, `bid_price_raw`, `deadline`, `quote_id`, `max_amount_raw`, `maker_nonce`). Returns 503 if circuit breaker is active.
+- **GET /prices**: Live option price sheet. Optional `?asset=eth`, `?asset=btc`, `?asset=sol`, or `?asset=tslax`. Each entry: chain, asset, strike, expiry, premium, delta, IV, spot, available amount, oToken address, and quote data (`signature`, `mm_address`, `bid_price_raw`, `deadline`, `quote_id`, `max_amount_raw`, `maker_nonce`). Returns 503 if circuit breaker is active.
 - **GET /positions/{address}**: All positions for a wallet. Fields: `otoken_address`, `vault_id`, `amount`, `strike_price`, `expiry`, `is_put`, `is_settled`, `is_itm`, `settlement_type`, `outcome`, `net_premium`, `collateral`, `asset`.
+- **GET /b1nary-account?privy_user_id=...**: Account, members, and verified wallets for a Privy user.
+- **GET /b1nary-account/by-wallet?chain=base&address=0x...**: Resolve a b1nary account from a verified Base wallet.
+- **GET /b1nary-account/by-wallet?chain=solana&address=...**: Resolve a b1nary account from a verified Solana wallet.
+- **GET /b1nary-account/positions?privy_user_id=...**: Unified positions for all verified trading wallets in a b1nary account.
 - **GET /spot?asset=eth**: Current spot price for an asset.
 - **GET /capacity?asset=eth**: Market capacity, max position size, market status (active/degraded/full).
 - **GET /prices/simulate?strike=2400&side=sell**: Back-test a 7-day put at a given strike. Returns premium, assignment outcome, comparison vs hold/stake/DCA.
 - **POST /faucet**: Testnet only. Test tokens + gas. Send `{"address": "0x..."}`. Receives test WETH + test USDC + ETH. One claim per wallet.
+
+### Bridge And Trade (CCTP V2)
+
+Use bridge-and-trade only for USDC collateral. It is used when a user has enough USDC across Base/Solana but not enough on the target chain.
+
+**Base -> Solana**
+
+1. Derive the user's Solana USDC associated token account (ATA). This is the `mint_recipient`, not the Solana wallet owner.
+2. Call `POST /api/bridge-and-trade/reserve` before burning on Base. This prevents duplicate quote burns. Backend validates or creates the Solana USDC ATA using the operator hot wallet as payer.
+3. Send the Base smart-wallet batch: USDC `approve(TokenMessengerV2)` + CCTP V2 `depositForBurn`.
+4. Call `POST /api/bridge-and-trade` with the real Base `burn_tx_hash`, `source_chain="base"`, `dest_chain="solana"`, `quote_id`, `mint_recipient`, and `burn_amount`.
+5. Poll `GET /api/bridge-status/{job_id}` until `mint_completed`, `completed`, `mint_completed_trade_failed`, or `failed`.
+6. After mint, execute the Solana trade using the actual USDC that arrived after CCTP fees/rounding. Do not assume `burn_amount` equals available collateral.
+
+**Solana -> Base**
+
+1. Call `POST /api/bridge/solana-cctp-burn/prepare`. Backend builds a sponsored Solana burn transaction with the operator as fee payer.
+2. User signs the prepared transaction as Solana USDC owner.
+3. Call `POST /api/bridge/solana-cctp-burn/submit` with the signed transaction, `dest_chain="base"`, `mint_recipient` as the Base smart trading account, and optional `quote_id`.
+4. Poll `GET /api/bridge-status/{job_id}` until USDC is minted on Base.
+5. Execute the Base trade through the Base smart trading account.
+
+Bridge-only withdrawals can use the same CCTP job flow with `quote_id=null` and `signed_trade_tx=null` where supported. Consolidate funds first, then withdraw from the destination trading account.
 
 ### Market Maker (requires `X-API-Key` header)
 
@@ -192,6 +263,8 @@ For the full market making guide, see [llms-mm.txt](https://b1nary.app/llms-mm.t
 
 ## Key Contract Functions
 
+### Base
+
 **executeOrder(Quote calldata quote, bytes calldata signature, uint256 amount, uint256 collateral) returns (uint256 vaultId)**
 On BatchSettler. Permissionless. The `quote` struct: `{address oToken, uint256 bidPrice, uint256 deadline, uint256 quoteId, uint256 maxAmount, uint256 makerNonce}`. The `signature` is the MM's EIP-712 signature. `amount` in oToken units (8 decimals, 1e8 = 1 ETH notional). Atomically: verifies signature, locks collateral, mints oTokens to MM, pays premium to user (minus 4% protocol fee). Quote fields and signature come from `GET /prices`.
 
@@ -203,6 +276,19 @@ On BatchSettler. Invalidates all outstanding signed quotes (circuit breaker).
 
 **getVault(address owner, uint256 vaultId) returns (tuple)**
 On Controller. Vault details: shortOtoken, collateralAsset, shortAmount, collateralAmount.
+
+### Solana
+
+**ExecuteOrder**
+On the Solana b1nary Batch Settler program. The quote fields come from `GET /prices` and map to the Solana `ExecuteOrder` instruction. The transaction must include the correct token program for the collateral:
+
+- USDC and wSOL use the SPL Token Program.
+- TSLAx uses Token-2022 (`TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb`).
+
+Solana execution is sponsored: the operator/hot wallet is fee payer for setup and sponsored execution paths. The user's Solana embedded trading wallet signs only where ownership authority is required.
+
+**CCTP V2 depositForBurn / receiveMessage**
+Used for USDC movement between Base and Solana. For Base -> Solana, `mintRecipient` must be the Solana USDC token account (ATA), not the wallet owner. For Solana -> Base, `mintRecipient` is the Base smart trading account encoded as bytes32.
 
 ---
 
@@ -283,6 +369,8 @@ positions = requests.get(f"{API}/positions/{MY_ADDRESS}").json()
 | USDC | 6 | `5000000` = 5 USDC |
 | WETH | 18 | `1000000000000000000` = 1 WETH |
 | cbBTC | 8 | `100000000` = 1 cbBTC |
+| SOL / wSOL | 9 | `1000000000` = 1 SOL |
+| TSLAx | 8 | `100000000` = 1 TSLAx |
 
 ## Market Making
 
@@ -294,6 +382,6 @@ Want to provide liquidity instead of consuming it? See the full market making gu
 - [Testnet app](https://staging.b1nary.app): Web interface (testnet)
 - Protocol fee: 4% (400 bps), deducted from premium automatically
 - Options expire weekly at 08:00 UTC with automatic settlement
-- ITM options settle via physical delivery (Aave flash loan + Uniswap swap)
+- ITM options settle via physical delivery on the option's chain
 - OTM options return collateral to the seller
-- Supported assets: ETH and cbBTC (more coming)
+- Supported assets: ETH, cbBTC, SOL, and TSLAx
