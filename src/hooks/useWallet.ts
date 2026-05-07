@@ -5,6 +5,9 @@ import {
   useWallets,
   useConnectWallet,
   useCreateWallet,
+  useLinkAccount,
+  useUser,
+  type ConnectWalletModalOptions,
   type User,
 } from "@privy-io/react-auth";
 import { useSmartWallets } from "@privy-io/react-auth/smart-wallets";
@@ -16,7 +19,7 @@ import {
   useSignTransaction as useSolanaSignTransaction,
 } from "@privy-io/react-auth/solana";
 import { createWalletClient, custom, type Address } from "viem";
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState, type MouseEvent } from "react";
 import {
   Connection, Transaction, VersionedTransaction, SystemProgram, PublicKey,
 } from "@solana/web3.js";
@@ -42,6 +45,18 @@ import {
 } from "@/lib/solana";
 
 const SOLANA_DISABLED_ERROR = "Solana flows are disabled in production.";
+
+type SolanaProviderEvents = {
+  on?: (event: string, handler: () => void) => void;
+  off?: (event: string, handler: () => void) => void;
+};
+
+declare global {
+  interface Window {
+    phantom?: { solana?: SolanaProviderEvents };
+    solana?: SolanaProviderEvents;
+  }
+}
 
 function assertSolanaEnabled(): void {
   if (isSolanaOffInProd()) {
@@ -157,7 +172,27 @@ async function findTokenAccountForMint(
 
 export function useWallet() {
   const { authenticated, logout, ready, user } = usePrivy();
-  const { connectWallet } = useConnectWallet();
+  const { refreshUser } = useUser();
+  const [walletRefreshNonce, setWalletRefreshNonce] = useState(0);
+  const refreshWalletState = useCallback(async () => {
+    setWalletRefreshNonce((nonce) => nonce + 1);
+    try {
+      await refreshUser();
+    } catch (err) {
+      console.warn("[useWallet] Could not refresh Privy user:", err);
+    }
+    window.dispatchEvent(new Event("wallets:refetch"));
+  }, [refreshUser]);
+  const { connectWallet } = useConnectWallet({
+    onSuccess: () => {
+      void refreshWalletState();
+    },
+  });
+  const { linkWallet } = useLinkAccount({
+    onSuccess: () => {
+      void refreshWalletState();
+    },
+  });
   const { createWallet: createEvmWallet } = useCreateWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -166,6 +201,23 @@ export function useWallet() {
   const { signAndSendTransaction } = useSignAndSendTransaction();
   const { signTransaction: privySignSolanaTx } = useSolanaSignTransaction();
   const linkedWallets = useMemo(() => walletAccounts(user ?? null), [user]);
+
+  useEffect(() => {
+    const provider = window.phantom?.solana ?? window.solana;
+    if (!provider?.on) return;
+    const handleAccountChange = () => {
+      void refreshWalletState();
+    };
+    provider.on("accountChanged", handleAccountChange);
+    provider.on("connect", handleAccountChange);
+    provider.on("disconnect", handleAccountChange);
+    return () => {
+      provider.off?.("accountChanged", handleAccountChange);
+      provider.off?.("connect", handleAccountChange);
+      provider.off?.("disconnect", handleAccountChange);
+    };
+  }, [refreshWalletState]);
+
   // --- EVM wallets ---
   const externalWallet = wallets.find((w) => !isPrivyWalletClient(w.walletClientType));
   const embeddedWallet = wallets.find((w) => isPrivyWalletClient(w.walletClientType));
@@ -248,6 +300,7 @@ export function useWallet() {
   // --- Unified external wallets list ---
   const externalWalletsList = useMemo<ExternalWallet[]>(() => {
     const list: ExternalWallet[] = [];
+    void walletRefreshNonce;
 
     // EVM external wallets. Embedded Privy wallets are trading accounts,
     // not user-selected funding/withdrawal wallets.
@@ -273,7 +326,17 @@ export function useWallet() {
     }
 
     return list;
-  }, [solanaWallets, wallets]);
+  }, [solanaWallets, walletRefreshNonce, wallets]);
+
+  const connectFundingWallet = useCallback((
+    options?: ConnectWalletModalOptions | MouseEvent,
+  ) => {
+    if (authenticated) {
+      linkWallet(options);
+      return;
+    }
+    connectWallet(options);
+  }, [authenticated, connectWallet, linkWallet]);
 
   // All trades execute through the smart wallet — gas sponsored
   const sendBatchTx = useCallback(
@@ -684,6 +747,12 @@ export function useWallet() {
     user?.id,
   ]);
 
+  const activateSolanaTradingWallet = useCallback(async () => {
+    const tradingAddress = await getSolanaTradingAddress();
+    await refreshWalletState();
+    return tradingAddress;
+  }, [getSolanaTradingAddress, refreshWalletState]);
+
   const disconnect = useCallback(async () => {
     for (const w of wallets) {
       try {
@@ -724,7 +793,9 @@ export function useWallet() {
     isConnected: !!(fundingAddress || solanaAddress),
     isReady: ready,
     connectWallet,
+    connectFundingWallet,
     activateSmartWallet,
+    activateSolanaTradingWallet,
     disconnect,
   };
 }

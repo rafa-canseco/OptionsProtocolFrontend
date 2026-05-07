@@ -82,7 +82,15 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, signSolanaTransaction, isConnected } = useWallet();
+  const {
+    address,
+    solanaAddress,
+    sendBatchTx,
+    sendSolanaTransaction,
+    signSolanaTransaction,
+    activateSolanaTradingWallet,
+    isConnected,
+  } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
   const {
     solanaUsdcRaw,
@@ -263,7 +271,14 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             return;
           }
           if (!solanaAddress) {
-            setError("Solana wallet not ready. Reconnect your Solana account and try again.");
+            updateStep("executing");
+            setProgressMessage("Activating Solana trading account...");
+            try {
+              await activateSolanaTradingWallet();
+              setError("Solana trading account activated. Click Accept again to continue.");
+            } finally {
+              updateStep("idle");
+            }
             return;
           }
           updateStep("executing");
@@ -332,7 +347,14 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       // --- Direct Solana execution (buys with enough on Solana, or sells) ---
       if (quote.chain === "solana") {
         if (!solanaAddress) {
-          setError("Solana wallet not ready. Please wait and try again.");
+          updateStep("executing");
+          setProgressMessage("Activating Solana trading account...");
+          try {
+            await activateSolanaTradingWallet();
+            setError("Solana trading account activated. Click Accept again to continue.");
+          } finally {
+            updateStep("idle");
+          }
           return;
         }
 
