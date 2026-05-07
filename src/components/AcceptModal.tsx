@@ -12,7 +12,9 @@ import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
 import {
-  SOLANA_NATIVE_RESERVE_LAMPORTS,
+  VersionedTransaction,
+} from "@solana/web3.js";
+import {
   solanaTxUrl,
   toPublicKey,
 } from "@/lib/solana";
@@ -21,7 +23,7 @@ import {
   buildSolanaTradeTransaction,
 } from "@/lib/bridgeTx";
 import type { BatchCall } from "@/hooks/useWallet";
-import type { PriceQuote } from "@/lib/api";
+import { api, type PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
 import { getAssetConfig } from "@/lib/assets";
 import {
@@ -34,11 +36,9 @@ import {
   buildOptimisticPosition,
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
-import { formatApr } from "@/lib/yield";
-import { useAaveRates } from "@/hooks/useAaveRates";
 import { isProductionReadOnlyAsset } from "@/lib/marketState";
+import { clearPendingBridge, savePendingBridge } from "@/lib/pendingBridge";
 import type { YieldMetric } from "./YieldToggle";
-import { YieldExplainer } from "./yield/YieldExplainer";
 import { DepositModal } from "@/components/DepositModal";
 
 interface Props {
@@ -46,6 +46,7 @@ interface Props {
   side: "buy" | "sell";
   onClose: () => void;
   onAccepted: (info: { amount: number; txHash: string | null }) => void;
+  onQuoteInvalid?: () => void;
   renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
   initialAmount?: string;
   confirmOnly?: boolean;
@@ -59,8 +60,9 @@ interface Props {
 type TxStep = "idle" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
-const RAW_COLLATERAL_BUFFER = BigInt(1);
-const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1290;
+// Solana's packet limit is 1232 raw bytes. This guard receives base64 length,
+// where the equivalent ceiling is 4 * ceil(1232 / 3) = 1644.
+const SOLANA_PRIVY_SAFE_MAIN_TX_BASE64_BYTES = 1644;
 const SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES = 1260;
 type DepositToken = "usdc" | "eth" | "btc" | "sol" | "tslax";
 
@@ -79,8 +81,8 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 }
 
 
-export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, isConnected } = useWallet();
+export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
+  const { address, solanaAddress, sendBatchTx, sendSolanaTransaction, signSolanaTransaction, isConnected } = useWallet();
   const { usd, eth, weth, wbtc, usdRaw: baseUsdcRaw, loading: baseBalLoading } = useBalances(address);
   const {
     solanaUsdcRaw,
@@ -93,7 +95,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   } = useSolanaBalance(solanaAddress);
   const balancesLoading = baseBalLoading || solBalLoading;
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
-  const { rates: aaveRates } = useAaveRates();
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [chainExecuted, setChainExecuted] = useState<"base" | "solana" | null>(null);
@@ -101,21 +102,16 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const [activePercent, setActivePercent] = useState<number | null>(null);
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositToken, setDepositToken] = useState<DepositToken>("usdc");
+  const [progressMessage, setProgressMessage] = useState("Preparing order...");
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
   const assetConfig = getAssetConfig(assetSlug);
   const isSol = assetSlug === "sol";
-  const isSolanaAsset = assetConfig?.chain === "solana";
   const marketReadOnly = isProductionReadOnlyAsset(
     assetConfig ?? { slug: assetSlug, chain: quote.chain },
   );
-  const wrappableSolRaw =
-    solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
-      ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
-      : BigInt(0);
-  const solCollateralBalance =
-    (Number(solanaWsolRaw + wrappableSolRaw) / 1e9);
+  const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
   // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
   const walletBalance = isBuy
@@ -123,21 +119,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     : assetSlug === "tslax"
       ? solanaTslax
     : isSol
-      ? solCollateralBalance
+      ? solTotalBalance
       : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
     ? Math.min(quote.available_amount, capEth) * quote.strike
     : Math.min(quote.available_amount, capEth);
-  const solMaxByBalanceRaw =
-    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
-      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
-      : BigInt(0);
   const maxByBalance = isBuy
     ? walletBalance
     : isSol
-      ? Number(solMaxByBalanceRaw) / 1e9
+      ? solTotalBalance
       : walletBalance;
   const maxInputAmount = Math.min(maxByBalance, maxAmount);
 
@@ -148,8 +140,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   function handlePercent(pct: number) {
     setActivePercent(pct);
     if (!isBuy && isSol) {
-      const raw = (solMaxByBalanceRaw * BigInt(pct)) / BigInt(100);
-      setAmountStr(formatSolRawAmount(raw));
+      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
+      const quoteMaxRaw = BigInt(Math.floor(maxAmount * 1e9));
+      const rawAvailable = solTotalRaw < quoteMaxRaw ? solTotalRaw : quoteMaxRaw;
+      const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
+      setAmountStr(formatSolRawAmount(raw, assetConfig?.displayDecimals ?? 4));
       return;
     }
 
@@ -185,7 +180,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
   const loading = step !== "idle";
   const buttonLabel =
     step === "executing"
-      ? "Executing order..."
+      ? "Working..."
       : step === "confirmed"
         ? "Done"
         : !isConnected
@@ -239,8 +234,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
     }
 
     setError(null);
+    setProgressMessage("Checking balances...");
     let currentStep: TxStep = "idle";
-    const updateStep = (s: TxStep) => { currentStep = s; setStep(s); };
+    const updateStep = (s: TxStep) => {
+      currentStep = s;
+      setStep(s);
+      if (s === "idle") setProgressMessage("Preparing order...");
+    };
 
     try {
       // --- Cross-chain bridge detection for buys (USDC bridgeable via CCTP) ---
@@ -258,27 +258,46 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         }
 
         if (deficit.needsBridge && deficit.sourceChain) {
-          if (!address || !solanaAddress) {
-            setDepositToken("usdc");
-            setShowDeposit(true);
+          if (!address) {
+            setError("Base smart wallet not ready. Reconnect your Base account and try again.");
+            return;
+          }
+          if (!solanaAddress) {
+            setError("Solana wallet not ready. Reconnect your Solana account and try again.");
             return;
           }
           updateStep("executing");
+          setProgressMessage("Checking bridge route...");
+          savePendingBridge({
+            message: "Checking bridge route...",
+            quoteId: quote.quote_id,
+          });
           const result = await executeBridgeAndTrade({
             quote, amount, isBuy, assetSlug,
             sourceChain: deficit.sourceChain,
             deficit: deficit.deficit,
+            onProgress: (progress) => {
+              setProgressMessage(progress.message);
+              savePendingBridge({
+                message: progress.message,
+                jobId: progress.jobId,
+                txHash: progress.txHash,
+                quoteId: quote.quote_id,
+              });
+            },
           });
 
           if (result.success) {
+            const acceptedAmount = result.amount ?? amount;
+            clearPendingBridge();
             setTxHash(result.txHash ?? null);
             setChainExecuted(result.chainExecuted ?? null);
             updateStep("confirmed");
-            onAccepted({ amount, txHash: result.txHash ?? null });
+            onAccepted({ amount: acceptedAmount, txHash: result.txHash ?? null });
             window.dispatchEvent(new Event("balance:refetch"));
 
             const pos = buildOptimisticPosition(
-              quote, amount, isBuy, address!, assetSlug,
+              quote, acceptedAmount, isBuy, address!, assetSlug,
             );
             try { saveOptimistic(pos); } catch (err) {
               console.warn("[AcceptModal] Could not save optimistic position:", err);
@@ -318,6 +337,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         }
 
         updateStep("executing");
+        setProgressMessage("Preparing Solana order...");
 
         const solanaPk = toPublicKey(solanaAddress, "Solana wallet");
         const { collateral } = computeCollateral(
@@ -330,7 +350,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         let wrapAmount = BigInt(0);
         if (!isBuy && assetSlug === "sol" && solanaWsolRaw < collateral) {
           wrapAmount = collateral - solanaWsolRaw;
-          if (wrappableSolRaw < wrapAmount) {
+          if (solanaSolRaw < wrapAmount) {
             setDepositToken("sol");
             setShowDeposit(true);
             setStep("idle");
@@ -346,20 +366,43 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
 
         const tradeTxBase64Length = getSerializedBase64Length(tradeTx);
         if (
+          wrapAmount > BigInt(0) ||
           tradeTxBase64Length > SOLANA_PRIVY_SPLIT_SETUP_BASE64_BYTES
         ) {
-          const setupTx = await buildSolanaTradeSetupTransaction(
-            quote,
-            amount,
-            isBuy,
-            assetSlug,
-            solanaPk,
-            wrapAmount,
-            true,
-          );
-          if (setupTx) {
-            await sendSolanaTransaction(setupTx);
+          if (wrapAmount > BigInt(0)) {
+            setProgressMessage("Preparing sponsored Solana setup...");
+            const setup = await api.prepareSolanaSponsoredSetup({
+              user: solanaPk.toBase58(),
+              otokenMint: quote.otoken_address!,
+              wrapLamports: wrapAmount.toString(),
+              approveAmount: collateral.toString(),
+            });
+            const setupTx = VersionedTransaction.deserialize(
+              Buffer.from(setup.transaction, "base64"),
+            );
+            const signedSetup = await signSolanaTransaction(setupTx.serialize());
+            setProgressMessage("Confirming Solana setup...");
+            await api.completeSolanaSponsoredSetup({
+              user: solanaPk.toBase58(),
+              transaction: Buffer.from(signedSetup).toString("base64"),
+            });
             window.dispatchEvent(new Event("balance:refetch"));
+          } else {
+            setProgressMessage("Preparing Solana accounts...");
+            const setupTx = await buildSolanaTradeSetupTransaction(
+              quote,
+              amount,
+              isBuy,
+              assetSlug,
+              solanaPk,
+              wrapAmount,
+              true,
+            );
+            if (setupTx) {
+              setProgressMessage("Confirming Solana setup...");
+              await sendSolanaTransaction(setupTx);
+              window.dispatchEvent(new Event("balance:refetch"));
+            }
           }
 
           tradeTx = await buildSolanaTradeTransaction(
@@ -378,6 +421,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
           );
         }
 
+        setProgressMessage("Executing order on Solana...");
         const signature = await sendSolanaTransaction(tradeTx);
         setTxHash(signature);
         setChainExecuted("solana");
@@ -422,6 +466,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       // redirects a sufficiently funded buyer to the deposit modal.
       let wrapAmount = BigInt(0);
       if (!isBuy) {
+        setProgressMessage("Checking collateral...");
         if (isBtc) {
           // BTC calls: cbBTC is already ERC20, no wrapping needed
           const wbtcBal = await readTokenBalance(ADDRESSES.wbtc, address);
@@ -459,6 +504,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       // then send approve + execute. This ensures WETH is available before
       // the collateral transfer is attempted.
       if (wrapAmount > BigInt(0)) {
+        setProgressMessage("Wrapping ETH...");
         const wrapHash = await sendBatchTx([{
           to: ADDRESSES.weth,
           data: encodeFunctionData({ abi: WETH_ABI, functionName: "deposit", args: [] }),
@@ -469,6 +515,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       }
 
       // After wrapping (if needed), WETH balance is sufficient. Now approve + execute.
+      setProgressMessage(
+        currentAllowance < collateral
+          ? "Approving collateral and executing order..."
+          : "Executing order on Base...",
+      );
       const balanceBefore = await readTokenBalance(collateralAsset, address);
       const balanceDecreased = async () => {
         const bal = await readTokenBalance(collateralAsset, address);
@@ -509,17 +560,29 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
       console.error("[AcceptModal] Transaction failed:", err);
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("Solana flows are disabled")) {
+        clearPendingBridge();
         setError(msg);
       } else if (msg.includes("Timed out") || msg.includes("Lost connection")) {
         setError(msg);
       } else if (msg.includes("collateral vault is not initialized")) {
+        clearPendingBridge();
         setError(msg);
+      } else if (
+        msg.includes("API 409") &&
+        msg.includes("Bridge job already exists for quote")
+      ) {
+        clearPendingBridge();
+        setError("This quote was already used. Fetching a fresh quote...");
+        onQuoteInvalid?.();
       } else if (currentStep === "idle") {
+        clearPendingBridge();
         setError("Could not read on-chain data. Check your connection and try again.");
       } else {
+        clearPendingBridge();
         setError("Transaction failed. No funds were moved. Please try again.");
       }
       setStep("idle");
+      setProgressMessage("Preparing order...");
     }
   }
 
@@ -620,11 +683,17 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
                 />
               </div>
               <p className="text-xs text-[var(--text-secondary)] mt-1.5">
-                Balance {balancesLoading
-                  ? "..."
-                  : isBuy
-                    ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                    : `${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
+                {balancesLoading
+                  ? "Balance ..."
+                  : isSol && !isBuy
+                    ? (
+                      <>
+                        Balance {floorTo(solTotalBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} {assetSymbol}
+                      </>
+                    )
+                    : isBuy
+                      ? `Balance $${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `Balance ${floorTo(walletBalance, 4).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 })} ${assetSymbol}`}
               </p>
               {amount > 0 && amount < minAmount && (
                 <p className="text-xs text-[var(--danger)] mt-1">
@@ -641,11 +710,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
             <div className="h-px bg-[var(--border)]" />
             <p className="text-sm text-[var(--text)]">
               You commit {commitDisplay} for {quote.expiry_days} days
-            </p>
-
-            <p className="text-xs text-amber-400/80 flex items-center gap-1.5">
-              Your collateral earns {formatApr(aaveRates[isBuy ? "usdc" : assetSlug] ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while open
-              <YieldExplainer />
             </p>
 
             {renderExtra ? (
@@ -684,6 +748,21 @@ export function AcceptModal({ quote, side, onClose, onAccepted, renderExtra, ini
         )}
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+
+        {step === "executing" && (
+          <div className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2 shadow-[0_0_24px_rgba(0,0,0,0.10)]">
+            <div className="flex items-center gap-2 text-sm font-medium text-[var(--text)]">
+              <span className="relative flex h-2.5 w-2.5 shrink-0">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-50" />
+                <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
+              </span>
+              <span>{progressMessage}</span>
+            </div>
+            <p className="mt-1 pl-4 text-xs text-[var(--text-secondary)]">
+              This can take a few minutes. Keep this window open.
+            </p>
+          </div>
+        )}
 
         <button
           onClick={handleAccept}

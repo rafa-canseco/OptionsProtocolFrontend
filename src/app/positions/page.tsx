@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import { PositionCard } from "@/components/PositionCard";
 import { RangePositionCard } from "@/components/RangePositionCard";
 import { PortfolioSummary } from "@/components/PortfolioSummary";
@@ -12,44 +13,39 @@ import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useActivity } from "@/hooks/useActivity";
 import { useNotificationStatus } from "@/hooks/useNotificationStatus";
-import { useYield } from "@/hooks/useYield";
-import { useAaveRates } from "@/hooks/useAaveRates";
 import { resolvePositionAsset } from "@/lib/assets";
 import { groupPositions } from "@/lib/positionGrouping";
 import { NotificationBanner } from "@/components/NotificationBanner";
-import { DistributionHistory } from "@/components/yield/DistributionHistory";
 import type { YieldMetric } from "@/components/YieldToggle";
 
 export default function PositionsPage() {
-  const { address, fundingAddress, solanaAddress, isConnected } = useWallet();
-  const { positions, loading, refresh } = usePositions(address, fundingAddress, solanaAddress);
-  const { activity } = useActivity(address, fundingAddress ?? undefined);
+  const { user } = usePrivy();
+  const {
+    address,
+    portfolioAddresses,
+    isConnected,
+  } = useWallet();
+  const solanaPositionAddresses = useMemo(
+    () => portfolioAddresses.solana.filter((value, index, arr): value is string =>
+      Boolean(value) && arr.indexOf(value) === index,
+    ),
+    [portfolioAddresses.solana],
+  );
+  const { positions, loading, refresh } = usePositions(
+    address,
+    undefined,
+    solanaPositionAddresses,
+    15_000,
+    portfolioAddresses.base,
+    user?.id,
+  );
+  const { activity } = useActivity(address, undefined);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const { spot: solSpot } = useSpot("sol");
   const allPositions = useOptimisticPositions(positions);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
   const notifStatus = useNotificationStatus(address);
-  const {
-    summary: yieldSummary,
-    positions: yieldPositions,
-    history: yieldHistory,
-  } = useYield(address, solanaAddress);
-  const { rates: aaveRates } = useAaveRates();
-
-  const yieldByVault = useMemo(() => {
-    const map = new Map<number, {
-      asset: string;
-      deposited_at: string;
-      is_active: boolean;
-      estimated_yield: number;
-    }>();
-    for (const yp of yieldPositions?.positions ?? []) {
-      map.set(yp.vault_id, yp);
-    }
-    return map;
-  }, [yieldPositions]);
-
   const active = useMemo(
     () => allPositions.filter((p) => !p.is_settled),
     [allPositions],
@@ -105,10 +101,6 @@ export default function PositionsPage() {
         activity={activity}
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
-        yieldAssets={yieldSummary?.assets}
-        yieldPositionTotals={yieldPositions?.totals}
-        ethSpot={ethSpot}
-        btcSpot={btcSpot}
       />
 
       {address && (
@@ -138,7 +130,6 @@ export default function PositionsPage() {
                     assetSlug={posAsset.slug}
                     optimistic={item.positions.some((p) => p.id.startsWith("opt-"))}
                     yieldMetric={yieldMetric}
-                    yieldByVault={yieldByVault}
                   />
                 );
               }
@@ -156,8 +147,6 @@ export default function PositionsPage() {
                   assetSlug={posAsset.slug}
                   optimistic={pos.id.startsWith("opt-")}
                   yieldMetric={yieldMetric}
-                  yieldByVault={yieldByVault}
-                  aaveRates={aaveRates}
                 />
               );
             })}
@@ -173,14 +162,6 @@ export default function PositionsPage() {
       </section>
 
       <EarningsChart positions={allPositions} />
-
-      {(yieldHistory?.history?.length ?? 0) > 0 && (
-        <DistributionHistory
-          history={yieldHistory!.history}
-          ethSpot={ethSpot}
-          btcSpot={btcSpot}
-        />
-      )}
 
       {historyItems.length > 0 && (
         <section className="space-y-4">

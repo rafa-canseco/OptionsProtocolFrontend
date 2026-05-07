@@ -1,21 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useWallet } from "@/hooks/useWallet";
-import { useBalances } from "@/hooks/useBalances";
-import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { DepositModal } from "@/components/DepositModal";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 
 export function ConnectButton() {
-  const { address, solanaAddress, isConnected, isReady, connectWallet } =
-    useWallet();
-  const { usd, loading: balancesLoading } = useBalances(address);
-  const { solanaUsdc, solanaTslax, loading: solLoading } = useSolanaBalance(solanaAddress);
+  const { isConnected, isReady } = useWalletSummary();
   const [showDeposit, setShowDeposit] = useState(false);
 
   if (!isReady) {
@@ -25,83 +15,14 @@ export function ConnectButton() {
   }
 
   if (isConnected) {
-    const total = usd + solanaUsdc;
-    const loading = balancesLoading || solLoading;
-    const hasBalance = total > 0;
-    const balanceLabel = hasBalance
-      ? `$${total.toLocaleString(undefined, {
-          minimumFractionDigits: 2,
-          maximumFractionDigits: 2,
-        })}`
-      : "Deposit";
-
     return (
       <>
-        <Popover>
-          <PopoverTrigger asChild>
-            <button className="rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors flex items-center gap-1.5">
-              {loading ? "..." : balanceLabel}
-            </button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-[200px] p-3 border-[var(--border)] bg-[var(--bg)]"
-            align="end"
-          >
-            <div className="space-y-2 text-sm">
-              <div className="flex justify-between text-[var(--text)]">
-                <span className="flex items-center gap-1.5">
-                  <img src="/base.svg" alt="Base" className="w-3.5 h-3.5" />
-                  Base
-                </span>
-                <span className="font-mono">
-                  ${usd.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between text-[var(--text)]">
-                <span className="flex items-center gap-1.5">
-                  <img
-                    src="/sol.png"
-                    alt="Solana"
-                    className="w-3.5 h-3.5 rounded-full"
-                  />
-                  Solana
-                </span>
-                <span className="font-mono">
-                  ${solanaUsdc.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
-              </div>
-              <div className="flex justify-between text-[var(--text-secondary)]">
-                <span className="flex items-center gap-1.5">
-                  <img
-                    src="/tslax.svg"
-                    alt="TSLAx"
-                    className="w-3.5 h-3.5 rounded-full"
-                  />
-                  TSLAx
-                </span>
-                <span className="font-mono">
-                  {solanaTslax.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 4,
-                  })}
-                </span>
-              </div>
-              <div className="h-px bg-[var(--border)]" />
-              <button
-                onClick={() => setShowDeposit(true)}
-                className="w-full text-center text-xs text-[var(--accent)] hover:underline"
-              >
-                Deposit
-              </button>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <button
+          onClick={() => setShowDeposit(true)}
+          className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+        >
+          Deposit
+        </button>
 
         {showDeposit && (
           <DepositModal onClose={() => setShowDeposit(false)} />
@@ -111,11 +32,17 @@ export function ConnectButton() {
   }
 
   return (
-    <button
-      onClick={connectWallet}
-      className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
-    >
-      Connect
-    </button>
+    <>
+      <button
+        onClick={() => setShowDeposit(true)}
+        className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
+      >
+        Connect
+      </button>
+
+      {showDeposit && (
+        <DepositModal onClose={() => setShowDeposit(false)} />
+      )}
+    </>
   );
 }

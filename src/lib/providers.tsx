@@ -1,14 +1,17 @@
 "use client";
 
+import { usePathname } from "next/navigation";
 import { PrivyProvider, dataSuffix } from "@privy-io/react-auth";
 import type { PrivyClientConfig } from "@privy-io/react-auth";
 import { toSolanaWalletConnectors } from "@privy-io/react-auth/solana";
 import { SmartWalletsProvider } from "@privy-io/react-auth/smart-wallets";
 import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
-import { getDeploymentEnv } from "@/lib/deployment";
-import { SOLANA_RPC_URL } from "@/lib/solana";
+import { SOLANA_CHAIN, SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
+import { B1naryAccountOnboarding } from "@/components/B1naryAccountOnboarding";
+
+const B1NARY_ACCOUNT_ROUTES = ["/earn", "/positions"];
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -20,15 +23,11 @@ function getPrivyAppId(): string {
   return id;
 }
 
-export function buildPrivyConfig(
-  env: ReturnType<typeof getDeploymentEnv> = getDeploymentEnv(),
-): PrivyClientConfig {
+export function buildPrivyConfig(): PrivyClientConfig {
   const BUILDER_CODE = process.env.NEXT_PUBLIC_BUILDER_CODE;
   const plugins = BUILDER_CODE
     ? [dataSuffix(Attribution.toDataSuffix({ codes: [BUILDER_CODE] }))]
     : [];
-
-  const solanaCreateOnLogin = env === "mainnet" ? "off" : "all-users";
 
   return {
     loginMethods: ["wallet"],
@@ -45,23 +44,21 @@ export function buildPrivyConfig(
     supportedChains: [CHAIN],
     solana: {
       rpcs: {
-        "solana:devnet": {
+        [SOLANA_CHAIN]: {
           rpc: createSolanaRpc(
             SOLANA_RPC_URL || "https://api.devnet.solana.com",
           ),
-          rpcSubscriptions: createSolanaRpcSubscriptions(
-            "wss://api.devnet.solana.com",
-          ),
+          rpcSubscriptions: createSolanaRpcSubscriptions(solanaWsUrl()),
         },
       },
     },
     embeddedWallets: {
       showWalletUIs: false,
       ethereum: {
-        createOnLogin: "all-users",
+        createOnLogin: "off",
       },
       solana: {
-        createOnLogin: solanaCreateOnLogin,
+        createOnLogin: "off",
       },
     },
     plugins,
@@ -69,9 +66,17 @@ export function buildPrivyConfig(
 }
 
 export function Providers({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const showB1naryAccountOnboarding = B1NARY_ACCOUNT_ROUTES.some((route) =>
+    pathname?.startsWith(route),
+  );
+
   return (
     <PrivyProvider appId={getPrivyAppId()} config={buildPrivyConfig()}>
-      <SmartWalletsProvider>{children}</SmartWalletsProvider>
+      <SmartWalletsProvider>
+        {children}
+        {showB1naryAccountOnboarding && <B1naryAccountOnboarding />}
+      </SmartWalletsProvider>
     </PrivyProvider>
   );
 }

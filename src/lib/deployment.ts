@@ -45,6 +45,9 @@ export function getHeroChainLine(): string {
   if (chain === "solana" && env === "devnet") {
     return "Solana devnet preview. Base mainnet live.";
   }
+  if (chain === "solana" && env === "mainnet") {
+    return "Now live on Solana. Base mainnet live.";
+  }
   if (chain === "base" && env === "mainnet") {
     return "Now live on Base. Solana devnet preview.";
   }

@@ -3,6 +3,7 @@
 import { useState, useMemo, useCallback } from "react";
 import type { Position } from "@/lib/api";
 import { fmtUsd } from "@/lib/utils";
+import { getPositionPremiumUsd } from "@/lib/positionMath";
 
 type Period = "1M" | "3M" | "ALL";
 const PERIODS: Period[] = ["1M", "3M", "ALL"];
@@ -47,7 +48,7 @@ function buildChartData(positions: Position[]): ChartPoint[] {
   let cumulative = 0;
 
   for (const pos of sorted) {
-    const premium = Number(pos.net_premium) / 1e6;
+    const premium = getPositionPremiumUsd(pos);
     cumulative += premium;
     const date = new Date(pos.indexed_at);
 

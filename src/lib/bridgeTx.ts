@@ -35,6 +35,7 @@ import {
   createApproveInstruction,
   createSyncNativeInstruction,
   TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import type { PriceQuote } from "@/lib/api";
@@ -56,28 +57,48 @@ const bs58 = require("bs58");
 // Solana b1nary program addresses (from CONTEXT.md — devnet)
 // ---------------------------------------------------------------------------
 
+// Trim env values: Vercel/Railway can store secrets with trailing whitespace
+// or newlines, which breaks `new PublicKey()` with "Non-base58 character".
+const envAddr = (raw: string | undefined, fallback: string): string =>
+  (raw && raw.trim()) || fallback;
+
 const SOLANA_PROGRAMS = {
   batchSettler: new PublicKey(
-    process.env.NEXT_PUBLIC_SOLANA_BATCH_SETTLER ??
+    envAddr(
+      process.env.NEXT_PUBLIC_SOLANA_BATCH_SETTLER,
       "GpR6id2cHu5fUGsFm7NUKkB4NzfuEDa6brPzkSrgAzvS",
+    ),
   ),
   marginPool: new PublicKey(
-    process.env.NEXT_PUBLIC_SOLANA_MARGIN_POOL ??
+    envAddr(
+      process.env.NEXT_PUBLIC_SOLANA_MARGIN_POOL,
       "Hp7XDp9USyoid2f7cJKPxmDrvHM2D8izeeGzkViPiy5r",
+    ),
   ),
   controller: new PublicKey(
-    process.env.NEXT_PUBLIC_SOLANA_CONTROLLER ??
+    envAddr(
+      process.env.NEXT_PUBLIC_SOLANA_CONTROLLER,
       "FH3z4BYRZMFU8YzpJoFXUbrdoYksdERnWbZvDAEc3qcC",
+    ),
   ),
 } as const;
 
-const SOLANA_ALT_ADDRESS = process.env.NEXT_PUBLIC_SOLANA_ALT_ADDRESS ?? "";
-const SOLANA_USDC_POOL_TOKEN_ACCOUNT =
-  process.env.NEXT_PUBLIC_SOLANA_USDC_POOL_TOKEN_ACCOUNT ??
-  "Gd27sN9HKzBhQmedn6twMTmqSvsHqzSWhTcBt7nnz2hx";
-const SOLANA_WSOL_POOL_TOKEN_ACCOUNT =
-  process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT ??
-  "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg";
+const SOLANA_ALT_ADDRESS = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_ALT_ADDRESS,
+  "",
+);
+const SOLANA_USDC_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_USDC_POOL_TOKEN_ACCOUNT,
+  "Gd27sN9HKzBhQmedn6twMTmqSvsHqzSWhTcBt7nnz2hx",
+);
+const SOLANA_WSOL_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
+  "5n8CAf7wYuAdqcc1kLy2peGLFAAaBCvvbvtpaA3VXRhg",
+);
+const SOLANA_TSLAX_POOL_TOKEN_ACCOUNT = envAddr(
+  process.env.NEXT_PUBLIC_SOLANA_TSLAX_POOL_TOKEN_ACCOUNT,
+  "",
+);
 
 let cachedAlt: AddressLookupTableAccount | null = null;
 
@@ -103,6 +124,8 @@ async function findControllerPoolTokenAccount(
   poolVaultAuthority: PublicKey,
   usdcMint: PublicKey,
   wsolMint: PublicKey,
+  tslaxMint: PublicKey,
+  tokenProgramId: PublicKey,
 ): Promise<PublicKey> {
   if (mint.equals(usdcMint) && SOLANA_USDC_POOL_TOKEN_ACCOUNT) {
     return toPublicKey(
@@ -114,6 +137,12 @@ async function findControllerPoolTokenAccount(
     return toPublicKey(
       SOLANA_WSOL_POOL_TOKEN_ACCOUNT,
       "Solana wSOL pool token account",
+    );
+  }
+  if (mint.equals(tslaxMint) && SOLANA_TSLAX_POOL_TOKEN_ACCOUNT) {
+    return toPublicKey(
+      SOLANA_TSLAX_POOL_TOKEN_ACCOUNT,
+      "Solana TSLAx pool token account",
     );
   }
   if (!solanaConnection) {
@@ -132,8 +161,15 @@ async function findControllerPoolTokenAccount(
     mint,
     poolVaultAuthority,
     true,
-    TOKEN_PROGRAM_ID,
+    tokenProgramId,
   );
+}
+
+function getCollateralTokenProgram(assetSlug: string, isBuy: boolean): PublicKey {
+  if (!isBuy && assetSlug === "tslax") {
+    return TOKEN_2022_PROGRAM_ID;
+  }
+  return TOKEN_PROGRAM_ID;
 }
 
 // ---------------------------------------------------------------------------
@@ -245,10 +281,13 @@ export async function buildSolanaTradeSetupTransaction(
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
   const { collateral } = computeCollateral(isBuy, amount, quote.strike, assetSlug);
-  const collateralMint = toPublicKey(
-    isBuy ? SOLANA_USDC_MINT : SOLANA_WSOL_MINT,
-    "collateral mint",
-  );
+  const collateralMintStr = isBuy
+    ? SOLANA_USDC_MINT
+    : assetSlug === "tslax"
+      ? SOLANA_TSLAX_MINT
+      : SOLANA_WSOL_MINT;
+  const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
+  const collateralTokenProgram = getCollateralTokenProgram(assetSlug, isBuy);
   const oTokenMint = toPublicKey(quote.otoken_address!, "oToken mint");
 
   const [settlerConfigPda] = PublicKey.findProgramAddressSync(
@@ -257,7 +296,7 @@ export async function buildSolanaTradeSetupTransaction(
   );
 
   const userCollateralAccount = await getAssociatedTokenAddress(
-    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+    collateralMint, ownerPubkey, false, collateralTokenProgram,
   );
   const settlerOtokenAccount = await getAssociatedTokenAddress(
     oTokenMint, settlerConfigPda, true, TOKEN_PROGRAM_ID,
@@ -304,7 +343,7 @@ export async function buildSolanaTradeSetupTransaction(
           userCollateralAccount,
           ownerPubkey,
           collateralMint,
-          TOKEN_PROGRAM_ID,
+          collateralTokenProgram,
           ASSOCIATED_TOKEN_PROGRAM_ID,
         ),
       );
@@ -325,7 +364,7 @@ export async function buildSolanaTradeSetupTransaction(
       ownerPubkey,
       collateral,
       [],
-      TOKEN_PROGRAM_ID,
+      collateralTokenProgram,
     ));
   }
 
@@ -358,6 +397,13 @@ function readSplTokenOwner(data: Buffer): PublicKey {
     throw new Error("SPL token account data is too short to read owner");
   }
   return readPubkeyAt(data, 32);
+}
+
+function readSplTokenAmount(data: Buffer): bigint {
+  if (data.length < 72) {
+    throw new Error("SPL token account data is too short to read amount");
+  }
+  return data.readBigUInt64LE(64);
 }
 
 function expectedNetPremiumRaw(
@@ -407,7 +453,7 @@ function assertSolanaPremiumScale(
  * Privy's `signSolanaTransaction()`.
  *
  * Single sponsored tx containing: ATA creates (idempotent) +
- * SPL approve + Ed25519 verify + executeOrder (23 accounts).
+ * SPL approve + Ed25519 verify + executeOrder.
  * Uses Address Lookup Table to compress below 1232-byte limit.
  */
 export async function buildSolanaTradeTransaction(
@@ -421,6 +467,7 @@ export async function buildSolanaTradeTransaction(
   wrapSolLamports: bigint = BigInt(0),
   includeSetupInstructions = true,
   includeApproveInstruction = true,
+  feePayerPubkey: PublicKey = ownerPubkey,
 ): Promise<VersionedTransaction> {
   if (!solanaConnection) {
     throw new Error("Solana RPC not configured");
@@ -443,8 +490,10 @@ export async function buildSolanaTradeTransaction(
       ? "wSOL"
       : assetSlug.toUpperCase();
   const collateralMint = toPublicKey(collateralMintStr, "collateral mint");
+  const collateralTokenProgram = getCollateralTokenProgram(assetSlug, isBuy);
 
   const usdcMint = toPublicKey(SOLANA_USDC_MINT, "USDC mint");
+  const tslaxMint = toPublicKey(SOLANA_TSLAX_MINT, "TSLAx mint");
   const oTokenMint = toPublicKey(quote.otoken_address!, "oToken mint");
   const makerPubkey = toPublicKey(quote.mm_address!, "maker pubkey");
 
@@ -457,14 +506,25 @@ export async function buildSolanaTradeTransaction(
     SOLANA_PROGRAMS.batchSettler,
   );
 
+  const [rentReservePda] = PublicKey.findProgramAddressSync(
+    [Buffer.from("rent_reserve")],
+    SOLANA_PROGRAMS.batchSettler,
+  );
+
   const [makerStatePda] = PublicKey.findProgramAddressSync(
     [Buffer.from("maker"), makerPubkey.toBuffer()],
     SOLANA_PROGRAMS.batchSettler,
   );
 
   const quoteIdLe8 = u64Le(BigInt(quote.quote_id!));
+  const makerNonceLe8 = u64Le(BigInt(quote.maker_nonce!));
   const [quoteFillPda] = PublicKey.findProgramAddressSync(
-    [Buffer.from("quote_fill"), makerPubkey.toBuffer(), quoteIdLe8],
+    [
+      Buffer.from("quote_fill"),
+      makerPubkey.toBuffer(),
+      makerNonceLe8,
+      quoteIdLe8,
+    ],
     SOLANA_PROGRAMS.batchSettler,
   );
 
@@ -538,6 +598,8 @@ export async function buildSolanaTradeTransaction(
     poolVaultAuthorityPda,
     usdcMint,
     toPublicKey(SOLANA_WSOL_MINT, "wSOL mint"),
+    tslaxMint,
+    collateralTokenProgram,
   );
 
   const poolTokenInfo = await solanaConnection.getAccountInfo(poolTokenAccountPubkey);
@@ -583,7 +645,7 @@ export async function buildSolanaTradeTransaction(
   const premiumMint = usdcMint;
 
   const userCollateralAccount = await getAssociatedTokenAddress(
-    collateralMint, ownerPubkey, false, TOKEN_PROGRAM_ID,
+    collateralMint, ownerPubkey, false, collateralTokenProgram,
   );
 
   // settlerConfig owns ATAs — must allow off-curve
@@ -648,7 +710,7 @@ export async function buildSolanaTradeTransaction(
           userCollateralAccount,
           ownerPubkey,
           collateralMint,
-          TOKEN_PROGRAM_ID,
+          collateralTokenProgram,
           ASSOCIATED_TOKEN_PROGRAM_ID,
         ),
       );
@@ -663,10 +725,27 @@ export async function buildSolanaTradeTransaction(
     instructions.push(createSyncNativeInstruction(userCollateralAccount, TOKEN_PROGRAM_ID));
   }
 
-  if (!isBuy && (wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
-    throw new Error(
-      "Insufficient wSOL for this trade. Wrap SOL before executing.",
-    );
+  if (!isBuy) {
+    if (assetSlug === "sol") {
+      if ((wsolBalance ?? BigInt(0)) + wrapSolLamports < collateral) {
+        throw new Error(
+          "Insufficient wSOL for this trade. Wrap SOL before executing.",
+        );
+      }
+    } else if (!userCollateralAccountInfo) {
+      throw new Error(
+        `No ${collateralLabel} token account found in your Solana trading account.`,
+      );
+    } else {
+      const userCollateralBalance = readSplTokenAmount(
+        Buffer.from(userCollateralAccountInfo.data),
+      );
+      if (userCollateralBalance < collateral) {
+        throw new Error(
+          `Insufficient ${collateralLabel} in your Solana trading account.`,
+        );
+      }
+    }
   }
 
   if (includeApproveInstruction) {
@@ -676,7 +755,7 @@ export async function buildSolanaTradeTransaction(
       ownerPubkey,
       collateral,
       [],
-      TOKEN_PROGRAM_ID,
+      collateralTokenProgram,
     ));
   }
 
@@ -684,14 +763,15 @@ export async function buildSolanaTradeTransaction(
   // Ed25519 precompile instruction — verify maker signature
   // ---------------------------------------------------------------------------
 
-  // Build the 72-byte quote message that the maker signed
-  const quoteMessage = Buffer.alloc(72);
+  // Build the 104-byte quote message that the maker signed.
+  const quoteMessage = Buffer.alloc(104);
   oTokenMint.toBuffer().copy(quoteMessage, 0);                              // 32 bytes
-  quoteMessage.writeBigUInt64LE(BigInt(quote.bid_price_raw!), 32);          //  8 bytes
-  quoteMessage.writeBigInt64LE(BigInt(quote.deadline!), 40);                //  8 bytes (signed)
-  quoteMessage.writeBigUInt64LE(BigInt(quote.quote_id!), 48);               //  8 bytes
-  quoteMessage.writeBigUInt64LE(BigInt(quote.max_amount_raw!), 56);         //  8 bytes
-  quoteMessage.writeBigUInt64LE(BigInt(quote.maker_nonce!), 64);            //  8 bytes
+  premiumMint.toBuffer().copy(quoteMessage, 32);                            // 32 bytes
+  quoteMessage.writeBigUInt64LE(BigInt(quote.bid_price_raw!), 64);          //  8 bytes
+  quoteMessage.writeBigInt64LE(BigInt(quote.deadline!), 72);                //  8 bytes (signed)
+  quoteMessage.writeBigUInt64LE(BigInt(quote.quote_id!), 80);               //  8 bytes
+  quoteMessage.writeBigUInt64LE(BigInt(quote.max_amount_raw!), 88);         //  8 bytes
+  quoteMessage.writeBigUInt64LE(BigInt(quote.maker_nonce!), 96);            //  8 bytes
 
   const signatureBytes: Uint8Array = bs58.decode(quote.signature!);
 
@@ -703,17 +783,18 @@ export async function buildSolanaTradeTransaction(
   instructions.push(ed25519Ix);
 
   // ---------------------------------------------------------------------------
-  // executeOrder instruction — 23 accounts, IDL-correct args
+  // executeOrder instruction — IDL-correct args/accounts.
   // ---------------------------------------------------------------------------
 
   const discriminator = Buffer.from("733db418a820d714", "hex");
 
   // Args: discriminator(8) + amount(8) + bid_price(8) + deadline(8, signed)
-  //       + quote_id(8) + max_amount(8) + maker_nonce(8) + collateral_amount(8)
-  //       + collateral_mint(32) = 88 bytes total
+  //       + quote_id(8) + max_amount(8) + maker_nonce(8) + premium_mint(32)
+  //       + collateral_amount(8) + collateral_mint(32) = 128 bytes total
   const deadlineBuf = Buffer.alloc(8);
   deadlineBuf.writeBigInt64LE(BigInt(quote.deadline!), 0);
 
+  const premiumMintBuf = premiumMint.toBuffer();
   const collateralMintBuf = collateralMint.toBuffer();
 
   const ixData = Buffer.concat([
@@ -723,7 +804,8 @@ export async function buildSolanaTradeTransaction(
     deadlineBuf,
     u64Le(BigInt(quote.quote_id!)),
     u64Le(BigInt(quote.max_amount_raw!)),
-    u64Le(BigInt(quote.maker_nonce!)),
+    makerNonceLe8,
+    premiumMintBuf,
     u64Le(collateral),
     collateralMintBuf,
   ]);
@@ -733,49 +815,59 @@ export async function buildSolanaTradeTransaction(
     keys: [
       // [0]  settlerConfig
       { pubkey: settlerConfigPda, isSigner: false, isWritable: true },
-      // [1]  makerState
+      // [1]  rentReserve
+      { pubkey: rentReservePda, isSigner: false, isWritable: true },
+      // [2]  makerState
       { pubkey: makerStatePda, isSigner: false, isWritable: false },
-      // [2]  quoteFill
+      // [3]  quoteFill
       { pubkey: quoteFillPda, isSigner: false, isWritable: true },
-      // [3]  controllerConfig
+      // [4]  controllerConfig
       { pubkey: controllerConfigPda, isSigner: false, isWritable: false },
-      // [4]  vault
+      // [5]  vault
       { pubkey: vaultPda, isSigner: false, isWritable: true },
-      // [5]  vaultCounter
+      // [6]  vaultCounter
       { pubkey: vaultCounterPda, isSigner: false, isWritable: true },
-      // [6]  otokenInfo
+      // [7]  otokenInfo
       { pubkey: otokenInfoPda, isSigner: false, isWritable: false },
-      // [7]  otokenMint
+      // [8]  otokenMint
       { pubkey: oTokenMint, isSigner: false, isWritable: true },
-      // [8]  userCollateralAccount
+      // [9]  collateralMintAccount
+      { pubkey: collateralMint, isSigner: false, isWritable: false },
+      // [10] premiumMintAccount
+      { pubkey: premiumMint, isSigner: false, isWritable: false },
+      // [11] userCollateralAccount
       { pubkey: userCollateralAccount, isSigner: false, isWritable: true },
-      // [9]  poolTokenAccount
+      // [12] poolTokenAccount
       { pubkey: poolTokenAccountPubkey, isSigner: false, isWritable: true },
-      // [10] poolVaultAuthority
+      // [13] poolVaultAuthority
       { pubkey: poolVaultAuthorityPda, isSigner: false, isWritable: false },
-      // [11] settlerOtokenAccount
+      // [14] settlerOtokenAccount
       { pubkey: settlerOtokenAccount, isSigner: false, isWritable: true },
-      // [12] mmPremiumAccount
+      // [15] mmPremiumAccount
       { pubkey: mmPremiumAccount, isSigner: false, isWritable: true },
-      // [13] userPremiumAccount
+      // [16] userPremiumAccount
       { pubkey: userPremiumAccount, isSigner: false, isWritable: true },
-      // [14] treasuryAccount
+      // [17] treasuryAccount
       { pubkey: treasuryAccount, isSigner: false, isWritable: true },
-      // [15] makerOtokenBalance
+      // [18] makerOtokenBalance
       { pubkey: makerOtokenBalancePda, isSigner: false, isWritable: true },
-      // [16] vaultMm
+      // [19] vaultMm
       { pubkey: vaultMmPda, isSigner: false, isWritable: true },
-      // [17] user
+      // [20] user
       { pubkey: ownerPubkey, isSigner: true, isWritable: true },
-      // [18] maker
+      // [21] maker
       { pubkey: makerPubkey, isSigner: false, isWritable: false },
-      // [19] controllerProgram
+      // [22] controllerProgram
       { pubkey: SOLANA_PROGRAMS.controller, isSigner: false, isWritable: false },
-      // [20] tokenProgram
+      // [23] collateralTokenProgram
+      { pubkey: collateralTokenProgram, isSigner: false, isWritable: false },
+      // [24] otokenTokenProgram
       { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
-      // [21] systemProgram
+      // [25] premiumTokenProgram
+      { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false },
+      // [26] systemProgram
       { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-      // [22] instructionsSysvar
+      // [27] instructionsSysvar
       { pubkey: SYSVAR_INSTRUCTIONS_PUBKEY, isSigner: false, isWritable: false },
     ],
     data: ixData,
@@ -786,7 +878,7 @@ export async function buildSolanaTradeTransaction(
   const { blockhash } = await solanaConnection.getLatestBlockhash();
 
   const msgV0 = new TransactionMessage({
-    payerKey: ownerPubkey,
+    payerKey: feePayerPubkey,
     recentBlockhash: blockhash,
     instructions,
   }).compileToV0Message([altAccount]);

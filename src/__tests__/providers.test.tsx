@@ -5,6 +5,11 @@ import { createElement, type ReactNode } from "react";
 const ORIGINAL_ENV = { ...process.env };
 
 const privyProviderSpy = vi.fn();
+const mockUsePathname = vi.fn(() => "/");
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => mockUsePathname(),
+}));
 
 vi.mock("@privy-io/react-auth", () => ({
   PrivyProvider: (props: { config: unknown; children: ReactNode }) => {
@@ -37,13 +42,18 @@ vi.mock("@/lib/contracts", () => ({
 }));
 
 vi.mock("@/lib/solana", () => ({
+  SOLANA_CHAIN: "solana:mainnet",
   SOLANA_RPC_URL: "https://api.devnet.solana.com",
+  solanaWsUrl: () => "wss://api.devnet.solana.com",
 }));
 
 type PrivyConfig = {
   embeddedWallets?: {
     solana?: { createOnLogin?: string };
     ethereum?: { createOnLogin?: string };
+  };
+  solana?: {
+    rpcs?: Record<string, unknown>;
   };
 };
 
@@ -56,8 +66,10 @@ describe("buildPrivyConfig", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
+    delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     privyProviderSpy.mockClear();
+    mockUsePathname.mockReturnValue("/");
   });
 
   afterEach(() => {
@@ -71,25 +83,36 @@ describe("buildPrivyConfig", () => {
     const config = mod.buildPrivyConfig();
 
     expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
-    expect(config.embeddedWallets?.ethereum?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.ethereum?.createOnLogin).toBe("off");
+    expect(config.solana?.rpcs).toHaveProperty("solana:mainnet");
   });
 
-  it("keeps Solana embedded wallet creation on in devnet", async () => {
+  it("keeps Solana embedded wallet creation off in devnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     const mod = await loadProvidersModule();
 
     const config = mod.buildPrivyConfig();
 
-    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 
-  it("keeps Solana embedded wallet creation on in testnet", async () => {
+  it("keeps Solana embedded wallet creation off in mainnet when explicitly enabled", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    process.env.NEXT_PUBLIC_SOLANA_ENABLED = "true";
+    const mod = await loadProvidersModule();
+
+    const config = mod.buildPrivyConfig();
+
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
+  });
+
+  it("keeps Solana embedded wallet creation off in testnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "testnet";
     const mod = await loadProvidersModule();
 
     const config = mod.buildPrivyConfig();
 
-    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 });
 
@@ -97,9 +120,11 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
+    delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = "test-app-id";
     privyProviderSpy.mockClear();
+    mockUsePathname.mockReturnValue("/");
   });
 
   afterEach(() => {
@@ -123,7 +148,7 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
     expect(call.config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 
-  it("passes createOnLogin all-users to PrivyProvider in devnet", async () => {
+  it("passes Solana createOnLogin off to PrivyProvider in devnet", async () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
     const { Providers } = await loadProvidersModule();
 
@@ -137,6 +162,6 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
 
     expect(privyProviderSpy).toHaveBeenCalledTimes(1);
     const call = privyProviderSpy.mock.calls[0][0] as { config: PrivyConfig };
-    expect(call.config.embeddedWallets?.solana?.createOnLogin).toBe("all-users");
+    expect(call.config.embeddedWallets?.solana?.createOnLogin).toBe("off");
   });
 });

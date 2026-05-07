@@ -39,6 +39,7 @@ describe("marketState helpers", () => {
   beforeEach(() => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
+    delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
   });
 
   afterEach(() => {
@@ -59,6 +60,16 @@ describe("marketState helpers", () => {
     const mod = await loadMarketStateModule();
 
     expect(mod.isProductionReadOnlyAsset({ slug: "sol", chain: "solana" })).toBe(false);
+  });
+
+  it("keeps Solana assets tradable in production when explicitly enabled", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+    process.env.NEXT_PUBLIC_SOLANA_ENABLED = "true";
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isProductionReadOnlyAsset({ slug: "sol", chain: "solana" })).toBe(false);
+    expect(mod.isProductionReadOnlyAsset({ slug: "tslax", chain: "solana" })).toBe(false);
+    expect(mod.isSolanaOffInProd()).toBe(false);
   });
 
   it("flags Solana as off in production (mainnet)", async () => {

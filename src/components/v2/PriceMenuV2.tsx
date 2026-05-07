@@ -2,12 +2,14 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
+import { Check, Copy } from "lucide-react";
 import { usePrices } from "@/hooks/usePrices";
 import { useSpot } from "@/hooks/useSpot";
 import { useCapacity } from "@/hooks/useCapacity";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
 import { HowItWorksDrawer } from "../HowItWorksDrawer";
@@ -16,12 +18,11 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import { isExecutableQuote, isProductionReadOnlyAsset } from "@/lib/marketState";
-import { SOLANA_NATIVE_RESERVE_LAMPORTS, solanaTxUrl } from "@/lib/solana";
+import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
-import { formatApr } from "@/lib/yield";
-import { useAaveRates } from "@/hooks/useAaveRates";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
+import type { Address } from "viem";
 import { AssetSelector } from "./AssetSelector";
 import { RangeEarn } from "./RangeEarn";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
@@ -55,7 +56,6 @@ function daysUntil(expiryDate: string): number {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 const MIN_DISPLAY_APR = 3;
-const RAW_COLLATERAL_BUFFER = BigInt(1);
 
 function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
   const divisor = BigInt(10) ** BigInt(9 - decimals);
@@ -176,18 +176,37 @@ function StrikeCard({
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices(asset.slug);
-  const { rates: aaveRates } = useAaveRates();
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot;
   const { capacity } = useCapacity(asset.slug);
   const { address, solanaAddress, isConnected } = useWallet();
-  const { usd, eth, weth, wbtc } = useBalances(address);
+  const { wallets: b1naryWallets } = useB1naryAccount({
+    autoSyncTrustedWallets: false,
+  });
+  const b1naryTradingWallets = b1naryWallets.filter((wallet) =>
+    wallet.role === "trading" &&
+    wallet.verified_at &&
+    (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+  );
+  const b1naryBaseAddresses = b1naryTradingWallets
+    .filter((wallet) => wallet.chain === "base")
+    .map((wallet) => wallet.address as Address);
+  const b1narySolanaAddresses = b1naryTradingWallets
+    .filter((wallet) => wallet.chain === "solana")
+    .map((wallet) => wallet.address);
+  const { usd, eth, weth, wbtc } = useBalances(
+    b1naryBaseAddresses.length > 0 ? b1naryBaseAddresses : address,
+  );
   const {
     solanaUsdc,
     solanaWsolRaw,
     solanaSolRaw,
     solanaTslax,
-  } = useSolanaBalance(solanaAddress);
+  } = useSolanaBalance(
+    b1narySolanaAddresses.length > 0
+      ? b1narySolanaAddresses
+      : solanaAddress,
+  );
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
@@ -212,23 +231,14 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
   const isSol = asset.slug === "sol";
-  const isSolanaAsset = asset.chain === "solana";
   const marketReadOnly = isProductionReadOnlyAsset(asset);
-  const wrappableSolRaw =
-    solanaSolRaw > SOLANA_NATIVE_RESERVE_LAMPORTS
-      ? solanaSolRaw - SOLANA_NATIVE_RESERVE_LAMPORTS
-      : BigInt(0);
-  const solMaxByBalanceRaw =
-    solanaWsolRaw + wrappableSolRaw > RAW_COLLATERAL_BUFFER
-      ? solanaWsolRaw + wrappableSolRaw - RAW_COLLATERAL_BUFFER
-      : BigInt(0);
-  const solCollateralBalance = Number(solanaWsolRaw + wrappableSolRaw) / 1e9;
+  const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
   const walletBalance = isBuy
     ? usd + solanaUsdc
     : asset.slug === "tslax"
       ? solanaTslax
       : isSol
-        ? solCollateralBalance
+        ? solTotalBalance
         : isBtc
           ? wbtc
           : eth + weth;
@@ -325,9 +335,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   function handlePercentShortcut(pct: number) {
     if (!isBuy && isSol) {
       const capRaw = BigInt(Math.floor(capEth * 1e9));
-      const rawAvailable = solMaxByBalanceRaw < capRaw ? solMaxByBalanceRaw : capRaw;
+      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
+      const rawAvailable = solTotalRaw < capRaw ? solTotalRaw : capRaw;
       const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
-      setAmountStr(formatSolRawAmount(raw));
+      setAmountStr(formatSolRawAmount(raw, asset.displayDecimals));
       return;
     }
 
@@ -533,18 +544,28 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         >
           How does this work?
         </button>
-        <button
-          onClick={() => {
-            const url = `${window.location.origin}/llms.txt`;
-            navigator.clipboard.writeText(url).then(() => {
-              setCopied(true);
-              setTimeout(() => setCopied(false), 2000);
-            }).catch(() => {});
-          }}
-          className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-        >
-          {copied ? "Copied!" : "Share with your AI"}
-        </button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={() => {
+                const url = `${window.location.origin}/llms.txt`;
+                navigator.clipboard.writeText(url).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                }).catch((err) => {
+                  console.warn("[PriceMenuV2] Clipboard write failed:", err);
+                });
+              }}
+              className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none inline-flex items-center gap-1.5"
+            >
+              {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
+              {copied ? "AI context copied" : "Copy AI context"}
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">
+            <p>Copies our llms.txt link so you can paste it into ChatGPT, Claude, or another AI for context on how B1NARY works.</p>
+          </TooltipContent>
+        </Tooltip>
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-y-3 animate-fade-in-up">
@@ -621,9 +642,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Set a price you&apos;d buy {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
                 </p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Your USDC also earns {formatApr(aaveRates.usdc ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while committed
-                </p>
               </>
             )}
             {side === "sell" && (
@@ -635,9 +653,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   Set a price you&apos;d sell {asset.symbol} at. A market maker pays you for that commitment.
                   Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
                 </p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Your {asset.symbol} also earns {formatApr(aaveRates[asset.slug] ?? 0)} APR via {isSolanaAsset ? "Kamino" : "Aave"} while committed
-                </p>
               </>
             )}
             {side === "range" && (
@@ -648,9 +663,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 <p className="text-sm text-[var(--text-secondary)]">
                   Set a buy price and a sell price. You earn from both commitments.
                   If {asset.symbol} stays in your range, everything comes back. You keep both payments.
-                </p>
-                <p className="text-xs text-amber-400/80 mt-1">
-                  Collateral earns {isSolanaAsset ? "Kamino" : "Aave"} yield: {formatApr(aaveRates.usdc ?? 0)} on USDC · {formatApr(aaveRates[asset.slug] ?? 0)} on {asset.symbol}
                 </p>
               </>
             )}
@@ -742,9 +754,19 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
-                Balance: <span className="font-mono">{isBuy
-                  ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                  : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
+                {isSol && !isBuy ? (
+                  <>
+                    Balance: <span className="font-mono">
+                      {floorTo(solTotalBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} {asset.symbol}
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    Balance: <span className="font-mono">{isBuy
+                      ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
+                  </>
+                )}
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
@@ -926,6 +948,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           assetSlug={asset.slug}
           yieldMetric={yieldMetric}
           onClose={() => setConfirming(false)}
+          onQuoteInvalid={() => {
+            setConfirming(false);
+            setSelectedQuote(null);
+            void refresh();
+          }}
           onAccepted={({ amount: amt, txHash: hash }) => {
             setConfirming(false);
             setAccepted({ quote: selectedQuote, side: side as "buy" | "sell", amount: amt, txHash: hash });
