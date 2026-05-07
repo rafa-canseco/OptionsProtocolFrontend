@@ -258,7 +258,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     sendSolanaSolWithdraw,
     signSolanaTransaction,
     activateSmartWallet,
-    connectWallet,
+    connectFundingWallet,
     disconnect,
   } = useWallet();
   const solanaDisabled = isSolanaOffInProd();
@@ -429,12 +429,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       });
       return;
     }
-    connectWallet({
+    connectFundingWallet({
       walletList,
       walletChainType,
       description: `Choose the ${chainLabel(chain)} wallet you want to use for deposits and withdrawals.`,
     });
-  }, [authenticated, chain, connectWallet, login]);
+  }, [authenticated, chain, connectFundingWallet, login]);
 
   const handleMax = useCallback(() => {
     if (maxSpendableRaw > BigInt(0)) {
