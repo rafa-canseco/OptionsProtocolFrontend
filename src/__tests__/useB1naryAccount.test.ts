@@ -52,6 +52,7 @@ vi.mock("@/lib/api", () => ({
 
 describe("useB1naryAccount", () => {
   beforeEach(() => {
+    vi.resetModules();
     vi.clearAllMocks();
     state.privy.user.smartWallet = { address: "0xSmartWallet" };
     state.smartWalletClientAddress = "0xSmartWallet";

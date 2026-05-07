@@ -35,6 +35,23 @@ interface UseB1naryAccountOptions {
   autoSyncTrustedWallets?: boolean;
 }
 
+const ACCOUNT_CACHE_MS = 30_000;
+const WALLET_LOOKUP_CACHE_MS = 30_000;
+const RATE_LIMIT_COOLDOWN_MS = 30_000;
+
+type B1naryAccountResponse = Awaited<ReturnType<typeof api.getB1naryAccount>>;
+
+interface CachedResponse {
+  response: B1naryAccountResponse;
+  expiresAt: number;
+}
+
+const accountCache = new Map<string, CachedResponse>();
+const walletLookupCache = new Map<string, CachedResponse>();
+const accountRequests = new Map<string, Promise<B1naryAccountResponse>>();
+const walletLookupRequests = new Map<string, Promise<B1naryAccountResponse>>();
+const rateLimitedUntil = new Map<string, number>();
+
 function walletAccounts(user: User | null): WalletAccount[] {
   return (user?.linkedAccounts ?? []).filter(
     (account): account is WalletAccount => account.type === "wallet",
@@ -55,6 +72,127 @@ function candidateKey(candidate: TrustedB1naryWalletCandidate): string {
 
 function lookupKey(candidate: B1naryWalletLookupCandidate): string {
   return `${candidate.chain}:${normalizeAddress(candidate.chain, candidate.address)}`;
+}
+
+function isRateLimitError(err: unknown): boolean {
+  return err instanceof Error && err.message.includes("API 429:");
+}
+
+function cacheResponse(
+  cache: Map<string, CachedResponse>,
+  key: string,
+  response: B1naryAccountResponse,
+  ttlMs: number,
+) {
+  cache.set(key, {
+    response,
+    expiresAt: Date.now() + ttlMs,
+  });
+}
+
+function getCachedResponse(
+  cache: Map<string, CachedResponse>,
+  key: string,
+): B1naryAccountResponse | null {
+  const cached = cache.get(key);
+  if (!cached) return null;
+  if (cached.expiresAt < Date.now()) {
+    cache.delete(key);
+    return null;
+  }
+  return cached.response;
+}
+
+function markRateLimited(key: string) {
+  rateLimitedUntil.set(key, Date.now() + RATE_LIMIT_COOLDOWN_MS);
+}
+
+function isCoolingDown(key: string): boolean {
+  const until = rateLimitedUntil.get(key);
+  if (!until) return false;
+  if (until < Date.now()) {
+    rateLimitedUntil.delete(key);
+    return false;
+  }
+  return true;
+}
+
+async function getB1naryAccountDeduped(
+  privyUserId: string,
+): Promise<B1naryAccountResponse> {
+  const key = `privy:${privyUserId}`;
+  const cached = getCachedResponse(accountCache, key);
+  if (cached) return cached;
+
+  if (isCoolingDown(key)) {
+    return { account: null, members: [], wallets: [] };
+  }
+
+  const existing = accountRequests.get(key);
+  if (existing) return existing;
+
+  const request = api.getB1naryAccount(privyUserId)
+    .then((response) => {
+      cacheResponse(accountCache, key, response, ACCOUNT_CACHE_MS);
+      return response;
+    })
+    .catch((err) => {
+      if (isRateLimitError(err)) {
+        markRateLimited(key);
+        return { account: null, members: [], wallets: [] };
+      }
+      throw err;
+    })
+    .finally(() => {
+      accountRequests.delete(key);
+    });
+  accountRequests.set(key, request);
+  return request;
+}
+
+async function getB1naryAccountByWalletDeduped(
+  candidate: B1naryWalletLookupCandidate,
+): Promise<B1naryAccountResponse> {
+  const key = `wallet:${lookupKey(candidate)}`;
+  const cached = getCachedResponse(walletLookupCache, key);
+  if (cached) return cached;
+
+  if (isCoolingDown(key)) {
+    return { account: null, members: [], wallets: [] };
+  }
+
+  const existing = walletLookupRequests.get(key);
+  if (existing) return existing;
+
+  const request = api.getB1naryAccountByWallet(candidate.chain, candidate.address)
+    .then((response) => {
+      cacheResponse(walletLookupCache, key, response, WALLET_LOOKUP_CACHE_MS);
+      return response;
+    })
+    .catch((err) => {
+      if (isRateLimitError(err)) {
+        markRateLimited(key);
+        return { account: null, members: [], wallets: [] };
+      }
+      throw err;
+    })
+    .finally(() => {
+      walletLookupRequests.delete(key);
+    });
+  walletLookupRequests.set(key, request);
+  return request;
+}
+
+function parseLookupSignature(signature: string): B1naryWalletLookupCandidate[] {
+  if (!signature) return [];
+  return signature.split("|").flatMap((key) => {
+    const separator = key.indexOf(":");
+    if (separator === -1) return [];
+    const chain = key.slice(0, separator);
+    const address = key.slice(separator + 1);
+    if ((chain !== "base" && chain !== "solana") || !address) return [];
+    return [{ chain, address }];
+  });
 }
 
 function uniqueCandidates(
@@ -149,6 +287,11 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
     wallets,
   ]);
 
+  const walletLookupSignature = useMemo(
+    () => walletLookupCandidates.map(lookupKey).join("|"),
+    [walletLookupCandidates],
+  );
+
   const trustedWalletCandidates = useMemo(() => {
     const smartWalletAddress = client?.account?.address ?? user?.smartWallet?.address;
     const embeddedEvmWallet = wallets.find((wallet) =>
@@ -231,7 +374,7 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
 
     setLoading(true);
     try {
-      const response = await api.getB1naryAccount(privyUserId);
+      const response = await getB1naryAccountDeduped(privyUserId);
       if (response.account) {
         setAccount(response.account);
         setMembers(response.members);
@@ -240,13 +383,10 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
         return;
       }
 
-      for (const candidate of walletLookupCandidates) {
+      for (const candidate of parseLookupSignature(walletLookupSignature)) {
         let walletResponse;
         try {
-          walletResponse = await api.getB1naryAccountByWallet(
-            candidate.chain,
-            candidate.address,
-          );
+          walletResponse = await getB1naryAccountByWalletDeduped(candidate);
         } catch (walletErr) {
           console.warn(
             "[useB1naryAccount] wallet account lookup failed:",
@@ -261,6 +401,7 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
             walletResponse.account.id,
             privyUserId,
           );
+          cacheResponse(accountCache, `privy:${privyUserId}`, memberResponse, ACCOUNT_CACHE_MS);
           setAccount(memberResponse.account);
           setMembers(memberResponse.members);
           setLinkedWallets(memberResponse.wallets);
@@ -282,11 +423,15 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
       setLinkedWallets([]);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load b1nary account");
+      if (isRateLimitError(err)) {
+        setError(null);
+      } else {
+        setError(err instanceof Error ? err.message : "Could not load b1nary account");
+      }
     } finally {
       setLoading(false);
     }
-  }, [authenticated, privyUserId, ready, walletLookupCandidates]);
+  }, [authenticated, privyUserId, ready, walletLookupSignature]);
 
   useEffect(() => {
     void refresh();
@@ -297,6 +442,7 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
       throw new Error("Privy user not ready");
     }
     const response = await api.createB1naryAccount(username, privyUserId);
+    cacheResponse(accountCache, `privy:${privyUserId}`, response, ACCOUNT_CACHE_MS);
     setAccount(response.account);
     setMembers(response.members);
     setLinkedWallets(response.wallets);
@@ -351,7 +497,18 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
               wallet,
             );
           }
-          return Array.from(byKey.values());
+          const nextWallets = Array.from(byKey.values());
+          cacheResponse(
+            accountCache,
+            `privy:${privyUserId}`,
+            {
+              account: targetAccount,
+              members,
+              wallets: nextWallets,
+            },
+            ACCOUNT_CACHE_MS,
+          );
+          return nextWallets;
         });
       }
       setError(null);
@@ -362,7 +519,7 @@ export function useB1naryAccount(options: UseB1naryAccountOptions = {}) {
     } finally {
       setSyncing(false);
     }
-  }, [account, linkedWallets, privyUserId, trustedWalletCandidates]);
+  }, [account, linkedWallets, members, privyUserId, trustedWalletCandidates]);
 
   useEffect(() => {
     if (!autoSyncTrustedWallets || !account || loading || syncing) return;
