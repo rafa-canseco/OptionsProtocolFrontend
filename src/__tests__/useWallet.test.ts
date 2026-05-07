@@ -14,7 +14,6 @@ const mockLogout = vi.fn();
 const mockCreateEvmWallet = vi.fn();
 const mockCreateSolanaWallet = vi.fn();
 const mockConnectWallet = vi.fn();
-const mockLinkWallet = vi.fn();
 const mockRefreshUser = vi.fn();
 let mockPrivyState = {
   authenticated: true,
@@ -33,12 +32,6 @@ vi.mock("@privy-io/react-auth", () => ({
   useConnectWallet: (callbacks?: { onSuccess?: () => void }) => ({
     connectWallet: (...args: unknown[]) => {
       mockConnectWallet(...args);
-      callbacks?.onSuccess?.();
-    },
-  }),
-  useLinkAccount: (callbacks?: { onSuccess?: () => void }) => ({
-    linkWallet: (...args: unknown[]) => {
-      mockLinkWallet(...args);
       callbacks?.onSuccess?.();
     },
   }),
@@ -111,7 +104,6 @@ describe("useWallet", () => {
     mockCreateEvmWallet.mockReset();
     mockCreateSolanaWallet.mockReset();
     mockConnectWallet.mockReset();
-    mockLinkWallet.mockReset();
     mockRefreshUser.mockReset();
     mockRefreshUser.mockResolvedValue(mockPrivyState.user);
     mockCreateEvmWallet.mockResolvedValue(makeWallet("privy", "0xNewEmbedded"));
@@ -183,13 +175,12 @@ describe("useWallet", () => {
     expect(external.loginOrLink).not.toHaveBeenCalled();
   });
 
-  it("links funding wallets into the current Privy user when authenticated", async () => {
+  it("connects funding wallets when authenticated", async () => {
     const { result } = await getHook();
 
     result.current.connectFundingWallet({ walletChainType: "solana-only" });
 
-    expect(mockLinkWallet).toHaveBeenCalledWith({ walletChainType: "solana-only" });
-    expect(mockConnectWallet).not.toHaveBeenCalled();
+    expect(mockConnectWallet).toHaveBeenCalledWith({ walletChainType: "solana-only" });
   });
 
   it("connects funding wallets as login when unauthenticated", async () => {
@@ -199,7 +190,6 @@ describe("useWallet", () => {
     result.current.connectFundingWallet({ walletChainType: "solana-only" });
 
     expect(mockConnectWallet).toHaveBeenCalledWith({ walletChainType: "solana-only" });
-    expect(mockLinkWallet).not.toHaveBeenCalled();
   });
 
   it("can activate a Solana trading wallet for the current user", async () => {
