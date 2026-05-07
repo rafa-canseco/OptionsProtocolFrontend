@@ -13,6 +13,9 @@ let mockSmartWalletAddress: string | undefined = "0xSmartWallet";
 const mockLogout = vi.fn();
 const mockCreateEvmWallet = vi.fn();
 const mockCreateSolanaWallet = vi.fn();
+const mockConnectWallet = vi.fn();
+const mockLinkWallet = vi.fn();
+const mockRefreshUser = vi.fn();
 let mockPrivyState = {
   authenticated: true,
   ready: true,
@@ -27,7 +30,19 @@ vi.mock("@privy-io/react-auth", () => ({
     user: mockPrivyState.user,
   }),
   useWallets: () => ({ wallets: mockWallets }),
-  useConnectWallet: () => ({ connectWallet: vi.fn() }),
+  useConnectWallet: (callbacks?: { onSuccess?: () => void }) => ({
+    connectWallet: (...args: unknown[]) => {
+      mockConnectWallet(...args);
+      callbacks?.onSuccess?.();
+    },
+  }),
+  useLinkAccount: (callbacks?: { onSuccess?: () => void }) => ({
+    linkWallet: (...args: unknown[]) => {
+      mockLinkWallet(...args);
+      callbacks?.onSuccess?.();
+    },
+  }),
+  useUser: () => ({ refreshUser: mockRefreshUser }),
   useCreateWallet: () => ({ createWallet: mockCreateEvmWallet }),
 }));
 
@@ -95,6 +110,10 @@ describe("useWallet", () => {
     mockLogout.mockReset();
     mockCreateEvmWallet.mockReset();
     mockCreateSolanaWallet.mockReset();
+    mockConnectWallet.mockReset();
+    mockLinkWallet.mockReset();
+    mockRefreshUser.mockReset();
+    mockRefreshUser.mockResolvedValue(mockPrivyState.user);
     mockCreateEvmWallet.mockResolvedValue(makeWallet("privy", "0xNewEmbedded"));
     mockCreateSolanaWallet.mockResolvedValue({
       wallet: { address: "EmbeddedSolanaWallet" },
@@ -162,6 +181,35 @@ describe("useWallet", () => {
 
     expect(mockCreateEvmWallet).toHaveBeenCalledTimes(1);
     expect(external.loginOrLink).not.toHaveBeenCalled();
+  });
+
+  it("links funding wallets into the current Privy user when authenticated", async () => {
+    const { result } = await getHook();
+
+    result.current.connectFundingWallet({ walletChainType: "solana-only" });
+
+    expect(mockLinkWallet).toHaveBeenCalledWith({ walletChainType: "solana-only" });
+    expect(mockConnectWallet).not.toHaveBeenCalled();
+  });
+
+  it("connects funding wallets as login when unauthenticated", async () => {
+    mockPrivyState = { authenticated: false, ready: true, user: null };
+    const { result } = await getHook();
+
+    result.current.connectFundingWallet({ walletChainType: "solana-only" });
+
+    expect(mockConnectWallet).toHaveBeenCalledWith({ walletChainType: "solana-only" });
+    expect(mockLinkWallet).not.toHaveBeenCalled();
+  });
+
+  it("can activate a Solana trading wallet for the current user", async () => {
+    const { result } = await getHook();
+
+    await expect(result.current.activateSolanaTradingWallet()).resolves.toBe(
+      "EmbeddedSolanaWallet",
+    );
+
+    expect(mockCreateSolanaWallet).toHaveBeenCalledTimes(1);
   });
 
   it("does not authenticate Solana wallets from the global wallet hook", async () => {
