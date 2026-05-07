@@ -5,7 +5,6 @@ import {
   useWallets,
   useConnectWallet,
   useCreateWallet,
-  useLinkAccount,
   useUser,
   type ConnectWalletModalOptions,
   type User,
@@ -188,11 +187,6 @@ export function useWallet() {
       void refreshWalletState();
     },
   });
-  const { linkWallet } = useLinkAccount({
-    onSuccess: () => {
-      void refreshWalletState();
-    },
-  });
   const { createWallet: createEvmWallet } = useCreateWallet();
   const { wallets } = useWallets();
   const { client } = useSmartWallets();
@@ -331,12 +325,8 @@ export function useWallet() {
   const connectFundingWallet = useCallback((
     options?: ConnectWalletModalOptions | MouseEvent,
   ) => {
-    if (authenticated) {
-      linkWallet(options);
-      return;
-    }
     connectWallet(options);
-  }, [authenticated, connectWallet, linkWallet]);
+  }, [connectWallet]);
 
   // All trades execute through the smart wallet — gas sponsored
   const sendBatchTx = useCallback(
