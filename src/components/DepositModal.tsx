@@ -22,8 +22,8 @@ import { api, type BridgeJob, type BridgeJobStatus } from "@/lib/api";
 
 type Tab = "deposit" | "withdraw";
 type Chain = "base" | "solana";
-type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "tslax";
-type AccountBalanceToken = Token | "wsol";
+type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "wsol" | "tslax";
+type AccountBalanceToken = Token;
 
 interface TokenConfig {
   label: string;
@@ -45,6 +45,15 @@ const TOKENS_BY_CHAIN: Record<Chain, Token[]> = {
   base: ["usdc", "eth", "weth", "btc"],
   solana: ["usdc", "sol", "tslax"],
 };
+
+const SOLANA_WITHDRAW_TOKENS: Token[] = ["usdc", "sol", "wsol", "tslax"];
+
+function tokensFor(chain: Chain, tab: Tab): Token[] {
+  if (chain === "solana" && tab === "withdraw") {
+    return SOLANA_WITHDRAW_TOKENS;
+  }
+  return TOKENS_BY_CHAIN[chain];
+}
 
 const SOL_FEE_RESERVE_LAMPORTS = BigInt(5_000_000);
 const BRIDGE_POLL_INTERVAL_MS = 2_000;
@@ -293,11 +302,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
   const initialToken: Token =
-    requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "tslax"))
+    requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "wsol" || requiredToken === "tslax"))
       ? requiredToken
       : "usdc";
   const initialChain: Chain =
-    !solanaDisabled && (initialToken === "sol" || initialToken === "tslax")
+    !solanaDisabled && (initialToken === "sol" || initialToken === "wsol" || initialToken === "tslax")
       ? "solana"
       : "base";
   const [activeChain, setActiveChain] = useState<Chain>(initialChain);
@@ -359,16 +368,16 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [activeChain, chainWallets, selectedWallet]);
 
   useEffect(() => {
-    const available = TOKENS_BY_CHAIN[activeChain];
+    const available = tokensFor(activeChain, tab);
     if (!available.includes(token)) {
       setToken(available[0]);
       setAmountStr("");
     }
-  }, [activeChain, token]);
+  }, [activeChain, tab, token]);
 
   const chain = activeChain;
   const meta = TOKEN_META[token];
-  const availableTokens = TOKENS_BY_CHAIN[chain];
+  const availableTokens = tokensFor(chain, tab);
   const availableChains: Chain[] = solanaDisabled ? ["base"] : ["base", "solana"];
 
   // --- Available balance for deposit/withdraw ---
@@ -382,6 +391,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     if (chain === "solana") {
       if (asset === "sol") return solanaWalletBalance.solanaSolRaw;
       if (asset === "usdc") return solanaWalletBalance.solanaUsdcRaw;
+      if (asset === "wsol") return solanaWalletBalance.solanaWsolRaw;
       if (asset === "tslax") return solanaWalletBalance.solanaTslaxRaw;
       return BigInt(0);
     }
@@ -480,6 +490,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, []);
 
   const selectChain = useCallback((nextChain: Chain) => {
+    const nextTokens = tokensFor(nextChain, tab);
     setActiveChain(nextChain);
     setAmountStr("");
     setError(null);
@@ -490,11 +501,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setChainMenuOpen(false);
     setTokenMenuOpen(false);
     setToken((currentToken) =>
-      TOKENS_BY_CHAIN[nextChain].includes(currentToken)
+      nextTokens.includes(currentToken)
         ? currentToken
-        : TOKENS_BY_CHAIN[nextChain][0],
+        : nextTokens[0],
     );
-  }, []);
+  }, [tab]);
 
   const parseAmount = useCallback((): bigint | null => {
     try {
@@ -835,7 +846,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           : await sendSolanaWithdraw(
               selectedWallet.address,
               amount,
-              token === "tslax" ? "tslax" : "usdc",
+              token === "tslax" ? "tslax" : token === "wsol" ? "wsol" : "usdc",
             );
       }
 
@@ -902,6 +913,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 setStatus("idle");
                 setTxHash(null);
                 setTxChain(null);
+                setTokenMenuOpen(false);
+                setChainMenuOpen(false);
+                setToken((currentToken) => {
+                  const nextTokens = tokensFor(activeChain, t);
+                  return nextTokens.includes(currentToken)
+                    ? currentToken
+                    : nextTokens[0];
+                });
               }}
               disabled={isPending}
               className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors capitalize ${

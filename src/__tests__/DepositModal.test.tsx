@@ -297,6 +297,25 @@ describe("DepositModal Solana production gate", () => {
     expect(screen.getByText(/Solana wallet/)).toBeInTheDocument();
   });
 
+  it("shows wSOL only for Solana withdrawals", async () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "devnet";
+    walletOverrides = {
+      solanaAddress: "SolEmbeddedAddr1111111111111111111111111",
+      externalWallets: [baseExternalWallet, solanaWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Network Base/i }));
+    await userEvent.click(screen.getByRole("button", { name: /^Solana$/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Token USDC/i }));
+    expect(screen.queryByText("wSOL")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /withdraw/i }));
+    await userEvent.click(screen.getByRole("button", { name: /Token USDC/i }));
+    expect(screen.getByText("wSOL")).toBeInTheDocument();
+  });
+
   it("ignores requiredToken=tslax in mainnet and does not preselect Solana", () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
     walletOverrides = {
