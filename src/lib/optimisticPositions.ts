@@ -12,7 +12,9 @@ export function getAllOptimistic(): Position[] {
   try {
     const raw = sessionStorage.getItem(KEY);
     if (!raw) return [];
-    return JSON.parse(raw) as Position[];
+    return (JSON.parse(raw) as Position[]).filter((position) =>
+      Boolean(position.asset),
+    );
   } catch {
     return [];
   }

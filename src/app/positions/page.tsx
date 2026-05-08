@@ -128,7 +128,7 @@ export default function PositionsPage() {
                     earnBase={`/earn/${posAsset.slug}`}
                     assetSymbol={posAsset.symbol}
                     assetSlug={posAsset.slug}
-                    optimistic={item.positions.some((p) => p.id.startsWith("opt-"))}
+                    optimistic={false}
                     yieldMetric={yieldMetric}
                   />
                 );
@@ -145,7 +145,7 @@ export default function PositionsPage() {
                   earnBase={`/earn/${posAsset.slug}`}
                   assetSymbol={posAsset.symbol}
                   assetSlug={posAsset.slug}
-                  optimistic={pos.id.startsWith("opt-")}
+                  optimistic={false}
                   yieldMetric={yieldMetric}
                 />
               );

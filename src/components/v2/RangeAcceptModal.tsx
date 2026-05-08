@@ -287,6 +287,7 @@ export function RangeAcceptModal({
 
       // Save put optimistic position
       const putPos = buildOptimisticPosition(putQuote, putAmountUsd, true, address, assetSlug, groupId);
+      putPos.tx_hash = putHash ?? "";
       try { saveOptimistic(putPos); } catch (err) {
         console.warn("[RangeAcceptModal] Could not save optimistic position (put):", err);
       }
@@ -335,6 +336,7 @@ export function RangeAcceptModal({
 
       // Save call optimistic position
       const callPos = buildOptimisticPosition(callQuote, callAmountEth, false, address, assetSlug, groupId);
+      callPos.tx_hash = callHash ?? "";
       try { saveOptimistic(callPos); } catch (err) {
         console.warn("[RangeAcceptModal] Could not save optimistic position (call):", err);
       }

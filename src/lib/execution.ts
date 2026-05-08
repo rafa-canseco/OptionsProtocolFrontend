@@ -169,9 +169,12 @@ export function buildOptimisticPosition(
   const config = getAssetConfig(assetSlug);
   const callDecimals = 10 ** (config?.collateralDecimals ?? 18);
   const optCollateral = isBuy ? amount * 1e6 : amount * callDecimals;
+  const quotePremiumUsd = quote.premium >= 1_000
+    ? quote.premium / 1e6
+    : quote.premium;
   const optPremium = isBuy
-    ? String(((quote.premium * amount) / quote.strike) * 1e6)
-    : String(quote.premium * amount * 1e6);
+    ? String(((quotePremiumUsd * amount) / quote.strike) * 1e6)
+    : String(quotePremiumUsd * amount * 1e6);
   return {
     id: "opt-" + Date.now(),
     tx_hash: "",
@@ -199,6 +202,7 @@ export function buildOptimisticPosition(
     net_premium: optPremium,
     protocol_fee: "0",
     outcome: null,
+    asset: assetSlug,
     group_id: groupId ?? null,
   };
 }

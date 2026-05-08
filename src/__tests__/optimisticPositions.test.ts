@@ -104,4 +104,11 @@ describe("removeMatchingOptimistic", () => {
 
     expect(getAllOptimistic()).toHaveLength(1);
   });
+
+  it("drops legacy optimistic positions that do not include an asset", () => {
+    const opt = buildPosition({ id: "opt-legacy", asset: undefined });
+    saveOptimistic(opt);
+
+    expect(getAllOptimistic()).toHaveLength(0);
+  });
 });
