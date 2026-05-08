@@ -39,4 +39,14 @@ describe("getPositionPremiumUsd", () => {
   it("keeps already-humanized premium strings", () => {
     expect(getPositionPremiumUsd({ ...BASE, net_premium: "0.03" })).toBe(0.03);
   });
+
+  it("normalizes Solana raw micro-USDC premiums", () => {
+    expect(
+      getPositionPremiumUsd({
+        ...BASE,
+        asset: "sol",
+        net_premium: "144618",
+      }),
+    ).toBeCloseTo(0.144618);
+  });
 });

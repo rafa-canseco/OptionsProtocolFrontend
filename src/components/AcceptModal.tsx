@@ -314,6 +314,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             const pos = buildOptimisticPosition(
               quote, acceptedAmount, isBuy, address!, assetSlug,
             );
+            pos.tx_hash = result.txHash ?? "";
             try { saveOptimistic(pos); } catch (err) {
               console.warn("[AcceptModal] Could not save optimistic position:", err);
             }
@@ -455,6 +456,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
           quote, amount, isBuy,
           solanaAddress as unknown as Address, assetSlug,
         );
+        pos.tx_hash = signature;
         try { saveOptimistic(pos); } catch (err) {
           console.warn("[AcceptModal] Could not save optimistic position:", err);
         }
@@ -575,6 +577,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       window.dispatchEvent(new Event("balance:refetch"));
 
       const pos = buildOptimisticPosition(quote, amount, isBuy, address, assetSlug);
+      pos.tx_hash = resultHash ?? "";
       try { saveOptimistic(pos); } catch (err) {
         console.warn("[AcceptModal] Could not save optimistic position:", err);
       }
