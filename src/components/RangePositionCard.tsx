@@ -8,6 +8,12 @@ import { CHAIN } from "@/lib/contracts";
 import { solanaTxUrl } from "@/lib/solana";
 import { getAssetConfig } from "@/lib/assets";
 import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
+import {
+  formatPositionDate,
+  formatPositionTerm,
+  getPositionExpiryDate,
+  getPositionTermDays,
+} from "@/lib/positionDates";
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
 
@@ -66,12 +72,9 @@ export function RangePositionCard({
   const totalCommittedUsd = putCommittedUsd + callCommittedUsd;
 
   // ROI / APR
-  const indexedTime = new Date(putLeg.indexed_at).getTime();
-  const expiryTime = putLeg.expiry * 1000;
-  const totalDays = Math.max(
-    1,
-    Math.floor((expiryTime - indexedTime) / 86_400_000),
-  );
+  const totalDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry);
+  const openedDisplay = formatPositionDate(new Date(putLeg.indexed_at));
+  const expiryDisplay = formatPositionDate(getPositionExpiryDate(putLeg.expiry));
   const returnPct =
     totalCommittedUsd > 0
       ? (totalPremium / totalCommittedUsd) * 100
@@ -86,14 +89,6 @@ export function RangePositionCard({
   // Settled state
   const putItm = putLeg.is_itm ?? false;
   const callItm = callLeg.is_itm ?? false;
-
-  // Distance to range bounds
-  const putDistPct = spot
-    ? ((putStrike - spot) / spot) * 100
-    : null;
-  const callDistPct = spot
-    ? ((callStrike - spot) / spot) * 100
-    : null;
 
   return (
     <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-3">
@@ -125,6 +120,9 @@ export function RangePositionCard({
 
           <p className="text-lg font-bold text-[var(--bone)]">
             <ExpiryCountdown expiryTimestamp={putLeg.expiry} />
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
           </p>
 
           <p className="text-base font-bold font-mono text-[var(--accent)]">
@@ -301,7 +299,7 @@ export function RangePositionCard({
           )}
 
           <p className="text-xs text-[var(--text-secondary)]">
-            {returnPct.toFixed(1)}% in {totalDays}d ·{" "}
+            {returnPct.toFixed(1)}% over {formatPositionTerm(totalDays)} · Opened {openedDisplay} · Expired {expiryDisplay} ·{" "}
             {yieldValue < 10
               ? yieldValue.toFixed(1)
               : Math.round(yieldValue)}

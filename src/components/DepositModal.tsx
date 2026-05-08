@@ -17,7 +17,7 @@ import {
   solanaToBytes32,
 } from "@/lib/cctp";
 import { isSolanaOffInProd } from "@/lib/marketState";
-import { SOLANA_TSLAX_MINT, solanaTxUrl, toPublicKey } from "@/lib/solana";
+import { SOLANA_TSLAX_MINT, solanaConnection, solanaTxUrl, toPublicKey } from "@/lib/solana";
 import { api, type BridgeJob, type BridgeJobStatus } from "@/lib/api";
 
 type Tab = "deposit" | "withdraw";
@@ -154,6 +154,30 @@ function bridgeStatusMessage(job: BridgeJob): string {
     default:
       return `Waiting for USDC to arrive on ${chainLabel(job.dest_chain)}...`;
   }
+}
+
+async function readSolanaUsdcBalanceRaw(ownerAddress: string): Promise<bigint> {
+  if (!solanaConnection) {
+    throw new Error("Solana RPC not configured");
+  }
+  const owner = toPublicKey(ownerAddress, "Solana owner");
+  const tokenAccount = await getSolanaUsdcTokenAccount(owner);
+  try {
+    const balance = await solanaConnection.getTokenAccountBalance(
+      tokenAccount,
+      "confirmed",
+    );
+    return BigInt(balance.value.amount);
+  } catch {
+    return BigInt(0);
+  }
+}
+
+export function resolveSolanaUsdcWithdrawAmount(
+  requestedRaw: bigint,
+  availableRaw: bigint,
+): bigint {
+  return availableRaw < requestedRaw ? availableRaw : requestedRaw;
 }
 
 async function bridgeBaseUsdcToSolana(
@@ -789,9 +813,19 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         }
 
         setProgressMessage("Withdrawing USDC from Solana...");
+        const withdrawAmount =
+          bridgeJob && solanaAddress
+            ? resolveSolanaUsdcWithdrawAmount(
+                amount,
+                await readSolanaUsdcBalanceRaw(solanaAddress),
+              )
+            : amount;
+        if (withdrawAmount <= BigInt(0)) {
+          throw new Error("USDC arrived on Solana, but no withdrawable balance was found. Check your balance before retrying.");
+        }
         signature = await sendSolanaWithdraw(
           selectedWallet.address,
-          amount,
+          withdrawAmount,
           "usdc",
         );
       } else {
@@ -805,7 +839,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             );
       }
 
-      const finalHash = bridgeJob?.mint_tx_hash ?? signature;
+      const finalHash = signature ?? bridgeJob?.mint_tx_hash;
       if (finalHash) {
         setTxHash(finalHash);
         setTxChain(finalHash.startsWith("0x") ? "base" : "solana");

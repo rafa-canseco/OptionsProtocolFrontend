@@ -7,6 +7,13 @@ import { fmtUsd, fmtAsset } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { resolvePositionAsset } from "@/lib/assets";
 import { getPositionExpiryPrice, getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
+import {
+  formatPositionDate,
+  formatPositionTerm,
+  getPositionExpiryDate,
+  getPositionOpenedDate,
+  getPositionTermDays,
+} from "@/lib/positionDates";
 import { solanaTxUrl } from "@/lib/solana";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
@@ -52,7 +59,7 @@ export function TradeLog({ items }: Props) {
   const sorted = [...items].sort((a, b) => {
     const getTime = (item: DisplayItem) => {
       const p = item.type === "range" ? item.positions[0] : item.position;
-      return new Date(p.indexed_at).getTime();
+      return p.expiry * 1000;
     };
     return getTime(b) - getTime(a);
   });
@@ -75,10 +82,11 @@ export function TradeLog({ items }: Props) {
         <thead>
           <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] text-xs">
             <th className="text-left py-3 px-4 font-medium w-6"></th>
-            <th className="text-left py-3 px-4 font-medium">Date</th>
+            <th className="text-left py-3 px-4 font-medium">Opened</th>
+            <th className="text-left py-3 px-4 font-medium hidden md:table-cell">Expired</th>
             <th className="text-left py-3 px-4 font-medium">Type</th>
             <th className="text-right py-3 px-4 font-medium">Strike</th>
-            <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Expiry</th>
+            <th className="text-right py-3 px-4 font-medium hidden lg:table-cell">Term</th>
             <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Maturity</th>
             <th className="text-left py-3 px-4 font-medium">Outcome</th>
             <th className="text-right py-3 px-4 font-medium">Premium</th>
@@ -124,7 +132,6 @@ export function TradeLog({ items }: Props) {
 
 function RangeTradeRow({
   positions,
-  groupId: _groupId,
   isExpanded,
   onToggle,
 }: {
@@ -148,11 +155,9 @@ function RangeTradeRow({
   const callPremium = getPositionPremiumUsd(callLeg);
   const totalPremium = putPremium + callPremium;
 
-  const date = new Date(putLeg.indexed_at);
-  const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
-
-  const indexedTime = date.getTime();
-  const expiryDays = Math.max(1, Math.floor((putLeg.expiry * 1000 - indexedTime) / 86_400_000));
+  const openedStr = formatPositionDate(getPositionOpenedDate(putLeg.indexed_at));
+  const expiredStr = formatPositionDate(getPositionExpiryDate(putLeg.expiry));
+  const expiryDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry);
 
   const expiryPriceUsd = getPositionExpiryPrice(putLeg);
 
@@ -166,7 +171,7 @@ function RangeTradeRow({
   const putAmount = fmtAsset(putLeg.amount / 1e8);
   const callAmount = fmtAsset(callLeg.amount / 1e8);
 
-  const totalCols = 9;
+  const totalCols = 10;
 
   return (
     <>
@@ -179,13 +184,19 @@ function RangeTradeRow({
             &#9654;
           </span>
         </td>
-        <td className="py-3 px-4 font-mono text-[var(--text)]">{dateStr}</td>
+        <td className="py-3 px-4 font-mono text-[var(--text)]">
+          {openedStr}
+          <span className="block text-[var(--text-secondary)] md:hidden">
+            → {expiredStr}
+          </span>
+        </td>
+        <td className="py-3 px-4 font-mono text-[var(--text-secondary)] hidden md:table-cell">{expiredStr}</td>
         <td className="py-3 px-4 text-[var(--text)]">Range</td>
         <td className="py-3 px-4 text-right font-mono text-[var(--text)]">
           ${putStrike.toLocaleString()} — ${callStrike.toLocaleString()}
         </td>
-        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
-          {expiryDays}d
+        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden lg:table-cell">
+          {formatPositionTerm(expiryDays)}
         </td>
         <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
           {expiryPriceUsd != null
@@ -281,15 +292,14 @@ function TradeRow({
   const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
 
   // Date
-  const date = new Date(p.indexed_at);
-  const dateStr = `${String(date.getDate()).padStart(2, "0")}/${String(date.getMonth() + 1).padStart(2, "0")}`;
+  const openedStr = formatPositionDate(getPositionOpenedDate(p.indexed_at));
+  const expiredStr = formatPositionDate(getPositionExpiryDate(p.expiry));
 
   // Type
   const type = isBuy ? "Earned on USD" : `Earned on ${assetSymbol}`;
 
   // Expiry duration
-  const indexedTime = date.getTime();
-  const expiryDays = Math.max(1, Math.floor((p.expiry * 1000 - indexedTime) / 86_400_000));
+  const expiryDays = getPositionTermDays(p.indexed_at, p.expiry);
 
   // Outcome
   const outcome = isItm ? "Assigned" : "Expired";
@@ -315,7 +325,7 @@ function TradeRow({
     ? `$${(p.collateral / 1e6).toLocaleString(undefined, { maximumFractionDigits: 0 })}`
     : `${fmtAsset(p.collateral / collateralDecimals)} ${assetSymbol}`;
 
-  const totalCols = 9;
+  const totalCols = 10;
 
   return (
     <>
@@ -331,7 +341,13 @@ function TradeRow({
         </td>
 
         {/* Date */}
-        <td className="py-3 px-4 font-mono text-[var(--text)]">{dateStr}</td>
+        <td className="py-3 px-4 font-mono text-[var(--text)]">
+          {openedStr}
+          <span className="block text-[var(--text-secondary)] md:hidden">
+            → {expiredStr}
+          </span>
+        </td>
+        <td className="py-3 px-4 font-mono text-[var(--text-secondary)] hidden md:table-cell">{expiredStr}</td>
 
         {/* Type */}
         <td className="py-3 px-4 text-[var(--text)]">{type}</td>
@@ -342,8 +358,8 @@ function TradeRow({
         </td>
 
         {/* Expiry */}
-        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden sm:table-cell">
-          {expiryDays}d
+        <td className="py-3 px-4 text-right font-mono text-[var(--text-secondary)] hidden lg:table-cell">
+          {formatPositionTerm(expiryDays)}
         </td>
 
         {/* Maturity price */}
