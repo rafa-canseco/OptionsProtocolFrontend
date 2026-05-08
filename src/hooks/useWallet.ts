@@ -262,12 +262,14 @@ export function useWallet() {
           isPrivyWalletClient(wallet.walletClientType),
         )
         .map((wallet) => wallet.address),
+      ...solanaWallets.map((wallet) => wallet.address),
     ]),
   }), [
     address,
     embeddedWallet?.address,
     linkedWallets,
     solanaAddress,
+    solanaWallets,
   ]);
 
   const getSolanaTradingAddress = useCallback(async (
