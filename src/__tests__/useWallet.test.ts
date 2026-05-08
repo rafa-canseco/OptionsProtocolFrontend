@@ -163,6 +163,18 @@ describe("useWallet", () => {
     expect(result.current.withdrawAddress).toBe("0xCoinbase");
   });
 
+  it("includes connected external Solana wallets in portfolio addresses", async () => {
+    mockSolanaWallets.push(makeSolanaWallet("EmbeddedSolanaWallet", true));
+    mockSolanaWallets.push(makeSolanaWallet("ExternalSolanaWallet"));
+
+    const { result } = await getHook();
+
+    expect(result.current.portfolioAddresses.solana).toEqual([
+      "EmbeddedSolanaWallet",
+      "ExternalSolanaWallet",
+    ]);
+  });
+
   it("activates Base trading account by creating an embedded wallet instead of linking external wallets", async () => {
     mockSmartWalletAddress = undefined;
     const external = makeWallet("rabby", "0xRabby");
