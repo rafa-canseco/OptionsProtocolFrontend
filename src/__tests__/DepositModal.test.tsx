@@ -1,7 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { DepositModal } from "@/components/DepositModal";
+import {
+  DepositModal,
+  resolveSolanaUsdcWithdrawAmount,
+} from "@/components/DepositModal";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -211,6 +214,26 @@ describe("DepositModal withdraw guard", () => {
     await userEvent.click(withdrawTab);
 
     expect(mockSendBatchTx).not.toHaveBeenCalled();
+  });
+});
+
+describe("resolveSolanaUsdcWithdrawAmount", () => {
+  it("uses the refreshed raw Solana USDC balance when CCTP mints less than requested", () => {
+    expect(
+      resolveSolanaUsdcWithdrawAmount(
+        BigInt(23_682_947),
+        BigInt(23_682_946),
+      ),
+    ).toBe(BigInt(23_682_946));
+  });
+
+  it("keeps the requested amount when the refreshed balance covers it", () => {
+    expect(
+      resolveSolanaUsdcWithdrawAmount(
+        BigInt(10_000),
+        BigInt(23_682_946),
+      ),
+    ).toBe(BigInt(10_000));
   });
 });
 

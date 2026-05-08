@@ -5,6 +5,7 @@ import { fmtUsd } from "@/lib/utils";
 import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { resolvePositionAsset } from "@/lib/assets";
 import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
+import { getPositionTermDays } from "@/lib/positionDates";
 
 interface Props {
   positions: Position[];
@@ -51,11 +52,7 @@ export function PortfolioSummary({
   const totalWeightedApr = positions.reduce((sum, p) => {
     const capital = capitalUsd(p);
     const premium = getPositionPremiumUsd(p);
-    const indexedTime = new Date(p.indexed_at).getTime();
-    const days = Math.max(
-      1,
-      Math.floor((p.expiry * 1000 - indexedTime) / 86_400_000),
-    );
+    const days = getPositionTermDays(p.indexed_at, p.expiry);
     const apr =
       capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
     return sum + apr * capital;

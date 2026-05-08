@@ -3,11 +3,17 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import type { Position } from "@/lib/api";
-import { fmtUsd, fmtAsset, fmtPremiumUsd, buildCalendarUrl } from "@/lib/utils";
+import { fmtAsset, fmtPremiumUsd, buildCalendarUrl } from "@/lib/utils";
 import { CHAIN } from "@/lib/contracts";
 import { solanaTxUrl } from "@/lib/solana";
 import { getAssetConfig } from "@/lib/assets";
 import { getPositionExpiryPrice, getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
+import {
+  formatPositionDate,
+  formatPositionTerm,
+  getPositionExpiryDate,
+  getPositionTermDays,
+} from "@/lib/positionDates";
 
 import { ExpiryCountdown } from "./ExpiryCountdown";
 import type { YieldMetric } from "./YieldToggle";
@@ -61,7 +67,7 @@ interface Props {
   assetSlug?: string;
 }
 
-export function PositionCard({ position, onSettled, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth" }: Props) {
+export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/eth", optimistic, yieldMetric = "apr", assetSymbol = "ETH", assetSlug = "eth" }: Props) {
   const isBuy = position.is_put;
   const isActive = !position.is_settled;
 
@@ -86,24 +92,10 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
   const ethAmount = position.amount / 1e8;
   const ethAmountDisplay = fmtAsset(ethAmount);
 
-  // Expiry: total duration from indexed_at to expiry
-  const indexedTime = new Date(position.indexed_at).getTime();
-  const expiryTime = position.expiry * 1000;
-  const totalDays = Math.max(1, Math.floor((expiryTime - indexedTime) / 86_400_000));
-
-  // Days remaining: use UTC calendar date parts so the result matches the duration
-  // selector (which uses parseLocalDate on expiry_date). position.expiry is midnight
-  // UTC on the expiry date; converting via getUTC* then creating a local Date avoids
-  // the off-by-one that occurs in negative UTC offsets.
-  const expiryUTCDate = new Date(expiryTime);
-  const expiryLocalMidnight = new Date(
-    expiryUTCDate.getUTCFullYear(),
-    expiryUTCDate.getUTCMonth(),
-    expiryUTCDate.getUTCDate()
-  );
-  const todayMidnight = new Date();
-  todayMidnight.setHours(0, 0, 0, 0);
-  const expiryDays = Math.max(0, Math.ceil((expiryLocalMidnight.getTime() - todayMidnight.getTime()) / 86_400_000));
+  // Expiry: calendar duration from open date to expiry date.
+  const totalDays = getPositionTermDays(position.indexed_at, position.expiry);
+  const openedDisplay = formatPositionDate(new Date(position.indexed_at));
+  const expiryDisplay = formatPositionDate(getPositionExpiryDate(position.expiry));
 
   // APR: annualize the return over the position duration
   const apr = committedUsd > 0 ? (premiumUsd / committedUsd) * (365 / totalDays) * 100 : 0;
@@ -164,6 +156,9 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           {/* Countdown — prominent */}
           <p className="text-lg font-bold text-[var(--bone)]">
             <ExpiryCountdown expiryTimestamp={position.expiry} />
+          </p>
+          <p className="text-xs text-[var(--text-secondary)]">
+            Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
           </p>
 
           {/* Premium earned — accent + mono */}
@@ -241,7 +236,7 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
 
           <p className="text-xs text-[var(--text-secondary)]">
             {expiryPriceDisplay && <>Maturity price: {expiryPriceDisplay}/{assetSymbol} · </>}
-            {returnPct.toFixed(1)}% in {totalDays}d · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
+            {returnPct.toFixed(1)}% over {formatPositionTerm(totalDays)} · Opened {openedDisplay} · Expired {expiryDisplay} · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
           </p>
 
           <div className="flex gap-3 text-xs">
@@ -318,6 +313,10 @@ export function PositionCard({ position, onSettled, spot, renderExtra, earnBase 
           <p className="text-sm text-[var(--text-secondary)]">
             + kept{" "}
             <span className="text-[var(--accent)] font-semibold font-mono">{premiumDisplay} in premium</span>
+          </p>
+
+          <p className="text-xs text-[var(--text-secondary)]">
+            {returnPct.toFixed(1)}% over {formatPositionTerm(totalDays)} · Opened {openedDisplay} · Expired {expiryDisplay} · {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
           </p>
 
           {expiryPriceDisplay && (
