@@ -38,6 +38,7 @@ import {
   SOLANA_RPC_URL,
   SOLANA_TSLAX_MINT,
   SOLANA_USDC_MINT,
+  SOLANA_WSOL_MINT,
   SOLANA_CHAIN,
   solanaConnection,
   toPublicKey,
@@ -110,7 +111,7 @@ function prettyWalletName(raw: string): string {
   return WALLET_NAMES[raw] ?? raw;
 }
 
-function getSplMintConfig(token: "usdc" | "tslax"): {
+function getSplMintConfig(token: "usdc" | "tslax" | "wsol"): {
   mint: string;
   label: string;
   decimals: number;
@@ -120,6 +121,9 @@ function getSplMintConfig(token: "usdc" | "tslax"): {
       throw new Error("Solana TSLAx mint not configured");
     }
     return { mint: SOLANA_TSLAX_MINT, label: "TSLAx", decimals: 8 };
+  }
+  if (token === "wsol") {
+    return { mint: SOLANA_WSOL_MINT, label: "wSOL", decimals: 9 };
   }
   if (!SOLANA_USDC_MINT) {
     throw new Error("Solana USDC mint not configured");
@@ -601,7 +605,7 @@ export function useWallet() {
     async (
       toAddress: string,
       amount: bigint,
-      token: "usdc" | "tslax" = "usdc",
+      token: "usdc" | "tslax" | "wsol" = "usdc",
     ): Promise<string> => {
       assertSolanaEnabled();
       if (!solanaEmbedded || !solanaAddress) {
