@@ -21,6 +21,7 @@ import {
 
 const LINKS = [
   { href: "/earn", label: "Earn" },
+  { href: "/vault", label: "Agent Vault" },
   { href: "/positions", label: "My earnings" },
 ];
 
