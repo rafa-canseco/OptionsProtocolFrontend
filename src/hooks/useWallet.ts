@@ -51,6 +51,13 @@ type SolanaProviderEvents = {
   off?: (event: string, handler: () => void) => void;
 };
 
+type EvmProvider = {
+  request?: (args: {
+    method: string;
+    params?: unknown[];
+  }) => Promise<unknown>;
+};
+
 declare global {
   interface Window {
     phantom?: { solana?: SolanaProviderEvents };
@@ -109,6 +116,31 @@ function uniqueAddresses(values: Array<string | undefined>): string[] {
 
 function prettyWalletName(raw: string): string {
   return WALLET_NAMES[raw] ?? raw;
+}
+
+async function ensureEvmChainRpc(provider: EvmProvider): Promise<void> {
+  const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+  if (!provider.request || !rpcUrl) return;
+
+  try {
+    await provider.request({
+      method: "wallet_addEthereumChain",
+      params: [
+        {
+          chainId: `0x${CHAIN.id.toString(16)}`,
+          chainName: CHAIN.name,
+          nativeCurrency: CHAIN.nativeCurrency,
+          rpcUrls: [rpcUrl],
+          blockExplorerUrls: CHAIN.blockExplorers?.default.url
+            ? [CHAIN.blockExplorers.default.url]
+            : undefined,
+        },
+      ],
+    });
+  } catch (err) {
+    // Wallets may reject addEthereumChain when the chain already exists.
+    console.warn("[useWallet] Could not refresh wallet RPC config:", err);
+  }
 }
 
 function getSplMintConfig(token: "usdc" | "tslax" | "wsol"): {
@@ -382,8 +414,9 @@ export function useWallet() {
       if (!sourceWallet) {
         throw new Error("No funding wallet connected");
       }
-      await sourceWallet.switchChain(CHAIN.id);
       const provider = await sourceWallet.getEthereumProvider();
+      await ensureEvmChainRpc(provider as EvmProvider);
+      await sourceWallet.switchChain(CHAIN.id);
       const walletClient = createWalletClient({
         account: sourceWallet.address as Address,
         chain: CHAIN,

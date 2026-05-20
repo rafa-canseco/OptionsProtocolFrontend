@@ -1,23 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowRight, Bot, Copy, History, Loader2, ShieldCheck, Sparkles, Wallet } from "lucide-react";
-import type { Address } from "viem";
+import { ArrowRight, Bot, CalendarDays, Check, CircleDollarSign, History, Loader2, ShieldCheck, Target, Wallet } from "lucide-react";
+import { keccak256, type Address } from "viem";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
+import { useWallet, type BatchCall } from "@/hooks/useWallet";
 import { useWalletSummary } from "@/hooks/useWalletSummary";
 import {
   agoraStatusLabel,
+  createAgoraDepositIntent,
+  getAgoraCapitalIntent,
   getAgoraSnapshot,
   prepareAgoraAllocation,
+  type AgoraCapitalIntent,
   type AgoraHistoryItem,
+  type AgoraLifecycleStatus,
   type AgoraPreparedAllocation,
   type AgoraSnapshot,
   type AgoraSourceChain,
 } from "@/lib/agora";
+import { api, type PriceQuote } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 type View = "deposit" | "vault" | "history" | "agent";
 
@@ -32,8 +40,30 @@ interface SourceBalance {
   note: string;
 }
 
+type AllocationProgressStatus =
+  | "idle"
+  | "preparing"
+  | "executing"
+  | "registering"
+  | "attesting"
+  | "minting"
+  | "finalizing"
+  | "submitted"
+  | "complete"
+  | "blocked"
+  | "error";
+
+interface AllocationProgress {
+  status: AllocationProgressStatus;
+  title: string;
+  message: string;
+  txHash?: string;
+  intentId?: string;
+  lifecycleStatus?: "smart_wallet_approval_burn" | "attesting" | "minting_on_arc" | "finalize_bridge_deposit";
+}
+
 const VIEWS: Array<{ id: View; label: string }> = [
-  { id: "deposit", label: "Overview" },
+  { id: "deposit", label: "Deposit" },
   { id: "vault", label: "My Vault" },
   { id: "history", label: "History" },
   { id: "agent", label: "Agent" },
@@ -44,6 +74,16 @@ function fmtUsd(value: number): string {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function fmtPremiumUsd(value: number): string {
+  if (value > 0 && value < 0.01) {
+    return `$${value.toLocaleString(undefined, {
+      minimumFractionDigits: 6,
+      maximumFractionDigits: 6,
+    })}`;
+  }
+  return fmtUsd(value);
 }
 
 function fmtAmount(value: number): string {
@@ -86,33 +126,113 @@ function statusTone(status: string): string {
   return "text-[var(--accent)] border-[var(--accent)]/30 bg-[var(--accent)]/10";
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function buildOnchainIntentId({
+  allocationId,
+  txHash,
+  sourceWallet,
+  amountRaw,
+}: {
+  allocationId: string;
+  txHash: string;
+  sourceWallet: string;
+  amountRaw: string;
+}): `0x${string}` {
+  return keccak256(
+    new TextEncoder().encode(`${allocationId}:${txHash}:${sourceWallet}:${amountRaw}`),
+  );
+}
+
+function progressFromCapitalIntent(
+  intent: AgoraCapitalIntent,
+  txHash: string,
+): AllocationProgress {
+  if (intent.status === "failed" || intent.status === "retryable") {
+    return {
+      status: "error",
+      title: intent.status === "retryable" ? "Relayer retry needed" : "Allocation failed",
+      message: intent.failure_reason ?? "The relayer could not complete this allocation.",
+      txHash,
+      intentId: intent.id,
+      lifecycleStatus: "attesting",
+    };
+  }
+
+  if (intent.status === "waiting_to_be_deployed" || intent.status === "deployed" || intent.status === "completed") {
+    return {
+      status: "complete",
+      title: "Deposit finalized",
+      message: "USDC is credited in the Arc MetaVault.",
+      txHash,
+      intentId: intent.id,
+      lifecycleStatus: "finalize_bridge_deposit",
+    };
+  }
+
+  if (intent.arc_finalize_tx_hash) {
+    return {
+      status: "finalizing",
+      title: "Finalizing MetaVault deposit",
+      message: "Arc received USDC. The vault is crediting shares for the receiver.",
+      txHash,
+      intentId: intent.id,
+      lifecycleStatus: "finalize_bridge_deposit",
+    };
+  }
+
+  if (intent.destination_tx || intent.arc_receive_tx_hash) {
+    return {
+      status: "minting",
+      title: "Minting on Arc",
+      message: "Circle attestation completed. The relayer is minting USDC on Arc.",
+      txHash,
+      intentId: intent.id,
+      lifecycleStatus: "minting_on_arc",
+    };
+  }
+
+  return {
+    status: "attesting",
+    title: "Attesting with Circle",
+    message: "The burn was registered. The relayer is waiting for Circle attestation.",
+    txHash,
+    intentId: intent.id,
+    lifecycleStatus: "attesting",
+  };
+}
+
 function useAgoraSnapshot(userAddress?: string) {
   const [snapshot, setSnapshot] = useState<AgoraSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const refresh = useCallback(async (options?: { cancelled?: () => boolean; silent?: boolean }) => {
+    if (!options?.silent) setLoading(true);
+    try {
+      const value = await getAgoraSnapshot(userAddress);
+      if (options?.cancelled?.()) return;
+      setSnapshot(value);
+      setError(null);
+    } catch (err) {
+      if (options?.cancelled?.()) return;
+      setError(err instanceof Error ? err.message : "Could not load vault data");
+    } finally {
+      if (!options?.cancelled?.()) setLoading(false);
+    }
+  }, [userAddress]);
+
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    getAgoraSnapshot(userAddress)
-      .then((value) => {
-        if (cancelled) return;
-        setSnapshot(value);
-        setError(null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setError(err instanceof Error ? err.message : "Could not load vault data");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    void refresh({ cancelled: () => cancelled });
     return () => {
       cancelled = true;
     };
-  }, [userAddress]);
+  }, [refresh]);
 
-  return { snapshot, loading, error };
+  return { snapshot, loading, error, refresh };
 }
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -136,73 +256,275 @@ function Metric({ label, value, sub }: { label: string; value: string; sub?: str
   );
 }
 
-function GuidedWalkthrough() {
-  const steps = [
-    {
-      title: "Deposit USDC",
-      body: "Choose how much idle USDC you want the vault to manage.",
-    },
-    {
-      title: "Pick a 1-day strike",
-      body: "The agent looks for the best short-dated strike for the current market.",
-    },
-    {
-      title: "Manage assignment",
-      body: "If the vault is assigned, the agent opens the next position. If not, it repeats.",
-    },
-    {
-      title: "Claim on Monday",
-      body: "Premiums accumulate through the cycle and can be claimed every Monday.",
-    },
+function TooltipHeading({
+  children,
+  tooltip,
+}: {
+  children: ReactNode;
+  tooltip: string;
+}) {
+  return (
+    <span className="inline-flex items-center">
+      {children}
+      <InfoTooltip title={String(children)} text={tooltip} />
+    </span>
+  );
+}
+
+function formatDateLabel(value: number | string | null | undefined): string | null {
+  if (value == null) return null;
+  const date =
+    typeof value === "number"
+      ? new Date(value * 1000)
+      : new Date(value.includes("T") ? value : `${value}T08:00:00Z`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatStrategyName(strategy: string | null): string {
+  if (!strategy) return "Awaiting agent deployment";
+  if (strategy.toLowerCase() === "csp") return "Cash-secured put";
+  return strategy
+    .replaceAll("_", " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function formatClaimStatus(status: string | null | undefined): string {
+  if (!status) return "Not claimable yet";
+  return status
+    .replaceAll("_", " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function numericField(value: number | string | null | undefined): number | null {
+  if (typeof value === "number") return Number.isFinite(value) ? value : null;
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function useSelectedQuote(decision: AgoraSnapshot["agent"]["latest"]) {
+  const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setSelectedQuote(null);
+    if (!decision?.quoteId || !decision.selectedAsset) return;
+
+    api.getPrices(decision.selectedAsset.toLowerCase())
+      .then((quotes) => {
+        if (cancelled) return;
+        setSelectedQuote(quotes.find((quote) => quote.quote_id === decision.quoteId) ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setSelectedQuote(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [decision?.quoteId, decision?.selectedAsset]);
+
+  return selectedQuote;
+}
+
+function getPositionOutcome(
+  status: AgoraLifecycleStatus,
+  hasDecision: boolean,
+  expiry?: string,
+): { label: string; tone: string; body: string } {
+  if (!hasDecision) {
+    return {
+      label: "Waiting for selection",
+      tone: "text-[var(--text-secondary)] border-[var(--border)] bg-[var(--surface)]",
+      body: "Capital is in the vault. The agent has not selected a position for this cycle yet.",
+    };
+  }
+
+  switch (status) {
+    case "deployed":
+      return {
+        label: "Active position",
+        tone: "text-[var(--accent)] border-[var(--accent)]/30 bg-[var(--accent)]/10",
+        body: expiry && expiry !== "Pending"
+          ? `Capital is deployed until ${expiry}. Outcome updates after expiry and settlement.`
+          : "Capital is deployed. Outcome updates after expiry and settlement.",
+      };
+    case "assigned":
+      return {
+        label: "Assigned",
+        tone: "text-amber-200 border-amber-400/30 bg-amber-400/10",
+        body: "The position was assigned. The agent will manage the next allowed step.",
+      };
+    case "claimable":
+      return {
+        label: "Premium claimable",
+        tone: "text-emerald-200 border-emerald-400/30 bg-emerald-400/10",
+        body: "Premiums are available to claim on the vault schedule.",
+      };
+    case "failed":
+    case "retryable":
+      return {
+        label: "Needs attention",
+        tone: "text-red-200 border-red-400/30 bg-red-400/10",
+        body: "The latest position update did not complete cleanly.",
+      };
+    default:
+      return {
+        label: "Waiting for deployment",
+        tone: "text-[var(--accent)] border-[var(--accent)]/30 bg-[var(--accent)]/10",
+        body: "The agent selected a position. Capital deployment follows the next vault cycle.",
+      };
+  }
+}
+
+function AllocationTimeline({ active }: { active?: AllocationProgress["lifecycleStatus"] }) {
+  const steps: Array<{
+    id: NonNullable<AllocationProgress["lifecycleStatus"]>;
+    label: string;
+  }> = [
+    { id: "smart_wallet_approval_burn", label: "Smart wallet burn" },
+    { id: "attesting", label: "Circle attesting" },
+    { id: "minting_on_arc", label: "Minting on Arc" },
+    { id: "finalize_bridge_deposit", label: "Finalize MetaVault" },
   ];
+  const activeIndex = active ? steps.findIndex((step) => step.id === active) : -1;
 
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/55 p-5">
-      <div className="flex items-center gap-2">
-        <Sparkles className="h-4 w-4 text-[var(--accent)]" />
-        <h2 className="text-sm font-semibold text-[var(--text)]">How the vault works</h2>
+    <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+        Allocation flow
+      </p>
+      <div className="mt-3 grid gap-2 md:grid-cols-5">
+        {steps.map((step, index) => {
+          const complete = index < activeIndex;
+          const current = index === activeIndex;
+          return (
+            <div
+              key={step.id}
+              className={`rounded-md border px-3 py-2 text-xs ${
+                complete
+                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                  : current
+                    ? "border-[var(--accent)]/40 bg-[var(--accent)]/10 text-[var(--accent)]"
+                    : "border-[var(--border)] bg-[var(--surface)] text-[var(--text-secondary)]"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                {complete ? (
+                  <Check className="h-3.5 w-3.5" />
+                ) : current ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <span className="h-2 w-2 rounded-full bg-current opacity-50" />
+                )}
+                <span>{step.label}</span>
+              </div>
+            </div>
+          );
+        })}
       </div>
-      <div className="mt-5 grid gap-4 md:grid-cols-4">
-        {steps.map((step, index) => (
-          <div key={step.title} className="relative">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full border border-[var(--accent)]/30 bg-[var(--accent)]/10 font-mono text-xs text-[var(--accent)]">
-              {index + 1}
-            </span>
-            <h3 className="mt-3 text-sm font-semibold text-[var(--bone)]">{step.title}</h3>
-            <p className="mt-1 text-sm leading-6 text-[var(--text-secondary)]">{step.body}</p>
-          </div>
-        ))}
-      </div>
-    </section>
+    </div>
   );
 }
 
 function PreparedAllocationPanel({
   prepared,
+  progress,
 }: {
   prepared: AgoraPreparedAllocation;
+  progress: AllocationProgress;
 }) {
+  const circleFee = prepared.circleFee ?? 0;
+  const netAmount = prepared.netAmount ?? prepared.amount;
+
   return (
-    <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-4">
+    <div className={`rounded-lg border p-4 ${
+      progress.status === "error" || progress.status === "blocked"
+        ? "border-amber-400/30 bg-amber-400/10"
+        : "border-[var(--accent)]/30 bg-[var(--accent)]/10"
+    }`}>
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-[var(--text)]">Allocation prepared</p>
+          <p className="text-sm font-semibold text-[var(--text)]">
+            {progress.title}
+          </p>
           <p className="text-xs text-[var(--text-secondary)]">
-            {prepared.mode === "api"
-              ? "Backend returned an allocation payload."
-              : "Demo payload ready until direct smart-wallet execution is wired."}
+            {progress.message}
           </p>
         </div>
-        <span className="rounded-full border border-[var(--accent)]/30 px-2 py-1 font-mono text-xs text-[var(--accent)]">
-          {prepared.id}
-        </span>
+        {["executing", "registering", "attesting", "minting", "finalizing"].includes(progress.status) ? (
+          <Loader2 className="h-4 w-4 animate-spin text-[var(--accent)]" />
+        ) : progress.status === "submitted" || progress.status === "complete" ? (
+          <Check className="h-4 w-4 text-emerald-300" />
+        ) : (
+          <span className="rounded-full border border-[var(--accent)]/30 px-2 py-1 font-mono text-xs text-[var(--accent)]">
+            {prepared.id}
+          </span>
+        )}
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <DetailRow label="Source" value={`${prepared.sourceChain} smart wallet`} />
-        <DetailRow label="Amount" value={`${fmtAmount(prepared.amount)} USDC`} />
+        <DetailRow label="Gross amount" value={`${fmtAmount(prepared.amount)} USDC`} />
+        {circleFee > 0 && (
+          <>
+            <DetailRow label="Circle fast fee" value={`${fmtAmount(circleFee)} USDC`} />
+            <DetailRow label="Estimated credit" value={`${fmtAmount(netAmount)} USDC`} />
+            <DetailRow
+              label="CCTP mode"
+              value={prepared.finalityThreshold === 1000 ? "Fast transfer" : "Standard"}
+            />
+          </>
+        )}
         <DetailRow label="Receiver" value={truncate(prepared.receiverAddress)} />
         <DetailRow label="MetaVault" value={truncate(prepared.metaVaultAddress)} />
+        {progress.txHash && (
+          <DetailRow label="Burn tx" value={truncate(progress.txHash)} />
+        )}
+        {progress.intentId && (
+          <DetailRow label="Intent" value={truncate(progress.intentId)} />
+        )}
       </div>
+      <AllocationTimeline active={progress.lifecycleStatus} />
+      {prepared.actions.length > 0 && (
+        <div className="mt-4 rounded-md border border-[var(--border)] bg-[var(--bg)] p-3">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+            On-chain actions
+          </p>
+          <div className="mt-2 space-y-2">
+            {prepared.actions.map((action, index) => (
+              <div
+                key={`${action.kind}-${index}`}
+                className="flex items-start justify-between gap-3 rounded-md bg-[var(--surface)] px-3 py-2"
+              >
+                <div>
+                  <p className="text-sm font-medium text-[var(--text)]">
+                    {index + 1}. {action.kind.replaceAll("_", " ")}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-[var(--text-secondary)]">
+                    {action.description}
+                  </p>
+                </div>
+                <span className="shrink-0 font-mono text-xs text-[var(--text-secondary)]">
+                  {truncate(action.to)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -214,6 +536,7 @@ function DepositView({
   snapshot,
   nextDeploymentLabel,
   prepared,
+  progress,
   preparing,
   onPrepare,
 }: {
@@ -223,6 +546,7 @@ function DepositView({
   snapshot: AgoraSnapshot;
   nextDeploymentLabel: string;
   prepared: AgoraPreparedAllocation | null;
+  progress: AllocationProgress;
   preparing: boolean;
   onPrepare: () => void;
 }) {
@@ -231,102 +555,118 @@ function DepositView({
   const allocatableBalance = sources
     .filter((source) => source.enabled)
     .reduce((sum, source) => sum + source.balance, 0);
+  const claimablePremiums = snapshot.vault.claimablePremiums ?? 0;
+  const premiumStatus = claimablePremiums > 0 ? "Claimable now" : "Claimable Mondays";
   const canPrepare =
     sources.some((source) => source.enabled && source.wallet && source.balance > 0) &&
     Number.isFinite(numericAmount) &&
     numericAmount > 0 &&
     numericAmount <= allocatableBalance;
+  const estimatedCredit = numericAmount > 0 && numericAmount <= allocatableBalance
+    ? `${fmtAmount(numericAmount)} USDC`
+    : "Enter amount";
 
   return (
-    <div className="space-y-6">
-      <GuidedWalkthrough />
-
-      <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
+    <div className="space-y-5">
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">
         <div className="rounded-lg border border-[var(--border)] bg-[#101012] p-6">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--accent)]">Agent-managed income vault</p>
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--accent)]">Deposit</p>
             <h2 className="mt-2 text-3xl font-semibold text-[var(--bone)]">
-              Put idle USDC to work
+              Allocate USDC to the vault
             </h2>
-            <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-              Deposit once from your existing b1nary balance. The vault moves capital to Arc, credits your shares, and lets the agent choose the next deployment.
-            </p>
+            <div className="mt-3 flex items-center text-sm text-[var(--text-secondary)]">
+              <span>Uses your existing b1nary smart wallet balance.</span>
+              <InfoTooltip
+                title="Allocation path"
+                text="The backend handles CCTP to Arc and credits the MetaVault. This is not a manual bridge screen."
+              />
+            </div>
           </div>
 
-          <div className="mt-7 grid gap-4 sm:grid-cols-3">
-            <Metric label="Available" value={fmtUsd(totalBalance)} sub="Base + Solana smart wallets" />
+          <div className="mt-6 grid gap-3 sm:grid-cols-3">
+            <Metric label="Available" value={fmtUsd(totalBalance)} sub="Smart wallets" />
             <Metric label="In vault" value={fmtUsd(snapshot.vault.netCredited)} sub={agoraStatusLabel(snapshot.vault.status)} />
-            <Metric label="Next deploy" value={nextDeploymentLabel} sub={`Epoch ${snapshot.vault.currentEpoch ?? "-"}`} />
+            <Metric label="Premiums" value={fmtUsd(claimablePremiums)} sub={premiumStatus} />
           </div>
 
           <div className="mt-7 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-          <label className="text-sm font-medium text-[var(--text)]" htmlFor="vault-amount">
-            Deposit amount
-          </label>
-          <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-            <div className="flex min-h-12 flex-1 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-3">
-              <input
-                id="vault-amount"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-                inputMode="decimal"
-                placeholder="0.00"
-                className="min-w-0 flex-1 bg-transparent font-mono text-xl text-[var(--text)] outline-none"
-              />
-              <span className="pl-3 text-sm text-[var(--text-secondary)]">USDC</span>
+            <label className="text-sm font-medium text-[var(--text)]" htmlFor="vault-amount">
+              Amount
+            </label>
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row">
+              <div className="flex min-h-12 flex-1 items-center rounded-md border border-[var(--border)] bg-[var(--surface)] px-3">
+                <input
+                  id="vault-amount"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="0.00"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-xl text-[var(--text)] outline-none"
+                />
+                <span className="pl-3 text-sm text-[var(--text-secondary)]">USDC</span>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={allocatableBalance <= 0}
+                onClick={() => setAmount(String(allocatableBalance))}
+                className="border-[var(--border)]"
+              >
+                Max
+              </Button>
             </div>
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">
+              Available now: {fmtAmount(allocatableBalance)} USDC
+            </p>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
             <Button
               type="button"
-              variant="outline"
-              disabled={allocatableBalance <= 0}
-              onClick={() => setAmount(String(allocatableBalance))}
-              className="border-[var(--border)]"
+              disabled={!canPrepare || preparing}
+              onClick={onPrepare}
+              className="min-h-11 bg-[var(--accent)] px-5 text-black hover:bg-[var(--accent-hover)]"
             >
-              Max
+              {preparing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
+              Deposit to Agent Vault
             </Button>
+            {!canPrepare && (
+              <p className="text-sm text-[var(--text-secondary)]">
+                Enter an amount within the available balance.
+              </p>
+            )}
           </div>
-          <p className="mt-2 text-xs text-[var(--text-secondary)]">
-            Available to allocate now: {fmtAmount(allocatableBalance)} USDC
-          </p>
-        </div>
 
-        <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-center">
-          <Button
-            type="button"
-            disabled={!canPrepare || preparing}
-            onClick={onPrepare}
-            className="min-h-11 bg-[var(--accent)] px-5 text-black hover:bg-[var(--accent-hover)]"
-          >
-            {preparing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ArrowRight className="mr-2 h-4 w-4" />}
-            Deposit to Agent Vault
-          </Button>
-          {!canPrepare && (
-            <p className="text-sm text-[var(--text-secondary)]">
-              Enter an amount within the available smart wallet balance.
-            </p>
+          {prepared && (
+            <div className="mt-5">
+              <PreparedAllocationPanel prepared={prepared} progress={progress} />
+            </div>
           )}
         </div>
 
-        {prepared && <div className="mt-5"><PreparedAllocationPanel prepared={prepared} /></div>}
-        </div>
+        <aside className="space-y-3">
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-[var(--accent)]" />
+              <h3 className="text-sm font-semibold text-[var(--text)]">
+                <TooltipHeading tooltip="The agent never has custody and cannot withdraw user funds. The vault holds capital and enforces allowed actions.">
+                  Vault rules
+                </TooltipHeading>
+              </h3>
+            </div>
+            <div className="mt-4">
+              <DetailRow label="Estimated credit" value={estimatedCredit} />
+              <DetailRow label="Agent access" value="Strategy only" />
+              <DetailRow label="Claim schedule" value="Every Monday" />
+            </div>
+          </section>
 
-        <aside className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[var(--accent)]" />
-            <h3 className="text-sm font-semibold text-[var(--text)]">Funds stay in the vault</h3>
-          </div>
-          <p className="mt-4 text-sm leading-6 text-[var(--text-secondary)]">
-            The agent never has custody of user funds and cannot withdraw them. Capital is held by the vault, which enforces the allowed actions.
-          </p>
-          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-            The agent only manages the strategy: it chooses the best eligible strike, handles the next step after assignment, and repeats the cycle when the vault is not assigned.
-          </p>
-          <div className="mt-5">
-            <DetailRow label="Estimated credit" value={numericAmount > 0 ? `${fmtAmount(numericAmount)} USDC` : "Enter amount"} />
-            <DetailRow label="Claim schedule" value="Every Monday" />
-            <DetailRow label="Next deployment" value={nextDeploymentLabel} />
-            <DetailRow label="Agent access" value="Strategy only" />
-          </div>
+          <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
+            <h3 className="text-sm font-semibold text-[var(--text)]">Next cycle</h3>
+            <DetailRow label="Deployment" value={nextDeploymentLabel} />
+            <DetailRow label="Epoch" value={String(snapshot.vault.currentEpoch ?? "-")} />
+          </section>
         </aside>
       </section>
     </div>
@@ -341,35 +681,172 @@ function MyVaultView({
   nextDeploymentLabel: string;
 }) {
   const vault = snapshot.vault;
+  const activeCapital = snapshot.agent.latest?.size ?? 0;
+  const idleCapital = Math.max(0, vault.netCredited - activeCapital);
+  const deployedHistory = [...snapshot.history]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .find((item) =>
+      ["deployed", "assigned", "claimable"].includes(item.status) ||
+      Boolean(item.agentDecisionHash || item.selectedQuoteId || item.selectedStrategy)
+    );
+  const latestPremium =
+    numericField(deployedHistory?.netPremium) ??
+    numericField(deployedHistory?.grossPremium) ??
+    numericField(snapshot.agent.latest?.netPremium) ??
+    numericField(snapshot.agent.latest?.grossPremium) ??
+    numericField(snapshot.agent.latest?.expectedPremium) ??
+    0;
+  const collectedPremium = latestPremium;
   return (
     <div className="space-y-6">
+      <SelectedPositionDashboard snapshot={snapshot} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Metric label="In vault" value={fmtUsd(vault.netCredited)} sub={agoraStatusLabel(vault.status)} />
-        <Metric label="Claimable" value={fmtUsd(vault.claimablePremiums)} sub="Available every Monday" />
-        <Metric label="Current epoch" value={vault.currentEpoch == null ? "-" : String(vault.currentEpoch)} sub="Vault accounting cycle" />
-        <Metric label="Next deployment" value={nextDeploymentLabel} sub={vault.activationEpoch == null ? "Next eligible epoch" : `Activates epoch ${vault.activationEpoch}`} />
+        <Metric label="Vault balance" value={fmtUsd(vault.netCredited)} sub="Total credited capital" />
+        <Metric label="Deployed" value={fmtUsd(activeCapital)} sub="Currently in position" />
+        <Metric label="Idle" value={fmtUsd(idleCapital)} sub="Available for next cycle" />
+        <Metric label="Premium collected" value={fmtPremiumUsd(collectedPremium)} sub={formatClaimStatus(deployedHistory?.premiumClaimStatus ?? snapshot.agent.latest?.premiumClaimStatus)} />
       </div>
-      <div className="grid gap-5 lg:grid-cols-[minmax(0,0.8fr)_minmax(320px,0.7fr)]">
+      <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
-          <h2 className="text-lg font-semibold text-[var(--bone)]">Capital status</h2>
+          <h2 className="text-sm font-semibold text-[var(--text)]">Cycle timing</h2>
           <div className="mt-3">
-            <DetailRow label="Pending shares" value={fmtAmount(vault.pendingShares)} />
-            <DetailRow label="Active shares" value={fmtAmount(vault.activeShares)} />
-            <DetailRow label="Next capital deployment" value={nextDeploymentLabel} />
+            <DetailRow label="Current epoch" value={vault.currentEpoch == null ? "-" : String(vault.currentEpoch)} />
+            <DetailRow label="Activates epoch" value={vault.activationEpoch == null ? "-" : String(vault.activationEpoch)} />
+            <DetailRow label="Next deployment" value={nextDeploymentLabel} />
             <DetailRow label="Auto-compound" value={vault.autoCompound ? "On" : "Off"} />
           </div>
         </section>
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
-          <h2 className="text-lg font-semibold text-[var(--bone)]">Managed by policy</h2>
-          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-            The agent can choose the next 1-day strategy, but the vault keeps custody and enforces the allowed actions.
-          </p>
-          <p className="mt-3 text-sm leading-6 text-[var(--text-secondary)]">
-            If assigned, it opens the next position. If not assigned, it searches again and repeats the cycle.
-          </p>
+          <h2 className="text-sm font-semibold text-[var(--text)]">Vault controls</h2>
+          <div className="mt-3">
+            <DetailRow label="Custody" value="MetaVault" />
+            <DetailRow label="Agent access" value="Strategy only" />
+            <DetailRow label="Assignment" value="Rotate or repeat" />
+            <DetailRow label="Claims" value="Mondays" />
+          </div>
         </section>
       </div>
     </div>
+  );
+}
+
+function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
+  const latest = snapshot.agent.latest;
+  const selectedQuote = useSelectedQuote(latest);
+  const deployedHistory = [...snapshot.history]
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    .find((item) =>
+      ["deployed", "assigned", "claimable"].includes(item.status) ||
+      Boolean(item.agentDecisionHash || item.selectedQuoteId || item.selectedStrategy)
+    );
+  const hasPositionData = Boolean(
+    deployedHistory?.selectedQuoteId ||
+    deployedHistory?.selectedStrategy ||
+    latest?.quoteId ||
+    latest?.selectedStrategy ||
+    latest?.grossPremium ||
+    latest?.netPremium,
+  );
+  const status: AgoraLifecycleStatus = deployedHistory?.status ??
+    (hasPositionData ? "deployed" : snapshot.vault.status);
+  const hasDecision = Boolean(latest?.selectedStrategy || latest?.selectedAsset || deployedHistory?.selectedStrategy);
+  const strategy = formatStrategyName(latest?.selectedStrategy ?? deployedHistory?.selectedStrategy ?? null);
+  const asset = (latest?.selectedAsset ?? deployedHistory?.selectedAsset ?? "Asset").toUpperCase();
+  const chain = latest?.selectedChain ?? deployedHistory?.selectedChain ?? "Venue pending";
+  const sizeValue = latest?.size ?? deployedHistory?.amount ?? null;
+  const size = sizeValue == null ? "Pending" : `${fmtAmount(sizeValue)} USDC`;
+  const historyPremium =
+    numericField(deployedHistory?.netPremium) ??
+    numericField(deployedHistory?.grossPremium) ??
+    numericField(deployedHistory?.expectedPremium);
+  const positionPremium =
+    numericField(latest?.netPremium) ??
+    numericField(latest?.grossPremium) ??
+    historyPremium ??
+    numericField(latest?.expectedPremium);
+  const historyStrike =
+    typeof deployedHistory?.strike === "number"
+      ? deployedHistory.strike
+      : deployedHistory?.strike
+        ? Number(deployedHistory.strike)
+      : typeof deployedHistory?.selectedStrike === "number"
+        ? deployedHistory.selectedStrike
+        : deployedHistory?.selectedStrike
+          ? Number(deployedHistory.selectedStrike)
+          : null;
+  const strikeValue = selectedQuote?.strike ?? latest?.strike ?? latest?.strikePrice ?? (Number.isFinite(historyStrike) ? historyStrike : null);
+  const strike = strikeValue == null ? "Pending" : fmtUsd(strikeValue);
+  const expiry =
+    formatDateLabel(selectedQuote?.expiry_date) ??
+    formatDateLabel(latest?.expiryDate ?? latest?.expiry) ??
+    formatDateLabel(deployedHistory?.expiryDate ?? deployedHistory?.expiry) ??
+    "Pending";
+  const outcome = getPositionOutcome(status, hasDecision, expiry);
+  const deploymentTx =
+    deployedHistory?.deploymentTxHash ??
+    deployedHistory?.destinationTxHash ??
+    deployedHistory?.destinationTx ??
+    deployedHistory?.destination_tx ??
+    latest?.deploymentTxHash ??
+    latest?.destinationTxHash ??
+    latest?.destinationTx ??
+    latest?.destination_tx ??
+    null;
+  const quoteId = latest?.quoteId ?? deployedHistory?.selectedQuoteId ?? null;
+  const missingPositionData = strike === "Pending" || expiry === "Pending" || !deploymentTx;
+  const premiumCollected = positionPremium ?? 0;
+  const userClaimablePremium = snapshot.vault.userClaimablePremiums ?? snapshot.vault.claimablePremiums ?? 0;
+  const vaultCollectedPremium = snapshot.vault.vaultPremiumsCollected ?? snapshot.vault.totalPremiumsCollected ?? null;
+  const claimStatus = formatClaimStatus(deployedHistory?.premiumClaimStatus ?? latest?.premiumClaimStatus);
+
+  return (
+    <section className="rounded-lg border border-[var(--border)] bg-[#101012] p-5">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className={`rounded-full border px-2 py-1 text-xs ${outcome.tone}`}>
+              {outcome.label}
+            </span>
+            <span className="text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
+              Current position
+            </span>
+          </div>
+          <h2 className="mt-3 text-2xl font-semibold text-[var(--bone)]">
+            {asset} {strategy}
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
+            {outcome.body}
+          </p>
+          {missingPositionData && (
+            <p className="mt-2 text-xs text-amber-200">
+              Some position details are not returned by the backend yet for quote {quoteId ?? "this deployment"}.
+            </p>
+          )}
+        </div>
+        <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-4 lg:min-w-64">
+          <p className="text-xs uppercase tracking-[0.16em] text-[var(--accent)]">Premium collected</p>
+          <p className="mt-2 font-mono text-3xl text-[var(--bone)]">{fmtPremiumUsd(premiumCollected)}</p>
+          <p className="mt-1 text-xs text-[var(--text-secondary)]">
+            {`${claimStatus} · claimable ${fmtPremiumUsd(userClaimablePremium)}${vaultCollectedPremium == null ? "" : ` · ${fmtPremiumUsd(vaultCollectedPremium)} vault total`}`}
+          </p>
+        </div>
+      </div>
+
+      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Capital deployed</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{size}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{expiry}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Chain</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{chain}</p>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -383,6 +860,19 @@ function TxValue({ label, value }: { label: string; value: string | null }) {
 }
 
 function HistoryItemRow({ item }: { item: AgoraHistoryItem }) {
+  const deploymentTx = item.deploymentTxHash ?? item.destinationTxHash ?? item.destinationTx ?? item.destination_tx ?? null;
+  const hasAgentDeployment = ["deployed", "assigned", "claimable"].includes(item.status);
+  const selectedMarket = [item.selectedAsset?.toUpperCase(), item.selectedChain]
+    .filter(Boolean)
+    .join(" on ");
+  const agentSummary = hasAgentDeployment
+    ? `${formatStrategyName(item.selectedStrategy)} deployed`
+    : formatStrategyName(item.selectedStrategy);
+  const quoteSummary = [
+    selectedMarket,
+    hasAgentDeployment && item.selectedQuoteId ? `quote ${item.selectedQuoteId}` : null,
+  ].filter(Boolean).join(" · ");
+
   return (
     <article className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
       <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -401,16 +891,21 @@ function HistoryItemRow({ item }: { item: AgoraHistoryItem }) {
           <p className="mt-1 font-mono text-xs text-[var(--text-secondary)]">
             {truncate(item.sourceWallet)}
           </p>
+          {hasAgentDeployment && (
+            <p className="mt-2 text-sm text-emerald-200">
+              Agent deployed this allocation into the selected position.
+            </p>
+          )}
           {item.failureReason && (
             <p className="mt-2 text-sm text-red-300">{item.failureReason}</p>
           )}
         </div>
         <div className="text-left md:text-right">
           <p className="text-sm text-[var(--text)]">
-            {item.selectedStrategy ?? "Awaiting agent deployment"}
+            {agentSummary}
           </p>
           <p className="mt-1 text-xs text-[var(--text-secondary)]">
-            {[item.selectedChain, item.selectedAsset, item.selectedQuoteId].filter(Boolean).join(" / ") || "No quote selected yet"}
+            {hasAgentDeployment ? quoteSummary || "Position details pending" : "No agent position yet"}
           </p>
         </div>
       </div>
@@ -418,7 +913,12 @@ function HistoryItemRow({ item }: { item: AgoraHistoryItem }) {
         <TxValue label="burn" value={item.burnTxHash} />
         <TxValue label="receiveMessage" value={item.arcReceiveTxHash} />
         <TxValue label="finalize" value={item.finalizeTxHash} />
-        <TxValue label="decision" value={item.agentDecisionHash} />
+        {hasAgentDeployment && (
+          <>
+            <TxValue label="decision" value={item.agentDecisionHash} />
+            <TxValue label="deployment" value={deploymentTx} />
+          </>
+        )}
       </div>
     </article>
   );
@@ -446,8 +946,33 @@ function HistoryView({ snapshot }: { snapshot: AgoraSnapshot }) {
   );
 }
 
+function AgentField({
+  icon,
+  label,
+  value,
+  sub,
+}: {
+  icon: ReactNode;
+  label: string;
+  value: string;
+  sub?: string;
+}) {
+  return (
+    <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
+      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">
+        <span className="text-[var(--accent)]">{icon}</span>
+        {label}
+      </div>
+      <p className="mt-3 font-mono text-2xl text-[var(--bone)]">{value}</p>
+      {sub && <p className="mt-1 text-xs text-[var(--text-secondary)]">{sub}</p>}
+    </div>
+  );
+}
+
 function AgentView({ snapshot }: { snapshot: AgoraSnapshot }) {
   const latest = snapshot.agent.latest;
+  const selectedQuote = useSelectedQuote(latest);
+
   if (!latest) {
     return (
       <div className="rounded-lg border border-dashed border-[var(--border)] p-10 text-center">
@@ -460,65 +985,165 @@ function AgentView({ snapshot }: { snapshot: AgoraSnapshot }) {
     );
   }
 
+  const strategyLabel = formatStrategyName(latest.selectedStrategy);
+  const assetLabel = latest.selectedAsset?.toUpperCase() ?? "Asset";
+  const chainLabel = latest.selectedChain
+    ? latest.selectedChain.charAt(0).toUpperCase() + latest.selectedChain.slice(1)
+    : "Available venue";
+  const sizeLabel = latest.size == null ? "Pending" : `${fmtAmount(latest.size)} USDC`;
+  const vaultCapital = snapshot.vault.netCredited || snapshot.vault.activeShares || snapshot.vault.pendingShares;
+  const selectedSize = latest.size ?? 0;
+  const reserveSize = Math.max(0, vaultCapital - selectedSize);
+  const vaultCapitalLabel = fmtUsd(vaultCapital);
+  const reserveLabel = `${fmtAmount(reserveSize)} USDC`;
+  const agentPremium = numericField(latest.netPremium) ?? numericField(latest.grossPremium) ?? numericField(latest.expectedPremium);
+  const premiumLabel = agentPremium == null ? "Pending" : fmtPremiumUsd(agentPremium);
+  const traceText = latest.trace.join(" ");
+  const aprMatch = traceText.match(/Premium APR proxy is ([\d.]+)%/i);
+  const expiryMatch = traceText.match(/Expiry is (\d+) days?/i);
+  const distanceMatch = traceText.match(/distance to strike is ([\d.]+)%/i);
+  const riskMatch = traceText.match(/assignment risk proxy is ([\d.]+)%/i);
+  const explicitStrike = latest.strike ?? latest.strikePrice ?? null;
+  const explicitExpiryDate =
+    typeof latest.expiry === "string"
+      ? latest.expiry
+      : latest.expiryDate ?? null;
+  const explicitExpiryTimestamp =
+    typeof latest.expiry === "number" ? latest.expiry : null;
+  const strikeLabel =
+    selectedQuote?.strike != null
+      ? fmtUsd(selectedQuote.strike)
+      : explicitStrike != null
+        ? fmtUsd(explicitStrike)
+        : latest.quoteId
+          ? "Quote selected"
+          : "Pending";
+  const expiryLabel = selectedQuote?.expiry_date
+    ? new Date(`${selectedQuote.expiry_date}T08:00:00Z`).toLocaleDateString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })
+    : explicitExpiryDate
+      ? new Date(explicitExpiryDate).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+          year: "numeric",
+        })
+      : explicitExpiryTimestamp
+        ? new Date(explicitExpiryTimestamp * 1000).toLocaleDateString(undefined, {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+          })
+        : expiryMatch ? `${expiryMatch[1]} days` : "Pending";
+  const aprLabel =
+    latest.premiumApr != null
+      ? `${latest.premiumApr.toFixed(2)}% APR`
+      : aprMatch ? `${aprMatch[1]}% APR` : "Policy passed";
+  const distanceLabel =
+    latest.distanceToStrike != null
+      ? `${latest.distanceToStrike.toFixed(2)}% OTM`
+      : distanceMatch ? `${distanceMatch[1]}% OTM` : "Within policy";
+  const riskLabel =
+    latest.assignmentRisk != null
+      ? `${latest.assignmentRisk.toFixed(2)}% risk`
+      : riskMatch ? `${riskMatch[1]}% risk` : "Checked";
+  const decisionSummary =
+    selectedQuote
+      ? `The agent chose a ${assetLabel} ${strategyLabel.toLowerCase()} at ${strikeLabel}, expiring ${expiryLabel}.`
+      : latest.trace.find((line) => line.toLowerCase().startsWith("selected ")) ??
+        `The agent selected ${strategyLabel} for the next eligible vault deployment.`;
+
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-5">
+      <section className="rounded-lg border border-[var(--border)] bg-[#101012] p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--accent)]">Latest decision</p>
-            <h2 className="mt-2 text-2xl font-semibold text-[var(--bone)]">
-              {latest.selectedStrategy ?? "No strategy selected"}
+            <p className="text-xs uppercase tracking-[0.18em] text-[var(--accent)]">
+              Latest agent decision
+            </p>
+            <h2 className="mt-2 text-3xl font-semibold text-[var(--bone)]">
+              {assetLabel} {strategyLabel}
             </h2>
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-[var(--text-secondary)]">
+              {decisionSummary}
+            </p>
           </div>
-          <span className="rounded-full border border-[var(--border)] px-3 py-1 text-xs text-[var(--text-secondary)]">
-            {latest.policyProfile}
-          </span>
+          <div className="w-full rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-4 lg:w-72">
+            <p className="text-xs uppercase tracking-[0.16em] text-[var(--accent)]">Selected capital</p>
+            <p className="mt-2 font-mono text-3xl text-[var(--bone)]">{sizeLabel}</p>
+            <p className="mt-1 text-xs text-[var(--text-secondary)]">
+              {reserveLabel} remains idle in the vault
+            </p>
+          </div>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-3">
-          <Metric label="Evaluated" value={String(latest.opportunitiesEvaluated)} />
-          <Metric label="Eligible" value={String(latest.eligibleOpportunities)} />
-          <Metric label="Score" value={latest.score == null ? "N/A" : latest.score.toFixed(2)} />
-        </div>
-        <div className="mt-5 rounded-lg border border-[var(--border)] bg-[var(--bg)] p-4">
-          <h3 className="text-sm font-semibold text-[var(--text)]">Reasoning trace</h3>
-          <ol className="mt-3 space-y-3">
-            {latest.trace.map((line, index) => (
-              <li key={`${line}-${index}`} className="flex gap-3 text-sm text-[var(--text-secondary)]">
-                <span className="font-mono text-[var(--accent)]">{String(index + 1).padStart(2, "0")}</span>
-                <span>{line}</span>
-              </li>
-            ))}
-          </ol>
+
+        <div className="mt-6 grid gap-3 md:grid-cols-4">
+          <AgentField
+            icon={<Target className="h-4 w-4" />}
+            label="Strike"
+            value={strikeLabel}
+            sub={`${assetLabel} ${strategyLabel}`}
+          />
+          <AgentField
+            icon={<CalendarDays className="h-4 w-4" />}
+            label="Expiry"
+            value={expiryLabel}
+            sub={selectedQuote?.expiry_days ? `${selectedQuote.expiry_days} days` : "Selected tenor"}
+          />
+          <AgentField
+            icon={<CircleDollarSign className="h-4 w-4" />}
+            label="Premium"
+            value={premiumLabel}
+            sub={aprLabel}
+          />
+          <AgentField
+            icon={<ShieldCheck className="h-4 w-4" />}
+            label="Venue"
+            value={chainLabel}
+            sub="Vault keeps custody"
+          />
         </div>
       </section>
 
-      <aside className="space-y-4">
-        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
-          <h3 className="text-sm font-semibold text-[var(--text)]">Selected opportunity</h3>
-          <div className="mt-3">
-            <DetailRow label="Chain" value={latest.selectedChain ?? "N/A"} />
-            <DetailRow label="Asset" value={latest.selectedAsset ?? "N/A"} />
-            <DetailRow label="Quote" value={latest.quoteId ?? "N/A"} />
-            <DetailRow label="Size" value={latest.size == null ? "N/A" : `${fmtAmount(latest.size)} USDC`} />
-            <DetailRow label="Expected premium" value={latest.expectedPremium == null ? "N/A" : fmtUsd(latest.expectedPremium)} />
-            <DetailRow label="Decision hash" value={truncate(latest.decisionHash)} />
+      <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-[var(--text)]">Why it passed</h3>
+            <p className="mt-1 text-sm text-[var(--text-secondary)]">
+              The agent selected one eligible short-dated position and left the rest of the vault idle.
+            </p>
           </div>
-        </section>
-        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
-          <h3 className="text-sm font-semibold text-[var(--text)]">Rejections</h3>
-          <div className="mt-3">
-            {Object.entries(latest.rejectionCounts).map(([reason, count]) => (
-              <DetailRow key={reason} label={reason.replaceAll("_", " ")} value={String(count)} />
-            ))}
-          </div>
-        </section>
-      </aside>
+          <span className="font-mono text-xs text-[var(--text-secondary)]">
+            {truncate(latest.decisionHash)}
+          </span>
+        </div>
+        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Distance</p>
+              <p className="mt-2 font-mono text-xl text-[var(--bone)]">{distanceLabel}</p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">from spot</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Assignment</p>
+              <p className="mt-2 font-mono text-xl text-[var(--bone)]">{riskLabel}</p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">agent estimate</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Selected size</p>
+              <p className="mt-2 font-mono text-xl text-[var(--bone)]">{sizeLabel}</p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">of {vaultCapitalLabel}</p>
+            </div>
+        </div>
+      </section>
     </div>
   );
 }
 
 export function VaultPageClient() {
   const { user } = usePrivy();
+  const { sendBatchTx } = useWallet();
   const { address, baseAddresses, solanaAddress, solanaAddresses, isConnected } =
     useWalletSummary();
   const { wallets: b1naryWallets } = useB1naryAccount({
@@ -528,6 +1153,11 @@ export function VaultPageClient() {
   const [amount, setAmount] = useState("");
   const [prepared, setPrepared] = useState<AgoraPreparedAllocation | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [allocationProgress, setAllocationProgress] = useState<AllocationProgress>({
+    status: "idle",
+    title: "Ready",
+    message: "Enter an amount to deposit into the Agent Vault.",
+  });
   const [now, setNow] = useState(() => new Date());
 
   const baseTradingWallets = useMemo(
@@ -559,7 +1189,7 @@ export function VaultPageClient() {
   const baseBalances = useBalances(baseBalanceAddresses);
   const solanaBalances = useSolanaBalance(solanaBalanceAddresses);
   const primaryUserAddress = baseTradingWallets[0] ?? address ?? solanaTradingWallets[0] ?? solanaAddress;
-  const { snapshot, loading, error } = useAgoraSnapshot(primaryUserAddress);
+  const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(primaryUserAddress);
   const deploymentDate = useMemo(() => nextDeploymentDate(now), [now]);
   const nextDeploymentLabel = useMemo(
     () => formatTimeUntil(deploymentDate, now),
@@ -629,6 +1259,13 @@ export function VaultPageClient() {
   async function handlePrepare() {
     if (!allocationSource?.wallet || !snapshot) return;
     setPreparing(true);
+    setPrepared(null);
+    let submittedTxHash: string | null = null;
+    setAllocationProgress({
+      status: "preparing",
+      title: "Preparing allocation",
+      message: "Creating the vault allocation and fetching smart-wallet actions.",
+    });
     try {
       const result = await prepareAgoraAllocation({
         userId: user?.id ?? null,
@@ -639,6 +1276,108 @@ export function VaultPageClient() {
         metaVaultAddress: snapshot.registry.metaVaultAddress,
       });
       setPrepared(result);
+      if (result.disabled_reason) {
+        setAllocationProgress({
+          status: "blocked",
+          title: "Allocation not executable yet",
+          message: result.disabled_reason,
+        });
+        return;
+      }
+      if (result.actions.length === 0) {
+        setAllocationProgress({
+          status: "blocked",
+          title: "No on-chain action returned",
+          message:
+            result.mode === "demo"
+              ? "The backend did not return an executable allocation. Check API routing before retrying."
+              : "The backend prepared the allocation, but did not return smart-wallet actions.",
+        });
+        return;
+      }
+      if (result.actions.some((action) => action.chain !== "base")) {
+        setAllocationProgress({
+          status: "blocked",
+          title: "Unsupported source for V1",
+          message: "Only Base smart-wallet allocation actions can be executed from this screen right now.",
+        });
+        return;
+      }
+
+      setAllocationProgress({
+        status: "executing",
+        title: "Executing smart-wallet actions",
+        message: "Approving USDC and starting the CCTP burn from the smart wallet.",
+        lifecycleStatus: "smart_wallet_approval_burn",
+      });
+      const calls: BatchCall[] = result.actions.map((action) => ({
+        to: action.to as Address,
+        data: action.data as `0x${string}`,
+        value: BigInt(action.value || "0"),
+      }));
+      const txHash = await sendBatchTx(calls);
+      if (typeof txHash !== "string" || !txHash.startsWith("0x")) {
+        throw new Error("Smart wallet did not return a transaction hash.");
+      }
+      submittedTxHash = txHash;
+      setAllocationProgress({
+        status: "registering",
+        title: "Burn submitted",
+        message: "Registering the deposit intent so the relayer can continue the Arc flow.",
+        txHash,
+        lifecycleStatus: "attesting",
+      });
+
+      const receiverAddress = result.receiverAddress ?? snapshot.registry.receiverAddress;
+      const metaVaultAddress = result.metaVaultAddress ?? snapshot.registry.metaVaultAddress;
+      const amountRaw = result.amount_raw ?? String(Math.round(result.amount * 1_000_000));
+      if (!receiverAddress || !metaVaultAddress) {
+        throw new Error("Receiver or MetaVault address is missing from the allocation.");
+      }
+
+      const onchainIntentId = buildOnchainIntentId({
+        allocationId: result.allocation_id ?? result.id,
+        txHash,
+        sourceWallet: result.sourceWallet,
+        amountRaw,
+      });
+      const allocationId = result.allocation_id ?? result.id;
+      const intentKey = `${allocationId}:${txHash}`;
+      const intentResponse = await createAgoraDepositIntent({
+        userId: user?.id ?? primaryUserAddress ?? result.sourceWallet,
+        sourceChain: "base",
+        sourceWallet: result.sourceWallet,
+        burnTxHash: txHash,
+        receiverAddress,
+        metaVaultAddress,
+        amountRaw,
+        onchainIntentId,
+        idempotencyKey: intentKey,
+        quoteId: intentKey,
+      });
+      setAllocationProgress(progressFromCapitalIntent(intentResponse.intent, txHash));
+      await refreshSnapshot({ silent: true });
+
+      let latestIntent = intentResponse.intent;
+      for (let attempt = 0; attempt < 36; attempt += 1) {
+        if (["waiting_to_be_deployed", "deployed", "completed", "failed", "retryable"].includes(latestIntent.status)) {
+          break;
+        }
+        await sleep(5_000);
+        latestIntent = await getAgoraCapitalIntent(intentResponse.intent.id);
+        setAllocationProgress(progressFromCapitalIntent(latestIntent, txHash));
+        await refreshSnapshot({ silent: true });
+      }
+    } catch (err) {
+      setAllocationProgress({
+        status: "error",
+        title: submittedTxHash ? "Burn submitted, registration failed" : "Allocation failed",
+        message: submittedTxHash
+          ? `Burn tx ${truncate(submittedTxHash)} was submitted, but the relayer intent could not be registered: ${err instanceof Error ? err.message : "unknown error"}`
+          : err instanceof Error ? err.message : "Could not execute allocation.",
+        txHash: submittedTxHash ?? undefined,
+        lifecycleStatus: submittedTxHash ? "attesting" : undefined,
+      });
     } finally {
       setPreparing(false);
     }
@@ -710,6 +1449,7 @@ export function VaultPageClient() {
           snapshot={snapshot}
           nextDeploymentLabel={nextDeploymentLabel}
           prepared={prepared}
+          progress={allocationProgress}
           preparing={preparing}
           onPrepare={handlePrepare}
         />
@@ -722,15 +1462,6 @@ export function VaultPageClient() {
       )}
       {view === "history" && <HistoryView snapshot={snapshot} />}
       {view === "agent" && <AgentView snapshot={snapshot} />}
-
-      <button
-        type="button"
-        onClick={() => navigator.clipboard?.writeText(window.location.href)}
-        className="mt-8 inline-flex items-center gap-2 text-xs text-[var(--text-secondary)] hover:text-[var(--text)]"
-      >
-        <Copy className="h-3.5 w-3.5" />
-        Copy vault URL
-      </button>
     </main>
   );
 }

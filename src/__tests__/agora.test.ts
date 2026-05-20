@@ -19,6 +19,8 @@ describe("agora helpers", () => {
     expect(prepared.id).toContain("prepared-base");
     expect(prepared.status).toBe("allocation_created");
     expect(prepared.amount).toBe(125.5);
+    expect(prepared.circleFee).toBe(0);
+    expect(prepared.netAmount).toBe(125.5);
     expect(prepared.lifecycle).toEqual(AGORA_LIFECYCLE);
   });
 
