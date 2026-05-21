@@ -68,6 +68,8 @@ const VIEWS: Array<{ id: View; label: string }> = [
   { id: "agent", label: "Agent" },
 ];
 
+const AGORA_DEMO_USER = process.env.NEXT_PUBLIC_AGORA_DEMO_USER;
+
 function fmtUsd(value: number): string {
   return `$${value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -1175,7 +1177,13 @@ export function VaultPageClient() {
 
   const baseBalances = useBalances(baseBalanceAddresses);
   const solanaBalances = useSolanaBalance(solanaBalanceAddresses);
-  const primaryUserAddress = baseTradingWallets[0] ?? address ?? fundingAddress ?? solanaTradingWallets[0] ?? solanaAddress;
+  const primaryUserAddress =
+    baseTradingWallets[0] ??
+    address ??
+    fundingAddress ??
+    solanaTradingWallets[0] ??
+    solanaAddress ??
+    AGORA_DEMO_USER;
   const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(primaryUserAddress);
   const deploymentDate = useMemo(() => nextDeploymentDate(now), [now]);
   const nextDeploymentLabel = useMemo(
