@@ -355,6 +355,49 @@ function numericField(value: number | string | null | undefined): number | null 
   return null;
 }
 
+function isDeployedPosition(item: AgoraHistoryItem) {
+  return ["deployed", "assigned", "claimable"].includes(item.status);
+}
+
+function deployedPositions(snapshot: AgoraSnapshot) {
+  return snapshot.history
+    .filter(isDeployedPosition)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+function positionCapital(item: AgoraHistoryItem) {
+  return numericField(item.amount) ?? 0;
+}
+
+function positionPremium(item: AgoraHistoryItem) {
+  return numericField(item.netPremium) ?? numericField(item.grossPremium) ?? 0;
+}
+
+function totalPositionCapital(items: AgoraHistoryItem[]) {
+  return items.reduce((total, item) => total + positionCapital(item), 0);
+}
+
+function totalPositionPremium(items: AgoraHistoryItem[]) {
+  return items.reduce((total, item) => total + positionPremium(item), 0);
+}
+
+function positionExpiryLabel(item: AgoraHistoryItem) {
+  const rawExpiry = item.expiryDate ?? item.expiry;
+  const label = formatDateLabel(rawExpiry);
+  if (!label || !rawExpiry) return "Pending";
+
+  const start = new Date(item.completed_at ?? item.createdAt);
+  const expiry =
+    typeof rawExpiry === "number"
+      ? new Date(rawExpiry * 1000)
+      : new Date(String(rawExpiry).includes("T") ? String(rawExpiry) : `${rawExpiry}T08:00:00Z`);
+  if (!Number.isNaN(start.getTime()) && !Number.isNaN(expiry.getTime())) {
+    const days = (expiry.getTime() - start.getTime()) / 86_400_000;
+    if (days > 3) return "Needs reconciliation";
+  }
+  return label;
+}
+
 function useSelectedQuote(decision: AgoraSnapshot["agent"]["latest"]) {
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
 
@@ -721,29 +764,21 @@ function MyVaultView({
   nextDeploymentLabel: string;
 }) {
   const vault = snapshot.vault;
-  const deployedHistory = [...snapshot.history]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .find((item) => ["deployed", "assigned", "claimable"].includes(item.status));
-  const activeCapital =
-    numericField(deployedHistory?.collateral) ??
-    numericField(deployedHistory?.amount) ??
-    vault.activeShares ??
-    0;
+  const positions = deployedPositions(snapshot);
+  const activeCapital = totalPositionCapital(positions);
   const idleCapital = Math.max(0, vault.netCredited - activeCapital);
-  const latestPremium =
-    numericField(deployedHistory?.netPremium) ??
-    numericField(deployedHistory?.grossPremium) ??
-    0;
-  const collectedPremium = latestPremium;
+  const collectedPremium = totalPositionPremium(positions);
+  const claimStatus = positions.find((item) => item.premiumClaimStatus)?.premiumClaimStatus;
   return (
     <div className="space-y-6">
       <SelectedPositionDashboard snapshot={snapshot} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric label="Vault balance" value={fmtUsd(vault.netCredited)} sub="Total credited capital" />
-        <Metric label="Deployed" value={fmtUsd(activeCapital)} sub="Currently in position" />
+        <Metric label="Deployed" value={fmtUsd(activeCapital)} sub={`${positions.length} active position${positions.length === 1 ? "" : "s"}`} />
         <Metric label="Idle" value={fmtUsd(idleCapital)} sub="Available for next cycle" />
-        <Metric label="Premium collected" value={fmtPremiumUsd(collectedPremium)} sub={formatClaimStatus(deployedHistory?.premiumClaimStatus ?? snapshot.agent.latest?.premiumClaimStatus)} />
+        <Metric label="Premium collected" value={fmtPremiumUsd(collectedPremium)} sub={formatClaimStatus(claimStatus ?? snapshot.agent.latest?.premiumClaimStatus)} />
       </div>
+      <PositionList positions={positions} />
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
           <h2 className="text-sm font-semibold text-[var(--text)]">Cycle timing</h2>
@@ -769,76 +804,39 @@ function MyVaultView({
 }
 
 function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
-  const deployedHistory = [...snapshot.history]
-    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .find((item) => ["deployed", "assigned", "claimable"].includes(item.status));
-  const status: AgoraLifecycleStatus = deployedHistory?.status ?? "waiting_to_be_deployed";
-  const hasDecision = Boolean(deployedHistory?.selectedStrategy || deployedHistory?.selectedAsset);
-  const strategy = formatStrategyName(deployedHistory?.selectedStrategy ?? null);
-  const asset = (deployedHistory?.selectedAsset ?? "No active").toUpperCase();
-  const chain = deployedHistory?.selectedChain ?? "No active chain";
-  const sizeValue =
-    numericField(deployedHistory?.collateral) ??
-    numericField(deployedHistory?.amount) ??
-    null;
-  const size = sizeValue == null ? "Pending" : `${fmtAmount(sizeValue)} USDC`;
-  const historyPremium =
-    numericField(deployedHistory?.netPremium) ??
-    numericField(deployedHistory?.grossPremium) ??
-    numericField(deployedHistory?.expectedPremium);
-  const positionPremium = historyPremium;
-  const historyStrike =
-    typeof deployedHistory?.strike === "number"
-      ? deployedHistory.strike
-      : deployedHistory?.strike
-        ? Number(deployedHistory.strike)
-      : typeof deployedHistory?.selectedStrike === "number"
-        ? deployedHistory.selectedStrike
-        : deployedHistory?.selectedStrike
-          ? Number(deployedHistory.selectedStrike)
-          : null;
-  const strikeValue = Number.isFinite(historyStrike) ? historyStrike : null;
-  const strike = strikeValue == null ? "Pending" : fmtUsd(strikeValue);
-  const expiry =
-    formatDateLabel(deployedHistory?.expiryDate ?? deployedHistory?.expiry) ??
-    "Pending";
-  const outcome = getPositionOutcome(status, hasDecision, expiry);
-  const deploymentTx =
-    deployedHistory?.deploymentTxHash ??
-    deployedHistory?.destinationTxHash ??
-    deployedHistory?.destinationTx ??
-    deployedHistory?.destination_tx ??
-    null;
-  const quoteId = deployedHistory?.selectedQuoteId ?? null;
-  const missingPositionData = strike === "Pending" || expiry === "Pending" || !deploymentTx;
-  const premiumCollected = positionPremium ?? 0;
+  const positions = deployedPositions(snapshot);
+  const latestPosition = positions[0];
+  const activeCapital = totalPositionCapital(positions);
+  const premiumCollected = totalPositionPremium(positions);
   const userClaimablePremium = snapshot.vault.userClaimablePremiums ?? snapshot.vault.claimablePremiums ?? 0;
   const vaultCollectedPremium = snapshot.vault.vaultPremiumsCollected ?? snapshot.vault.totalPremiumsCollected ?? null;
-  const claimStatus = formatClaimStatus(deployedHistory?.premiumClaimStatus);
+  const claimStatus = formatClaimStatus(latestPosition?.premiumClaimStatus);
+  const latestAsset = (latestPosition?.selectedAsset ?? "No active").toUpperCase();
+  const latestStrategy = formatStrategyName(latestPosition?.selectedStrategy ?? null);
+  const latestExpiry = latestPosition ? positionExpiryLabel(latestPosition) : "Pending";
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[#101012] p-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <span className={`rounded-full border px-2 py-1 text-xs ${outcome.tone}`}>
-              {outcome.label}
+            <span className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-2 py-1 text-xs text-emerald-200">
+              {positions.length > 0 ? "Active positions" : "Waiting for deployment"}
             </span>
             <span className="text-xs uppercase tracking-[0.16em] text-[var(--text-secondary)]">
-              Current position
+              Vault deployment
             </span>
           </div>
           <h2 className="mt-3 text-2xl font-semibold text-[var(--bone)]">
-            {asset} {strategy}
+            {positions.length > 0
+              ? `${positions.length} ${positions.length === 1 ? "position" : "positions"} deployed`
+              : "Capital waiting for agent deployment"}
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
-            {outcome.body}
+            {positions.length > 0
+              ? `Latest: ${latestAsset} ${latestStrategy} on ${latestPosition?.selectedChain ?? "base"}. Premiums are accumulated across every position opened by the vault.`
+              : "Capital is in the vault. The agent has not opened a position for this cycle yet."}
           </p>
-          {missingPositionData && (
-            <p className="mt-2 text-xs text-amber-200">
-              Some position details are not returned by the backend yet for quote {quoteId ?? "this deployment"}.
-            </p>
-          )}
         </div>
         <div className="rounded-lg border border-[var(--accent)]/30 bg-[var(--accent)]/10 p-4 lg:min-w-64">
           <p className="text-xs uppercase tracking-[0.16em] text-[var(--accent)]">Premium collected</p>
@@ -852,16 +850,69 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
           <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Capital deployed</p>
-          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{size}</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{fmtUsd(activeCapital)}</p>
         </div>
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
-          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{expiry}</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Latest expiry</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{latestExpiry}</p>
         </div>
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
-          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Chain</p>
-          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{chain}</p>
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Positions</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{positions.length}</p>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
+  if (positions.length === 0) return null;
+
+  return (
+    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70">
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+        <h2 className="text-sm font-semibold text-[var(--text)]">Positions opened</h2>
+        <span className="text-xs text-[var(--text-secondary)]">
+          {positions.length} active
+        </span>
+      </div>
+      <div className="divide-y divide-[var(--border)]">
+        {positions.map((position) => {
+          const asset = (position.selectedAsset ?? "Asset").toUpperCase();
+          const strategy = formatStrategyName(position.selectedStrategy ?? null);
+          const capital = positionCapital(position);
+          const premium = positionPremium(position);
+          const expiry = positionExpiryLabel(position);
+          const chain = position.selectedChain ?? position.sourceChain;
+          const quote = position.selectedQuoteId ?? "pending";
+          const status = agoraStatusLabel(position.status);
+
+          return (
+            <div key={position.id} className="grid gap-4 px-5 py-4 md:grid-cols-[1.5fr_1fr_1fr_1fr] md:items-center">
+              <div>
+                <p className="font-medium text-[var(--bone)]">{asset} {strategy}</p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                  {chain} · quote {quote}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Capital</p>
+                <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtAmount(capital)} USDC</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Premium</p>
+                <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtPremiumUsd(premium)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
+                <p className={`mt-1 font-mono text-sm ${expiry === "Needs reconciliation" ? "text-amber-200" : "text-[var(--text)]"}`}>
+                  {expiry}
+                </p>
+                <p className="mt-1 text-xs text-[var(--text-secondary)]">{status}</p>
+              </div>
+            </div>
+          );
+        })}
       </div>
     </section>
   );

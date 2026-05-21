@@ -49,6 +49,7 @@ export interface AgoraHistoryItem {
   id: string;
   created_at?: string;
   createdAt: string;
+  completed_at?: string | null;
   source_chain?: AgoraSourceChain;
   sourceChain: AgoraSourceChain;
   source_wallet?: string;
