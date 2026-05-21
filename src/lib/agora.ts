@@ -188,6 +188,8 @@ export interface AgoraAgentDecision {
   positionSize?: number | string | null;
   position_size?: number | string | null;
   collateral?: number | string | null;
+  selectedStrike?: number | string | null;
+  selected_strike?: number | string | null;
   strike?: number | null;
   strikePrice?: number | null;
   strike_price?: number | null;
@@ -531,8 +533,21 @@ function normalizeAgentDecision(
     premiumClaimStatus: value.premiumClaimStatus ?? value.premium_claim_status ?? null,
     positionSize: value.positionSize ?? numberOrNull(value.position_size),
     collateral: value.collateral ?? null,
-    strike: value.strike ?? numberOrNull(value.strike_price),
-    strikePrice: value.strikePrice ?? numberOrNull(value.strike_price),
+    selectedStrike:
+      value.selectedStrike ??
+      value.selected_strike ??
+      value.strike ??
+      numberOrNull(value.strike_price),
+    strike:
+      value.strike ??
+      numberOrNull(value.selectedStrike) ??
+      numberOrNull(value.selected_strike) ??
+      numberOrNull(value.strike_price),
+    strikePrice:
+      value.strikePrice ??
+      numberOrNull(value.selectedStrike) ??
+      numberOrNull(value.selected_strike) ??
+      numberOrNull(value.strike_price),
     expiry: value.expiry ?? value.expiry_date ?? value.expiryDate ?? null,
     expiryDate: value.expiryDate ?? value.expiry_date ?? null,
     premiumApr: value.premiumApr ?? numberOrNull(value.premium_apr),

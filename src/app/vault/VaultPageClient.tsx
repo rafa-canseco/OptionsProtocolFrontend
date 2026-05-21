@@ -402,6 +402,17 @@ function positionStrikeLabel(item: AgoraHistoryItem, decisions: AgoraSnapshot["a
   return strike == null ? "Pending" : fmtUsd(strike);
 }
 
+function agentDecisionStrike(decision: AgoraSnapshot["agent"]["latest"], selectedQuote: PriceQuote | null) {
+  if (!decision) return null;
+  return (
+    numericField(selectedQuote?.strike) ??
+    numericField(decision.selectedStrike) ??
+    numericField(decision.strike) ??
+    numericField(decision.strikePrice) ??
+    numericField(decision.strike_price)
+  );
+}
+
 function useSelectedQuote(decision: AgoraSnapshot["agent"]["latest"]) {
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
 
@@ -1041,7 +1052,7 @@ function AgentView({ snapshot }: { snapshot: AgoraSnapshot }) {
   const expiryMatch = traceText.match(/Expiry is (\d+) days?/i);
   const distanceMatch = traceText.match(/distance to strike is ([\d.]+)%/i);
   const riskMatch = traceText.match(/assignment risk proxy is ([\d.]+)%/i);
-  const explicitStrike = latest.strike ?? latest.strikePrice ?? null;
+  const explicitStrike = agentDecisionStrike(latest, selectedQuote);
   const explicitExpiryDate =
     typeof latest.expiry === "string"
       ? latest.expiry
@@ -1049,13 +1060,14 @@ function AgentView({ snapshot }: { snapshot: AgoraSnapshot }) {
   const explicitExpiryTimestamp =
     typeof latest.expiry === "number" ? latest.expiry : null;
   const strikeLabel =
-    selectedQuote?.strike != null
-      ? fmtUsd(selectedQuote.strike)
-      : explicitStrike != null
-        ? fmtUsd(explicitStrike)
-        : latest.quoteId
-          ? "Quote selected"
-          : "Pending";
+    explicitStrike != null
+      ? fmtUsd(explicitStrike)
+      : "Pending";
+  const strikeSub = explicitStrike != null
+    ? `${assetLabel} ${strategyLabel}`
+    : latest.quoteId
+      ? `Quote ${latest.quoteId}`
+      : `${assetLabel} ${strategyLabel}`;
   const expiryLabel = selectedQuote?.expiry_date
     ? new Date(`${selectedQuote.expiry_date}T08:00:00Z`).toLocaleDateString(undefined, {
         month: "short",
@@ -1122,7 +1134,7 @@ function AgentView({ snapshot }: { snapshot: AgoraSnapshot }) {
             icon={<Target className="h-4 w-4" />}
             label="Strike"
             value={strikeLabel}
-            sub={`${assetLabel} ${strategyLabel}`}
+            sub={strikeSub}
           />
           <AgentField
             icon={<CalendarDays className="h-4 w-4" />}
