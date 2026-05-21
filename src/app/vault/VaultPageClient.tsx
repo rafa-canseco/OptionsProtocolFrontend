@@ -397,6 +397,15 @@ function positionExpiryLabel(item: AgoraHistoryItem) {
   return label;
 }
 
+function positionStrikeLabel(item: AgoraHistoryItem) {
+  const strike =
+    numericField(item.strike) ??
+    numericField(item.selectedStrike) ??
+    numericField(item.strikePrice) ??
+    numericField(item.strike_price);
+  return strike == null ? "Pending" : fmtUsd(strike);
+}
+
 function useSelectedQuote(decision: AgoraSnapshot["agent"]["latest"]) {
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
 
@@ -764,6 +773,7 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
   const latestAsset = (latestPosition?.selectedAsset ?? "No active").toUpperCase();
   const latestStrategy = formatStrategyName(latestPosition?.selectedStrategy ?? null);
   const latestExpiry = latestPosition ? positionExpiryLabel(latestPosition) : "Pending";
+  const latestStrike = latestPosition ? positionStrikeLabel(latestPosition) : "Pending";
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[#101012] p-5">
@@ -797,10 +807,14 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
         </div>
       </div>
 
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
+      <div className="mt-5 grid gap-3 sm:grid-cols-4">
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
           <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Capital deployed</p>
           <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{fmtUsd(activeCapital)}</p>
+        </div>
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
+          <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Latest strike</p>
+          <p className="mt-2 font-mono text-2xl text-[var(--bone)]">{latestStrike}</p>
         </div>
         <div className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-4">
           <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Latest expiry</p>
@@ -832,13 +846,14 @@ function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
           const strategy = formatStrategyName(position.selectedStrategy ?? null);
           const capital = positionCapital(position);
           const premium = positionPremium(position);
+          const strike = positionStrikeLabel(position);
           const expiry = positionExpiryLabel(position);
           const chain = position.selectedChain ?? position.sourceChain;
           const quote = position.selectedQuoteId ?? "pending";
           const status = agoraStatusLabel(position.status);
 
           return (
-            <div key={position.id} className="grid gap-4 px-5 py-4 md:grid-cols-[1.5fr_1fr_1fr_1fr] md:items-center">
+            <div key={position.id} className="grid gap-4 px-5 py-4 md:grid-cols-[1.5fr_1fr_1fr_1fr_1fr] md:items-center">
               <div>
                 <p className="font-medium text-[var(--bone)]">{asset} {strategy}</p>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
@@ -852,6 +867,12 @@ function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
               <div>
                 <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Premium</p>
                 <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtPremiumUsd(premium)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Strike</p>
+                <p className={`mt-1 font-mono text-sm ${strike === "Pending" ? "text-amber-200" : "text-[var(--text)]"}`}>
+                  {strike}
+                </p>
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
