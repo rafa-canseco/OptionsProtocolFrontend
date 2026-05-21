@@ -1121,12 +1121,17 @@ export function VaultPageClient() {
   const { user } = usePrivy();
   const {
     address,
+    fundingAddress,
     portfolioAddresses,
     sendBatchTx,
     solanaAddress,
     isConnected,
   } = useWallet();
-  const baseAddresses = portfolioAddresses.base as Address[];
+  const baseAddresses = Array.from(new Set([
+    ...(portfolioAddresses.base as Address[]),
+    address,
+    fundingAddress,
+  ].filter(Boolean))) as Address[];
   const solanaAddresses = portfolioAddresses.solana;
   const { wallets: b1naryWallets } = useB1naryAccount({
     autoSyncTrustedWallets: false,
@@ -1170,7 +1175,7 @@ export function VaultPageClient() {
 
   const baseBalances = useBalances(baseBalanceAddresses);
   const solanaBalances = useSolanaBalance(solanaBalanceAddresses);
-  const primaryUserAddress = baseTradingWallets[0] ?? address ?? solanaTradingWallets[0] ?? solanaAddress;
+  const primaryUserAddress = baseTradingWallets[0] ?? address ?? fundingAddress ?? solanaTradingWallets[0] ?? solanaAddress;
   const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(primaryUserAddress);
   const deploymentDate = useMemo(() => nextDeploymentDate(now), [now]);
   const nextDeploymentLabel = useMemo(
