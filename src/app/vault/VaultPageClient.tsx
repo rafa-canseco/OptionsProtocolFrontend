@@ -387,12 +387,18 @@ function positionExpiryLabel(item: AgoraHistoryItem) {
   return label;
 }
 
-function positionStrikeLabel(item: AgoraHistoryItem) {
+function positionStrikeLabel(item: AgoraHistoryItem, decisions: AgoraSnapshot["agent"]["decisions"] = []) {
+  const matchingDecision = decisions.find((decision) =>
+    Boolean(decision.quoteId && item.selectedQuoteId && decision.quoteId === item.selectedQuoteId),
+  );
   const strike =
     numericField(item.strike) ??
     numericField(item.selectedStrike) ??
     numericField(item.strikePrice) ??
-    numericField(item.strike_price);
+    numericField(item.strike_price) ??
+    numericField(matchingDecision?.strike) ??
+    numericField(matchingDecision?.strikePrice) ??
+    numericField(matchingDecision?.strike_price);
   return strike == null ? "Pending" : fmtUsd(strike);
 }
 
@@ -727,7 +733,7 @@ function MyVaultView({
         <Metric label="Idle" value={fmtUsd(idleCapital)} sub="Available for next cycle" />
         <Metric label="Premium collected" value={fmtPremiumUsd(collectedPremium)} sub={formatClaimStatus(claimStatus ?? snapshot.agent.latest?.premiumClaimStatus)} />
       </div>
-      <PositionList positions={positions} />
+      <PositionList positions={positions} decisions={snapshot.agent.decisions} />
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
           <h2 className="text-sm font-semibold text-[var(--text)]">Cycle timing</h2>
@@ -763,7 +769,7 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
   const latestAsset = (latestPosition?.selectedAsset ?? "No active").toUpperCase();
   const latestStrategy = formatStrategyName(latestPosition?.selectedStrategy ?? null);
   const latestExpiry = latestPosition ? positionExpiryLabel(latestPosition) : "Pending";
-  const latestStrike = latestPosition ? positionStrikeLabel(latestPosition) : "Pending";
+  const latestStrike = latestPosition ? positionStrikeLabel(latestPosition, snapshot.agent.decisions) : "Pending";
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[#101012] p-5">
@@ -819,7 +825,13 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
   );
 }
 
-function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
+function PositionList({
+  positions,
+  decisions,
+}: {
+  positions: AgoraHistoryItem[];
+  decisions: AgoraSnapshot["agent"]["decisions"];
+}) {
   if (positions.length === 0) return null;
 
   return (
@@ -836,7 +848,7 @@ function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
           const strategy = formatStrategyName(position.selectedStrategy ?? null);
           const capital = positionCapital(position);
           const premium = positionPremium(position);
-          const strike = positionStrikeLabel(position);
+          const strike = positionStrikeLabel(position, decisions);
           const expiry = positionExpiryLabel(position);
           const chain = position.selectedChain ?? position.sourceChain;
           const quote = position.selectedQuoteId ?? "pending";
