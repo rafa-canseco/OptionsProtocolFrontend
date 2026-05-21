@@ -17,7 +17,6 @@ import {
   prepareAgoraAllocation,
   type AgoraCapitalIntent,
   type AgoraHistoryItem,
-  type AgoraLifecycleStatus,
   type AgoraPreparedAllocation,
   type AgoraSnapshot,
   type AgoraSourceChain,
@@ -718,13 +717,14 @@ function MyVaultView({
   const activeCapital = vault.activePositionCollateral ?? totalPositionCapital(positions);
   const idleCapital = Math.max(0, vault.netCredited - activeCapital);
   const collectedPremium = vault.accruedPremiums ?? totalPositionPremium(positions);
+  const activePositionCount = vault.activePositionCount ?? positions.filter((item) => item.status === "deployed").length;
   const claimStatus = positions.find((item) => item.premiumClaimStatus)?.premiumClaimStatus;
   return (
     <div className="space-y-6">
       <SelectedPositionDashboard snapshot={snapshot} />
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Metric label="Vault balance" value={fmtUsd(vault.netCredited)} sub="Total credited capital" />
-        <Metric label="Deployed" value={fmtUsd(activeCapital)} sub={`${positions.length} active position${positions.length === 1 ? "" : "s"}`} />
+        <Metric label="Deployed" value={fmtUsd(activeCapital)} sub={`${activePositionCount} active position${activePositionCount === 1 ? "" : "s"}`} />
         <Metric label="Idle" value={fmtUsd(idleCapital)} sub="Available for next cycle" />
         <Metric label="Premium collected" value={fmtPremiumUsd(collectedPremium)} sub={formatClaimStatus(claimStatus ?? snapshot.agent.latest?.premiumClaimStatus)} />
       </div>
@@ -823,7 +823,7 @@ function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
       <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
         <h2 className="text-sm font-semibold text-[var(--text)]">Positions opened</h2>
         <span className="text-xs text-[var(--text-secondary)]">
-          {positions.length} active
+          {positions.length} opened
         </span>
       </div>
       <div className="divide-y divide-[var(--border)]">
