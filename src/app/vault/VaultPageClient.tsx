@@ -68,8 +68,6 @@ const VIEWS: Array<{ id: View; label: string }> = [
   { id: "agent", label: "Agent" },
 ];
 
-const AGORA_DEMO_USER = process.env.NEXT_PUBLIC_AGORA_DEMO_USER;
-
 function fmtUsd(value: number): string {
   return `$${value.toLocaleString(undefined, {
     minimumFractionDigits: 2,
@@ -217,22 +215,44 @@ function snapshotHasUserData(snapshot: AgoraSnapshot) {
   );
 }
 
-function useAgoraSnapshot(userAddress?: string, fallbackUserAddress?: string) {
+function uniqueDefined(values: Array<string | undefined>) {
+  return values.filter((value, index, arr): value is string => {
+    if (!value) return false;
+    return arr.findIndex((item) => item?.toLowerCase() === value.toLowerCase()) === index;
+  });
+}
+
+function useAgoraSnapshot(userAddresses: string[]) {
   const [snapshot, setSnapshot] = useState<AgoraSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const userKey = userAddresses.join("|");
 
   const refresh = useCallback(async (options?: { cancelled?: () => boolean; silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
     try {
-      let value = await getAgoraSnapshot(userAddress);
-      const shouldTryFallback =
-        fallbackUserAddress &&
-        fallbackUserAddress.toLowerCase() !== userAddress?.toLowerCase() &&
-        !snapshotHasUserData(value);
-      if (shouldTryFallback) {
-        value = await getAgoraSnapshot(fallbackUserAddress);
+      const candidates = userKey ? userKey.split("|").filter(Boolean) : [];
+      if (candidates.length === 0) {
+        const value = await getAgoraSnapshot();
+        if (options?.cancelled?.()) return;
+        setSnapshot(value);
+        setError(null);
+        return;
       }
+
+      let firstSnapshot: AgoraSnapshot | null = null;
+      let value: AgoraSnapshot | null = null;
+      for (const candidate of candidates) {
+        const candidateSnapshot = await getAgoraSnapshot(candidate);
+        firstSnapshot ??= candidateSnapshot;
+        if (snapshotHasUserData(candidateSnapshot)) {
+          value = candidateSnapshot;
+          break;
+        }
+      }
+      value ??= firstSnapshot;
+      if (!value) throw new Error("Could not load vault data");
+
       if (options?.cancelled?.()) return;
       setSnapshot(value);
       setError(null);
@@ -242,7 +262,7 @@ function useAgoraSnapshot(userAddress?: string, fallbackUserAddress?: string) {
     } finally {
       if (!options?.cancelled?.()) setLoading(false);
     }
-  }, [fallbackUserAddress, userAddress]);
+  }, [userKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1154,7 +1174,7 @@ export function VaultPageClient() {
     fundingAddress,
   ].filter(Boolean))) as Address[];
   const solanaAddresses = portfolioAddresses.solana;
-  const { wallets: b1naryWallets } = useB1naryAccount({
+  const { account: b1naryAccount, wallets: b1naryWallets } = useB1naryAccount({
     autoSyncTrustedWallets: false,
   });
   const [view, setView] = useState<View>("deposit");
@@ -1171,14 +1191,14 @@ export function VaultPageClient() {
   const baseTradingWallets = useMemo(
     () =>
       b1naryWallets
-        .filter((wallet) => wallet.chain === "base" && wallet.role === "trading" && wallet.wallet_type === "smart" && wallet.verified_at)
+        .filter((wallet) => wallet.chain === "base" && wallet.role === "trading" && wallet.wallet_type === "smart")
         .map((wallet) => wallet.address as Address),
     [b1naryWallets],
   );
   const solanaTradingWallets = useMemo(
     () =>
       b1naryWallets
-        .filter((wallet) => wallet.chain === "solana" && wallet.role === "trading" && wallet.verified_at)
+        .filter((wallet) => wallet.chain === "solana" && wallet.role === "trading")
         .map((wallet) => wallet.address),
     [b1naryWallets],
   );
@@ -1196,14 +1216,33 @@ export function VaultPageClient() {
 
   const baseBalances = useBalances(baseBalanceAddresses);
   const solanaBalances = useSolanaBalance(solanaBalanceAddresses);
-  const primaryUserAddress =
-    baseTradingWallets[0] ??
-    address ??
-    fundingAddress ??
-    solanaTradingWallets[0] ??
-    solanaAddress ??
-    AGORA_DEMO_USER;
-  const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(primaryUserAddress, AGORA_DEMO_USER);
+  const agoraUserCandidates = useMemo(
+    () =>
+      uniqueDefined([
+        user?.id,
+        b1naryAccount?.id,
+        ...baseTradingWallets,
+        fundingAddress,
+        address,
+        ...baseAddresses,
+        ...solanaTradingWallets,
+        solanaAddress,
+        ...solanaAddresses,
+      ]),
+    [
+      address,
+      baseAddresses,
+      baseTradingWallets,
+      b1naryAccount?.id,
+      fundingAddress,
+      solanaAddress,
+      solanaAddresses,
+      solanaTradingWallets,
+      user?.id,
+    ],
+  );
+  const primaryUserAddress = agoraUserCandidates[0];
+  const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(agoraUserCandidates);
   const deploymentDate = useMemo(() => nextDeploymentDate(now), [now]);
   const nextDeploymentLabel = useMemo(
     () => formatTimeUntil(deploymentDate, now),
