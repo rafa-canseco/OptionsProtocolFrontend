@@ -9,7 +9,6 @@ import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { useBalances } from "@/hooks/useBalances";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useWallet, type BatchCall } from "@/hooks/useWallet";
-import { useWalletSummary } from "@/hooks/useWalletSummary";
 import {
   agoraStatusLabel,
   createAgoraDepositIntent,
@@ -1120,9 +1119,15 @@ function AgentView({ snapshot }: { snapshot: AgoraSnapshot }) {
 
 export function VaultPageClient() {
   const { user } = usePrivy();
-  const { sendBatchTx } = useWallet();
-  const { address, baseAddresses, solanaAddress, solanaAddresses, isConnected } =
-    useWalletSummary();
+  const {
+    address,
+    portfolioAddresses,
+    sendBatchTx,
+    solanaAddress,
+    isConnected,
+  } = useWallet();
+  const baseAddresses = portfolioAddresses.base as Address[];
+  const solanaAddresses = portfolioAddresses.solana;
   const { wallets: b1naryWallets } = useB1naryAccount({
     autoSyncTrustedWallets: false,
   });
