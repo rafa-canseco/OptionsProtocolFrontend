@@ -423,56 +423,6 @@ function useSelectedQuote(decision: AgoraSnapshot["agent"]["latest"]) {
   return selectedQuote;
 }
 
-function getPositionOutcome(
-  status: AgoraLifecycleStatus,
-  hasDecision: boolean,
-  expiry?: string,
-): { label: string; tone: string; body: string } {
-  if (!hasDecision) {
-    return {
-      label: "Waiting for selection",
-      tone: "text-[var(--text-secondary)] border-[var(--border)] bg-[var(--surface)]",
-      body: "Capital is in the vault. The agent has not selected a position for this cycle yet.",
-    };
-  }
-
-  switch (status) {
-    case "deployed":
-      return {
-        label: "Active position",
-        tone: "text-[var(--accent)] border-[var(--accent)]/30 bg-[var(--accent)]/10",
-        body: expiry && expiry !== "Pending"
-          ? `Capital is deployed until ${expiry}. Outcome updates after expiry and settlement.`
-          : "Capital is deployed. Outcome updates after expiry and settlement.",
-      };
-    case "assigned":
-      return {
-        label: "Assigned",
-        tone: "text-amber-200 border-amber-400/30 bg-amber-400/10",
-        body: "The position was assigned. The agent will manage the next allowed step.",
-      };
-    case "claimable":
-      return {
-        label: "Premium claimable",
-        tone: "text-emerald-200 border-emerald-400/30 bg-emerald-400/10",
-        body: "Premiums are available to claim on the vault schedule.",
-      };
-    case "failed":
-    case "retryable":
-      return {
-        label: "Needs attention",
-        tone: "text-red-200 border-red-400/30 bg-red-400/10",
-        body: "The latest position update did not complete cleanly.",
-      };
-    default:
-      return {
-        label: "Waiting for deployment",
-        tone: "text-[var(--accent)] border-[var(--accent)]/30 bg-[var(--accent)]/10",
-        body: "The agent selected a position. Capital deployment follows the next vault cycle.",
-      };
-  }
-}
-
 function AllocationTimeline({ active }: { active?: AllocationProgress["lifecycleStatus"] }) {
   const steps: Array<{
     id: NonNullable<AllocationProgress["lifecycleStatus"]>;
@@ -765,9 +715,9 @@ function MyVaultView({
 }) {
   const vault = snapshot.vault;
   const positions = deployedPositions(snapshot);
-  const activeCapital = totalPositionCapital(positions);
+  const activeCapital = vault.activePositionCollateral ?? totalPositionCapital(positions);
   const idleCapital = Math.max(0, vault.netCredited - activeCapital);
-  const collectedPremium = totalPositionPremium(positions);
+  const collectedPremium = vault.accruedPremiums ?? totalPositionPremium(positions);
   const claimStatus = positions.find((item) => item.premiumClaimStatus)?.premiumClaimStatus;
   return (
     <div className="space-y-6">
@@ -806,8 +756,8 @@ function MyVaultView({
 function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
   const positions = deployedPositions(snapshot);
   const latestPosition = positions[0];
-  const activeCapital = totalPositionCapital(positions);
-  const premiumCollected = totalPositionPremium(positions);
+  const activeCapital = snapshot.vault.activePositionCollateral ?? totalPositionCapital(positions);
+  const premiumCollected = snapshot.vault.accruedPremiums ?? totalPositionPremium(positions);
   const userClaimablePremium = snapshot.vault.userClaimablePremiums ?? snapshot.vault.claimablePremiums ?? 0;
   const vaultCollectedPremium = snapshot.vault.vaultPremiumsCollected ?? snapshot.vault.totalPremiumsCollected ?? null;
   const claimStatus = formatClaimStatus(latestPosition?.premiumClaimStatus);

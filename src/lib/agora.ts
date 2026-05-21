@@ -29,6 +29,20 @@ export interface AgoraVaultState {
   netCredited: number;
   pendingShares: number;
   activeShares: number;
+  activePositionCollateral?: number | null;
+  active_position_collateral?: number | string | null;
+  historicalPositionCollateral?: number | null;
+  historical_position_collateral?: number | string | null;
+  activePositionCount?: number | null;
+  active_position_count?: number | string | null;
+  totalPositionsOpened?: number | null;
+  total_positions_opened?: number | string | null;
+  accruedPremiums?: number | null;
+  accrued_premiums?: number | string | null;
+  grossPremiums?: number | null;
+  gross_premiums?: number | string | null;
+  protocolFees?: number | null;
+  protocol_fees?: number | string | null;
   status: AgoraLifecycleStatus;
   currentEpoch: number | null;
   activationEpoch: number | null;
@@ -653,6 +667,27 @@ function normalizeVaultState(vault: AgoraVaultState): AgoraVaultState {
       numberOrNull(vault.total_premiums_collected) ??
       vault.vaultPremiumsCollected ??
       numberOrNull(vault.vault_premiums_collected),
+    activePositionCollateral:
+      vault.activePositionCollateral ??
+      numberOrNull(vault.active_position_collateral),
+    historicalPositionCollateral:
+      vault.historicalPositionCollateral ??
+      numberOrNull(vault.historical_position_collateral),
+    activePositionCount:
+      vault.activePositionCount ??
+      numberOrNull(vault.active_position_count),
+    totalPositionsOpened:
+      vault.totalPositionsOpened ??
+      numberOrNull(vault.total_positions_opened),
+    accruedPremiums:
+      vault.accruedPremiums ??
+      numberOrNull(vault.accrued_premiums),
+    grossPremiums:
+      vault.grossPremiums ??
+      numberOrNull(vault.gross_premiums),
+    protocolFees:
+      vault.protocolFees ??
+      numberOrNull(vault.protocol_fees),
   };
 }
 
