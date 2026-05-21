@@ -205,7 +205,19 @@ function progressFromCapitalIntent(
   };
 }
 
-function useAgoraSnapshot(userAddress?: string) {
+function snapshotHasUserData(snapshot: AgoraSnapshot) {
+  return Boolean(
+    snapshot.history.length > 0 ||
+      snapshot.agent.latest ||
+      snapshot.agent.decisions.length > 0 ||
+      snapshot.vault.netCredited > 0 ||
+      snapshot.vault.totalAllocated > 0 ||
+      snapshot.vault.activeShares > 0 ||
+      snapshot.vault.pendingShares > 0,
+  );
+}
+
+function useAgoraSnapshot(userAddress?: string, fallbackUserAddress?: string) {
   const [snapshot, setSnapshot] = useState<AgoraSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -213,7 +225,14 @@ function useAgoraSnapshot(userAddress?: string) {
   const refresh = useCallback(async (options?: { cancelled?: () => boolean; silent?: boolean }) => {
     if (!options?.silent) setLoading(true);
     try {
-      const value = await getAgoraSnapshot(userAddress);
+      let value = await getAgoraSnapshot(userAddress);
+      const shouldTryFallback =
+        fallbackUserAddress &&
+        fallbackUserAddress.toLowerCase() !== userAddress?.toLowerCase() &&
+        !snapshotHasUserData(value);
+      if (shouldTryFallback) {
+        value = await getAgoraSnapshot(fallbackUserAddress);
+      }
       if (options?.cancelled?.()) return;
       setSnapshot(value);
       setError(null);
@@ -223,7 +242,7 @@ function useAgoraSnapshot(userAddress?: string) {
     } finally {
       if (!options?.cancelled?.()) setLoading(false);
     }
-  }, [userAddress]);
+  }, [fallbackUserAddress, userAddress]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1184,7 +1203,7 @@ export function VaultPageClient() {
     solanaTradingWallets[0] ??
     solanaAddress ??
     AGORA_DEMO_USER;
-  const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(primaryUserAddress);
+  const { snapshot, loading, error, refresh: refreshSnapshot } = useAgoraSnapshot(primaryUserAddress, AGORA_DEMO_USER);
   const deploymentDate = useMemo(() => nextDeploymentDate(now), [now]);
   const nextDeploymentLabel = useMemo(
     () => formatTimeUntil(deploymentDate, now),
