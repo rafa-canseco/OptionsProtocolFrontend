@@ -240,6 +240,11 @@ function uniqueDefined(values: Array<string | undefined>) {
   });
 }
 
+function isAddressCandidate(value: string | undefined) {
+  if (!value) return false;
+  return /^0x[a-fA-F0-9]{40}$/.test(value) || /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(value);
+}
+
 function useAgoraSnapshot(userAddresses: string[]) {
   const [snapshot, setSnapshot] = useState<AgoraSnapshot | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1275,26 +1280,23 @@ export function VaultPageClient() {
   const agoraUserCandidates = useMemo(
     () =>
       uniqueDefined([
-        user?.id,
-        b1naryAccount?.id,
         ...baseTradingWallets,
         fundingAddress,
         address,
         ...baseAddresses,
+        process.env.NEXT_PUBLIC_ARC_RECEIVER_ADDRESS,
         ...solanaTradingWallets,
         solanaAddress,
         ...solanaAddresses,
-      ]),
+      ].filter(isAddressCandidate)),
     [
       address,
       baseAddresses,
       baseTradingWallets,
-      b1naryAccount?.id,
       fundingAddress,
       solanaAddress,
       solanaAddresses,
       solanaTradingWallets,
-      user?.id,
     ],
   );
   const primaryUserAddress = agoraUserCandidates[0];
