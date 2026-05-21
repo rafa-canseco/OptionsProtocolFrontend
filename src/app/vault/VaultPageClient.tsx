@@ -384,16 +384,6 @@ function positionExpiryLabel(item: AgoraHistoryItem) {
   const rawExpiry = item.expiryDate ?? item.expiry;
   const label = formatDateLabel(rawExpiry);
   if (!label || !rawExpiry) return "Pending";
-
-  const start = new Date(item.completed_at ?? item.createdAt);
-  const expiry =
-    typeof rawExpiry === "number"
-      ? new Date(rawExpiry * 1000)
-      : new Date(String(rawExpiry).includes("T") ? String(rawExpiry) : `${rawExpiry}T08:00:00Z`);
-  if (!Number.isNaN(start.getTime()) && !Number.isNaN(expiry.getTime())) {
-    const days = (expiry.getTime() - start.getTime()) / 86_400_000;
-    if (days > 3) return "Needs reconciliation";
-  }
   return label;
 }
 
@@ -876,9 +866,7 @@ function PositionList({ positions }: { positions: AgoraHistoryItem[] }) {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
-                <p className={`mt-1 font-mono text-sm ${expiry === "Needs reconciliation" ? "text-amber-200" : "text-[var(--text)]"}`}>
-                  {expiry}
-                </p>
+                <p className="mt-1 font-mono text-sm text-[var(--text)]">{expiry}</p>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">{status}</p>
               </div>
             </div>
