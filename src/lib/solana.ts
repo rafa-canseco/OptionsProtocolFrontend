@@ -8,10 +8,7 @@ const envStr = (raw: string | undefined, fallback = ""): string =>
 export const SOLANA_RPC_URL = envStr(process.env.NEXT_PUBLIC_SOLANA_RPC_URL);
 export const SOLANA_DEVNET_USDC_MINT =
   "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
-export const SOLANA_USDC_MINT = envStr(
-  process.env.NEXT_PUBLIC_SOLANA_USDC_MINT,
-  SOLANA_DEVNET_USDC_MINT,
-);
+export const SOLANA_USDC_MINT = SOLANA_DEVNET_USDC_MINT;
 export const SOLANA_TSLAX_MINT = envStr(process.env.NEXT_PUBLIC_SOLANA_TSLAX_MINT);
 export const SOLANA_CHAIN = envStr(
   process.env.NEXT_PUBLIC_SOLANA_CHAIN,
