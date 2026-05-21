@@ -681,20 +681,18 @@ function MyVaultView({
   nextDeploymentLabel: string;
 }) {
   const vault = snapshot.vault;
-  const activeCapital = snapshot.agent.latest?.size ?? 0;
-  const idleCapital = Math.max(0, vault.netCredited - activeCapital);
   const deployedHistory = [...snapshot.history]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .find((item) =>
-      ["deployed", "assigned", "claimable"].includes(item.status) ||
-      Boolean(item.agentDecisionHash || item.selectedQuoteId || item.selectedStrategy)
-    );
+    .find((item) => ["deployed", "assigned", "claimable"].includes(item.status));
+  const activeCapital =
+    numericField(deployedHistory?.collateral) ??
+    numericField(deployedHistory?.amount) ??
+    vault.activeShares ??
+    0;
+  const idleCapital = Math.max(0, vault.netCredited - activeCapital);
   const latestPremium =
     numericField(deployedHistory?.netPremium) ??
     numericField(deployedHistory?.grossPremium) ??
-    numericField(snapshot.agent.latest?.netPremium) ??
-    numericField(snapshot.agent.latest?.grossPremium) ??
-    numericField(snapshot.agent.latest?.expectedPremium) ??
     0;
   const collectedPremium = latestPremium;
   return (
@@ -731,39 +729,24 @@ function MyVaultView({
 }
 
 function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
-  const latest = snapshot.agent.latest;
-  const selectedQuote = useSelectedQuote(latest);
   const deployedHistory = [...snapshot.history]
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-    .find((item) =>
-      ["deployed", "assigned", "claimable"].includes(item.status) ||
-      Boolean(item.agentDecisionHash || item.selectedQuoteId || item.selectedStrategy)
-    );
-  const hasPositionData = Boolean(
-    deployedHistory?.selectedQuoteId ||
-    deployedHistory?.selectedStrategy ||
-    latest?.quoteId ||
-    latest?.selectedStrategy ||
-    latest?.grossPremium ||
-    latest?.netPremium,
-  );
-  const status: AgoraLifecycleStatus = deployedHistory?.status ??
-    (hasPositionData ? "deployed" : snapshot.vault.status);
-  const hasDecision = Boolean(latest?.selectedStrategy || latest?.selectedAsset || deployedHistory?.selectedStrategy);
-  const strategy = formatStrategyName(latest?.selectedStrategy ?? deployedHistory?.selectedStrategy ?? null);
-  const asset = (latest?.selectedAsset ?? deployedHistory?.selectedAsset ?? "Asset").toUpperCase();
-  const chain = latest?.selectedChain ?? deployedHistory?.selectedChain ?? "Venue pending";
-  const sizeValue = latest?.size ?? deployedHistory?.amount ?? null;
+    .find((item) => ["deployed", "assigned", "claimable"].includes(item.status));
+  const status: AgoraLifecycleStatus = deployedHistory?.status ?? "waiting_to_be_deployed";
+  const hasDecision = Boolean(deployedHistory?.selectedStrategy || deployedHistory?.selectedAsset);
+  const strategy = formatStrategyName(deployedHistory?.selectedStrategy ?? null);
+  const asset = (deployedHistory?.selectedAsset ?? "No active").toUpperCase();
+  const chain = deployedHistory?.selectedChain ?? "No active chain";
+  const sizeValue =
+    numericField(deployedHistory?.collateral) ??
+    numericField(deployedHistory?.amount) ??
+    null;
   const size = sizeValue == null ? "Pending" : `${fmtAmount(sizeValue)} USDC`;
   const historyPremium =
     numericField(deployedHistory?.netPremium) ??
     numericField(deployedHistory?.grossPremium) ??
     numericField(deployedHistory?.expectedPremium);
-  const positionPremium =
-    numericField(latest?.netPremium) ??
-    numericField(latest?.grossPremium) ??
-    historyPremium ??
-    numericField(latest?.expectedPremium);
+  const positionPremium = historyPremium;
   const historyStrike =
     typeof deployedHistory?.strike === "number"
       ? deployedHistory.strike
@@ -774,11 +757,9 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
         : deployedHistory?.selectedStrike
           ? Number(deployedHistory.selectedStrike)
           : null;
-  const strikeValue = selectedQuote?.strike ?? latest?.strike ?? latest?.strikePrice ?? (Number.isFinite(historyStrike) ? historyStrike : null);
+  const strikeValue = Number.isFinite(historyStrike) ? historyStrike : null;
   const strike = strikeValue == null ? "Pending" : fmtUsd(strikeValue);
   const expiry =
-    formatDateLabel(selectedQuote?.expiry_date) ??
-    formatDateLabel(latest?.expiryDate ?? latest?.expiry) ??
     formatDateLabel(deployedHistory?.expiryDate ?? deployedHistory?.expiry) ??
     "Pending";
   const outcome = getPositionOutcome(status, hasDecision, expiry);
@@ -787,17 +768,13 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
     deployedHistory?.destinationTxHash ??
     deployedHistory?.destinationTx ??
     deployedHistory?.destination_tx ??
-    latest?.deploymentTxHash ??
-    latest?.destinationTxHash ??
-    latest?.destinationTx ??
-    latest?.destination_tx ??
     null;
-  const quoteId = latest?.quoteId ?? deployedHistory?.selectedQuoteId ?? null;
+  const quoteId = deployedHistory?.selectedQuoteId ?? null;
   const missingPositionData = strike === "Pending" || expiry === "Pending" || !deploymentTx;
   const premiumCollected = positionPremium ?? 0;
   const userClaimablePremium = snapshot.vault.userClaimablePremiums ?? snapshot.vault.claimablePremiums ?? 0;
   const vaultCollectedPremium = snapshot.vault.vaultPremiumsCollected ?? snapshot.vault.totalPremiumsCollected ?? null;
-  const claimStatus = formatClaimStatus(deployedHistory?.premiumClaimStatus ?? latest?.premiumClaimStatus);
+  const claimStatus = formatClaimStatus(deployedHistory?.premiumClaimStatus);
 
   return (
     <section className="rounded-lg border border-[var(--border)] bg-[#101012] p-5">
