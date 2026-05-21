@@ -57,7 +57,7 @@ interface AllocationProgress {
   message: string;
   txHash?: string;
   intentId?: string;
-  lifecycleStatus?: "smart_wallet_approval_burn" | "attesting" | "minting_on_arc" | "finalize_bridge_deposit";
+  lifecycleStatus?: "smart_wallet_approval_burn" | "attesting" | "minting_on_arc";
 }
 
 const VIEWS: Array<{ id: View; label: string }> = [
@@ -166,18 +166,18 @@ function progressFromCapitalIntent(
       message: "USDC is credited in the Arc MetaVault.",
       txHash,
       intentId: intent.id,
-      lifecycleStatus: "finalize_bridge_deposit",
+      lifecycleStatus: "minting_on_arc",
     };
   }
 
   if (intent.arc_finalize_tx_hash) {
     return {
-      status: "finalizing",
-      title: "Finalizing MetaVault deposit",
-      message: "Arc received USDC. The vault is crediting shares for the receiver.",
+      status: "complete",
+      title: "Deposit finalized",
+      message: "USDC is credited in the Arc MetaVault.",
       txHash,
       intentId: intent.id,
-      lifecycleStatus: "finalize_bridge_deposit",
+      lifecycleStatus: "minting_on_arc",
     };
   }
 
@@ -434,8 +434,7 @@ function AllocationTimeline({ active }: { active?: AllocationProgress["lifecycle
   }> = [
     { id: "smart_wallet_approval_burn", label: "Smart wallet burn" },
     { id: "attesting", label: "Circle attesting" },
-    { id: "minting_on_arc", label: "Minting on Arc" },
-    { id: "finalize_bridge_deposit", label: "Finalize MetaVault" },
+    { id: "minting_on_arc", label: "Minted on Arc" },
   ];
   const activeIndex = active ? steps.findIndex((step) => step.id === active) : -1;
 
@@ -444,7 +443,7 @@ function AllocationTimeline({ active }: { active?: AllocationProgress["lifecycle
       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--text-secondary)]">
         Allocation flow
       </p>
-      <div className="mt-3 grid gap-2 md:grid-cols-5">
+      <div className="mt-3 grid gap-2 md:grid-cols-3">
         {steps.map((step, index) => {
           const complete = index < activeIndex;
           const current = index === activeIndex;
