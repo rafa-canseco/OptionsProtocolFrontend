@@ -214,6 +214,25 @@ function snapshotHasUserData(snapshot: AgoraSnapshot) {
   );
 }
 
+function snapshotUserScore(candidate: string, snapshot: AgoraSnapshot) {
+  const normalizedCandidate = candidate.toLowerCase();
+  const ownedHistory = snapshot.history.filter((item) =>
+    item.sourceWallet?.toLowerCase() === normalizedCandidate,
+  );
+  const ownedAmount = ownedHistory.reduce((total, item) => total + (numericField(item.amount) ?? 0), 0);
+  let score = 0;
+  if (snapshot.agent.latest) score += 10_000;
+  score += snapshot.agent.decisions.length * 1_000;
+  score += ownedHistory.length * 500;
+  score += ownedAmount * 20;
+  score += (snapshot.vault.totalAllocated ?? 0) * 20;
+  score += (snapshot.vault.netCredited ?? 0) * 20;
+  score += (snapshot.vault.activeShares ?? 0) * 10;
+  score += (snapshot.vault.pendingShares ?? 0) * 10;
+  if (snapshot.history.length > 0) score += 1;
+  return score;
+}
+
 function uniqueDefined(values: Array<string | undefined>) {
   return values.filter((value, index, arr): value is string => {
     if (!value) return false;
@@ -240,16 +259,20 @@ function useAgoraSnapshot(userAddresses: string[]) {
       }
 
       let firstSnapshot: AgoraSnapshot | null = null;
-      let value: AgoraSnapshot | null = null;
+      let bestSnapshot: AgoraSnapshot | null = null;
+      let bestScore = -1;
       for (const candidate of candidates) {
         const candidateSnapshot = await getAgoraSnapshot(candidate);
         firstSnapshot ??= candidateSnapshot;
         if (snapshotHasUserData(candidateSnapshot)) {
-          value = candidateSnapshot;
-          break;
+          const score = snapshotUserScore(candidate, candidateSnapshot);
+          if (score > bestScore) {
+            bestScore = score;
+            bestSnapshot = candidateSnapshot;
+          }
         }
       }
-      value ??= firstSnapshot;
+      const value = bestSnapshot ?? firstSnapshot;
       if (!value) throw new Error("Could not load vault data");
 
       if (options?.cancelled?.()) return;
