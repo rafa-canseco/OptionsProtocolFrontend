@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { usePrivy } from "@privy-io/react-auth";
-import { ArrowRight, Bot, CalendarDays, Check, CircleDollarSign, History, Loader2, ShieldCheck, Target, Wallet } from "lucide-react";
+import { ArrowRight, Bot, CalendarDays, Check, ChevronDown, CircleDollarSign, History, Loader2, ShieldCheck, Target, Wallet } from "lucide-react";
 import { keccak256, type Address } from "viem";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { useBalances } from "@/hooks/useBalances";
@@ -386,10 +386,28 @@ function isDeployedPosition(item: AgoraHistoryItem) {
   return ["deployed", "assigned", "claimable"].includes(item.status);
 }
 
-function deployedPositions(snapshot: AgoraSnapshot) {
-  return snapshot.history
+function isPositionEvent(item: AgoraHistoryItem) {
+  return item.id.startsWith("position:");
+}
+
+function sortPositions(items: AgoraHistoryItem[]) {
+  return items
     .filter(isDeployedPosition)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+}
+
+function vaultPositions(snapshot: AgoraSnapshot) {
+  const positionEvents = sortPositions(snapshot.history.filter(isPositionEvent));
+  if (positionEvents.length > 0) return positionEvents;
+  return sortPositions(snapshot.history);
+}
+
+function currentVaultPositions(snapshot: AgoraSnapshot) {
+  return vaultPositions(snapshot).filter((item) => item.status === "deployed");
+}
+
+function historicalVaultPositions(snapshot: AgoraSnapshot) {
+  return vaultPositions(snapshot).filter((item) => item.status !== "deployed");
 }
 
 function positionCapital(item: AgoraHistoryItem) {
@@ -755,12 +773,15 @@ function MyVaultView({
   snapshot: AgoraSnapshot;
   nextDeploymentLabel: string;
 }) {
+  const [showHistoricalPositions, setShowHistoricalPositions] = useState(false);
   const vault = snapshot.vault;
-  const positions = deployedPositions(snapshot);
-  const activeCapital = vault.activePositionCollateral ?? totalPositionCapital(positions);
+  const currentPositions = currentVaultPositions(snapshot);
+  const historicalPositions = historicalVaultPositions(snapshot);
+  const positions = [...currentPositions, ...historicalPositions];
+  const activeCapital = vault.activePositionCollateral ?? totalPositionCapital(currentPositions);
   const idleCapital = Math.max(0, vault.netCredited - activeCapital);
   const collectedPremium = vault.accruedPremiums ?? totalPositionPremium(positions);
-  const activePositionCount = vault.activePositionCount ?? positions.filter((item) => item.status === "deployed").length;
+  const activePositionCount = vault.activePositionCount ?? currentPositions.length;
   const claimStatus = positions.find((item) => item.premiumClaimStatus)?.premiumClaimStatus;
   return (
     <div className="space-y-6">
@@ -771,7 +792,36 @@ function MyVaultView({
         <Metric label="Idle" value={fmtUsd(idleCapital)} sub="Available for next cycle" />
         <Metric label="Premium collected" value={fmtPremiumUsd(collectedPremium)} sub={formatClaimStatus(claimStatus ?? snapshot.agent.latest?.premiumClaimStatus)} />
       </div>
-      <PositionList positions={positions} decisions={snapshot.agent.decisions} />
+      <PositionList
+        title="Current positions"
+        emptyLabel="No active positions"
+        positions={currentPositions}
+        decisions={snapshot.agent.decisions}
+      />
+      {historicalPositions.length > 0 && (
+        <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70">
+          <button
+            type="button"
+            onClick={() => setShowHistoricalPositions((value) => !value)}
+            className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+          >
+            <div>
+              <h2 className="text-sm font-semibold text-[var(--text)]">Past positions</h2>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                {historicalPositions.length} expired or settled position{historicalPositions.length === 1 ? "" : "s"}
+              </p>
+            </div>
+            <ChevronDown
+              className={`h-4 w-4 text-[var(--text-secondary)] transition-transform ${showHistoricalPositions ? "rotate-180" : ""}`}
+            />
+          </button>
+          {showHistoricalPositions && (
+            <div className="border-t border-[var(--border)]">
+              <PositionRows positions={historicalPositions} decisions={snapshot.agent.decisions} />
+            </div>
+          )}
+        </section>
+      )}
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70 p-5">
           <h2 className="text-sm font-semibold text-[var(--text)]">Cycle timing</h2>
@@ -797,10 +847,10 @@ function MyVaultView({
 }
 
 function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
-  const positions = deployedPositions(snapshot);
+  const positions = currentVaultPositions(snapshot);
   const latestPosition = positions[0];
   const activeCapital = snapshot.vault.activePositionCollateral ?? totalPositionCapital(positions);
-  const premiumCollected = snapshot.vault.accruedPremiums ?? totalPositionPremium(positions);
+  const premiumCollected = snapshot.vault.accruedPremiums ?? totalPositionPremium(vaultPositions(snapshot));
   const userClaimablePremium = snapshot.vault.userClaimablePremiums ?? snapshot.vault.claimablePremiums ?? 0;
   const vaultCollectedPremium = snapshot.vault.vaultPremiumsCollected ?? snapshot.vault.totalPremiumsCollected ?? null;
   const claimStatus = formatClaimStatus(latestPosition?.premiumClaimStatus);
@@ -823,12 +873,12 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
           </div>
           <h2 className="mt-3 text-2xl font-semibold text-[var(--bone)]">
             {positions.length > 0
-              ? `${positions.length} ${positions.length === 1 ? "position" : "positions"} deployed`
+              ? `${positions.length} active ${positions.length === 1 ? "position" : "positions"}`
               : "Capital waiting for agent deployment"}
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--text-secondary)]">
             {positions.length > 0
-              ? `Latest: ${latestAsset} ${latestStrategy} on ${latestPosition?.selectedChain ?? "base"}. Premiums are accumulated across every position opened by the vault.`
+              ? `Latest active: ${latestAsset} ${latestStrategy} on ${latestPosition?.selectedChain ?? "base"}. Expired positions stay in history.`
               : "Capital is in the vault. The agent has not opened a position for this cycle yet."}
           </p>
         </div>
@@ -864,66 +914,89 @@ function SelectedPositionDashboard({ snapshot }: { snapshot: AgoraSnapshot }) {
 }
 
 function PositionList({
+  title,
+  emptyLabel,
+  positions,
+  decisions,
+}: {
+  title: string;
+  emptyLabel: string;
+  positions: AgoraHistoryItem[];
+  decisions: AgoraSnapshot["agent"]["decisions"];
+}) {
+  if (positions.length === 0) {
+    return (
+      <section className="rounded-lg border border-dashed border-[var(--border)] bg-[var(--surface)]/40 p-5">
+        <h2 className="text-sm font-semibold text-[var(--text)]">{title}</h2>
+        <p className="mt-2 text-sm text-[var(--text-secondary)]">{emptyLabel}</p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70">
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+        <h2 className="text-sm font-semibold text-[var(--text)]">{title}</h2>
+        <span className="text-xs text-[var(--text-secondary)]">
+          {positions.length} shown
+        </span>
+      </div>
+      <PositionRows positions={positions} decisions={decisions} />
+    </section>
+  );
+}
+
+function PositionRows({
   positions,
   decisions,
 }: {
   positions: AgoraHistoryItem[];
   decisions: AgoraSnapshot["agent"]["decisions"];
 }) {
-  if (positions.length === 0) return null;
-
   return (
-    <section className="rounded-lg border border-[var(--border)] bg-[var(--surface)]/70">
-      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-        <h2 className="text-sm font-semibold text-[var(--text)]">Positions opened</h2>
-        <span className="text-xs text-[var(--text-secondary)]">
-          {positions.length} opened
-        </span>
-      </div>
-      <div className="divide-y divide-[var(--border)]">
-        {positions.map((position) => {
-          const asset = (position.selectedAsset ?? "Asset").toUpperCase();
-          const strategy = formatStrategyName(position.selectedStrategy ?? null);
-          const capital = positionCapital(position);
-          const premium = positionPremium(position);
-          const strike = positionStrikeLabel(position, decisions);
-          const expiry = positionExpiryLabel(position);
-          const chain = position.selectedChain ?? position.sourceChain;
-          const quote = position.selectedQuoteId ?? "pending";
-          const status = agoraStatusLabel(position.status);
+    <div className="divide-y divide-[var(--border)]">
+      {positions.map((position) => {
+        const asset = (position.selectedAsset ?? "Asset").toUpperCase();
+        const strategy = formatStrategyName(position.selectedStrategy ?? null);
+        const capital = positionCapital(position);
+        const premium = positionPremium(position);
+        const strike = positionStrikeLabel(position, decisions);
+        const expiry = positionExpiryLabel(position);
+        const chain = position.selectedChain ?? position.sourceChain;
+        const quote = position.selectedQuoteId ?? "pending";
+        const status = agoraStatusLabel(position.status);
 
-          return (
-            <div key={position.id} className="grid gap-4 px-5 py-4 md:grid-cols-[1.5fr_1fr_1fr_1fr_1fr] md:items-center">
-              <div>
-                <p className="font-medium text-[var(--bone)]">{asset} {strategy}</p>
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                  {chain} · quote {quote}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Capital</p>
-                <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtAmount(capital)} USDC</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Premium</p>
-                <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtPremiumUsd(premium)}</p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Strike</p>
-                <p className={`mt-1 font-mono text-sm ${strike === "Pending" ? "text-amber-200" : "text-[var(--text)]"}`}>
-                  {strike}
-                </p>
-              </div>
-              <div>
-                <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
-                <p className="mt-1 font-mono text-sm text-[var(--text)]">{expiry}</p>
-                <p className="mt-1 text-xs text-[var(--text-secondary)]">{status}</p>
-              </div>
+        return (
+          <div key={position.id} className="grid gap-4 px-5 py-4 md:grid-cols-[1.5fr_1fr_1fr_1fr_1fr] md:items-center">
+            <div>
+              <p className="font-medium text-[var(--bone)]">{asset} {strategy}</p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">
+                {chain} · quote {quote}
+              </p>
             </div>
-          );
-        })}
-      </div>
-    </section>
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Capital</p>
+              <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtAmount(capital)} USDC</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Premium</p>
+              <p className="mt-1 font-mono text-sm text-[var(--text)]">{fmtPremiumUsd(premium)}</p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Strike</p>
+              <p className={`mt-1 font-mono text-sm ${strike === "Pending" ? "text-amber-200" : "text-[var(--text)]"}`}>
+                {strike}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-[var(--text-secondary)]">Expiry</p>
+              <p className="mt-1 font-mono text-sm text-[var(--text)]">{expiry}</p>
+              <p className="mt-1 text-xs text-[var(--text-secondary)]">{status}</p>
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
@@ -1235,7 +1308,7 @@ export function VaultPageClient() {
     fundingAddress,
   ].filter(Boolean))) as Address[];
   const solanaAddresses = portfolioAddresses.solana;
-  const { account: b1naryAccount, wallets: b1naryWallets } = useB1naryAccount({
+  const { wallets: b1naryWallets } = useB1naryAccount({
     autoSyncTrustedWallets: false,
   });
   const [view, setView] = useState<View>("deposit");
