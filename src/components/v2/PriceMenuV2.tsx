@@ -67,9 +67,32 @@ function isoDateAfter(days: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+function strikeStepForAsset(asset: AssetConfig): number {
+  return asset.slug === "btc" ? 500 : asset.slug === "sol" ? 5 : asset.slug === "tslax" ? 5 : 25;
+}
+
 function roundStrikeForAsset(value: number, asset: AssetConfig): number {
-  const step = asset.slug === "btc" ? 500 : asset.slug === "sol" ? 5 : asset.slug === "tslax" ? 5 : 25;
+  const step = strikeStepForAsset(asset);
   return Math.max(step, Math.round(value / step) * step);
+}
+
+function previewStrikesForAsset(asset: AssetConfig, spot: number, optionType: "put" | "call"): number[] {
+  const step = strikeStepForAsset(asset);
+  const used = new Set<number>();
+
+  return PREVIEW_STRIKE_MULTIPLIERS[optionType].map((multiplier) => {
+    let strike = roundStrikeForAsset(spot * multiplier, asset);
+    while (
+      used.has(strike) ||
+      (optionType === "put" ? strike >= spot : strike <= spot)
+    ) {
+      const nextStrike = strike + (optionType === "put" ? -step : step);
+      if (nextStrike < step) break;
+      strike = nextStrike;
+    }
+    used.add(strike);
+    return strike;
+  });
 }
 
 function previewPremium(strike: number, spot: number, optionType: "put" | "call") {
@@ -87,8 +110,7 @@ function buildPreviewQuotes(asset: AssetConfig, spot: number): PriceQuote[] {
   const expiresAt = Math.floor(parseLocalDate(expiryDate).getTime() / 1000);
 
   return (["put", "call"] as const).flatMap((optionType) =>
-    PREVIEW_STRIKE_MULTIPLIERS[optionType].map((multiplier) => {
-      const strike = roundStrikeForAsset(spot * multiplier, asset);
+    previewStrikesForAsset(asset, spot, optionType).map((strike) => {
       return {
         option_type: optionType,
         strike,
@@ -883,16 +905,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 </Tooltip>
               )}
             </div>
-            {indicativeQuotesActive && (
-              <div className="mb-3 rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/8 px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
-                Indicative quotes are priced from the current {asset.symbol} market while signed market-maker quotes are unavailable. Premiums are approximate and execution stays blocked until live quotes return.
-              </div>
-            )}
-            {marketClosed && (
-              <div className="mb-3 rounded-xl border border-[var(--danger)]/20 bg-[var(--danger)]/8 px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
-                The MM is at capacity. You can still view indicative premiums, but opening new positions is temporarily disabled.
-              </div>
-            )}
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {filteredPrices.map((q) => (
