@@ -242,6 +242,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     [asset, prices, spot],
   );
   const previewQuotesActive = prices.length === 0 && displayPrices.length > 0;
+  const indicativeQuotesActive = displayPrices.some((quote) => !isExecutableQuote(quote));
   const { capacity } = useCapacity(asset.slug);
   const { address, solanaAddress, isConnected } = useWallet();
   const { wallets: b1naryWallets } = useB1naryAccount({
@@ -322,6 +323,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const marketDegraded = capacity !== null && capacity.market_status === "degraded";
   const capEth = capacity?.max_position ?? asset.maxAmount;
   const capUsd = spot ? Math.min(asset.maxAmountUsd, capEth * spot) : asset.maxAmountUsd;
+  const capacityLabel = capacity?.market_status === "full"
+    ? "MM at capacity"
+    : marketClosed
+      ? "Market closed"
+      : marketDegraded
+        ? "Limited capacity"
+        : "Open";
 
   const filteredPrices = useMemo(() => {
     return displayPrices
@@ -367,11 +375,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const canAccept = !!(
     !marketReadOnly &&
+    !marketClosed &&
     selectedQuote &&
     amount > 0 &&
     isExecutableQuote(selectedQuote)
   );
   const selectedQuoteIsPreview = !!selectedQuote && !isExecutableQuote(selectedQuote);
+  const executionBlocked = marketReadOnly || marketClosed || selectedQuoteIsPreview || !canAccept;
 
   function handleStartTutorial() {
     const onComplete = () => {};
@@ -652,7 +662,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   ? "text-amber-400"
                   : "text-[var(--accent)]"
             }`}>
-              {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
+              ● {capacityLabel}
             </span>
           )}
         </div>
@@ -874,9 +884,14 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 </Tooltip>
               )}
             </div>
-            {previewQuotesActive && (
+            {indicativeQuotesActive && (
               <div className="mb-3 rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/8 px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
-                Preview strikes are simulated around the current price while live market-maker quotes are paused. Premiums are indicative; execution remains blocked until signed quotes return.
+                Indicative quotes are priced from the current {asset.symbol} market while signed market-maker quotes are unavailable. Premiums are approximate and execution stays blocked until live quotes return.
+              </div>
+            )}
+            {marketClosed && (
+              <div className="mb-3 rounded-xl border border-[var(--danger)]/20 bg-[var(--danger)]/8 px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
+                The MM is at capacity. You can still view indicative premiums, but opening new positions is temporarily disabled.
               </div>
             )}
             {filteredPrices.length > 0 ? (
@@ -907,12 +922,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
-                if (marketReadOnly) return;
+                if (executionBlocked) return;
                 setConfirming(true);
               }}
-              disabled={marketReadOnly || marketClosed || (!canAccept && isConnected)}
+              disabled={marketReadOnly || marketClosed || selectedQuoteIsPreview || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketReadOnly && !marketClosed && canAccept
+                canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -920,20 +935,20 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               {marketReadOnly
                 ? "Coming soon"
                 : marketClosed
-                ? "Market temporarily closed"
+                ? "MM at capacity"
+                : selectedQuoteIsPreview
+                  ? "Preview only"
                 : !isConnected
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
                     : !selectedQuote
                       ? "Select a strike price"
-                      : selectedQuoteIsPreview
-                        ? "Preview only"
                       : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                The MM is at capacity. Check back soon.
+                Quotes are visible for planning; trading is disabled while capacity is full.
               </p>
             )}
           </div>
@@ -976,12 +991,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="lg:hidden space-y-2 animate-fade-in-up">
             <button
               onClick={() => {
-                if (marketReadOnly) return;
+                if (executionBlocked) return;
                 setConfirming(true);
               }}
-              disabled={marketReadOnly || marketClosed || (!canAccept && isConnected)}
+              disabled={marketReadOnly || marketClosed || selectedQuoteIsPreview || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketReadOnly && !marketClosed && canAccept
+                canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -989,20 +1004,20 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               {marketReadOnly
                 ? "Coming soon"
                 : marketClosed
-                ? "Market temporarily closed"
+                ? "MM at capacity"
+                : selectedQuoteIsPreview
+                  ? "Preview only"
                 : !isConnected
                   ? "Connect wallet"
                   : !amount
                     ? "Enter an amount"
                     : !selectedQuote
                       ? "Select a strike price"
-                      : selectedQuoteIsPreview
-                        ? "Preview only"
                       : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                The MM is at capacity. Check back soon.
+                Quotes are visible for planning; trading is disabled while capacity is full.
               </p>
             )}
           </div>
@@ -1011,7 +1026,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       )}
 
       {/* AcceptModal — only opens on Accept click, confirmation-only */}
-      {confirming && selectedQuote && !marketReadOnly && (
+      {confirming && selectedQuote && canAccept && (
         <AcceptModal
           quote={selectedQuote}
           side={side as "buy" | "sell"}
