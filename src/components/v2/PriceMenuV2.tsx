@@ -56,6 +56,65 @@ function daysUntil(expiryDate: string): number {
 
 const PERCENT_SHORTCUTS = [25, 50, 75, 100] as const;
 const MIN_DISPLAY_APR = 3;
+const PREVIEW_STRIKE_MULTIPLIERS = {
+  put: [0.97, 0.95, 0.93, 0.9, 0.87],
+  call: [1.03, 1.05, 1.08, 1.1, 1.13],
+} as const;
+
+function isoDateAfter(days: number): string {
+  const date = new Date();
+  date.setDate(date.getDate() + days);
+  return date.toISOString().slice(0, 10);
+}
+
+function roundStrikeForAsset(value: number, asset: AssetConfig): number {
+  const step = asset.slug === "btc" ? 500 : asset.slug === "sol" ? 5 : asset.slug === "tslax" ? 5 : 25;
+  return Math.max(step, Math.round(value / step) * step);
+}
+
+function previewPremium(strike: number, spot: number, optionType: "put" | "call") {
+  const distance = Math.abs(strike - spot) / spot;
+  const baseRoi = optionType === "put"
+    ? Math.max(0.00035, 0.0022 - distance * 0.014)
+    : Math.max(0.0003, 0.0019 - distance * 0.012);
+  return Number((strike * baseRoi).toFixed(4));
+}
+
+function buildPreviewQuotes(asset: AssetConfig, spot: number): PriceQuote[] {
+  if (!Number.isFinite(spot) || spot <= 0) return [];
+  const expiryDays = 1;
+  const expiryDate = isoDateAfter(expiryDays);
+  const expiresAt = Math.floor(parseLocalDate(expiryDate).getTime() / 1000);
+
+  return (["put", "call"] as const).flatMap((optionType) =>
+    PREVIEW_STRIKE_MULTIPLIERS[optionType].map((multiplier) => {
+      const strike = roundStrikeForAsset(spot * multiplier, asset);
+      return {
+        option_type: optionType,
+        strike,
+        expiry_days: expiryDays,
+        expiry_date: expiryDate,
+        premium: previewPremium(strike, spot, optionType),
+        delta: optionType === "put" ? -0.25 : 0.25,
+        iv: 0,
+        spot,
+        ttl: 0,
+        expires_at: expiresAt,
+        available_amount: asset.maxAmount,
+        otoken_address: null,
+        signature: null,
+        mm_address: null,
+        bid_price_raw: null,
+        deadline: null,
+        quote_id: null,
+        max_amount_raw: null,
+        maker_nonce: null,
+        position_count: 0,
+        chain: asset.chain,
+      } satisfies PriceQuote;
+    }),
+  );
+}
 
 function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
   const divisor = BigInt(10) ** BigInt(9 - decimals);
@@ -177,7 +236,12 @@ function StrikeCard({
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { prices, loading, error, refresh } = usePrices(asset.slug);
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
-  const spot = spotFromEndpoint ?? prices[0]?.spot;
+  const spot = spotFromEndpoint ?? prices[0]?.spot ?? asset.fallbackSpot;
+  const displayPrices = useMemo(
+    () => prices.length > 0 ? prices : buildPreviewQuotes(asset, spot),
+    [asset, prices, spot],
+  );
+  const indicativeQuotesActive = displayPrices.some((quote) => !isExecutableQuote(quote));
   const { capacity } = useCapacity(asset.slug);
   const { address, solanaAddress, isConnected } = useWallet();
   const { wallets: b1naryWallets } = useB1naryAccount({
@@ -245,11 +309,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
-    for (const p of prices) {
+    for (const p of displayPrices) {
       seen.add(p.expiry_date);
     }
     return [...seen].sort();   // ISO strings sort correctly lexicographically
-  }, [prices]);
+  }, [displayPrices]);
 
   const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
   const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
@@ -258,9 +322,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const marketDegraded = capacity !== null && capacity.market_status === "degraded";
   const capEth = capacity?.max_position ?? asset.maxAmount;
   const capUsd = spot ? Math.min(asset.maxAmountUsd, capEth * spot) : asset.maxAmountUsd;
+  const capacityLabel = capacity?.market_status === "full"
+    ? "MM at capacity"
+    : marketClosed
+      ? "Market closed"
+      : marketDegraded
+        ? "Limited capacity"
+        : "Open";
 
   const filteredPrices = useMemo(() => {
-    return prices
+    return displayPrices
       .filter(
         (p) =>
           p.option_type === (side === "buy" ? "put" : "call") &&
@@ -269,15 +340,15 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR
       )
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
-  }, [prices, side, activeExpiry, spot]);
+  }, [displayPrices, side, activeExpiry, spot]);
 
   // Total open positions for this expiry (puts in buy, calls in sell)
   const totalPositionsForExpiry = useMemo(() => {
     const optionType = side === "buy" ? "put" : "call";
-    return prices
+    return displayPrices
       .filter(p => p.expiry_date === activeExpiry && p.option_type === optionType)
       .reduce((sum, p) => sum + p.position_count, 0);
-  }, [prices, activeExpiry, side]);
+  }, [displayPrices, activeExpiry, side]);
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
@@ -303,10 +374,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const canAccept = !!(
     !marketReadOnly &&
+    !marketClosed &&
     selectedQuote &&
     amount > 0 &&
     isExecutableQuote(selectedQuote)
   );
+  const selectedQuoteIsPreview = !!selectedQuote && !isExecutableQuote(selectedQuote);
+  const executionBlocked = marketReadOnly || marketClosed || selectedQuoteIsPreview || !canAccept;
 
   function handleStartTutorial() {
     const onComplete = () => {};
@@ -363,7 +437,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
-  if (error) {
+  if (error && displayPrices.length === 0) {
     return (
       <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
         Could not load prices. Is the backend running?
@@ -533,7 +607,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
         <button
           onClick={handleStartTutorial}
-          disabled={loading || prices.length === 0 || (side !== "range" && filteredPrices.length === 0)}
+          disabled={loading || displayPrices.length === 0 || (side !== "range" && filteredPrices.length === 0)}
           className="cursor-pointer rounded-lg bg-[var(--accent)] text-[var(--bg)] px-4 py-1.5 hover:bg-[var(--accent-hover)] transition-all animate-shimmer-pulse focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:animate-none"
         >
           Guide me through it
@@ -587,7 +661,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   ? "text-amber-400"
                   : "text-[var(--accent)]"
             }`}>
-              {marketClosed ? "● Closed" : marketDegraded ? "● Limited" : "● Open"}
+              ● {capacityLabel}
             </span>
           )}
         </div>
@@ -696,10 +770,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       {side === "range" && (
         <RangeEarn
           asset={asset}
-          prices={prices}
+          prices={displayPrices}
           activeExpiry={activeExpiry}
           spot={spot}
-          marketReadOnly={marketReadOnly}
+          marketReadOnly={marketReadOnly || indicativeQuotesActive || marketClosed}
           walletBalance={usd + solanaUsdc}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
@@ -809,6 +883,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 </Tooltip>
               )}
             </div>
+            {indicativeQuotesActive && (
+              <div className="mb-3 rounded-xl border border-[var(--accent)]/20 bg-[var(--accent)]/8 px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
+                Indicative quotes are priced from the current {asset.symbol} market while signed market-maker quotes are unavailable. Premiums are approximate and execution stays blocked until live quotes return.
+              </div>
+            )}
+            {marketClosed && (
+              <div className="mb-3 rounded-xl border border-[var(--danger)]/20 bg-[var(--danger)]/8 px-4 py-3 text-xs leading-5 text-[var(--text-secondary)]">
+                The MM is at capacity. You can still view indicative premiums, but opening new positions is temporarily disabled.
+              </div>
+            )}
             {filteredPrices.length > 0 ? (
               <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] divide-y divide-[var(--border)] overflow-hidden">
                 {filteredPrices.map((q) => (
@@ -837,12 +921,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
             <button
               onClick={() => {
-                if (marketReadOnly) return;
+                if (executionBlocked) return;
                 setConfirming(true);
               }}
-              disabled={marketReadOnly || marketClosed || (!canAccept && isConnected)}
+              disabled={marketReadOnly || marketClosed || selectedQuoteIsPreview || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketReadOnly && !marketClosed && canAccept
+                canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -850,7 +934,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               {marketReadOnly
                 ? "Coming soon"
                 : marketClosed
-                ? "Market temporarily closed"
+                ? "MM at capacity"
+                : selectedQuoteIsPreview
+                  ? "Preview only"
                 : !isConnected
                   ? "Connect wallet"
                   : !amount
@@ -861,7 +947,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                The MM is at capacity. Check back soon.
+                Quotes are visible for planning; trading is disabled while capacity is full.
               </p>
             )}
           </div>
@@ -904,12 +990,12 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="lg:hidden space-y-2 animate-fade-in-up">
             <button
               onClick={() => {
-                if (marketReadOnly) return;
+                if (executionBlocked) return;
                 setConfirming(true);
               }}
-              disabled={marketReadOnly || marketClosed || (!canAccept && isConnected)}
+              disabled={marketReadOnly || marketClosed || selectedQuoteIsPreview || (!canAccept && isConnected)}
               className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
-                !marketReadOnly && !marketClosed && canAccept
+                canAccept
                   ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
@@ -917,7 +1003,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               {marketReadOnly
                 ? "Coming soon"
                 : marketClosed
-                ? "Market temporarily closed"
+                ? "MM at capacity"
+                : selectedQuoteIsPreview
+                  ? "Preview only"
                 : !isConnected
                   ? "Connect wallet"
                   : !amount
@@ -928,7 +1016,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                The MM is at capacity. Check back soon.
+                Quotes are visible for planning; trading is disabled while capacity is full.
               </p>
             )}
           </div>
@@ -937,7 +1025,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       )}
 
       {/* AcceptModal — only opens on Accept click, confirmation-only */}
-      {confirming && selectedQuote && !marketReadOnly && (
+      {confirming && selectedQuote && canAccept && (
         <AcceptModal
           quote={selectedQuote}
           side={side as "buy" | "sell"}
