@@ -60,6 +60,7 @@ const PREVIEW_STRIKE_MULTIPLIERS = {
   put: [0.97, 0.95, 0.93, 0.9, 0.87],
   call: [1.03, 1.05, 1.08, 1.1, 1.13],
 } as const;
+const PREVIEW_EXPIRY_DAYS = [1, 3, 7] as const;
 
 function isoDateAfter(days: number): string {
   const date = new Date();
@@ -95,47 +96,50 @@ function previewStrikesForAsset(asset: AssetConfig, spot: number, optionType: "p
   });
 }
 
-function previewPremium(strike: number, spot: number, optionType: "put" | "call") {
+function previewPremium(strike: number, spot: number, optionType: "put" | "call", expiryDays: number) {
   const distance = Math.abs(strike - spot) / spot;
   const baseRoi = optionType === "put"
     ? Math.max(0.00035, 0.0022 - distance * 0.014)
     : Math.max(0.0003, 0.0019 - distance * 0.012);
-  return Number((strike * baseRoi).toFixed(4));
+  const durationScale = Math.sqrt(expiryDays);
+  return Number((strike * baseRoi * durationScale).toFixed(4));
 }
 
 function buildPreviewQuotes(asset: AssetConfig, spot: number): PriceQuote[] {
   if (!Number.isFinite(spot) || spot <= 0) return [];
-  const expiryDays = 1;
-  const expiryDate = isoDateAfter(expiryDays);
-  const expiresAt = Math.floor(parseLocalDate(expiryDate).getTime() / 1000);
 
-  return (["put", "call"] as const).flatMap((optionType) =>
-    previewStrikesForAsset(asset, spot, optionType).map((strike) => {
-      return {
-        option_type: optionType,
-        strike,
-        expiry_days: expiryDays,
-        expiry_date: expiryDate,
-        premium: previewPremium(strike, spot, optionType),
-        delta: optionType === "put" ? -0.25 : 0.25,
-        iv: 0,
-        spot,
-        ttl: 0,
-        expires_at: expiresAt,
-        available_amount: asset.maxAmount,
-        otoken_address: null,
-        signature: null,
-        mm_address: null,
-        bid_price_raw: null,
-        deadline: null,
-        quote_id: null,
-        max_amount_raw: null,
-        maker_nonce: null,
-        position_count: 0,
-        chain: asset.chain,
-      } satisfies PriceQuote;
-    }),
-  );
+  return PREVIEW_EXPIRY_DAYS.flatMap((expiryDays) => {
+    const expiryDate = isoDateAfter(expiryDays);
+    const expiresAt = Math.floor(parseLocalDate(expiryDate).getTime() / 1000);
+
+    return (["put", "call"] as const).flatMap((optionType) =>
+      previewStrikesForAsset(asset, spot, optionType).map((strike) => {
+        return {
+          option_type: optionType,
+          strike,
+          expiry_days: expiryDays,
+          expiry_date: expiryDate,
+          premium: previewPremium(strike, spot, optionType, expiryDays),
+          delta: optionType === "put" ? -0.25 : 0.25,
+          iv: 0,
+          spot,
+          ttl: 0,
+          expires_at: expiresAt,
+          available_amount: asset.maxAmount,
+          otoken_address: null,
+          signature: null,
+          mm_address: null,
+          bid_price_raw: null,
+          deadline: null,
+          quote_id: null,
+          max_amount_raw: null,
+          maker_nonce: null,
+          position_count: 0,
+          chain: asset.chain,
+        } satisfies PriceQuote;
+      }),
+    );
+  });
 }
 
 function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
