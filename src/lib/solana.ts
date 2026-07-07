@@ -6,12 +6,24 @@ const envStr = (raw: string | undefined, fallback = ""): string =>
   (raw && raw.trim()) || fallback;
 
 export const SOLANA_RPC_URL = envStr(process.env.NEXT_PUBLIC_SOLANA_RPC_URL);
-export const SOLANA_USDC_MINT = envStr(process.env.NEXT_PUBLIC_SOLANA_USDC_MINT);
 export const SOLANA_TSLAX_MINT = envStr(process.env.NEXT_PUBLIC_SOLANA_TSLAX_MINT);
 export const SOLANA_CHAIN = envStr(
   process.env.NEXT_PUBLIC_SOLANA_CHAIN,
   "solana:devnet",
 );
+export const SOLANA_MAINNET_USDC_MINT =
+  "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+export const SOLANA_DEVNET_USDC_MINT =
+  "4zMMC9srt5Ri5X14GAgXhaHii3GnPAEERYPJgZJDncDU";
+export const SOLANA_USDC_MINT = (() => {
+  const configured = envStr(process.env.NEXT_PUBLIC_SOLANA_USDC_MINT);
+  if (SOLANA_CHAIN.includes("mainnet")) {
+    return configured && configured !== SOLANA_DEVNET_USDC_MINT
+      ? configured
+      : SOLANA_MAINNET_USDC_MINT;
+  }
+  return configured || SOLANA_DEVNET_USDC_MINT;
+})();
 export const SOLANA_OPERATOR_ADDRESS = envStr(
   process.env.NEXT_PUBLIC_SOLANA_OPERATOR_ADDRESS,
   "BiJR9NWtY7Q9EY2JU1UcWz5AHq1JatUYWDLKfNtgRdyY",
