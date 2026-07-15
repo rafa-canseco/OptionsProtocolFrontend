@@ -33,7 +33,9 @@ export type VaultConfig = {
 export type VaultPosition = {
   state: VaultPositionState;
   activeUsd: number;
+  activeShares: number;
   pendingUsd: number;
+  pendingWithdrawalShares: number;
   claimableUsdc: number;
   claimableWeth: number;
 };
@@ -128,7 +130,9 @@ export const VAULTS: readonly VaultConfig[] = [
 export const EMPTY_VAULT_POSITION: VaultPosition = {
   state: "empty",
   activeUsd: 0,
+  activeShares: 0,
   pendingUsd: 0,
+  pendingWithdrawalShares: 0,
   claimableUsdc: 0,
   claimableWeth: 0,
 };

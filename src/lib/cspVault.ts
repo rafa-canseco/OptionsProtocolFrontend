@@ -38,6 +38,14 @@ export type CspActionKey =
   | "claimWithdraw"
   | "claimAssignedWeth";
 
+export type CspActionPlan = {
+  key: Exclude<CspActionKey, "deposit">;
+  mode: "withdraw";
+  label: string;
+  description: string;
+  requiresAmount: boolean;
+};
+
 export const ETH_CSP_VAULT_ABI = [
   {
     type: "function",
@@ -119,7 +127,11 @@ export function deriveCspPositionState(
   if (!user) return "empty";
   const position = user.position;
   if (BigInt(position.claimableAssignedWeth) > BigInt(0)) return "claimable-weth";
-  if (user.actions.claimWithdraw.available) return "claimable-usdc";
+  if (BigInt(position.withdrawal.wethAssets) > BigInt(0)) return "claimable-weth";
+  if (
+    BigInt(position.withdrawal.usdcAssets) > BigInt(0) ||
+    user.actions.claimWithdraw.available
+  ) return "claimable-usdc";
   if (BigInt(position.withdrawal.shares) > BigInt(0)) return "exiting";
   if (BigInt(position.pendingDepositAssets) > BigInt(0)) return "pending";
   if (BigInt(position.activeShares) > BigInt(0)) return "active";
@@ -135,7 +147,9 @@ export function mapCspPosition(
     return {
       state: "empty",
       activeUsd: 0,
+      activeShares: 0,
       pendingUsd: 0,
+      pendingWithdrawalShares: 0,
       claimableUsdc: 0,
       claimableWeth: 0,
     };
@@ -144,11 +158,79 @@ export function mapCspPosition(
   return {
     state: deriveCspPositionState(user),
     activeUsd: rawAmount(user.position.activeAssets, depositDecimals),
+    activeShares: rawAmount(user.position.activeShares, depositDecimals),
     pendingUsd: rawAmount(user.position.pendingDepositAssets, depositDecimals),
+    pendingWithdrawalShares: rawAmount(
+      user.position.withdrawal.shares,
+      depositDecimals,
+    ),
     claimableUsdc: rawAmount(user.position.withdrawal.usdcAssets, depositDecimals),
     claimableWeth:
       rawAmount(user.position.claimableAssignedWeth, assignedDecimals) +
       rawAmount(user.position.withdrawal.wethAssets, assignedDecimals),
+  };
+}
+
+export function hasCspPosition(user: CspUserPositionResponse | null): boolean {
+  if (!user) return false;
+  const position = user.position;
+  return [
+    position.activeShares,
+    position.pendingDepositAssets,
+    position.withdrawal.shares,
+    position.withdrawal.usdcAssets,
+    position.withdrawal.wethAssets,
+    position.claimableAssignedWeth,
+  ].some((value) => BigInt(value) > BigInt(0));
+}
+
+export function getCspWithdrawPlan(
+  user: CspUserPositionResponse | null,
+): CspActionPlan {
+  if (user?.actions.claimAssignedWeth.available) {
+    return {
+      key: "claimAssignedWeth",
+      mode: "withdraw",
+      label: "Claim WETH",
+      description: "Assigned WETH is ready to claim to your smart wallet.",
+      requiresAmount: false,
+    };
+  }
+  if (user?.actions.claimWithdraw.available) {
+    const hasUsdc = BigInt(user.position.withdrawal.usdcAssets) > BigInt(0);
+    const hasWeth = BigInt(user.position.withdrawal.wethAssets) > BigInt(0);
+    return {
+      key: "claimWithdraw",
+      mode: "withdraw",
+      label: hasUsdc && hasWeth ? "Claim assets" : hasWeth ? "Claim WETH" : "Claim USDC",
+      description: "Your closed withdrawal is ready to claim.",
+      requiresAmount: false,
+    };
+  }
+  if (user?.actions.cancelPendingDeposit.available) {
+    return {
+      key: "cancelPendingDeposit",
+      mode: "withdraw",
+      label: "Cancel pending deposit",
+      description: "Your queued USDC deposit can be cancelled before activation.",
+      requiresAmount: false,
+    };
+  }
+  if (user?.actions.withdrawIdle.available) {
+    return {
+      key: "withdrawIdle",
+      mode: "withdraw",
+      label: "Withdraw now",
+      description: "Idle USDC can be withdrawn immediately.",
+      requiresAmount: true,
+    };
+  }
+  return {
+    key: "requestWithdraw",
+    mode: "withdraw",
+    label: !user || user.actions.requestWithdraw.available ? "Request withdrawal" : "View exit",
+    description: "Request an exit from the active vault position.",
+    requiresAmount: true,
   };
 }
 

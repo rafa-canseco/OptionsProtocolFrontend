@@ -6,6 +6,9 @@ import {
   buildCspActionCall,
   buildCspDepositCalls,
   deriveCspPositionState,
+  getCspWithdrawPlan,
+  hasCspPosition,
+  mapCspPosition,
   mergeCspVaultConfig,
   minSharesOutForDeposit,
   transactionHashFromResult,
@@ -285,5 +288,105 @@ describe("csp vault helpers", () => {
         position: { ...user().position, claimableAssignedWeth: "1" },
       })),
     ).toBe("claimable-weth");
+    expect(
+      deriveCspPositionState(user({
+        position: {
+          ...user().position,
+          withdrawal: { ...user().position.withdrawal, wethAssets: "1" },
+        },
+      })),
+    ).toBe("claimable-weth");
+  });
+
+  it("maps active and withdrawing shares as secondary six-decimal quantities", () => {
+    const mapped = mapCspPosition(user({
+      position: {
+        ...user().position,
+        activeShares: "123456789",
+        activeAssets: "99000000",
+        pendingDepositAssets: "2500000",
+        withdrawal: {
+          ...user().position.withdrawal,
+          shares: "12500000",
+          usdcAssets: "750000",
+          wethAssets: "1500000000000000000",
+        },
+        claimableAssignedWeth: "250000000000000000",
+      },
+    }), 6, 18);
+
+    expect(mapped.activeUsd).toBe(99);
+    expect(mapped.activeShares).toBe(123.456789);
+    expect(mapped.pendingUsd).toBe(2.5);
+    expect(mapped.pendingWithdrawalShares).toBe(12.5);
+    expect(mapped.claimableUsdc).toBe(0.75);
+    expect(mapped.claimableWeth).toBe(1.75);
+  });
+
+  it("detects positions from every supported non-empty balance", () => {
+    const empty = user({
+      position: {
+        activeShares: "0",
+        activeAssets: "999999999",
+        pendingDepositAssets: "0",
+        withdrawal: {
+          epochId: null,
+          shares: "0",
+          claimable: false,
+          usdcAssets: "0",
+          wethAssets: "0",
+        },
+        claimableAssignedWeth: "0",
+      },
+    });
+    expect(hasCspPosition(empty)).toBe(false);
+
+    const fields = [
+      { activeShares: "1" },
+      { pendingDepositAssets: "1" },
+      { claimableAssignedWeth: "1" },
+    ];
+    for (const field of fields) {
+      expect(hasCspPosition(user({ position: { ...empty.position, ...field } }))).toBe(true);
+    }
+    for (const field of ["shares", "usdcAssets", "wethAssets"] as const) {
+      expect(hasCspPosition(user({
+        position: {
+          ...empty.position,
+          withdrawal: { ...empty.position.withdrawal, [field]: "1" },
+        },
+      }))).toBe(true);
+    }
+  });
+
+  it("selects the existing contextual withdraw flow from backend actions", () => {
+    expect(getCspWithdrawPlan(user()).key).toBe("withdrawIdle");
+    expect(getCspWithdrawPlan(user()).mode).toBe("withdraw");
+
+    const pending = user({
+      actions: {
+        ...user().actions,
+        withdrawIdle: action(false),
+        cancelPendingDeposit: action(true),
+      },
+    });
+    expect(getCspWithdrawPlan(pending).key).toBe("cancelPendingDeposit");
+
+    const mixedClaim = user({
+      position: {
+        ...user().position,
+        withdrawal: {
+          ...user().position.withdrawal,
+          usdcAssets: "1000000",
+          wethAssets: "1000000000000000000",
+        },
+      },
+      actions: { ...user().actions, claimWithdraw: action(true) },
+    });
+    expect(getCspWithdrawPlan(mixedClaim)).toMatchObject({
+      key: "claimWithdraw",
+      label: "Claim assets",
+      requiresAmount: false,
+    });
   });
 });
