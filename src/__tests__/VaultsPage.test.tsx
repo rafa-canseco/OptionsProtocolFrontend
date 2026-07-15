@@ -22,6 +22,19 @@ describe("VaultsPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("routes manual trading directly to the ETH v2 interface", () => {
+    render(<VaultsPage />);
+
+    expect(screen.getByRole("link", { name: "Manual trading" })).toHaveAttribute(
+      "href",
+      "/earn/eth",
+    );
+    expect(screen.getByRole("link", { name: /looking for manual trading/i })).toHaveAttribute(
+      "href",
+      "/earn/eth",
+    );
+  });
+
   it("keeps strategy details outside the gallery and collapsed in the dialog", async () => {
     const user = userEvent.setup();
     render(<VaultsPage />);

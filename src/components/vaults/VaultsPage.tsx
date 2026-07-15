@@ -32,7 +32,7 @@ export function VaultsPage() {
               <Link href="/vaults" aria-current="page" className="border-b-2 border-[var(--vault-accent)] py-3 font-medium text-[var(--vault-text)]">
                 Vaults
               </Link>
-              <Link href="/earn" className="py-3 text-[var(--vault-text-muted)] transition-colors hover:text-[var(--vault-text)]">
+              <Link href="/earn/eth" className="py-3 text-[var(--vault-text-muted)] transition-colors hover:text-[var(--vault-text)]">
                 Manual trading
               </Link>
             </nav>
@@ -74,7 +74,7 @@ export function VaultsPage() {
 
         <div className="mt-10 flex items-center justify-between border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
           <span>v2 · Base Sepolia</span>
-          <Link href="/earn" className="min-h-11 py-3 transition-colors hover:text-[var(--vault-text)]">
+          <Link href="/earn/eth" className="min-h-11 py-3 transition-colors hover:text-[var(--vault-text)]">
             Looking for manual trading? <span className="text-[var(--vault-text-muted)]">Open classic →</span>
           </Link>
         </div>
