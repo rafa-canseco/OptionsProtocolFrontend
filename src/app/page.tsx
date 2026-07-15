@@ -1,11 +1,5 @@
-import { headers } from "next/headers";
-import { LandingPage } from "@/components/landing/LandingPage";
+import { redirect } from "next/navigation";
 
-export default async function Home() {
-  const headerStore = await headers();
-  const host =
-    headerStore.get("x-forwarded-host") ??
-    headerStore.get("host") ??
-    undefined;
-  return <LandingPage hostname={host} />;
+export default function Home() {
+  redirect("/vaults");
 }

@@ -11,6 +11,7 @@ import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
 import { ASSETS } from "@/lib/assets";
+import { TRADING_NAV_LINKS } from "@/lib/navigation";
 import type { B1naryWallet } from "@/lib/api";
 import type { Address } from "viem";
 import {
@@ -18,11 +19,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-
-const LINKS = [
-  { href: "/earn", label: "Earn" },
-  { href: "/positions", label: "My earnings" },
-];
 
 const SHOW_FAUCET = process.env.NEXT_PUBLIC_SHOW_FAUCET === "true";
 
@@ -225,7 +221,7 @@ export function NavBar() {
             b<span className="text-[var(--accent)]">1</span>nary
           </Link>
           <nav className="flex gap-4 text-sm">
-            {LINKS.map(({ href, label }) => (
+            {TRADING_NAV_LINKS.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
