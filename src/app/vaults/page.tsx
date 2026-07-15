@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { VaultsPage } from "@/components/vaults/VaultsPage";
+import { VaultsPageLoader } from "@/components/vaults/VaultsPageLoader";
 
 export const metadata: Metadata = {
   title: "Vaults",
@@ -7,5 +7,5 @@ export const metadata: Metadata = {
 };
 
 export default function VaultsRoute() {
-  return <VaultsPage />;
+  return <VaultsPageLoader />;
 }

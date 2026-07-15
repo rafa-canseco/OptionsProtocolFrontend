@@ -5,6 +5,10 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ChevronDown } from "lucide-react";
 import { EMPTY_VAULT_POSITION, VAULTS, type VaultConfig } from "@/lib/vaults";
+import { mergeCspVaultConfig, mapCspPosition } from "@/lib/cspVault";
+import { useBalances } from "@/hooks/useBalances";
+import { useCspVault } from "@/hooks/useCspVault";
+import { useWallet } from "@/hooks/useWallet";
 import { VaultCard } from "./VaultCard";
 import { VaultDialog } from "./VaultDialog";
 
@@ -17,7 +21,19 @@ const ConnectButton = dynamic(
 );
 
 export function VaultsPage() {
-  const [selectedVault, setSelectedVault] = useState<VaultConfig | null>(null);
+  const [selectedVaultId, setSelectedVaultId] = useState<VaultConfig["id"] | null>(null);
+  const { address } = useWallet();
+  const balances = useBalances(address);
+  const csp = useCspVault(address);
+  const depositDecimals = csp.vault?.assets.deposit.decimals ?? 6;
+  const assignedDecimals = csp.vault?.assets.assigned.decimals ?? 18;
+  const cspPosition = mapCspPosition(csp.user, depositDecimals, assignedDecimals);
+  const vaults = VAULTS.map((vault) =>
+    vault.id === "eth-csp"
+      ? mergeCspVaultConfig(vault, csp.vault, csp.user, address ? balances.usd : null)
+      : vault,
+  );
+  const selectedVault = vaults.find((vault) => vault.id === selectedVaultId) ?? null;
 
   return (
     <div className="vault-experience min-h-dvh bg-[var(--vault-bg)] text-[var(--vault-text)]">
@@ -62,12 +78,12 @@ export function VaultsPage() {
         </div>
 
         <section aria-label="Available vaults" className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-          {VAULTS.map((vault) => (
+          {vaults.map((vault) => (
             <VaultCard
               key={vault.id}
               vault={vault}
-              position={EMPTY_VAULT_POSITION}
-              onOpen={setSelectedVault}
+              position={vault.id === "eth-csp" ? cspPosition : EMPTY_VAULT_POSITION}
+              onOpen={(nextVault) => setSelectedVaultId(nextVault.id)}
             />
           ))}
         </section>
@@ -82,9 +98,16 @@ export function VaultsPage() {
 
       <VaultDialog
         vault={selectedVault}
+        position={selectedVault?.id === "eth-csp" ? cspPosition : EMPTY_VAULT_POSITION}
+        cspVault={csp.vault}
+        cspUser={csp.user}
+        cspLoading={csp.loading}
+        cspError={csp.error}
+        smartUsdcRaw={balances.usdRaw}
+        onCspRefetch={csp.refetch}
         open={selectedVault !== null}
         onOpenChange={(isOpen) => {
-          if (!isOpen) setSelectedVault(null);
+          if (!isOpen) setSelectedVaultId(null);
         }}
       />
     </div>

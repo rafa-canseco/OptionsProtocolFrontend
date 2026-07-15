@@ -8,6 +8,39 @@ vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
 }));
 
+vi.mock("@/lib/contracts", () => ({
+  CHAIN: { id: 84532 },
+  ERC20_ABI: [],
+  publicClient: {
+    readContract: vi.fn(),
+    waitForTransactionReceipt: vi.fn(),
+  },
+}));
+
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: () => ({
+    address: "0x4444444444444444444444444444444444444444",
+    sendBatchTx: vi.fn(),
+  }),
+}));
+
+vi.mock("@/hooks/useBalances", () => ({
+  useBalances: () => ({
+    usd: 125,
+    usdRaw: BigInt(125_000000),
+  }),
+}));
+
+vi.mock("@/hooks/useCspVault", () => ({
+  useCspVault: () => ({
+    vault: null,
+    user: null,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
 describe("VaultsPage", () => {
   it("renders the three strategy cards with concise descriptions", () => {
     render(<VaultsPage />);
@@ -20,6 +53,10 @@ describe("VaultsPage", () => {
     expect(
       screen.getByText("Cycle between USDC puts and WETH calls."),
     ).toBeInTheDocument();
+    expect(screen.queryByText("7.68%")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$39(?:\.0)?M/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Earnings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Est. APY")).not.toBeInTheDocument();
   });
 
   it("routes manual trading directly to the ETH v2 interface", () => {

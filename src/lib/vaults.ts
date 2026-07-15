@@ -17,12 +17,10 @@ export type VaultConfig = {
   asset: "USDC" | "WETH" | "USDC + WETH";
   icon: "usdc" | "eth" | "wheel";
   availability: VaultAvailability;
-  apy: number | null;
-  earningsUsd: number;
-  balance: number;
-  balanceUsd: number;
-  totalManagedUsd: number;
-  availableBalance: number;
+  balance: number | null;
+  balanceUsd: number | null;
+  totalManagedUsd: number | null;
+  availableBalance: number | null;
   strategySummary: string;
   strategyFlow: readonly {
     label: string;
@@ -48,12 +46,10 @@ export const VAULTS: readonly VaultConfig[] = [
     asset: "USDC",
     icon: "usdc",
     availability: "open",
-    apy: 7.68,
-    earningsUsd: 0,
-    balance: 0,
-    balanceUsd: 0,
-    totalManagedUsd: 39_013_196,
-    availableBalance: 12_450,
+    balance: null,
+    balanceUsd: null,
+    totalManagedUsd: null,
+    availableBalance: null,
     strategySummary:
       "This vault uses your USDC as collateral to sell ETH put options. In plain terms, the vault gets paid for offering to buy ETH at a set price if the market moves down.",
     strategyFlow: [
@@ -78,12 +74,10 @@ export const VAULTS: readonly VaultConfig[] = [
     asset: "WETH",
     icon: "eth",
     availability: "coming-soon",
-    apy: 5.84,
-    earningsUsd: 0,
-    balance: 0,
-    balanceUsd: 0,
-    totalManagedUsd: 0,
-    availableBalance: 0,
+    balance: null,
+    balanceUsd: null,
+    totalManagedUsd: null,
+    availableBalance: null,
     strategySummary:
       "This vault uses your WETH to sell ETH call options. In plain terms, the vault gets paid for agreeing to sell ETH at a set higher price if the market rallies.",
     strategyFlow: [
@@ -108,12 +102,10 @@ export const VAULTS: readonly VaultConfig[] = [
     asset: "USDC + WETH",
     icon: "wheel",
     availability: "coming-soon",
-    apy: null,
-    earningsUsd: 0,
-    balance: 0,
-    balanceUsd: 0,
-    totalManagedUsd: 0,
-    availableBalance: 0,
+    balance: null,
+    balanceUsd: null,
+    totalManagedUsd: null,
+    availableBalance: null,
     strategySummary:
       "The Wheel moves between the two strategies automatically: it starts from USDC puts, and if the vault receives WETH, it can switch to covered calls.",
     strategyFlow: [

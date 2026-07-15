@@ -370,6 +370,122 @@ export interface SolanaCompleteSponsoredSetupResponse {
   signature: string;
 }
 
+// ---------------------------------------------------------------------------
+// v2 CSP vault types (B1N-343)
+// ---------------------------------------------------------------------------
+
+export interface CspTokenMetadata {
+  symbol: string;
+  address: string;
+  decimals: number;
+}
+
+export interface CspVaultAssets {
+  deposit: CspTokenMetadata;
+  assigned: CspTokenMetadata;
+}
+
+export interface CspVaultSummary {
+  totalManagedAssets: string;
+  totalShares: string;
+  sharePriceAssets: string;
+  availableIdleAssets: string;
+  activeCollateral: string;
+  activeBatchCount: number;
+  utilizationBps: number;
+  pendingDepositAssets: string;
+  pendingWithdrawalShares: string;
+  accountedUnderlyingAssets: string;
+}
+
+export interface CspBatchView {
+  batchId: number;
+  protocolVaultId: number;
+  epochId: number;
+  status: string;
+  settlementClassification: string;
+  oToken: string;
+  strikePrice: string;
+  expiry: number;
+  amount: string;
+  collateral: string;
+  premiumEarned: string;
+  collateralReturned: string;
+  underlyingReceived: string;
+  assignmentShortfall: string;
+}
+
+export interface CspCurrentCycle {
+  epochId: number;
+  status: string;
+  startedAt: number;
+  endedAt: number | null;
+  premiumEarned: string;
+  performanceFee: string;
+  assignmentShortfall: string;
+  closed: boolean;
+  batchesTruncated: boolean;
+  batches: CspBatchView[];
+}
+
+export interface CspVaultResponse {
+  vaultKey: string;
+  chainId: number;
+  vaultAddress: string;
+  assets: CspVaultAssets;
+  status: string;
+  summary: CspVaultSummary;
+  currentCycle: CspCurrentCycle;
+  asOfBlock: number;
+  indexedAt: string;
+  finality: string;
+  stale: boolean;
+}
+
+export interface CspWithdrawalPosition {
+  epochId: number | null;
+  shares: string;
+  claimable: boolean;
+  usdcAssets: string;
+  wethAssets: string;
+}
+
+export interface CspUserPosition {
+  activeShares: string;
+  activeAssets: string;
+  pendingDepositAssets: string;
+  withdrawal: CspWithdrawalPosition;
+  claimableAssignedWeth: string;
+}
+
+export interface CspActionAvailability {
+  available: boolean;
+  reason: string | null;
+  mode: string | null;
+}
+
+export interface CspUserActions {
+  deposit: CspActionAvailability;
+  cancelPendingDeposit: CspActionAvailability;
+  withdrawIdle: CspActionAvailability;
+  requestWithdraw: CspActionAvailability;
+  claimWithdraw: CspActionAvailability;
+  claimAssignedWeth: CspActionAvailability;
+}
+
+export interface CspUserPositionResponse {
+  vaultKey: string;
+  chainId: number;
+  vaultAddress: string;
+  address: string;
+  position: CspUserPosition;
+  actions: CspUserActions;
+  asOfBlock: number;
+  indexedAt: string;
+  finality: string;
+  stale: boolean;
+}
+
 
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
@@ -390,6 +506,14 @@ export const api = {
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
+
+  getCspVault: (vaultKey: string) =>
+    fetchAPI<CspVaultResponse>(`/v2/vaults/${encodeURIComponent(vaultKey)}`),
+
+  getCspVaultPosition: (vaultKey: string, address: string) =>
+    fetchAPI<CspUserPositionResponse>(
+      `/v2/vaults/${encodeURIComponent(vaultKey)}/positions/${encodeURIComponent(address)}`,
+    ),
 
   getB1naryAccount: (privyUserId: string) =>
     fetchAPI<B1naryAccountResponse>(
