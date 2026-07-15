@@ -12,16 +12,23 @@ import type {
   CspUserPositionResponse,
   CspVaultResponse,
 } from "@/lib/api";
-import { CHAIN, ERC20_ABI } from "@/lib/contracts";
+import { ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
 import type { BatchCall } from "@/hooks/useWallet";
 import type { VaultConfig, VaultPosition, VaultPositionState } from "@/lib/vaults";
 
-export const CSP_VAULT_KEY =
-  process.env.NEXT_PUBLIC_CSP_VAULT_KEY || "base-sepolia:eth-usdc-csp";
+export const CSP_VAULT_KEY = process.env.NEXT_PUBLIC_CSP_VAULT_KEY || null;
 export const CSP_VAULT_ADDRESS = process.env.NEXT_PUBLIC_CSP_VAULT_ADDRESS || null;
 
 export const CSP_CHAIN_ID = 84532;
 export const CSP_MIN_SHARES_BPS = 9_950;
+
+function configuredCspVaultKey(): string | null {
+  return process.env.NEXT_PUBLIC_CSP_VAULT_KEY || null;
+}
+
+function configuredCspVaultAddress(): string | null {
+  return process.env.NEXT_PUBLIC_CSP_VAULT_ADDRESS || null;
+}
 
 export type CspActionKey =
   | "deposit"
@@ -149,21 +156,23 @@ export function mergeCspVaultConfig(
   base: VaultConfig,
   vault: CspVaultResponse | null,
   user: CspUserPositionResponse | null,
-  walletUsdc: number,
+  walletUsdc: number | null,
 ): VaultConfig {
   const depositDecimals = vault?.assets.deposit.decimals ?? 6;
-  const positionAssets =
-    rawAmount(user?.position.activeAssets, depositDecimals) +
-    rawAmount(user?.position.pendingDepositAssets, depositDecimals) +
-    rawAmount(user?.position.withdrawal.usdcAssets, depositDecimals);
+  const positionAssets = user
+    ? rawAmount(user.position.activeAssets, depositDecimals) +
+      rawAmount(user.position.pendingDepositAssets, depositDecimals) +
+      rawAmount(user.position.withdrawal.usdcAssets, depositDecimals)
+    : null;
 
   return {
     ...base,
     balance: positionAssets,
     balanceUsd: positionAssets,
-    totalManagedUsd: rawAmount(vault?.summary.totalManagedAssets, depositDecimals) || base.totalManagedUsd,
+    totalManagedUsd: vault
+      ? rawAmount(vault.summary.totalManagedAssets, depositDecimals)
+      : null,
     availableBalance: walletUsdc,
-    earningsUsd: rawAmount(vault?.currentCycle.premiumEarned, depositDecimals),
   };
 }
 
@@ -193,31 +202,90 @@ export function assertCspWriteAllowed(
   vault: CspVaultResponse | null,
   user: CspUserPositionResponse | null,
   actionKey: CspActionKey,
+  smartWalletAddress: Address,
 ): CspActionAvailability {
   if (!vault || !user) {
     throw new Error("Vault data is still loading.");
   }
-  if (CHAIN.id !== CSP_CHAIN_ID || vault.chainId !== CSP_CHAIN_ID || user.chainId !== CSP_CHAIN_ID) {
-    throw new Error("CSP vault writes are only enabled on Base Sepolia.");
-  }
+  assertCspSnapshotTrusted(vault, user, smartWalletAddress);
   if (vault.stale || user.stale) {
     throw new Error("Vault data is stale. Refresh before submitting a transaction.");
-  }
-  if (!isAddress(vault.vaultAddress) || vault.vaultAddress.toLowerCase() !== user.vaultAddress.toLowerCase()) {
-    throw new Error("CSP vault address mismatch. Transaction blocked.");
-  }
-  if (
-    CSP_VAULT_ADDRESS &&
-    (!isAddress(CSP_VAULT_ADDRESS) ||
-      vault.vaultAddress.toLowerCase() !== CSP_VAULT_ADDRESS.toLowerCase())
-  ) {
-    throw new Error("CSP vault address does not match frontend configuration.");
   }
   const action = cspAction(user.actions, actionKey);
   if (!action.available) {
     throw new Error(action.reason ? `Action unavailable: ${action.reason}` : "Action unavailable.");
   }
   return action;
+}
+
+export function assertCspSnapshotTrusted(
+  vault: CspVaultResponse,
+  user: CspUserPositionResponse | null,
+  smartWalletAddress?: Address,
+): void {
+  if (
+    CHAIN.id !== CSP_CHAIN_ID ||
+    vault.chainId !== CSP_CHAIN_ID ||
+    (user !== null && user.chainId !== CSP_CHAIN_ID)
+  ) {
+    throw new Error("CSP vault is only enabled on Base Sepolia.");
+  }
+  const configuredVaultKey = configuredCspVaultKey();
+  const configuredVaultAddress = configuredCspVaultAddress();
+  if (!configuredVaultKey || !configuredVaultAddress) {
+    throw new Error("CSP vault allowlist configuration is missing.");
+  }
+  if (!isAddress(configuredVaultAddress)) {
+    throw new Error("CSP vault allowlist address is invalid.");
+  }
+  if (
+    vault.vaultKey !== configuredVaultKey ||
+    (user !== null && user.vaultKey !== configuredVaultKey)
+  ) {
+    throw new Error("CSP vault key does not match frontend configuration.");
+  }
+  if (
+    !isAddress(vault.vaultAddress) ||
+    (user !== null && vault.vaultAddress.toLowerCase() !== user.vaultAddress.toLowerCase())
+  ) {
+    throw new Error("CSP vault address mismatch. Transaction blocked.");
+  }
+  if (
+    vault.vaultAddress.toLowerCase() !== configuredVaultAddress.toLowerCase()
+  ) {
+    throw new Error("CSP vault address does not match frontend configuration.");
+  }
+  if (
+    vault.assets.deposit.symbol !== "USDC" ||
+    vault.assets.deposit.decimals !== 6 ||
+    !isAddress(vault.assets.deposit.address) ||
+    vault.assets.deposit.address.toLowerCase() !== ADDRESSES.usdc.toLowerCase()
+  ) {
+    throw new Error("CSP deposit asset does not match configured USDC.");
+  }
+  if (
+    vault.assets.assigned.symbol !== "WETH" ||
+    vault.assets.assigned.decimals !== 18 ||
+    !isAddress(vault.assets.assigned.address) ||
+    vault.assets.assigned.address.toLowerCase() !== ADDRESSES.weth.toLowerCase()
+  ) {
+    throw new Error("CSP assigned asset does not match configured WETH.");
+  }
+  if (user !== null && (
+    !smartWalletAddress ||
+    !isAddress(smartWalletAddress) ||
+    !isAddress(user.address) ||
+    user.address.toLowerCase() !== smartWalletAddress.toLowerCase()
+  )) {
+    throw new Error("CSP position does not belong to the connected smart wallet.");
+  }
+}
+
+export function transactionHashFromResult(result: unknown): `0x${string}` {
+  if (typeof result !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(result)) {
+    throw new Error("Smart wallet did not return a valid transaction hash.");
+  }
+  return result as `0x${string}`;
 }
 
 export function buildCspDepositCalls({

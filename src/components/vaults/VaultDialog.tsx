@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ArrowRight, ChevronDown, Info, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Info, RefreshCw, X } from "lucide-react";
 import { type Address } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { ERC20_ABI, publicClient } from "@/lib/contracts";
@@ -13,6 +13,7 @@ import {
   cspAction,
   cspSharesForAssets,
   parseCspUsdc,
+  transactionHashFromResult,
   type CspActionKey,
 } from "@/lib/cspVault";
 import type { VaultConfig } from "@/lib/vaults";
@@ -145,7 +146,7 @@ export function VaultDialog({
     setTxStatus("submitting");
     try {
       if (action === "deposit") {
-        assertCspWriteAllowed(cspVault, cspUser, "deposit");
+        assertCspWriteAllowed(cspVault, cspUser, "deposit", address as Address);
         if (rawInput <= BigInt(0)) throw new Error("Enter an amount.");
         if (rawInput > smartUsdcRaw) throw new Error("Insufficient USDC in smart wallet.");
         const owner = address as Address;
@@ -162,7 +163,7 @@ export function VaultDialog({
         });
         await sendAndWait(sendBatchTx(calls));
       } else {
-        assertCspWriteAllowed(cspVault, cspUser, withdrawPlan.key);
+        assertCspWriteAllowed(cspVault, cspUser, withdrawPlan.key, address as Address);
         const receiver = address as Address;
         const rawShares = withdrawPlan.requiresAmount
           ? cspSharesForAssets(rawInput, cspUser!)
@@ -182,7 +183,6 @@ export function VaultDialog({
       setTxStatus("confirmed");
       setValue("");
       window.dispatchEvent(new Event("balance:refetch"));
-      window.dispatchEvent(new Event("csp-vault:refetch"));
       await onCspRefetch();
     } catch (err) {
       setTxStatus("idle");
@@ -217,25 +217,29 @@ export function VaultDialog({
               <div>
                 <p className="text-sm text-[var(--vault-text-muted)]">Your assets</p>
                 <p className="mt-1 font-mono text-3xl font-medium tracking-[-0.04em] text-[var(--vault-text)] sm:text-4xl">
-                  {amount.format(vault.balance)} {asset}
+                  {vault.balance === null ? "—" : amount.format(vault.balance)} {asset}
                 </p>
                 <p className="mt-1 font-mono text-sm text-[var(--vault-text-subtle)]">
-                  $0.00
+                  {vault.balanceUsd === null ? "Position unavailable" : `$${amount.format(vault.balanceUsd)}`}
                 </p>
               </div>
             </div>
 
             <dl className="mt-8 grid grid-cols-2 gap-6">
               <div>
-                <dt className="text-sm text-[var(--vault-text-muted)]">Est. APY</dt>
+                <dt className="text-sm text-[var(--vault-text-muted)]">Vault total</dt>
                 <dd className="mt-2 font-mono text-2xl text-[var(--vault-text)]">
-                  {vault.apy?.toFixed(2) ?? "—"}%
+                  {vault.totalManagedUsd === null
+                    ? "—"
+                    : usdCompact.format(vault.totalManagedUsd)}
                 </dd>
               </div>
               <div>
-                <dt className="text-sm text-[var(--vault-text-muted)]">Vault total</dt>
+                <dt className="text-sm text-[var(--vault-text-muted)]">Wallet available</dt>
                 <dd className="mt-2 font-mono text-2xl text-[var(--vault-text)]">
-                  {usdCompact.format(vault.totalManagedUsd)}
+                  {vault.availableBalance === null
+                    ? "—"
+                    : `${amount.format(vault.availableBalance)} USDC`}
                 </dd>
               </div>
             </dl>
@@ -244,9 +248,20 @@ export function VaultDialog({
               <div className="mt-6 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
                 <div className="flex items-center justify-between gap-4">
                   <span className="text-sm text-[var(--vault-text-muted)]">Position status</span>
-                  <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[11px] font-medium capitalize text-[var(--vault-text)]">
-                    {position.state.replaceAll("-", " ")}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void onCspRefetch()}
+                      disabled={cspLoading}
+                      className="grid size-8 place-items-center rounded-full border border-[var(--vault-border)] text-[var(--vault-text-muted)] transition-colors hover:text-[var(--vault-text)] disabled:cursor-wait disabled:opacity-50"
+                      aria-label="Refresh vault data"
+                    >
+                      <RefreshCw className={`size-3.5 ${cspLoading ? "animate-spin" : ""}`} />
+                    </button>
+                    <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[11px] font-medium capitalize text-[var(--vault-text)]">
+                      {position.state.replaceAll("-", " ")}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
                   <div>
@@ -365,11 +380,13 @@ export function VaultDialog({
                 {action === "deposit" ? "Deposit" : "Withdraw"}
               </label>
               <div className="flex items-center gap-3 font-mono text-[var(--vault-text)]">
-                <span>{amount.format(available)} {asset}</span>
+                <span>{available === null ? "—" : amount.format(available)} {asset}</span>
                 <button
                   type="button"
-                  onClick={() => setValue(String(available))}
-                  disabled={isCsp && !requiresAmount}
+                  onClick={() => {
+                    if (available !== null) setValue(String(available));
+                  }}
+                  disabled={available === null || (isCsp && !requiresAmount)}
                   className="min-h-11 rounded-lg px-1 text-[var(--vault-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vault-accent)]"
                 >
                   MAX
@@ -478,8 +495,7 @@ function getCspWithdrawPlan(user: CspUserPositionResponse | null): {
 }
 
 async function sendAndWait(result: Promise<unknown>) {
-  const maybeHash = await result;
-  if (typeof maybeHash === "string" && maybeHash.startsWith("0x")) {
-    await publicClient.waitForTransactionReceipt({ hash: maybeHash as `0x${string}` });
-  }
+  const hash = transactionHashFromResult(await result);
+  const receipt = await publicClient.waitForTransactionReceipt({ hash });
+  if (receipt.status === "reverted") throw new Error("Vault transaction reverted.");
 }

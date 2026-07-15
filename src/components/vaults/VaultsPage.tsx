@@ -30,7 +30,7 @@ export function VaultsPage() {
   const cspPosition = mapCspPosition(csp.user, depositDecimals, assignedDecimals);
   const vaults = VAULTS.map((vault) =>
     vault.id === "eth-csp"
-      ? mergeCspVaultConfig(vault, csp.vault, csp.user, balances.usd)
+      ? mergeCspVaultConfig(vault, csp.vault, csp.user, address ? balances.usd : null)
       : vault,
   );
   const selectedVault = vaults.find((vault) => vault.id === selectedVaultId) ?? null;

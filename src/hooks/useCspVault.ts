@@ -1,9 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Address } from "viem";
 import { api, type CspUserPositionResponse, type CspVaultResponse } from "@/lib/api";
-import { CSP_VAULT_KEY } from "@/lib/cspVault";
+import {
+  CSP_VAULT_ADDRESS,
+  CSP_VAULT_KEY,
+  assertCspSnapshotTrusted,
+} from "@/lib/cspVault";
 
 export type CspVaultState = {
   vault: CspVaultResponse | null;
@@ -13,27 +17,40 @@ export type CspVaultState = {
   refetch: () => Promise<void>;
 };
 
-const POLL_MS = 15_000;
-
 export function useCspVault(address: Address | undefined): CspVaultState {
   const [vault, setVault] = useState<CspVaultResponse | null>(null);
   const [user, setUser] = useState<CspUserPositionResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const requestId = useRef(0);
 
   const refetch = useCallback(async () => {
+    const nextRequestId = requestId.current + 1;
+    requestId.current = nextRequestId;
+    if (!CSP_VAULT_KEY || !CSP_VAULT_ADDRESS) {
+      setVault(null);
+      setUser(null);
+      setError("CSP vault allowlist is not configured.");
+      setLoading(false);
+      return;
+    }
     try {
-      const nextVault = await api.getCspVault(CSP_VAULT_KEY);
-      const nextUser = address
-        ? await api.getCspVaultPosition(CSP_VAULT_KEY, address)
-        : null;
+      const [nextVault, nextUser] = await Promise.all([
+        api.getCspVault(CSP_VAULT_KEY),
+        address ? api.getCspVaultPosition(CSP_VAULT_KEY, address) : null,
+      ]);
+      if (requestId.current !== nextRequestId) return;
+      assertCspSnapshotTrusted(nextVault, nextUser, address);
       setVault(nextVault);
       setUser(nextUser);
       setError(null);
     } catch (err) {
+      if (requestId.current !== nextRequestId) return;
+      setVault(null);
+      setUser(null);
       setError(err instanceof Error ? err.message : "Could not load vault data.");
     } finally {
-      setLoading(false);
+      if (requestId.current === nextRequestId) setLoading(false);
     }
   }, [address]);
 
@@ -42,11 +59,16 @@ export function useCspVault(address: Address | undefined): CspVaultState {
   }, [refetch]);
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.hidden) return;
-      void refetch();
-    }, POLL_MS);
-    return () => window.clearInterval(id);
+    const handleFocus = () => void refetch();
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void refetch();
+    };
+    window.addEventListener("focus", handleFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
   }, [refetch]);
 
   useEffect(() => {
@@ -54,10 +76,8 @@ export function useCspVault(address: Address | undefined): CspVaultState {
       void refetch();
     };
     window.addEventListener("csp-vault:refetch", handler);
-    window.addEventListener("balance:refetch", handler);
     return () => {
       window.removeEventListener("csp-vault:refetch", handler);
-      window.removeEventListener("balance:refetch", handler);
     };
   }, [refetch]);
 

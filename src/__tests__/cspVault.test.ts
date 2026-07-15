@@ -6,13 +6,20 @@ import {
   buildCspActionCall,
   buildCspDepositCalls,
   deriveCspPositionState,
+  mergeCspVaultConfig,
   minSharesOutForDeposit,
+  transactionHashFromResult,
 } from "@/lib/cspVault";
 import { ERC20_ABI } from "@/lib/contracts";
 import type { CspUserPositionResponse, CspVaultResponse } from "@/lib/api";
+import { VAULTS } from "@/lib/vaults";
 
 vi.mock("@/lib/contracts", () => ({
   CHAIN: { id: 84532 },
+  ADDRESSES: {
+    usdc: "0x2222222222222222222222222222222222222222",
+    weth: "0x3333333333333333333333333333333333333333",
+  },
   ERC20_ABI: [
     {
       type: "function",
@@ -116,12 +123,14 @@ function user(overrides: Partial<CspUserPositionResponse> = {}): CspUserPosition
 describe("csp vault helpers", () => {
   beforeEach(() => {
     vi.unstubAllEnvs();
+    vi.stubEnv("NEXT_PUBLIC_CSP_VAULT_KEY", "base-sepolia:eth-usdc-csp");
+    vi.stubEnv("NEXT_PUBLIC_CSP_VAULT_ADDRESS", VAULT);
   });
 
   it("blocks writes when the snapshot is stale", () => {
-    expect(() => assertCspWriteAllowed(vault({ stale: true }), user(), "deposit"))
+    expect(() => assertCspWriteAllowed(vault({ stale: true }), user(), "deposit", USER))
       .toThrow(/stale/i);
-    expect(() => assertCspWriteAllowed(vault(), user({ stale: true }), "deposit"))
+    expect(() => assertCspWriteAllowed(vault(), user({ stale: true }), "deposit", USER))
       .toThrow(/stale/i);
   });
 
@@ -133,20 +142,86 @@ describe("csp vault helpers", () => {
       },
     });
 
-    expect(() => assertCspWriteAllowed(vault(), blocked, "deposit"))
+    expect(() => assertCspWriteAllowed(vault(), blocked, "deposit", USER))
       .toThrow(/ACTIVE_BATCHES/);
   });
 
   it("blocks writes outside Base Sepolia or when vault addresses disagree", () => {
-    expect(() => assertCspWriteAllowed(vault({ chainId: 8453 }), user(), "deposit"))
+    expect(() => assertCspWriteAllowed(vault({ chainId: 8453 }), user(), "deposit", USER))
       .toThrow(/Base Sepolia/);
     expect(() =>
       assertCspWriteAllowed(
         vault(),
         user({ vaultAddress: "0x5555555555555555555555555555555555555555" }),
         "deposit",
+        USER,
       ),
     ).toThrow(/address mismatch/i);
+  });
+
+  it("requires the vault allowlist configuration", () => {
+    vi.stubEnv("NEXT_PUBLIC_CSP_VAULT_ADDRESS", "");
+
+    expect(() => assertCspWriteAllowed(vault(), user(), "deposit", USER))
+      .toThrow(/allowlist configuration is missing/i);
+  });
+
+  it("validates vault key, assets, and connected smart wallet", () => {
+    expect(() =>
+      assertCspWriteAllowed(vault({ vaultKey: "wrong" }), user(), "deposit", USER),
+    ).toThrow(/vault key/i);
+    expect(() =>
+      assertCspWriteAllowed(
+        vault({ assets: { ...vault().assets, deposit: { ...vault().assets.deposit, address: WETH } } }),
+        user(),
+        "deposit",
+        USER,
+      ),
+    ).toThrow(/configured USDC/i);
+    expect(() =>
+      assertCspWriteAllowed(
+        vault({ assets: { ...vault().assets, assigned: { ...vault().assets.assigned, address: USDC } } }),
+        user(),
+        "deposit",
+        USER,
+      ),
+    ).toThrow(/configured WETH/i);
+    expect(() =>
+      assertCspWriteAllowed(
+        vault(),
+        user(),
+        "deposit",
+        "0x5555555555555555555555555555555555555555" as Address,
+      ),
+    ).toThrow(/connected smart wallet/i);
+  });
+
+  it("uses only snapshot values for user balance and vault total", () => {
+    const base = VAULTS[0];
+    const zeroSnapshot = vault({
+      summary: { ...vault().summary, totalManagedAssets: "0" },
+      currentCycle: { ...vault().currentCycle, premiumEarned: "99000000" },
+    });
+    const mapped = mergeCspVaultConfig(base, zeroSnapshot, user({
+      position: {
+        ...user().position,
+        activeAssets: "12000000",
+        pendingDepositAssets: "3000000",
+      },
+    }), 8);
+
+    expect(mapped.balance).toBe(15);
+    expect(mapped.totalManagedUsd).toBe(0);
+    expect(mapped).not.toHaveProperty("apy");
+    expect(mapped).not.toHaveProperty("earningsUsd");
+    expect(mergeCspVaultConfig(base, null, null, 8).totalManagedUsd).toBeNull();
+  });
+
+  it("accepts only a full EVM transaction hash", () => {
+    const hash = `0x${"a".repeat(64)}`;
+    expect(transactionHashFromResult(hash)).toBe(hash);
+    expect(() => transactionHashFromResult({ hash })).toThrow(/valid transaction hash/i);
+    expect(() => transactionHashFromResult("0x1234")).toThrow(/valid transaction hash/i);
   });
 
   it("encodes deposit(amount, minSharesOut) and approval to the vault", () => {

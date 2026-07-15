@@ -53,6 +53,10 @@ describe("VaultsPage", () => {
     expect(
       screen.getByText("Cycle between USDC puts and WETH calls."),
     ).toBeInTheDocument();
+    expect(screen.queryByText("7.68%")).not.toBeInTheDocument();
+    expect(screen.queryByText(/\$39(?:\.0)?M/)).not.toBeInTheDocument();
+    expect(screen.queryByText("Earnings")).not.toBeInTheDocument();
+    expect(screen.queryByText("Est. APY")).not.toBeInTheDocument();
   });
 
   it("routes manual trading directly to the ETH v2 interface", () => {

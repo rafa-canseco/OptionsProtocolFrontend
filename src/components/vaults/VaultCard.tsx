@@ -21,9 +21,11 @@ export function VaultCard({
   const isComingSoon = vault.availability === "coming-soon";
   const stateCopy = VAULT_STATE_COPY[position.state];
   const balanceLabel =
-    vault.asset === "USDC + WETH"
-      ? currency.format(vault.balanceUsd)
-      : `${vault.balance.toLocaleString("en-US")} ${vault.asset}`;
+    vault.balance === null
+      ? "—"
+      : vault.asset === "USDC + WETH"
+        ? currency.format(vault.balanceUsd ?? 0)
+        : `${vault.balance.toLocaleString("en-US")} ${vault.asset}`;
 
   return (
     <article
@@ -53,7 +55,9 @@ export function VaultCard({
           {balanceLabel}
         </p>
         <p className="mt-1 font-mono text-sm text-[var(--vault-text-subtle)]">
-          {currency.format(vault.balanceUsd)}
+          {vault.balanceUsd === null
+            ? "Position unavailable"
+            : currency.format(vault.balanceUsd)}
         </p>
       </header>
 
@@ -63,17 +67,23 @@ export function VaultCard({
 
       <div className="rounded-[22px] border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
         <div className="flex items-center justify-between gap-4 border-b border-[var(--vault-border)] pb-4 text-sm">
-          <span className="text-[var(--vault-text-muted)]">Earnings</span>
+          <span className="text-[var(--vault-text-muted)]">
+            {isComingSoon ? "Availability" : "Vault total"}
+          </span>
           <span className="font-mono text-[var(--vault-text)]">
-            {currency.format(vault.earningsUsd)}
+            {isComingSoon
+              ? "Coming later"
+              : vault.totalManagedUsd === null
+                ? "—"
+                : currency.format(vault.totalManagedUsd)}
           </span>
         </div>
         <div className="flex items-center justify-between gap-4 py-4 text-sm">
           <span className="text-[var(--vault-text-muted)]">
-            {vault.apy === null ? "Availability" : "Est. APY"}
+            Position
           </span>
           <span className="font-mono text-base font-medium text-[var(--vault-text)]">
-            {vault.apy === null ? "Coming later" : `${vault.apy.toFixed(2)}%`}
+            {isComingSoon ? "Not available" : stateCopy.label}
           </span>
         </div>
         <button
