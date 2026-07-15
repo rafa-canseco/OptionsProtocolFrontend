@@ -8,6 +8,39 @@ vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
 }));
 
+vi.mock("@/lib/contracts", () => ({
+  CHAIN: { id: 84532 },
+  ERC20_ABI: [],
+  publicClient: {
+    readContract: vi.fn(),
+    waitForTransactionReceipt: vi.fn(),
+  },
+}));
+
+vi.mock("@/hooks/useWallet", () => ({
+  useWallet: () => ({
+    address: "0x4444444444444444444444444444444444444444",
+    sendBatchTx: vi.fn(),
+  }),
+}));
+
+vi.mock("@/hooks/useBalances", () => ({
+  useBalances: () => ({
+    usd: 125,
+    usdRaw: BigInt(125_000000),
+  }),
+}));
+
+vi.mock("@/hooks/useCspVault", () => ({
+  useCspVault: () => ({
+    vault: null,
+    user: null,
+    loading: false,
+    error: null,
+    refetch: vi.fn(),
+  }),
+}));
+
 describe("VaultsPage", () => {
   it("renders the three strategy cards with concise descriptions", () => {
     render(<VaultsPage />);

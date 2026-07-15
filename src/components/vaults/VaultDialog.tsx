@@ -2,7 +2,21 @@
 
 import { useEffect, useState } from "react";
 import { ArrowRight, ChevronDown, Info, X } from "lucide-react";
+import { type Address } from "viem";
+import { useWallet } from "@/hooks/useWallet";
+import { ERC20_ABI, publicClient } from "@/lib/contracts";
+import type { CspUserPositionResponse, CspVaultResponse } from "@/lib/api";
+import {
+  assertCspWriteAllowed,
+  buildCspActionCall,
+  buildCspDepositCalls,
+  cspAction,
+  cspSharesForAssets,
+  parseCspUsdc,
+  type CspActionKey,
+} from "@/lib/cspVault";
 import type { VaultConfig } from "@/lib/vaults";
+import type { VaultPosition } from "@/lib/vaults";
 import {
   Collapsible,
   CollapsibleContent,
@@ -32,31 +46,149 @@ const amount = new Intl.NumberFormat("en-US", {
 
 export function VaultDialog({
   vault,
+  position,
+  cspVault,
+  cspUser,
+  cspLoading,
+  cspError,
+  smartUsdcRaw,
+  onCspRefetch,
   open,
   onOpenChange,
 }: {
   vault: VaultConfig | null;
+  position: VaultPosition;
+  cspVault: CspVaultResponse | null;
+  cspUser: CspUserPositionResponse | null;
+  cspLoading: boolean;
+  cspError: string | null;
+  smartUsdcRaw: bigint;
+  onCspRefetch: () => Promise<void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
+  const { address, sendBatchTx } = useWallet();
   const [action, setAction] = useState<VaultAction>("deposit");
   const [value, setValue] = useState("");
   const [strategyOpen, setStrategyOpen] = useState(false);
+  const [txStatus, setTxStatus] = useState<"idle" | "submitting" | "confirmed">("idle");
+  const [txError, setTxError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!open) {
       setAction("deposit");
       setValue("");
       setStrategyOpen(false);
+      setTxStatus("idle");
+      setTxError(null);
     }
   }, [open]);
 
   if (!vault) return null;
 
   const asset = vault.asset === "USDC + WETH" ? "USDC" : vault.asset;
+  const isCsp = vault.id === "eth-csp";
+  const withdrawPlan = getCspWithdrawPlan(cspUser);
   const numericValue = Number(value);
-  const canSubmit = Number.isFinite(numericValue) && numericValue > 0;
-  const available = action === "deposit" ? vault.availableBalance : vault.balance;
+  const requiresAmount = !isCsp || action === "deposit" || withdrawPlan.requiresAmount;
+  const available = action === "deposit" ? vault.availableBalance : position.activeUsd;
+  const rawInput =
+    cspVault && requiresAmount && Number.isFinite(numericValue) && numericValue > 0
+      ? parseCspUsdc(value, cspVault.assets.deposit.decimals)
+      : BigInt(0);
+  const cspDataReady = !cspLoading && !cspError && cspVault !== null;
+  const cspActionKey: CspActionKey =
+    action === "deposit" ? "deposit" : withdrawPlan.key;
+  const cspAvailability =
+    cspActionKey === "deposit"
+      ? cspAction(cspUser?.actions, "deposit")
+      : cspAction(cspUser?.actions, withdrawPlan.key);
+  const canSubmit = isCsp
+    ? Boolean(
+        address &&
+          cspDataReady &&
+          cspUser !== null &&
+          !cspVault?.stale &&
+          !cspUser?.stale &&
+          cspAvailability.available &&
+          txStatus !== "submitting" &&
+          (!requiresAmount || rawInput > BigInt(0)) &&
+          (action !== "deposit" || rawInput <= smartUsdcRaw),
+      )
+    : Number.isFinite(numericValue) && numericValue > 0;
+  const ctaLabel = isCsp
+    ? txStatus === "submitting"
+      ? "Working..."
+      : txStatus === "confirmed"
+        ? "Done"
+        : action === "deposit"
+          ? "Deposit"
+          : withdrawPlan.label
+    : action === "deposit" ? "Deposit" : "Request withdrawal";
+  const statusMessage = cspError
+    ? cspError
+    : cspVault?.stale || cspUser?.stale
+      ? "Vault data is stale. Refresh before submitting."
+      : !address
+        ? "Smart wallet not ready. Connect wallet to manage the vault."
+        : !cspAvailability.available && cspAvailability.reason
+          ? cspAvailability.reason.replaceAll("_", " ").toLowerCase()
+          : null;
+
+  async function handleCspSubmit() {
+    if (!isCsp) return;
+    if (!address) {
+      setTxError("Smart wallet not ready.");
+      return;
+    }
+    setTxError(null);
+    setTxStatus("submitting");
+    try {
+      if (action === "deposit") {
+        assertCspWriteAllowed(cspVault, cspUser, "deposit");
+        if (rawInput <= BigInt(0)) throw new Error("Enter an amount.");
+        if (rawInput > smartUsdcRaw) throw new Error("Insufficient USDC in smart wallet.");
+        const owner = address as Address;
+        const currentAllowance = await publicClient.readContract({
+          address: cspVault!.assets.deposit.address as Address,
+          abi: ERC20_ABI,
+          functionName: "allowance",
+          args: [owner, cspVault!.vaultAddress as Address],
+        });
+        const calls = buildCspDepositCalls({
+          vault: cspVault!,
+          rawAssets: rawInput,
+          currentAllowance,
+        });
+        await sendAndWait(sendBatchTx(calls));
+      } else {
+        assertCspWriteAllowed(cspVault, cspUser, withdrawPlan.key);
+        const receiver = address as Address;
+        const rawShares = withdrawPlan.requiresAmount
+          ? cspSharesForAssets(rawInput, cspUser!)
+          : BigInt(0);
+        if (withdrawPlan.requiresAmount && rawShares <= BigInt(0)) {
+          throw new Error("Enter a valid withdrawal amount.");
+        }
+        const call = buildCspActionCall({
+          vault: cspVault!,
+          user: cspUser!,
+          actionKey: withdrawPlan.key,
+          rawShares,
+          receiver,
+        });
+        await sendAndWait(sendBatchTx([call]));
+      }
+      setTxStatus("confirmed");
+      setValue("");
+      window.dispatchEvent(new Event("balance:refetch"));
+      window.dispatchEvent(new Event("csp-vault:refetch"));
+      await onCspRefetch();
+    } catch (err) {
+      setTxStatus("idle");
+      setTxError(err instanceof Error ? err.message : "Transaction failed.");
+    }
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -107,6 +239,39 @@ export function VaultDialog({
                 </dd>
               </div>
             </dl>
+
+            {isCsp && (
+              <div className="mt-6 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
+                <div className="flex items-center justify-between gap-4">
+                  <span className="text-sm text-[var(--vault-text-muted)]">Position status</span>
+                  <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[11px] font-medium capitalize text-[var(--vault-text)]">
+                    {position.state.replaceAll("-", " ")}
+                  </span>
+                </div>
+                <div className="mt-4 grid grid-cols-3 gap-3 text-xs">
+                  <div>
+                    <p className="text-[var(--vault-text-subtle)]">Active</p>
+                    <p className="mt-1 font-mono text-[var(--vault-text)]">
+                      ${amount.format(position.activeUsd)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--vault-text-subtle)]">Pending</p>
+                    <p className="mt-1 font-mono text-[var(--vault-text)]">
+                      ${amount.format(position.pendingUsd)}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[var(--vault-text-subtle)]">Claimable</p>
+                    <p className="mt-1 font-mono text-[var(--vault-text)]">
+                      {position.claimableWeth > 0
+                        ? `${amount.format(position.claimableWeth)} WETH`
+                        : `$${amount.format(position.claimableUsdc)}`}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             <Collapsible
               open={strategyOpen}
@@ -204,6 +369,7 @@ export function VaultDialog({
                 <button
                   type="button"
                   onClick={() => setValue(String(available))}
+                  disabled={isCsp && !requiresAmount}
                   className="min-h-11 rounded-lg px-1 text-[var(--vault-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vault-accent)]"
                 >
                   MAX
@@ -211,27 +377,43 @@ export function VaultDialog({
               </div>
             </div>
 
-            <div className="mt-3 flex min-h-24 items-center gap-3 rounded-[22px] border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] px-5 focus-within:border-[var(--vault-accent)] focus-within:ring-1 focus-within:ring-[var(--vault-accent)]">
-              <input
-                id="vault-amount"
-                value={value}
-                onChange={(event) => setValue(event.target.value.replace(/[^0-9.]/g, ""))}
-                inputMode="decimal"
-                autoComplete="off"
-                placeholder="0.00"
-                aria-describedby="vault-cycle-note"
-                className="min-w-0 flex-1 bg-transparent font-mono text-3xl text-[var(--vault-text)] outline-none placeholder:text-[var(--vault-text-subtle)]"
-              />
-              <span className="font-mono text-base text-[var(--vault-text)]">{asset}</span>
-            </div>
+            {requiresAmount ? (
+              <div className="mt-3 flex min-h-24 items-center gap-3 rounded-[22px] border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] px-5 focus-within:border-[var(--vault-accent)] focus-within:ring-1 focus-within:ring-[var(--vault-accent)]">
+                <input
+                  id="vault-amount"
+                  value={value}
+                  onChange={(event) => setValue(event.target.value.replace(/[^0-9.]/g, ""))}
+                  inputMode="decimal"
+                  autoComplete="off"
+                  placeholder="0.00"
+                  aria-describedby="vault-cycle-note"
+                  className="min-w-0 flex-1 bg-transparent font-mono text-3xl text-[var(--vault-text)] outline-none placeholder:text-[var(--vault-text-subtle)]"
+                />
+                <span className="font-mono text-base text-[var(--vault-text)]">{asset}</span>
+              </div>
+            ) : (
+              <div className="mt-3 rounded-[22px] border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] px-5 py-5 text-sm leading-6 text-[var(--vault-text-muted)]">
+                {withdrawPlan.description}
+              </div>
+            )}
 
             <button
               type="button"
               disabled={!canSubmit}
+              onClick={() => {
+                if (isCsp) {
+                  void handleCspSubmit();
+                }
+              }}
               className="mt-6 min-h-14 w-full rounded-2xl border border-[var(--vault-accent)] text-base font-semibold text-[var(--vault-accent)] transition-colors hover:bg-[var(--vault-accent-dim)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vault-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--vault-bg)] disabled:cursor-not-allowed disabled:border-[var(--vault-border)] disabled:text-[var(--vault-text-subtle)]"
             >
-              {action === "deposit" ? "Deposit" : "Request withdrawal"}
+              {ctaLabel}
             </button>
+            {(statusMessage || txError) && (
+              <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
+                {txError ?? statusMessage}
+              </p>
+            )}
           </section>
         </div>
 
@@ -247,4 +429,57 @@ export function VaultDialog({
       </DialogContent>
     </Dialog>
   );
+}
+
+function getCspWithdrawPlan(user: CspUserPositionResponse | null): {
+  key: Exclude<CspActionKey, "deposit">;
+  label: string;
+  description: string;
+  requiresAmount: boolean;
+} {
+  if (user?.actions.claimAssignedWeth.available) {
+    return {
+      key: "claimAssignedWeth",
+      label: "Claim WETH",
+      description: "Assigned WETH is ready to claim to your smart wallet.",
+      requiresAmount: false,
+    };
+  }
+  if (user?.actions.claimWithdraw.available) {
+    return {
+      key: "claimWithdraw",
+      label: "Claim withdrawal",
+      description: "Your closed withdrawal is ready to claim.",
+      requiresAmount: false,
+    };
+  }
+  if (user?.actions.cancelPendingDeposit.available) {
+    return {
+      key: "cancelPendingDeposit",
+      label: "Cancel pending deposit",
+      description: "Your queued USDC deposit can be cancelled before activation.",
+      requiresAmount: false,
+    };
+  }
+  if (user?.actions.withdrawIdle.available) {
+    return {
+      key: "withdrawIdle",
+      label: "Withdraw now",
+      description: "Idle USDC can be withdrawn immediately.",
+      requiresAmount: true,
+    };
+  }
+  return {
+    key: "requestWithdraw",
+    label: "Request withdrawal",
+    description: "Request an exit from the active vault position.",
+    requiresAmount: true,
+  };
+}
+
+async function sendAndWait(result: Promise<unknown>) {
+  const maybeHash = await result;
+  if (typeof maybeHash === "string" && maybeHash.startsWith("0x")) {
+    await publicClient.waitForTransactionReceipt({ hash: maybeHash as `0x${string}` });
+  }
 }
