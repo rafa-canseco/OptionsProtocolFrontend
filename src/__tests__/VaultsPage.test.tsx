@@ -39,7 +39,7 @@ describe("VaultsPage", () => {
     const user = userEvent.setup();
     render(<VaultsPage />);
 
-    expect(screen.queryByText("The vault sells cash-secured ETH puts")).not.toBeInTheDocument();
+    expect(screen.queryByText(/This vault uses your USDC as collateral/i)).not.toBeInTheDocument();
 
     const usdcCard = screen.getByRole("heading", { name: "USDC CSP" }).closest("article");
     expect(usdcCard).not.toBeNull();
@@ -50,10 +50,14 @@ describe("VaultsPage", () => {
       "aria-expanded",
       "false",
     );
-    expect(screen.queryByText("The vault sells cash-secured ETH puts")).not.toBeInTheDocument();
+    expect(screen.queryByText(/This vault uses your USDC as collateral/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("Sell ETH puts")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "View strategy details" }));
-    expect(screen.getByText("The vault sells cash-secured ETH puts")).toBeInTheDocument();
+    expect(screen.getByText(/This vault uses your USDC as collateral/i)).toBeInTheDocument();
+    expect(screen.getByText("Sell ETH puts")).toBeInTheDocument();
+    expect(screen.getByText("Market checks the strike.")).toBeInTheDocument();
+    expect(screen.getByText(/If ETH stays above the strike/i)).toBeInTheDocument();
   });
 
   it("supports deposit and withdraw modes while keeping unavailable strategies disabled", async () => {

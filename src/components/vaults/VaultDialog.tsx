@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { ChevronDown, Info, X } from "lucide-react";
+import { ArrowRight, ChevronDown, Info, X } from "lucide-react";
 import type { VaultConfig } from "@/lib/vaults";
 import {
   Collapsible,
@@ -62,7 +62,7 @@ export function VaultDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         showCloseButton={false}
-        className="vault-dialog max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1180px] overflow-y-auto rounded-[28px] border-[var(--vault-border)] bg-[var(--vault-bg)] p-0 shadow-2xl sm:max-w-[1180px]"
+        className="vault-dialog max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1180px] overflow-y-auto rounded-[28px] border border-[var(--vault-border-strong)] bg-[var(--vault-bg)] p-0 shadow-[0_28px_90px_rgb(0_0_0_/_0.62),0_0_0_1px_rgb(34_211_238_/_0.08)] ring-1 ring-white/[0.04] sm:max-w-[1180px]"
       >
         <DialogTitle className="sr-only">Manage {vault.name}</DialogTitle>
         <DialogDescription className="sr-only">
@@ -124,8 +124,33 @@ export function VaultDialog({
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-                <div className="mt-3 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
-                  <ol className="space-y-3">
+                <div className="mt-3 rounded-2xl border border-[var(--vault-border-strong)] bg-[linear-gradient(180deg,rgb(21_25_32_/_0.98),rgb(12_15_20_/_0.98))] p-4 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)]">
+                  <p className="text-sm leading-6 text-[var(--vault-text-muted)]">
+                    {vault.strategySummary}
+                  </p>
+                  <div
+                    className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]"
+                    aria-label={`${vault.name} strategy flow`}
+                  >
+                    {vault.strategyFlow.map((step, index) => (
+                      <div key={step.label} className="contents">
+                        <div className="rounded-xl border border-[var(--vault-border)] bg-[rgb(8_9_11_/_0.62)] p-3">
+                          <p className="font-mono text-[11px] uppercase text-[var(--vault-accent)]">
+                            {step.label}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-[var(--vault-text-subtle)]">
+                            {step.detail}
+                          </p>
+                        </div>
+                        {index < vault.strategyFlow.length - 1 ? (
+                          <div className="grid place-items-center text-[var(--vault-text-subtle)] max-sm:hidden">
+                            <ArrowRight className="size-4" aria-hidden="true" />
+                          </div>
+                        ) : null}
+                      </div>
+                    ))}
+                  </div>
+                  <ol className="mt-4 space-y-3">
                     {vault.strategySteps.map((step, index) => (
                       <li key={step} className="flex items-start gap-3 text-sm text-[var(--vault-text-muted)]">
                         <span className="grid size-5 shrink-0 place-items-center rounded-full bg-[var(--vault-accent-dim)] font-mono text-[11px] text-[var(--vault-accent)]">

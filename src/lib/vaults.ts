@@ -15,7 +15,7 @@ export type VaultConfig = {
   name: string;
   description: string;
   asset: "USDC" | "WETH" | "USDC + WETH";
-  icon: "usdc" | "weth" | "wheel";
+  icon: "usdc" | "eth" | "wheel";
   availability: VaultAvailability;
   apy: number | null;
   earningsUsd: number;
@@ -23,6 +23,11 @@ export type VaultConfig = {
   balanceUsd: number;
   totalManagedUsd: number;
   availableBalance: number;
+  strategySummary: string;
+  strategyFlow: readonly {
+    label: string;
+    detail: string;
+  }[];
   strategySteps: readonly string[];
   riskNote: string;
 };
@@ -49,20 +54,29 @@ export const VAULTS: readonly VaultConfig[] = [
     balanceUsd: 0,
     totalManagedUsd: 39_013_196,
     availableBalance: 12_450,
+    strategySummary:
+      "This vault uses your USDC as collateral to sell ETH put options. In plain terms, the vault gets paid for offering to buy ETH at a set price if the market moves down.",
+    strategyFlow: [
+      { label: "Deposit USDC", detail: "Cash backs the position." },
+      { label: "Sell ETH puts", detail: "Vault earns option premium." },
+      { label: "Settle cycle", detail: "Market checks the strike." },
+      { label: "USDC or WETH", detail: "You keep USDC or receive WETH." },
+    ],
     strategySteps: [
-      "Deposit USDC",
-      "The vault sells cash-secured ETH puts",
-      "Receive USDC or WETH after settlement",
+      "You deposit USDC into the vault.",
+      "The vault sells ETH puts using that USDC as the cash backing.",
+      "If ETH stays above the strike, the vault keeps the premium and your position stays in USDC.",
+      "If ETH finishes below the strike, the vault may receive WETH instead of USDC.",
     ],
     riskNote:
-      "If ETH settles below the strike, the vault may receive WETH. Returns are not guaranteed.",
+      "Main risk: you can end up holding WETH after a down move, and the WETH may be worth less than the USDC you started with.",
   },
   {
     id: "weth-covered-call",
     name: "WETH Covered Call",
     description: "Earn premium on your WETH.",
     asset: "WETH",
-    icon: "weth",
+    icon: "eth",
     availability: "open",
     apy: 5.84,
     earningsUsd: 0,
@@ -70,13 +84,22 @@ export const VAULTS: readonly VaultConfig[] = [
     balanceUsd: 0,
     totalManagedUsd: 0,
     availableBalance: 0,
+    strategySummary:
+      "This vault uses your WETH to sell ETH call options. In plain terms, the vault gets paid for agreeing to sell ETH at a set higher price if the market rallies.",
+    strategyFlow: [
+      { label: "Deposit WETH", detail: "ETH backs the position." },
+      { label: "Sell ETH calls", detail: "Vault earns option premium." },
+      { label: "Settle cycle", detail: "Market checks the strike." },
+      { label: "WETH or USDC", detail: "You keep WETH or settle in USDC." },
+    ],
     strategySteps: [
-      "Deposit WETH",
-      "The vault sells covered ETH calls",
-      "Receive WETH or USDC after settlement",
+      "You deposit WETH into the vault.",
+      "The vault sells ETH calls backed by that WETH.",
+      "If ETH stays below the strike, the vault keeps the premium and your position stays in WETH.",
+      "If ETH finishes above the strike, some WETH may be sold at the strike and settle as USDC.",
     ],
     riskNote:
-      "If ETH settles above the strike, the position may be called away and settle in USDC.",
+      "Main risk: your upside is capped. If ETH rallies hard, you may miss part of the move because the vault sold calls.",
   },
   {
     id: "patient-wheel",
@@ -91,13 +114,22 @@ export const VAULTS: readonly VaultConfig[] = [
     balanceUsd: 0,
     totalManagedUsd: 0,
     availableBalance: 0,
+    strategySummary:
+      "The Wheel moves between the two strategies automatically: it starts from USDC puts, and if the vault receives WETH, it can switch to covered calls.",
+    strategyFlow: [
+      { label: "Start USDC", detail: "Sell ETH puts." },
+      { label: "Receive WETH", detail: "If ETH moves below strike." },
+      { label: "Sell calls", detail: "Earn premium on WETH." },
+      { label: "Back to USDC", detail: "If WETH is called away." },
+    ],
     strategySteps: [
-      "Start with USDC cash-secured puts",
-      "Switch to covered calls after assignment",
-      "Repeat as assets move between USDC and WETH",
+      "The vault starts with USDC and sells ETH puts.",
+      "If it receives WETH, it can switch to selling ETH covered calls.",
+      "If WETH is called away, the vault moves back to USDC.",
+      "The cycle repeats based on whether the vault is holding USDC or WETH.",
     ],
     riskNote:
-      "The strategy can alternate assets after assignment and may underperform simply holding ETH.",
+      "Main risk: the strategy can lag a strong one-way ETH move because it sells options instead of simply holding spot ETH.",
   },
 ] as const;
 
