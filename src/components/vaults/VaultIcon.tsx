@@ -10,21 +10,10 @@ function EthMark({ className }: { className?: string }) {
       aria-hidden="true"
       className={cn("drop-shadow-[0_18px_34px_rgb(59_130_246_/_0.28)]", className)}
     >
-      <defs>
-        <linearGradient id="eth-mark-top" x1="22" x2="98" y1="18" y2="96">
-          <stop stopColor="#c7d7ff" />
-          <stop offset="0.54" stopColor="#6f8fff" />
-          <stop offset="1" stopColor="#3b57c4" />
-        </linearGradient>
-        <linearGradient id="eth-mark-bottom" x1="36" x2="84" y1="62" y2="108">
-          <stop stopColor="#425cc8" />
-          <stop offset="1" stopColor="#85a2ff" />
-        </linearGradient>
-      </defs>
-      <path d="M60 8 24 66l36-16 36 16L60 8Z" fill="url(#eth-mark-top)" />
+      <path d="M60 8 24 66l36-16 36 16L60 8Z" fill="#6f8fff" />
       <path d="M24 66 60 50v-42L24 66Z" fill="#9db5ff" opacity="0.95" />
       <path d="M60 50v-42l36 58-36-16Z" fill="#627fea" opacity="0.92" />
-      <path d="M60 57 24 73l36 39 36-39-36-16Z" fill="url(#eth-mark-bottom)" />
+      <path d="M60 57 24 73l36 39 36-39-36-16Z" fill="#5f7af2" />
       <path d="M24 73 60 89v23L24 73Z" fill="#3046a7" opacity="0.9" />
       <path d="M60 89 96 73l-36 39V89Z" fill="#7695ff" opacity="0.92" />
     </svg>

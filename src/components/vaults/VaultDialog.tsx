@@ -124,17 +124,17 @@ export function VaultDialog({
                 </span>
               </CollapsibleTrigger>
               <CollapsibleContent className="overflow-hidden data-[state=closed]:animate-collapsible-up data-[state=open]:animate-collapsible-down">
-                <div className="mt-3 rounded-2xl border border-[var(--vault-border-strong)] bg-[linear-gradient(180deg,rgb(21_25_32_/_0.98),rgb(12_15_20_/_0.98))] p-4 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)]">
+                <div className="mt-3 rounded-2xl border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] p-4 shadow-[inset_0_1px_0_rgb(255_255_255_/_0.04)]">
                   <p className="text-sm leading-6 text-[var(--vault-text-muted)]">
                     {vault.strategySummary}
                   </p>
                   <div
-                    className="mt-4 grid gap-2 sm:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]"
+                    className="mt-4 grid gap-2 sm:grid-cols-4"
                     aria-label={`${vault.name} strategy flow`}
                   >
                     {vault.strategyFlow.map((step, index) => (
-                      <div key={step.label} className="contents">
-                        <div className="rounded-xl border border-[var(--vault-border)] bg-[rgb(8_9_11_/_0.62)] p-3">
+                      <div key={step.label} className="relative">
+                        <div className="h-full rounded-xl border border-[var(--vault-border)] bg-[var(--vault-bg)] p-3">
                           <p className="font-mono text-[11px] uppercase text-[var(--vault-accent)]">
                             {step.label}
                           </p>
@@ -143,7 +143,7 @@ export function VaultDialog({
                           </p>
                         </div>
                         {index < vault.strategyFlow.length - 1 ? (
-                          <div className="grid place-items-center text-[var(--vault-text-subtle)] max-sm:hidden">
+                          <div className="absolute -right-3 top-1/2 z-10 grid size-6 -translate-y-1/2 place-items-center rounded-full border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] text-[var(--vault-text-subtle)] max-sm:hidden">
                             <ArrowRight className="size-4" aria-hidden="true" />
                           </div>
                         ) : null}
