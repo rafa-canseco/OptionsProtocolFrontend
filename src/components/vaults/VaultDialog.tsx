@@ -12,6 +12,7 @@ import {
   buildCspDepositCalls,
   cspAction,
   cspSharesForAssets,
+  getCspWithdrawPlan,
   parseCspUsdc,
   transactionHashFromResult,
   type CspActionKey,
@@ -32,7 +33,7 @@ import {
 } from "@/components/ui/dialog";
 import { VaultIcon } from "./VaultIcon";
 
-type VaultAction = "deposit" | "withdraw";
+export type VaultAction = "deposit" | "withdraw";
 
 const usdCompact = new Intl.NumberFormat("en-US", {
   style: "currency",
@@ -54,6 +55,7 @@ export function VaultDialog({
   cspError,
   smartUsdcRaw,
   onCspRefetch,
+  initialAction = "deposit",
   open,
   onOpenChange,
 }: {
@@ -65,6 +67,7 @@ export function VaultDialog({
   cspError: string | null;
   smartUsdcRaw: bigint;
   onCspRefetch: () => Promise<void>;
+  initialAction?: VaultAction;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -76,14 +79,12 @@ export function VaultDialog({
   const [txError, setTxError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open) {
-      setAction("deposit");
-      setValue("");
-      setStrategyOpen(false);
-      setTxStatus("idle");
-      setTxError(null);
-    }
-  }, [open]);
+    setAction(open ? initialAction : "deposit");
+    setValue("");
+    setStrategyOpen(false);
+    setTxStatus("idle");
+    setTxError(null);
+  }, [initialAction, open]);
 
   if (!vault) return null;
 
@@ -446,52 +447,6 @@ export function VaultDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function getCspWithdrawPlan(user: CspUserPositionResponse | null): {
-  key: Exclude<CspActionKey, "deposit">;
-  label: string;
-  description: string;
-  requiresAmount: boolean;
-} {
-  if (user?.actions.claimAssignedWeth.available) {
-    return {
-      key: "claimAssignedWeth",
-      label: "Claim WETH",
-      description: "Assigned WETH is ready to claim to your smart wallet.",
-      requiresAmount: false,
-    };
-  }
-  if (user?.actions.claimWithdraw.available) {
-    return {
-      key: "claimWithdraw",
-      label: "Claim withdrawal",
-      description: "Your closed withdrawal is ready to claim.",
-      requiresAmount: false,
-    };
-  }
-  if (user?.actions.cancelPendingDeposit.available) {
-    return {
-      key: "cancelPendingDeposit",
-      label: "Cancel pending deposit",
-      description: "Your queued USDC deposit can be cancelled before activation.",
-      requiresAmount: false,
-    };
-  }
-  if (user?.actions.withdrawIdle.available) {
-    return {
-      key: "withdrawIdle",
-      label: "Withdraw now",
-      description: "Idle USDC can be withdrawn immediately.",
-      requiresAmount: true,
-    };
-  }
-  return {
-    key: "requestWithdraw",
-    label: "Request withdrawal",
-    description: "Request an exit from the active vault position.",
-    requiresAmount: true,
-  };
 }
 
 async function sendAndWait(result: Promise<unknown>) {

@@ -1,9 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
 import { EMPTY_VAULT_POSITION, VAULTS, type VaultConfig } from "@/lib/vaults";
 import { mergeCspVaultConfig, mapCspPosition } from "@/lib/cspVault";
 import { useBalances } from "@/hooks/useBalances";
@@ -11,14 +9,7 @@ import { useCspVault } from "@/hooks/useCspVault";
 import { useWallet } from "@/hooks/useWallet";
 import { VaultCard } from "./VaultCard";
 import { VaultDialog } from "./VaultDialog";
-
-const ConnectButton = dynamic(
-  () => import("@/components/ConnectButton").then((module) => module.ConnectButton),
-  {
-    ssr: false,
-    loading: () => <div className="h-11 w-24 rounded-full bg-[var(--vault-surface-soft)]" />,
-  },
-);
+import { VaultHeader } from "./VaultHeader";
 
 export function VaultsPage() {
   const [selectedVaultId, setSelectedVaultId] = useState<VaultConfig["id"] | null>(null);
@@ -37,36 +28,7 @@ export function VaultsPage() {
 
   return (
     <div className="vault-experience min-h-dvh bg-[var(--vault-bg)] text-[var(--vault-text)]">
-      <header className="border-b border-[var(--vault-border)]">
-        <div className="mx-auto flex max-w-[1280px] items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
-          <div className="flex items-center gap-6 sm:gap-10">
-            <Link href="/vaults" className="font-mono text-lg font-bold tracking-[-0.04em] text-[var(--bone)]">
-              b<span className="text-[var(--vault-accent)]">1</span>nary
-              <span className="ml-2 font-sans text-sm font-medium tracking-normal text-[var(--vault-text-subtle)]">v2</span>
-            </Link>
-            <nav aria-label="Primary" className="hidden items-center gap-6 text-sm sm:flex">
-              <Link href="/vaults" aria-current="page" className="border-b-2 border-[var(--vault-accent)] py-3 font-medium text-[var(--vault-text)]">
-                Vaults
-              </Link>
-              <Link href="/earn/eth" className="py-3 text-[var(--vault-text-muted)] transition-colors hover:text-[var(--vault-text)]">
-                Manual trading
-              </Link>
-            </nav>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              type="button"
-              aria-label="Network: Base Sepolia"
-              className="hidden min-h-11 items-center gap-2 rounded-xl border border-[var(--vault-border)] px-3 text-xs text-[var(--vault-text-muted)] sm:flex"
-            >
-              <span className="size-2 rounded-full bg-[#0052FF]" />
-              Base Sepolia
-              <ChevronDown className="size-3.5" />
-            </button>
-            <ConnectButton />
-          </div>
-        </div>
-      </header>
+      <VaultHeader active="catalog" />
 
       <main className="mx-auto max-w-[1280px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
         <div className="mb-8 sm:mb-10">
