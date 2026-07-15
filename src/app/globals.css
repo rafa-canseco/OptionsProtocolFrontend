@@ -54,6 +54,41 @@
   --sidebar-ring: #22D3EE;
 }
 
+.vault-experience {
+  --vault-bg: #08090b;
+  --vault-surface: #101318;
+  --vault-surface-soft: #151920;
+  --vault-selected: #262b33;
+  --vault-disabled: #24282f;
+  --vault-border: #292f38;
+  --vault-border-strong: #3a424d;
+  --vault-border-active: #22d3ee;
+  --vault-text: #f5f3ef;
+  --vault-text-muted: #a6adb8;
+  --vault-text-subtle: #737b87;
+  --vault-accent: #22d3ee;
+  --vault-accent-hover: #67e8f9;
+  --vault-accent-dim: rgb(34 211 238 / 0.12);
+  --vault-accent-contrast: #061013;
+  background: var(--vault-bg);
+}
+
+.vault-dialog {
+  --vault-bg: #08090b;
+  --vault-surface: #101318;
+  --vault-surface-soft: #151920;
+  --vault-selected: #262b33;
+  --vault-disabled: #24282f;
+  --vault-border: #292f38;
+  --vault-border-strong: #3a424d;
+  --vault-text: #f5f3ef;
+  --vault-text-muted: #a6adb8;
+  --vault-text-subtle: #737b87;
+  --vault-accent: #22d3ee;
+  --vault-accent-hover: #67e8f9;
+  --vault-accent-dim: rgb(34 211 238 / 0.12);
+}
+
 body {
   background: var(--bg);
   color: var(--text);
