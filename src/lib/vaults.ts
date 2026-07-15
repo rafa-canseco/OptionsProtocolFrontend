@@ -77,7 +77,7 @@ export const VAULTS: readonly VaultConfig[] = [
     description: "Earn premium on your WETH.",
     asset: "WETH",
     icon: "eth",
-    availability: "open",
+    availability: "coming-soon",
     apy: 5.84,
     earningsUsd: 0,
     balance: 0,

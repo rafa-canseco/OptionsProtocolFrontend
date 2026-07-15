@@ -64,7 +64,10 @@ describe("VaultsPage", () => {
     const user = userEvent.setup();
     render(<VaultsPage />);
 
-    expect(screen.getByRole("button", { name: "Coming soon" })).toBeDisabled();
+    const wethCard = screen.getByRole("heading", { name: "WETH Covered Call" }).closest("article");
+    expect(wethCard).not.toBeNull();
+    expect(within(wethCard!).getByRole("button", { name: "Coming soon" })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Coming soon" })).toHaveLength(2);
 
     const usdcCard = screen.getByRole("heading", { name: "USDC CSP" }).closest("article");
     await user.click(within(usdcCard!).getByRole("button", { name: "Start earning" }));
