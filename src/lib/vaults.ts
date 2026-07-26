@@ -1,146 +1,87 @@
+import type { FundPositionResponse, FundSummaryResponse } from "@/lib/api";
+import { rawFundAmount } from "@/lib/fundVault";
+
 export type VaultPositionState =
   | "empty"
+  | "invested"
   | "pending"
-  | "active"
-  | "exiting"
-  | "claimable-usdc"
-  | "claimable-weth";
-
-export type VaultAvailability = "open" | "coming-soon";
-
-export type VaultId = "eth-csp" | "weth-covered-call" | "patient-wheel";
-
-export type VaultConfig = {
-  id: VaultId;
-  name: string;
-  description: string;
-  asset: "USDC" | "WETH" | "USDC + WETH";
-  icon: "usdc" | "eth" | "wheel";
-  availability: VaultAvailability;
-  balance: number | null;
-  balanceUsd: number | null;
-  totalManagedUsd: number | null;
-  availableBalance: number | null;
-  strategySummary: string;
-  strategyFlow: readonly {
-    label: string;
-    detail: string;
-  }[];
-  strategySteps: readonly string[];
-  riskNote: string;
-};
+  | "partial"
+  | "claimable";
 
 export type VaultPosition = {
   state: VaultPositionState;
-  activeUsd: number;
-  pendingUsd: number;
-  claimableUsdc: number;
-  claimableWeth: number;
+  accountingValue: number;
+  shares: number;
+  pendingShares: number;
+  pendingValue: number;
+  claimableShares: number;
+  claimableAssets: number;
 };
-
-export const VAULTS: readonly VaultConfig[] = [
-  {
-    id: "eth-csp",
-    name: "USDC CSP",
-    description: "Earn premium by selling ETH puts.",
-    asset: "USDC",
-    icon: "usdc",
-    availability: "open",
-    balance: null,
-    balanceUsd: null,
-    totalManagedUsd: null,
-    availableBalance: null,
-    strategySummary:
-      "This vault uses your USDC as collateral to sell ETH put options. In plain terms, the vault gets paid for offering to buy ETH at a set price if the market moves down.",
-    strategyFlow: [
-      { label: "Deposit USDC", detail: "Cash backs the position." },
-      { label: "Sell ETH puts", detail: "Vault earns option premium." },
-      { label: "Settle cycle", detail: "Market checks the strike." },
-      { label: "USDC or WETH", detail: "You keep USDC or receive WETH." },
-    ],
-    strategySteps: [
-      "You deposit USDC into the vault.",
-      "The vault sells ETH puts using that USDC as the cash backing.",
-      "If ETH stays above the strike, the vault keeps the premium and your position stays in USDC.",
-      "If ETH finishes below the strike, the vault may receive WETH instead of USDC.",
-    ],
-    riskNote:
-      "Main risk: you can end up holding WETH after a down move, and the WETH may be worth less than the USDC you started with.",
-  },
-  {
-    id: "weth-covered-call",
-    name: "WETH Covered Call",
-    description: "Earn premium on your WETH.",
-    asset: "WETH",
-    icon: "eth",
-    availability: "coming-soon",
-    balance: null,
-    balanceUsd: null,
-    totalManagedUsd: null,
-    availableBalance: null,
-    strategySummary:
-      "This vault uses your WETH to sell ETH call options. In plain terms, the vault gets paid for agreeing to sell ETH at a set higher price if the market rallies.",
-    strategyFlow: [
-      { label: "Deposit WETH", detail: "ETH backs the position." },
-      { label: "Sell ETH calls", detail: "Vault earns option premium." },
-      { label: "Settle cycle", detail: "Market checks the strike." },
-      { label: "WETH or USDC", detail: "You keep WETH or settle in USDC." },
-    ],
-    strategySteps: [
-      "You deposit WETH into the vault.",
-      "The vault sells ETH calls backed by that WETH.",
-      "If ETH stays below the strike, the vault keeps the premium and your position stays in WETH.",
-      "If ETH finishes above the strike, some WETH may be sold at the strike and settle as USDC.",
-    ],
-    riskNote:
-      "Main risk: your upside is capped. If ETH rallies hard, you may miss part of the move because the vault sold calls.",
-  },
-  {
-    id: "patient-wheel",
-    name: "The Wheel",
-    description: "Cycle between USDC puts and WETH calls.",
-    asset: "USDC + WETH",
-    icon: "wheel",
-    availability: "coming-soon",
-    balance: null,
-    balanceUsd: null,
-    totalManagedUsd: null,
-    availableBalance: null,
-    strategySummary:
-      "The Wheel moves between the two strategies automatically: it starts from USDC puts, and if the vault receives WETH, it can switch to covered calls.",
-    strategyFlow: [
-      { label: "Start USDC", detail: "Sell ETH puts." },
-      { label: "Receive WETH", detail: "If ETH moves below strike." },
-      { label: "Sell calls", detail: "Earn premium on WETH." },
-      { label: "Back to USDC", detail: "If WETH is called away." },
-    ],
-    strategySteps: [
-      "The vault starts with USDC and sells ETH puts.",
-      "If it receives WETH, it can switch to selling ETH covered calls.",
-      "If WETH is called away, the vault moves back to USDC.",
-      "The cycle repeats based on whether the vault is holding USDC or WETH.",
-    ],
-    riskNote:
-      "Main risk: the strategy can lag a strong one-way ETH move because it sells options instead of simply holding spot ETH.",
-  },
-] as const;
 
 export const EMPTY_VAULT_POSITION: VaultPosition = {
   state: "empty",
-  activeUsd: 0,
-  pendingUsd: 0,
-  claimableUsdc: 0,
-  claimableWeth: 0,
+  accountingValue: 0,
+  shares: 0,
+  pendingShares: 0,
+  pendingValue: 0,
+  claimableShares: 0,
+  claimableAssets: 0,
 };
 
 export const VAULT_STATE_COPY: Record<
   VaultPositionState,
   { label: string; action: string }
 > = {
-  empty: { label: "Ready to deposit", action: "Start earning" },
-  pending: { label: "Joining next cycle", action: "View deposit" },
-  active: { label: "Earning", action: "Manage position" },
-  exiting: { label: "Exit requested", action: "View exit" },
-  "claimable-usdc": { label: "USDC ready", action: "Claim USDC" },
-  "claimable-weth": { label: "WETH ready", action: "Claim WETH" },
+  empty: { label: "No position", action: "Deposit USDC" },
+  invested: { label: "Invested", action: "Manage position" },
+  pending: { label: "Redemption pending", action: "View request" },
+  partial: { label: "Partially processed", action: "Claim available USDC" },
+  claimable: { label: "USDC ready", action: "Claim USDC" },
 };
+
+export function mapFundPosition(
+  position: FundPositionResponse | null,
+  summary: FundSummaryResponse | null,
+): VaultPosition {
+  if (!position || !summary) return EMPTY_VAULT_POSITION;
+  const shareDecimals = summary.fund.shareToken.decimals;
+  const assetDecimals = summary.fund.accountingAsset.decimals;
+  const pendingShares = BigInt(position.redemption.pendingShares);
+  const claimableShares = BigInt(position.redemption.claimableShares);
+  const pendingValueRaw = estimateShareValue(pendingShares, summary);
+  return {
+    state: deriveFundPositionState(position),
+    accountingValue: rawFundAmount(position.accountingValue, assetDecimals),
+    shares: rawFundAmount(position.shares, shareDecimals),
+    pendingShares: rawFundAmount(pendingShares, shareDecimals),
+    pendingValue: rawFundAmount(pendingValueRaw, assetDecimals),
+    claimableShares: rawFundAmount(claimableShares, shareDecimals),
+    claimableAssets: rawFundAmount(position.redemption.claimableAssets, assetDecimals),
+  };
+}
+
+export function deriveFundPositionState(
+  position: FundPositionResponse,
+): VaultPositionState {
+  const pending = BigInt(position.redemption.pendingShares);
+  const claimable = BigInt(position.redemption.claimableAssets);
+  if (pending > BigInt(0) && claimable > BigInt(0)) return "partial";
+  if (claimable > BigInt(0)) return "claimable";
+  if (pending > BigInt(0)) return "pending";
+  if (BigInt(position.shares) > BigInt(0)) return "invested";
+  return "empty";
+}
+
+export function fundStrategyState(summary: FundSummaryResponse | null): string {
+  if (!summary) return "Unavailable";
+  if (summary.status.flowProcessing) return "Processing redemptions";
+  if (BigInt(summary.composition.assignedWeth) > BigInt(0)) return "Assigned inventory";
+  if (BigInt(summary.composition.strategyAccountingAssets) > BigInt(0)) return "CSP active";
+  return "Idle";
+}
+
+function estimateShareValue(shares: bigint, summary: FundSummaryResponse): bigint {
+  const denominator = BigInt(summary.shareSupply) + BigInt(summary.virtualShares);
+  if (shares <= BigInt(0) || denominator <= BigInt(0)) return BigInt(0);
+  return (shares * (BigInt(summary.netAssets) + BigInt(1))) / denominator;
+}

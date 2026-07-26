@@ -31,6 +31,6 @@ const VaultsPage = dynamic(
   },
 );
 
-export function VaultsPageLoader() {
-  return <VaultsPage />;
+export function VaultsPageLoader({ view = "catalog" }: { view?: "catalog" | "my" }) {
+  return <VaultsPage view={view} />;
 }

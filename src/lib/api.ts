@@ -371,122 +371,139 @@ export interface SolanaCompleteSponsoredSetupResponse {
 }
 
 // ---------------------------------------------------------------------------
-// v2 CSP vault types (B1N-343)
+// v2 tokenized CSP fund types (B1N-353)
 // ---------------------------------------------------------------------------
 
-export interface CspTokenMetadata {
+export interface FundTokenMetadata {
   symbol: string;
   address: string;
   decimals: number;
 }
 
-export interface CspVaultAssets {
-  deposit: CspTokenMetadata;
-  assigned: CspTokenMetadata;
-}
-
-export interface CspVaultSummary {
-  totalManagedAssets: string;
-  totalShares: string;
-  sharePriceAssets: string;
-  availableIdleAssets: string;
-  activeCollateral: string;
-  activeBatchCount: number;
-  utilizationBps: number;
-  pendingDepositAssets: string;
-  pendingWithdrawalShares: string;
-  accountedUnderlyingAssets: string;
-}
-
-export interface CspBatchView {
-  batchId: number;
-  protocolVaultId: number;
-  epochId: number;
-  status: string;
-  settlementClassification: string;
-  oToken: string;
-  strikePrice: string;
-  expiry: number;
-  amount: string;
-  collateral: string;
-  premiumEarned: string;
-  collateralReturned: string;
-  underlyingReceived: string;
-  assignmentShortfall: string;
-}
-
-export interface CspCurrentCycle {
-  epochId: number;
-  status: string;
-  startedAt: number;
-  endedAt: number | null;
-  premiumEarned: string;
-  performanceFee: string;
-  assignmentShortfall: string;
-  closed: boolean;
-  batchesTruncated: boolean;
-  batches: CspBatchView[];
-}
-
-export interface CspVaultResponse {
-  vaultKey: string;
+export interface FundRegistryItem {
+  fundKey: string;
   chainId: number;
-  vaultAddress: string;
-  assets: CspVaultAssets;
-  status: string;
-  summary: CspVaultSummary;
-  currentCycle: CspCurrentCycle;
-  asOfBlock: number;
-  indexedAt: string;
-  finality: string;
+  fundAddress: string;
+  shareToken: FundTokenMetadata;
+  accountingAsset: FundTokenMetadata;
+  deploymentStatus: string;
+}
+
+export interface FundComposition {
+  idleAssets: string;
+  strategyAccountingAssets: string;
+  assignedWeth: string;
+  reservedClaimAssets: string;
+  /** Total assets before option and settlement liabilities. */
+  grossAssets?: string;
+  /** USDC pledged to the open CSP. This remains a fund asset. */
+  lockedCollateralAssets?: string;
+  /** Fair value of the European put obligation, not its collateral notional. */
+  fairOptionLiabilityAssets?: string;
+  /** Accounting-asset value of WETH held by, or receivable by, the fund. */
+  assignedWethValueAssets?: string;
+  /** Expected settlement costs included in transactional NAV. */
+  settlementCostAssets?: string;
+}
+
+export interface FundStressSnapshot {
+  netAssets?: string;
+  sharePriceAssets?: string;
+  liabilities?: string;
+  methodology?: string | null;
+}
+
+export interface FundNavWindow {
+  reportNonce: number;
+  validAfterBlock: number | null;
+  validUntilBlock: number | null;
   stale: boolean;
+  methodology?: string | null;
+  modelVersion?: string | null;
+  observedAt?: string | null;
+  sourceQuality?: string | null;
+  stress?: FundStressSnapshot | null;
 }
 
-export interface CspWithdrawalPosition {
-  epochId: number | null;
-  shares: string;
-  claimable: boolean;
-  usdcAssets: string;
-  wethAssets: string;
+export interface FundStatus {
+  reconciled: boolean;
+  depositsPaused: boolean;
+  redemptionsPaused: boolean;
+  executionLocked: boolean;
+  flowProcessing: boolean;
 }
 
-export interface CspUserPosition {
-  activeShares: string;
-  activeAssets: string;
-  pendingDepositAssets: string;
-  withdrawal: CspWithdrawalPosition;
-  claimableAssignedWeth: string;
-}
-
-export interface CspActionAvailability {
+export interface FundActionAvailability {
   available: boolean;
-  reason: string | null;
-  mode: string | null;
+  reasonCode: string | null;
 }
 
-export interface CspUserActions {
-  deposit: CspActionAvailability;
-  cancelPendingDeposit: CspActionAvailability;
-  withdrawIdle: CspActionAvailability;
-  requestWithdraw: CspActionAvailability;
-  claimWithdraw: CspActionAvailability;
-  claimAssignedWeth: CspActionAvailability;
+export interface FundActions {
+  deposit: FundActionAvailability;
+  requestRedemption: FundActionAvailability;
+  cancelRedemption: FundActionAvailability;
+  claimRedemption: FundActionAvailability;
 }
 
-export interface CspUserPositionResponse {
-  vaultKey: string;
-  chainId: number;
-  vaultAddress: string;
-  address: string;
-  position: CspUserPosition;
-  actions: CspUserActions;
-  asOfBlock: number;
-  indexedAt: string;
-  finality: string;
+export interface FundSummaryResponse {
+  fund: FundRegistryItem;
+  netAssets: string;
+  shareSupply: string;
+  virtualShares: string;
+  /** Fair transactional NAV per share used for synchronous mint/redemption. */
+  sharePriceAssets: string;
+  /** Optional secondary-market quote; never used to mint fund shares. */
+  marketPriceAssets?: string | null;
+  /** Optional risk-only stress price; never used to mint fund shares. */
+  stressPriceAssets?: string | null;
+  composition: FundComposition;
+  nav: FundNavWindow;
+  status: FundStatus;
+  actions: FundActions;
+  asOfBlock: number | null;
+  asOfBlockHash: string | null;
+  indexedAt: string | null;
   stale: boolean;
 }
 
+export interface FundRedemptionView {
+  pendingShares: string;
+  claimableShares: string;
+  claimableAssets: string;
+  status: string;
+  nextAction: string;
+  latestBatchId: number;
+  latestBatchProcessing: boolean;
+  latestBatchUnwindCommitted: boolean;
+}
 
+export interface FundPositionResponse {
+  fundKey: string;
+  address: string;
+  shares: string;
+  accountingValue: string;
+  redemption: FundRedemptionView;
+  actions: FundActions;
+  asOfBlock: number | null;
+  indexedAt: string | null;
+  stale: boolean;
+}
+
+export interface FundTrustedContract {
+  role: string;
+  address: string;
+  implementationAddress: string | null;
+  interfaceVersion: number;
+}
+
+export interface FundConfigResponse {
+  fundKey: string;
+  deploymentStatus: string;
+  contracts: FundTrustedContract[];
+  capabilities: FundActions;
+  writesEnabled: boolean;
+  blockedReasonCode: string | null;
+}
 
 async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
@@ -507,13 +524,16 @@ export const api = {
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
 
-  getCspVault: (vaultKey: string) =>
-    fetchAPI<CspVaultResponse>(`/v2/vaults/${encodeURIComponent(vaultKey)}`),
+  getFund: (fundKey: string) =>
+    fetchAPI<FundSummaryResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}`),
 
-  getCspVaultPosition: (vaultKey: string, address: string) =>
-    fetchAPI<CspUserPositionResponse>(
-      `/v2/vaults/${encodeURIComponent(vaultKey)}/positions/${encodeURIComponent(address)}`,
+  getFundPosition: (fundKey: string, address: string) =>
+    fetchAPI<FundPositionResponse>(
+      `/v2/vaults/${encodeURIComponent(fundKey)}/positions/${encodeURIComponent(address)}`,
     ),
+
+  getFundConfig: (fundKey: string) =>
+    fetchAPI<FundConfigResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}/config`),
 
   getB1naryAccount: (privyUserId: string) =>
     fetchAPI<B1naryAccountResponse>(

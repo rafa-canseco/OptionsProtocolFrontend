@@ -1,7 +1,6 @@
 import Image from "next/image";
 import { Repeat2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { VaultConfig } from "@/lib/vaults";
 
 function EthMark({ className }: { className?: string }) {
   return (
@@ -24,7 +23,7 @@ export function VaultIcon({
   icon,
   className,
 }: {
-  icon: VaultConfig["icon"];
+  icon: "usdc" | "eth" | "wheel";
   className?: string;
 }) {
   if (icon === "wheel") {
