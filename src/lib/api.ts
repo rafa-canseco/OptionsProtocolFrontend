@@ -419,7 +419,7 @@ export interface FundNavWindow {
   validUntilBlock: number | null;
   stale: boolean;
   methodology?: string | null;
-  modelVersion?: string | null;
+  modelVersion?: string | number | null;
   observedAt?: string | null;
   sourceQuality?: string | null;
   stress?: FundStressSnapshot | null;

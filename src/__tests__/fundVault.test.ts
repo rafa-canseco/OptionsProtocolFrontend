@@ -266,7 +266,7 @@ describe("tokenized CSP fund", () => {
       nav: {
         ...summary().nav,
         methodology: "European put fair value",
-        modelVersion: "csp-fair-v1",
+        modelVersion: 1,
         sourceQuality: "quorum",
         stress: {
           netAssets: "200000000",
@@ -282,6 +282,7 @@ describe("tokenized CSP fund", () => {
     expect(valuation.fairOptionLiabilityAssets).toBe("30000000");
     expect(valuation.navPriceAssets).toBe("970000");
     expect(valuation.stressPriceAssets).toBe("200000");
+    expect(valuation.modelVersion).toBe("1");
 
     const deposit = BigInt(200_000000);
     const fairQuote = sharesForDeposit(deposit, fairSummary);

@@ -52,7 +52,7 @@ export function fundValuation(
       composition.settlementCostAssets,
     ),
     methodology: summary.nav.methodology?.trim() || "Reported fair NAV",
-    modelVersion: summary.nav.modelVersion?.trim() || null,
+    modelVersion: optionalModelVersion(summary.nav.modelVersion),
     observedAt: summary.nav.observedAt ?? summary.indexedAt,
     sourceQuality: summary.nav.sourceQuality?.trim() || null,
     stale: summary.stale || summary.nav.stale,
@@ -64,6 +64,15 @@ function optionalUnsignedString(
 ): string | null {
   const value = optionalUnsigned(raw);
   return value === null ? null : value.toString();
+}
+
+function optionalModelVersion(
+  raw: string | number | null | undefined,
+): string | null {
+  if (typeof raw === "number") {
+    return Number.isFinite(raw) ? raw.toString() : null;
+  }
+  return raw?.trim() || null;
 }
 
 function unsignedString(raw: string | null | undefined): string {
