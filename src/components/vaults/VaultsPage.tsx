@@ -8,7 +8,11 @@ import { ChevronDown, RefreshCw } from "lucide-react";
 import { useBalances } from "@/hooks/useBalances";
 import { useFundVault } from "@/hooks/useFundVault";
 import { useWallet } from "@/hooks/useWallet";
-import { mapFundPosition } from "@/lib/vaults";
+import {
+  COVERED_CALL_VAULT_CARD,
+  CSP_VAULT_CARD,
+  mapFundPosition,
+} from "@/lib/vaults";
 import {
   Popover,
   PopoverContent,
@@ -49,7 +53,9 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         <div className="mb-8 flex items-end justify-between gap-5 sm:mb-10">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--vault-accent)]">
-              Base Sepolia · Automated CSP
+              {isMyView
+                ? "Base Sepolia · Automated CSP"
+                : "Base Sepolia · Automated strategies"}
             </p>
             <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
               {isMyView ? "My Vaults" : "Vaults"}
@@ -57,7 +63,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
             <p className="mt-3 max-w-xl text-base text-[var(--vault-text-muted)]">
               {isMyView
                 ? "Your fund position, redemption status, and next action."
-                : "One USDC vault. One automated ETH put strategy."}
+                : "Automated ETH option strategies. Choose a vault asset and let the fund manage each cycle."}
             </p>
           </div>
           <button
@@ -71,14 +77,25 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
           </button>
         </div>
 
-        <div className="max-w-[640px]">
+        <section
+          aria-label={isMyView ? "Your vault positions" : "Available vaults"}
+          className={isMyView ? "max-w-[640px]" : "grid gap-5 lg:grid-cols-2"}
+        >
           <VaultCard
+            vault={CSP_VAULT_CARD}
             summary={fund.summary}
             position={position}
             onOpen={() => setDialogOpen(true)}
           />
+          {!isMyView ? (
+            <VaultCard
+              vault={COVERED_CALL_VAULT_CARD}
+              summary={null}
+              position={null}
+            />
+          ) : null}
           {isMyView ? <PositionDetails position={position} /> : null}
-        </div>
+        </section>
 
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
           <span>v2 · Base Sepolia</span>
