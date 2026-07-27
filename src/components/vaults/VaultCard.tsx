@@ -67,22 +67,21 @@ export function VaultCard({
           <div className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--vault-surface-soft)]">
             <VaultIcon icon={vault.icon} className="size-10" />
           </div>
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--vault-text-subtle)]">
-              {vault.assetLabel}
-            </p>
-            <h2
-              id={`${vault.id}-title`}
-              className="mt-1 text-xl font-semibold tracking-[-0.035em] sm:text-2xl"
-            >
-              {vault.name}
-            </h2>
-          </div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--vault-text-subtle)]">
+            {vault.name}
+          </p>
         </div>
         <span className="shrink-0 rounded-full border border-[var(--vault-border)] px-3 py-1.5 text-[11px] font-medium text-[var(--vault-text-muted)]">
           {entryLabel}
         </span>
       </header>
+
+      <h2
+        id={`${vault.id}-title`}
+        className="mt-7 max-w-[13ch] text-[2rem] font-semibold leading-[1.05] tracking-[-0.055em] text-[var(--vault-text)] sm:text-[2.5rem]"
+      >
+        {vault.description}
+      </h2>
 
       <div className="mt-9">
         <p className="text-xs text-[var(--vault-text-subtle)]">Your value</p>
@@ -105,10 +104,6 @@ export function VaultCard({
         <Metric label="Fund size" value={total === null ? "—" : currency.format(total)} />
         <Metric label="Strategy" value={vault.strategyLabel} />
       </dl>
-
-      <p className="mt-5 min-h-10 flex-1 text-xs leading-5 text-[var(--vault-text-muted)]">
-        {vault.description}
-      </p>
 
       <div className="mt-5 flex items-center justify-between border-t border-[var(--vault-border)] pt-5">
         <div>

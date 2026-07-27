@@ -51,14 +51,18 @@ vi.mock("@/hooks/useFundVault", () => ({
 describe("VaultsPage", () => {
   it("renders a minimal vault-first catalog and preserves manual trading", () => {
     render(<VaultsPage />);
-    expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
+    expect(screen.getByText("ETH Cash-Secured Put")).toBeInTheDocument();
+    expect(screen.getByRole("heading", {
+      name: "Earn income while waiting to buy ETH at a lower price.",
+    })).toBeInTheDocument();
     const coveredCallCard = screen
-      .getByRole("heading", { name: "ETH Covered Call" })
+      .getByRole("heading", { name: "Earn income on ETH you already own." })
       .closest("article");
     expect(coveredCallCard).not.toBeNull();
     expect(screen.getAllByText("NAV price")).toHaveLength(2);
     expect(screen.getByText("ETH puts")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("WETH vault")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("ETH Covered Call")).toBeInTheDocument();
+    expect(within(coveredCallCard!).queryByText("WETH vault")).not.toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("ETH calls")).toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("Prelaunch")).toBeInTheDocument();
     expect(
@@ -72,6 +76,9 @@ describe("VaultsPage", () => {
     )).toBeInTheDocument();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh fund data" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
     expect(screen.queryByText("How this vault works")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute("href", "/earn/eth");
@@ -97,10 +104,12 @@ describe("VaultsPage", () => {
     await user.click(screen.getByRole("button", { name: "Select cbBTC" }));
 
     const cspCard = screen
-      .getByRole("heading", { name: "cbBTC Cash-Secured Put" })
+      .getByRole("heading", {
+        name: "Earn income while waiting to buy cbBTC at a lower price.",
+      })
       .closest("article");
     const coveredCallCard = screen
-      .getByRole("heading", { name: "cbBTC Covered Call" })
+      .getByRole("heading", { name: "Earn income on cbBTC you already own." })
       .closest("article");
     expect(cspCard).not.toBeNull();
     expect(coveredCallCard).not.toBeNull();
@@ -111,7 +120,9 @@ describe("VaultsPage", () => {
       "Earn income on cbBTC you already own.",
     )).toBeInTheDocument();
     expect(within(cspCard!).getByText("cbBTC puts")).toBeInTheDocument();
+    expect(within(cspCard!).getByText("cbBTC Cash-Secured Put")).toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("cbBTC calls")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("cbBTC Covered Call")).toBeInTheDocument();
     expect(
       within(cspCard!).getByRole("button", { name: "Coming soon" }),
     ).toBeDisabled();
@@ -127,9 +138,12 @@ describe("VaultsPage", () => {
   it("does not invent a covered-call position in My Vaults", () => {
     render(<VaultsPage view="my" />);
 
-    expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
+    expect(screen.getByText("ETH Cash-Secured Put")).toBeInTheDocument();
+    expect(screen.getByRole("heading", {
+      name: "Earn income while waiting to buy ETH at a lower price.",
+    })).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "ETH Covered Call" }),
+      screen.queryByText("ETH Covered Call"),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /select vault asset/i }),

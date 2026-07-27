@@ -4,7 +4,7 @@ import { useState } from "react";
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { ChevronDown, RefreshCw } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { useBalances } from "@/hooks/useBalances";
 import { useFundVault } from "@/hooks/useFundVault";
 import { useWallet } from "@/hooks/useWallet";
@@ -58,7 +58,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         }}
       />
       <main className="mx-auto max-w-[1180px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
-        <div className="mb-8 flex items-end justify-between gap-5 sm:mb-10">
+        <div className="mb-8 sm:mb-10">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--vault-accent)]">
               {isMyView
@@ -74,27 +74,13 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
                 : "Automated ETH option strategies. Choose a vault asset and let the fund manage each cycle."}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => void fund.refetch()}
-            disabled={fund.loading || (!isMyView && !catalogHasLiveFund)}
-            aria-label="Refresh fund data"
-            className="grid size-11 shrink-0 place-items-center rounded-full border border-[var(--vault-border)] text-[var(--vault-text-muted)] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <RefreshCw className={`size-4 ${fund.loading ? "animate-spin" : ""}`} />
-          </button>
         </div>
 
         {!isMyView ? (
-          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[var(--vault-text-subtle)]">
-                Underlying asset
-              </p>
-              <p className="mt-1 text-sm text-[var(--vault-text-muted)]">
-                {catalogAsset.name} strategies
-              </p>
-            </div>
+          <div
+            aria-label="Vault catalog asset selector"
+            className="mb-5 flex justify-start"
+          >
             <VaultAssetSelector
               currentSlug={catalogAsset.slug}
               onChange={setCatalogAssetSlug}

@@ -12,7 +12,6 @@ export type VaultStrategy = "csp" | "covered-call";
 export type VaultCardMetadata = {
   id: string;
   name: string;
-  assetLabel: string;
   icon: string;
   strategyLabel: string;
   description: string;
@@ -34,9 +33,6 @@ export function vaultCardMetadata(
     name: isCsp
       ? `${asset.symbol} Cash-Secured Put`
       : `${asset.symbol} Covered Call`,
-    assetLabel: isCsp
-      ? `${asset.stableSymbol} vault`
-      : `${asset.wrappedSymbol} vault`,
     icon: isCsp ? "usdc" : asset.slug,
     strategyLabel: `${asset.symbol} ${isCsp ? "puts" : "calls"}`,
     description: isCsp
