@@ -1,5 +1,7 @@
-import type { VaultConfig, VaultPosition } from "@/lib/vaults";
-import { VAULT_STATE_COPY } from "@/lib/vaults";
+import type { FundSummaryResponse } from "@/lib/api";
+import { rawFundAmount } from "@/lib/fundVault";
+import { fundValuation } from "@/lib/fundValuation";
+import { type VaultPosition, VAULT_STATE_COPY } from "@/lib/vaults";
 import { VaultIcon } from "./VaultIcon";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -10,91 +12,92 @@ const currency = new Intl.NumberFormat("en-US", {
 });
 
 export function VaultCard({
-  vault,
+  summary,
   position,
   onOpen,
 }: {
-  vault: VaultConfig;
+  summary: FundSummaryResponse | null;
   position: VaultPosition;
-  onOpen: (vault: VaultConfig) => void;
+  onOpen: () => void;
 }) {
-  const isComingSoon = vault.availability === "coming-soon";
+  const decimals = summary?.fund.accountingAsset.decimals ?? 6;
+  const total = summary ? rawFundAmount(summary.netAssets, decimals) : null;
+  const valuation = summary ? fundValuation(summary) : null;
+  const sharePrice = valuation
+    ? rawFundAmount(valuation.navPriceAssets, decimals)
+    : null;
+  const entryOpen = summary?.actions.deposit.available === true && !summary.stale;
   const stateCopy = VAULT_STATE_COPY[position.state];
-  const balanceLabel =
-    vault.balance === null
-      ? "—"
-      : vault.asset === "USDC + WETH"
-        ? currency.format(vault.balanceUsd ?? 0)
-        : `${vault.balance.toLocaleString("en-US")} ${vault.asset}`;
+  const entryLabel = !summary
+    ? "Loading"
+    : entryOpen
+      ? "Open"
+      : summary.status.depositsPaused
+        ? "Deposits paused"
+        : "Entry unavailable";
 
   return (
-    <article
-      className={`group flex min-h-[520px] flex-col rounded-[28px] border bg-[var(--vault-surface)] p-5 transition-colors duration-200 sm:p-6 ${
-        vault.id === "eth-csp"
-          ? "border-[var(--vault-border-active)]"
-          : "border-[var(--vault-border)] hover:border-[var(--vault-border-strong)]"
-      }`}
-    >
-      <header>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-xl font-semibold tracking-[-0.02em] text-[var(--vault-text)]">
-              {vault.name}
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-[var(--vault-text-muted)]">
-              {vault.description}
-            </p>
+    <article className="overflow-hidden rounded-[28px] border border-[var(--vault-border)] bg-[var(--vault-surface)] p-5 sm:p-7">
+      <header className="flex items-start justify-between gap-5">
+        <div className="flex min-w-0 items-center gap-4">
+          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--vault-surface-soft)]">
+            <VaultIcon icon="usdc" className="size-10" />
           </div>
-          {isComingSoon ? (
-            <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[11px] font-medium text-[var(--vault-text-muted)]">
-              Soon
-            </span>
-          ) : null}
+          <div>
+            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--vault-text-subtle)]">
+              USDC vault
+            </p>
+            <h2 className="mt-1 text-xl font-semibold tracking-[-0.035em] sm:text-2xl">
+              ETH Cash-Secured Put
+            </h2>
+          </div>
         </div>
-        <p className="mt-5 font-mono text-sm font-medium text-[var(--vault-text)]">
-          {balanceLabel}
-        </p>
-        <p className="mt-1 font-mono text-sm text-[var(--vault-text-subtle)]">
-          {vault.balanceUsd === null
-            ? "Position unavailable"
-            : currency.format(vault.balanceUsd)}
-        </p>
+        <span className="shrink-0 rounded-full border border-[var(--vault-border)] px-3 py-1.5 text-[11px] font-medium text-[var(--vault-text-muted)]">
+          {entryLabel}
+        </span>
       </header>
 
-      <div className="grid flex-1 place-items-center py-7">
-        <VaultIcon icon={vault.icon} className="size-36 sm:size-40" />
+      <div className="mt-9">
+        <p className="text-xs text-[var(--vault-text-subtle)]">Your value</p>
+        <p className="mt-1 font-mono text-4xl tracking-[-0.055em] sm:text-5xl">
+          {currency.format(position.accountingValue)}
+        </p>
+        <p className="mt-2 font-mono text-xs text-[var(--vault-text-subtle)]">
+          {position.shares.toLocaleString("en-US", { maximumFractionDigits: 6 })} shares
+        </p>
       </div>
 
-      <div className="rounded-[22px] border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
-        <div className="flex items-center justify-between gap-4 border-b border-[var(--vault-border)] pb-4 text-sm">
-          <span className="text-[var(--vault-text-muted)]">
-            {isComingSoon ? "Availability" : "Vault total"}
-          </span>
-          <span className="font-mono text-[var(--vault-text)]">
-            {isComingSoon
-              ? "Coming later"
-              : vault.totalManagedUsd === null
-                ? "—"
-                : currency.format(vault.totalManagedUsd)}
-          </span>
-        </div>
-        <div className="flex items-center justify-between gap-4 py-4 text-sm">
-          <span className="text-[var(--vault-text-muted)]">
-            Position
-          </span>
-          <span className="font-mono text-base font-medium text-[var(--vault-text)]">
-            {isComingSoon ? "Not available" : stateCopy.label}
-          </span>
+      <dl className="mt-8 grid grid-cols-3 gap-4 rounded-2xl bg-[var(--vault-surface-soft)] p-4">
+        <Metric
+          label="NAV price"
+          value={sharePrice === null ? "—" : currency.format(sharePrice)}
+        />
+        <Metric label="Fund size" value={total === null ? "—" : currency.format(total)} />
+        <Metric label="Strategy" value="ETH puts" />
+      </dl>
+
+      <div className="mt-5 flex items-center justify-between border-t border-[var(--vault-border)] pt-5">
+        <div>
+          <p className="text-[11px] text-[var(--vault-text-subtle)]">Position</p>
+          <p className="mt-1 text-sm text-[var(--vault-text)]">{stateCopy.label}</p>
         </div>
         <button
           type="button"
-          disabled={isComingSoon}
-          onClick={() => onOpen(vault)}
-          className="min-h-12 w-full rounded-xl border border-[var(--vault-accent)] bg-[var(--vault-accent)] px-5 text-sm font-semibold text-[var(--vault-accent-contrast)] transition-colors duration-200 hover:bg-[var(--vault-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vault-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--vault-surface)] disabled:cursor-not-allowed disabled:border-[var(--vault-border)] disabled:bg-[var(--vault-disabled)] disabled:text-[var(--vault-text-subtle)]"
+          onClick={onOpen}
+          className="min-h-11 rounded-full bg-[var(--vault-accent)] px-6 text-sm font-semibold text-[var(--vault-accent-contrast)] transition-colors hover:bg-[var(--vault-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--vault-accent)]"
         >
-          {isComingSoon ? "Coming soon" : stateCopy.action}
+          {stateCopy.action}
         </button>
       </div>
     </article>
+  );
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-[10px] leading-4 text-[var(--vault-text-subtle)]">{label}</dt>
+      <dd className="mt-1 font-mono text-xs text-[var(--vault-text)] sm:text-sm">{value}</dd>
+    </div>
   );
 }
