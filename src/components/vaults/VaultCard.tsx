@@ -78,12 +78,12 @@ export function VaultCard({
 
       <h2
         id={`${vault.id}-title`}
-        className="mt-7 max-w-[13ch] text-[2rem] font-semibold leading-[1.05] tracking-[-0.055em] text-[var(--vault-text)] sm:text-[2.5rem]"
+        className="mt-6 max-w-[26ch] text-2xl font-semibold leading-[1.18] tracking-[-0.035em] text-[var(--vault-text)] sm:text-[1.75rem]"
       >
         {vault.description}
       </h2>
 
-      <div className="mt-9">
+      <div className="mt-8">
         <p className="text-xs text-[var(--vault-text-subtle)]">Your value</p>
         <p className="mt-1 font-mono text-4xl tracking-[-0.055em] sm:text-5xl">
           {position ? currency.format(position.accountingValue) : "—"}
