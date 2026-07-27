@@ -3,11 +3,12 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { VaultsPage } from "@/components/vaults/VaultsPage";
 import { VaultDialog } from "@/components/vaults/VaultDialog";
+import { VaultCard } from "@/components/vaults/VaultCard";
 import type {
   FundPositionResponse,
   FundSummaryResponse,
 } from "@/lib/api";
-import { VAULT_STATE_COPY } from "@/lib/vaults";
+import { EMPTY_VAULT_POSITION, VAULT_STATE_COPY } from "@/lib/vaults";
 
 vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
@@ -84,7 +85,16 @@ describe("VaultsPage", () => {
     expect(strategyDetails).not.toHaveAttribute("open");
     await user.click(screen.getByText("How this vault works"));
     expect(strategyDetails).toHaveAttribute("open");
-    expect(screen.getByText(/assigned WETH are reflected in the share price/i)).toBeInTheDocument();
+    expect(screen.getByText("≈15% below spot")).toBeInTheDocument();
+    expect(screen.getByText("≈48 hours")).toBeInTheDocument();
+    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
+    expect(screen.getByText("One at a time")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Assignment alone does not stop the loop/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/no eligible quote is available/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Deposit" })).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByRole("tab", { name: "Exit" }));
     expect(screen.getByRole("button", { name: "Request redemption" })).toBeDisabled();
@@ -98,7 +108,7 @@ describe("VaultsPage", () => {
     expect(VAULT_STATE_COPY.claimable.action).toBe("Claim USDC");
   });
 
-  it("presents fair NAV separately from locked collateral and stress value", async () => {
+  it("keeps the fair NAV breakdown useful and moves explanations into tooltips", async () => {
     const user = userEvent.setup();
     render(
       <VaultDialog
@@ -117,17 +127,142 @@ describe("VaultsPage", () => {
     expect(screen.getByText("$1,000.00")).toBeInTheDocument();
     expect(screen.getByText("Locked collateral")).toBeInTheDocument();
     expect(screen.getByText("$800.00")).toBeInTheDocument();
-    expect(screen.getByText("Fund asset · not a loss")).toBeInTheDocument();
     expect(screen.getByText("Fair put liability")).toBeInTheDocument();
     expect(screen.getByText("−$30.00")).toBeInTheDocument();
-    expect(screen.getByText(/Fresh · European put fair value/)).toBeInTheDocument();
-    expect(screen.getByText("Stress").parentElement).toHaveTextContent("$0.20");
+    expect(screen.getByText("Price current")).toBeInTheDocument();
+    expect(screen.queryByText("Assigned WETH")).not.toBeInTheDocument();
+    expect(screen.queryByText("Settlement costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Stress")).not.toBeInTheDocument();
+    expect(screen.queryByText(/European put fair value/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/csp-fair-v1/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/quorum/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Report 3/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/block 110/)).not.toBeInTheDocument();
+    expect(screen.getByText("Current CSP cycle")).toBeInTheDocument();
+    expect(screen.getByText("$1,625 put")).toBeInTheDocument();
+    expect(screen.getByText("Open")).toBeInTheDocument();
+    expect(screen.getByText(/0.49230769 ETH/)).toHaveTextContent(
+      "$800.00 secured",
+    );
+    expect(screen.getByText("Total premium")).toBeInTheDocument();
+    expect(screen.getByText("0.000061 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Next position")).toBeInTheDocument();
+    expect(screen.getByText(/After Jul 29.*settlement/)).toBeInTheDocument();
+
+    await user.hover(
+      screen.getByRole("button", { name: "Info: Locked collateral" }),
+    );
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "It still belongs to the fund and is not a loss.",
+    );
 
     await user.type(screen.getByRole("textbox", { name: "USDC amount" }), "200");
     const preview = screen.getByLabelText("Deposit share preview");
     expect(preview).toHaveTextContent("206.185");
     expect(preview).toHaveTextContent("current NAV price of $0.97");
     expect(preview).not.toHaveTextContent("$0.20");
+    expect(preview).not.toHaveTextContent(/stress/i);
+  });
+
+  it("uses plain language while a NAV price is updating", () => {
+    const summary = fairSummary();
+    summary.stale = true;
+    summary.nav.stale = true;
+    summary.actions.deposit = {
+      available: false,
+      reasonCode: "NAV_NOT_ACTIVE",
+    };
+
+    render(
+      <VaultDialog
+        summary={summary}
+        position={emptyPosition()}
+        config={null}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Price updating")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Price is updating. Deposits and exits will reopen automatically.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/nav not active/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deposit USDC" })).toBeDisabled();
+  });
+
+  it("labels a stale catalog price without exposing internal availability copy", () => {
+    const summary = fairSummary();
+    summary.stale = true;
+    summary.nav.stale = true;
+    summary.actions.deposit = {
+      available: false,
+      reasonCode: "NAV_NOT_ACTIVE",
+    };
+
+    render(
+      <VaultCard
+        summary={summary}
+        position={EMPTY_VAULT_POSITION}
+        onOpen={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Price updating")).toBeInTheDocument();
+    expect(screen.queryByText("Entry unavailable")).not.toBeInTheDocument();
+    expect(screen.queryByText(/nav not active/i)).not.toBeInTheDocument();
+  });
+
+  it("shows tiny non-zero liabilities without rendering negative zero", () => {
+    const summary = fairSummary();
+    summary.composition.fairOptionLiabilityAssets = "1";
+
+    render(
+      <VaultDialog
+        summary={summary}
+        position={emptyPosition()}
+        config={null}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("−<$0.01")).toBeInTheDocument();
+    expect(screen.queryByText("−$0.00")).not.toBeInTheDocument();
+  });
+
+  it("reveals assigned inventory and settlement costs only when present", () => {
+    const summary = fairSummary();
+    summary.composition.assignedWeth = "1000000000000000000";
+    summary.composition.assignedWethValueAssets = "1900000000";
+    summary.composition.settlementCostAssets = "250000";
+
+    render(
+      <VaultDialog
+        summary={summary}
+        position={emptyPosition()}
+        config={null}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Assigned WETH")).toBeInTheDocument();
+    expect(screen.getByText("1 WETH")).toBeInTheDocument();
+    expect(screen.getByText("$1,900.00")).toBeInTheDocument();
+    expect(screen.getByText("Settlement costs")).toBeInTheDocument();
+    expect(screen.getByText("$0.25")).toBeInTheDocument();
   });
 });
 
@@ -181,6 +316,20 @@ function fairSummary(): FundSummaryResponse {
         liabilities: "800000000",
         methodology: "max-payout stress",
       },
+    },
+    strategy: {
+      latestPosition: {
+        positionId: 2,
+        lifecycle: "open",
+        strikePriceUsd8: "162500000000",
+        expiryTimestamp: 1785312000,
+        optionAmount8: "49230769",
+        collateralAssets: "800000000",
+        premiumEarnedAssets: "2",
+      },
+      totalPremiumCollectedAssets: "61",
+      nextOpenAfter: 1785312000,
+      nextOpenCondition: "after_current_settlement",
     },
     status: {
       reconciled: true,

@@ -30,6 +30,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 type DialogAction = "deposit" | "redeem";
 type TxStatus = "idle" | "submitting" | "confirmed";
@@ -40,6 +41,21 @@ const currency = new Intl.NumberFormat("en-US", {
   currency: "USD",
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
+});
+const strikeCurrency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+const optionAmount = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 8,
+});
+const cycleDate = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
 });
 
 export function VaultDialog(props: {
@@ -88,13 +104,65 @@ function StrategyExplanation() {
         How this vault works
         <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180" />
       </summary>
-      <ol className="space-y-3 border-t border-[var(--vault-border)] px-4 py-4 text-sm leading-6 text-[var(--vault-text-muted)]">
-        <StrategyStep number="1" text="Deposit USDC and receive transferable fund shares." />
-        <StrategyStep number="2" text="The fund uses part of its USDC to sell cash-secured ETH puts." />
-        <StrategyStep number="3" text="Premium, liabilities, and any assigned WETH are reflected in the share price." />
-        <StrategyStep number="4" text="To exit, request a redemption and claim USDC after it is processed." />
-      </ol>
+      <div className="border-t border-[var(--vault-border)] px-4 py-5">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--vault-accent)]">
+              Current Base Sepolia strategy
+            </p>
+            <p className="mt-1 text-sm leading-6 text-[var(--vault-text-muted)]">
+              The vault continuously sells one ETH cash-secured put at a time.
+            </p>
+          </div>
+          <span className="mt-2 w-fit rounded-full border border-[var(--vault-border)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--vault-text-subtle)] sm:mt-0">
+            Automatic loop
+          </span>
+        </div>
+
+        <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--vault-border)] bg-[var(--vault-border)] sm:grid-cols-4">
+          <StrategyFact label="Strike" value="≈15% below spot" />
+          <StrategyFact label="Duration" value="≈48 hours" />
+          <StrategyFact label="Allocation" value="Up to 80%" />
+          <StrategyFact label="Positions" value="One at a time" />
+        </dl>
+
+        <ol className="mt-5 space-y-3 text-sm leading-6 text-[var(--vault-text-muted)]">
+          <StrategyStep
+            number="1"
+            text="Deposits receive transferable fund shares immediately. New USDC stays idle until the next position opens."
+          />
+          <StrategyStep
+            number="2"
+            text="The allocator uses up to 80% of the liquid USDC, capped at 800 USDC under the current test policy."
+          />
+          <StrategyStep
+            number="3"
+            text="After each put settles, the vault attempts to open the next eligible position for about another 48 hours."
+          />
+          <StrategyStep
+            number="4"
+            text="If assigned, WETH stays in the fund and the next put uses the remaining liquid USDC. Assignment alone does not stop the loop."
+          />
+          <StrategyStep
+            number="5"
+            text="The vault waits only when there is not enough USDC, pricing or NAV is not current, no eligible quote is available, or the strategy is explicitly paused."
+          />
+        </ol>
+      </div>
     </details>
+  );
+}
+
+function StrategyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-[var(--vault-bg)] px-3 py-3">
+      <dt className="text-[10px] uppercase tracking-[0.12em] text-[var(--vault-text-subtle)]">
+        {label}
+      </dt>
+      <dd className="mt-1 font-mono text-xs text-[var(--vault-text)]">
+        {value}
+      </dd>
+    </div>
   );
 }
 
@@ -120,6 +188,8 @@ function FundOverview({
   const shareDecimals = summary?.fund.shareToken.decimals ?? 18;
   const composition = summary?.composition;
   const valuation = summary ? fundValuation(summary) : null;
+  const assignedWethValue = valuation?.assignedWethValueAssets;
+  const settlementCosts = valuation?.settlementCostAssets;
   return (
     <section className="border-b border-[var(--vault-border)] p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-10">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--vault-accent)]">
@@ -135,16 +205,22 @@ function FundOverview({
       <p className="mt-2 font-mono text-xs text-[var(--vault-text-subtle)]">
         {amount.format(rawFundAmount(position?.shares, shareDecimals))} fund shares
       </p>
+      <CspCycle summary={summary} />
       <dl className="mt-10 grid grid-cols-2 gap-5 text-sm">
         <OverviewMetric
           label="Gross assets"
           value={assetValue(valuation?.grossAssets, assetDecimals)}
+          help="Everything the fund owns before deducting the open put obligation and settlement costs."
         />
-        <OverviewMetric label="Idle USDC" value={assetValue(composition?.idleAssets, assetDecimals)} />
+        <OverviewMetric
+          label="Idle USDC"
+          value={assetValue(composition?.idleAssets, assetDecimals)}
+          help="USDC that is not locked as put collateral. It remains available for the next position or redemption processing."
+        />
         <OverviewMetric
           label="Locked collateral"
           value={assetValue(valuation?.lockedCollateralAssets, assetDecimals)}
-          detail="Fund asset · not a loss"
+          help="USDC securing the open put. It still belongs to the fund and is not a loss."
         />
         <OverviewMetric
           label="Fair put liability"
@@ -152,25 +228,104 @@ function FundOverview({
             valuation?.fairOptionLiabilityAssets,
             assetDecimals,
           )}
+          help="The estimated value of the fund's open put obligation. This amount—not the collateral—is deducted to calculate NAV."
         />
-        <OverviewMetric
-          label="Assigned WETH value"
-          value={optionalAssetValue(
-            valuation?.assignedWethValueAssets,
-            assetDecimals,
-          )}
-          detail={`${amount.format(rawFundAmount(composition?.assignedWeth, 18))} WETH`}
-        />
-        <OverviewMetric
-          label="Settlement costs"
-          value={optionalAssetValue(
-            valuation?.settlementCostAssets,
-            assetDecimals,
-          )}
-        />
+        {isPositiveRaw(assignedWethValue) ? (
+          <OverviewMetric
+            label="Assigned WETH"
+            value={optionalAssetValue(assignedWethValue, assetDecimals)}
+            detail={`${amount.format(rawFundAmount(composition?.assignedWeth, 18))} WETH`}
+            help="WETH received after a put assignment. It remains inside the fund and is included in your share value."
+          />
+        ) : null}
+        {isPositiveRaw(settlementCosts) ? (
+          <OverviewMetric
+            label="Settlement costs"
+            value={optionalAssetValue(settlementCosts, assetDecimals)}
+            help="Expected costs to complete an option settlement. They are already deducted from NAV."
+          />
+        ) : null}
       </dl>
       <ValuationDetails summary={summary} />
     </section>
+  );
+}
+
+function CspCycle({ summary }: { summary: FundSummaryResponse | null }) {
+  const strategy = summary?.strategy;
+  const latest = strategy?.latestPosition;
+  if (!summary || !strategy || !latest) return null;
+
+  const isCurrent =
+    latest.lifecycle === "open" ||
+    latest.lifecycle === "awaiting_physical_delivery";
+  const assetDecimals = summary.fund.accountingAsset.decimals;
+  const expiry = latest.expiryTimestamp
+    ? cycleDate.format(new Date(latest.expiryTimestamp * 1000))
+    : null;
+  const strike = latest.strikePriceUsd8
+    ? strikeCurrency.format(rawFundAmount(latest.strikePriceUsd8, 8))
+    : "ETH";
+
+  return (
+    <div className="mt-8 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>{isCurrent ? "Current CSP cycle" : "Latest CSP cycle"}</span>
+            <InfoTooltip
+              title="CSP cycle"
+              text="The most recently opened ETH cash-secured put and the USDC committed to it."
+            />
+          </div>
+          <p className="mt-1 font-mono text-lg text-[var(--vault-text)]">
+            {strike} put
+          </p>
+        </div>
+        <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--vault-accent)]">
+          {cycleStatus(latest.lifecycle)}
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[var(--vault-text-muted)]">
+        {optionAmount.format(rawFundAmount(latest.optionAmount8, 8))} ETH
+        {" · "}
+        {assetValue(latest.collateralAssets, assetDecimals)} secured
+        {expiry ? ` · Expires ${expiry}` : ""}
+      </p>
+      <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-[var(--vault-border)] pt-4 text-sm">
+        <div>
+          <dt className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>Total premium</span>
+            <InfoTooltip
+              title="Total premium"
+              text="All USDC premium collected across this vault's CSP cycles. It is already included in the fund's assets and NAV."
+            />
+          </dt>
+          <dd className="mt-1 font-mono text-[var(--vault-text)]">
+            {tokenValue(
+              strategy.totalPremiumCollectedAssets,
+              assetDecimals,
+            )}{" "}
+            {summary.fund.accountingAsset.symbol}
+          </dd>
+        </div>
+        <div>
+          <dt className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>Next position</span>
+            <InfoTooltip
+              title="Next position"
+              text="The earliest opening window. The vault must first settle the current put, then have a current NAV and an eligible quote."
+            />
+          </dt>
+          <dd className="mt-1 text-[var(--vault-text)]">
+            {nextPositionLabel(
+              strategy.nextOpenCondition,
+              strategy.nextOpenAfter,
+            )}
+          </dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 
@@ -367,7 +522,11 @@ function ActionStatus({ loadError, availability, transaction }: {
   if (transaction.status === "confirmed") {
     return <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">Confirmed: {transaction.hash}</p>;
   }
-  return message ? <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">{message.replaceAll("_", " ").toLowerCase()}</p> : null;
+  return message ? (
+    <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
+      {actionMessage(message)}
+    </p>
+  ) : null;
 }
 
 function DepositNavPreview({
@@ -392,10 +551,10 @@ function DepositNavPreview({
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--vault-text-subtle)]">
-        Minted synchronously at the current NAV price of{" "}
+        Estimated using the current NAV price of{" "}
         {currency.format(
           rawFundAmount(valuation.navPriceAssets, assetDecimals),
-        )}. Market and stress prices are display-only.
+        )}. Your transaction includes minimum-share protection.
       </p>
     </div>
   );
@@ -409,48 +568,58 @@ function ValuationDetails({
   if (!summary) {
     return (
       <p className="mt-8 border-t border-[var(--vault-border)] pt-5 text-xs leading-5 text-[var(--vault-text-subtle)]">
-        NAV report —
+        Share price —
       </p>
     );
   }
   const valuation = fundValuation(summary);
   const decimals = summary.fund.accountingAsset.decimals;
   return (
-    <div className="mt-8 border-t border-[var(--vault-border)] pt-5 text-xs leading-5 text-[var(--vault-text-subtle)]">
-      <div className="grid grid-cols-3 gap-3">
-        <ValuationPrice
-          label="NAV price"
-          value={assetValue(valuation.navPriceAssets, decimals)}
-        />
-        <ValuationPrice
-          label="Market"
-          value={optionalAssetValue(valuation.marketPriceAssets, decimals)}
-        />
-        <ValuationPrice
-          label="Stress"
-          value={optionalAssetValue(valuation.stressPriceAssets, decimals)}
-        />
+    <div className="mt-8 flex items-end justify-between gap-6 border-t border-[var(--vault-border)] pt-5">
+      <ValuationPrice
+        label="NAV price"
+        value={assetValue(valuation.navPriceAssets, decimals)}
+        help="The current value of one fund share, calculated from everything the fund owns minus its option obligation and settlement costs."
+      />
+      <div className="text-right">
+        <div className="flex items-center justify-end">
+          <span
+            className={`size-1.5 rounded-full ${
+              valuation.stale
+                ? "bg-[var(--vault-text-subtle)]"
+                : "bg-[var(--vault-accent)]"
+            }`}
+            aria-hidden="true"
+          />
+          <span className="ml-2 text-xs text-[var(--vault-text-muted)]">
+            {valuation.stale ? "Price updating" : "Price current"}
+          </span>
+          <InfoTooltip
+            title="Price status"
+            text="Deposits and exits pause while the fund publishes an updated share price. They reopen automatically when the price is current."
+          />
+        </div>
       </div>
-      <p className="mt-4">
-        {valuation.stale ? "Stale" : "Fresh"} · {valuation.methodology}
-        {valuation.modelVersion ? ` · ${valuation.modelVersion}` : ""}
-        {valuation.sourceQuality ? ` · ${valuation.sourceQuality}` : ""}
-      </p>
-      <p>
-        Report {summary.nav.reportNonce} · block {summary.asOfBlock ?? "—"}
-        {valuation.observedAt
-          ? ` · ${formatObservedAt(valuation.observedAt)}`
-          : ""}
-      </p>
     </div>
   );
 }
 
-function ValuationPrice({ label, value }: { label: string; value: string }) {
+function ValuationPrice({
+  label,
+  value,
+  help,
+}: {
+  label: string;
+  value: string;
+  help: string;
+}) {
   return (
     <div>
-      <span>{label}</span>
-      <span className="mt-0.5 block font-mono text-[var(--vault-text)]">
+      <div className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+        <span>{label}</span>
+        <InfoTooltip title={label} text={help} />
+      </div>
+      <span className="mt-1 block font-mono text-sm text-[var(--vault-text)]">
         {value}
       </span>
     </div>
@@ -461,14 +630,19 @@ function OverviewMetric({
   label,
   value,
   detail,
+  help,
 }: {
   label: string;
   value: string;
   detail?: string;
+  help: string;
 }) {
   return (
     <div>
-      <dt className="text-[var(--vault-text-subtle)]">{label}</dt>
+      <dt className="flex items-center text-[var(--vault-text-subtle)]">
+        <span>{label}</span>
+        <InfoTooltip title={label} text={help} />
+      </dt>
       <dd className="mt-1 font-mono text-[var(--vault-text)]">{value}</dd>
       {detail ? (
         <dd className="mt-1 text-[10px] text-[var(--vault-text-subtle)]">
@@ -494,20 +668,67 @@ function liabilityValue(
   raw: string | null | undefined,
   decimals: number,
 ): string {
-  return raw == null ? "—" : `−${assetValue(raw, decimals)}`;
+  if (raw == null) return "—";
+  const value = rawFundAmount(raw, decimals);
+  if (value === 0) return currency.format(0);
+  if (value < 0.01) return "−<$0.01";
+  return `−${currency.format(value)}`;
 }
 
-function formatObservedAt(value: string): string {
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime())
-    ? value
-    : timestamp.toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZoneName: "short",
-      });
+function isPositiveRaw(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    return BigInt(raw) > BigInt(0);
+  } catch {
+    return false;
+  }
+}
+
+function tokenValue(raw: string | null | undefined, decimals: number): string {
+  if (raw == null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: decimals,
+  }).format(rawFundAmount(raw, decimals));
+}
+
+function cycleStatus(lifecycle: string): string {
+  const labels: Record<string, string> = {
+    open: "Open",
+    awaiting_physical_delivery: "Settling",
+    settled_otm: "Settled OTM",
+    settled_itm: "Settled ITM",
+  };
+  return labels[lifecycle] ?? lifecycle.replaceAll("_", " ");
+}
+
+function nextPositionLabel(condition: string, nextOpenAfter: number | null): string {
+  if (condition === "after_current_settlement") {
+    return nextOpenAfter
+      ? `After ${cycleDate.format(new Date(nextOpenAfter * 1000))} settlement`
+      : "After current settlement";
+  }
+  if (condition === "when_pricing_is_ready") {
+    return "When pricing is ready";
+  }
+  return "After funding and pricing";
+}
+
+function actionMessage(message: string): string {
+  const normalized = message.trim().toUpperCase();
+  if (
+    normalized === "NAV_NOT_ACTIVE" ||
+    normalized === "STALE_SNAPSHOT" ||
+    normalized === "NAV_STALE"
+  ) {
+    return "Price is updating. Deposits and exits will reopen automatically.";
+  }
+  if (normalized === "DEPOSITS_PAUSED") {
+    return "Deposits are temporarily paused.";
+  }
+  if (normalized === "REDEMPTIONS_PAUSED") {
+    return "Exits are temporarily paused.";
+  }
+  return message.replaceAll("_", " ").toLowerCase();
 }
 
 function formatInput(raw: bigint, decimals: number): string {
