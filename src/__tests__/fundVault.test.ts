@@ -16,13 +16,19 @@ import {
   sharesForDeposit,
   transactionHashFromResult,
 } from "@/lib/fundVault";
-import { BASE_SEPOLIA_CSP_FUND } from "@/lib/fundDeployment";
+import {
+  BASE_SEPOLIA_COVERED_CALL_FUND,
+  BASE_SEPOLIA_CSP_FUND,
+} from "@/lib/fundDeployment";
 import { fundValuation } from "@/lib/fundValuation";
 import { deriveFundPositionState, fundStrategyState, mapFundPosition } from "@/lib/vaults";
 
 vi.mock("@/lib/contracts", () => ({
   CHAIN: { id: 84532 },
-  ADDRESSES: { usdc: "0xAB51a471493832C1D70cef8ff937A850cf37c860" },
+  ADDRESSES: {
+    usdc: "0xAB51a471493832C1D70cef8ff937A850cf37c860",
+    weth: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+  },
   ERC20_ABI: [
     {
       type: "function",
@@ -206,6 +212,83 @@ describe("tokenized CSP fund", () => {
     expect(fundTrustError(trustedSummary, trustedConfig)).toBeNull();
   });
 
+  it("pins and accepts the deployed B1N-360 covered-call trust anchor", () => {
+    expect(BASE_SEPOLIA_COVERED_CALL_FUND.fundAddress).toBe(
+      "0x9060946E6ACC4E430A823E90120743c7305EE2CA",
+    );
+    expect(BASE_SEPOLIA_COVERED_CALL_FUND.shareAddress).toBe(
+      "0xaA1070adb74C5455320285618BF1ED804d3745C3",
+    );
+    expect(
+      BASE_SEPOLIA_COVERED_CALL_FUND.contracts.covered_call_adapter
+        .implementation,
+    ).toBe("0x42e603131671Aba8C9e2b0B21b0f7B376C9151Be");
+    expect(
+      BASE_SEPOLIA_COVERED_CALL_FUND.contracts.covered_call_valuator.address,
+    ).toBe("0xA1BFC1bE3C7fCA77CA0b32d25de1Ce58A50333A0");
+    expect(Object.keys(BASE_SEPOLIA_COVERED_CALL_FUND.contracts)).toHaveLength(
+      18,
+    );
+
+    vi.stubEnv("NEXT_PUBLIC_COVERED_CALL_FUND_KEY", "");
+    vi.stubEnv("NEXT_PUBLIC_COVERED_CALL_FUND_ADDRESS", "");
+    vi.stubEnv("NEXT_PUBLIC_COVERED_CALL_FUND_SHARE_ADDRESS", "");
+    vi.stubEnv("NEXT_PUBLIC_COVERED_CALL_FUND_ASSET_ADDRESS", "");
+    vi.stubEnv("NEXT_PUBLIC_COVERED_CALL_FUND_CONTRACT_ALLOWLIST", "");
+
+    const coveredCallSummary = summary({
+      fund: {
+        ...summary().fund,
+        fundKey: BASE_SEPOLIA_COVERED_CALL_FUND.fundKey,
+        fundAddress: BASE_SEPOLIA_COVERED_CALL_FUND.fundAddress,
+        shareToken: {
+          address: BASE_SEPOLIA_COVERED_CALL_FUND.shareAddress,
+          symbol: "b1CALL",
+          decimals: 18,
+        },
+        accountingAsset: {
+          address: BASE_SEPOLIA_COVERED_CALL_FUND.accountingAssetAddress,
+          symbol: "WETH",
+          decimals: 18,
+        },
+        strategyKind: "covered_call",
+        quoteAsset: {
+          address: USDC,
+          symbol: "USDC",
+          decimals: 6,
+        },
+      },
+      strategy: {
+        strategyKind: "covered_call",
+        latestPosition: null,
+        totalPremiumCollectedAssets: "0",
+        nextOpenAfter: null,
+        nextOpenCondition: "when_funded_and_pricing_is_ready",
+      },
+    });
+    const coveredCallConfig = config({
+      fundKey: BASE_SEPOLIA_COVERED_CALL_FUND.fundKey,
+      contracts: Object.entries(
+        BASE_SEPOLIA_COVERED_CALL_FUND.contracts,
+      ).map(([role, binding]) => ({
+        role,
+        address: binding.address,
+        implementationAddress: binding.implementation,
+        interfaceVersion: 1,
+      })),
+    });
+
+    expect(
+      fundTrustError(
+        coveredCallSummary,
+        coveredCallConfig,
+        null,
+        undefined,
+        BASE_SEPOLIA_COVERED_CALL_FUND,
+      ),
+    ).toBeNull();
+  });
+
   it("uses the deployed FundVault entry, request, cancel, claim, and operator ABI", () => {
     const functions = new Set(
       FUND_VAULT_ABI.filter((item) => item.type === "function").map((item) => item.name),
@@ -229,6 +312,19 @@ describe("tokenized CSP fund", () => {
     expect(fundTrustError(summary(), config(), position({ address: FUND }), USER)).toMatch(/smart wallet/i);
     vi.stubEnv("NEXT_PUBLIC_CSP_FUND_CONTRACT_ALLOWLIST", "invalid");
     expect(fundTrustError(summary(), config(), position(), USER)).toMatch(/allowlist is missing/i);
+  });
+
+  it("fails closed when strategy metadata does not match the trusted fund", () => {
+    const mismatched = summary({
+      strategy: {
+        strategyKind: "covered_call",
+        latestPosition: null,
+        totalPremiumCollectedAssets: "0",
+        nextOpenAfter: null,
+        nextOpenCondition: "when_funded_and_pricing_is_ready",
+      },
+    });
+    expect(fundTrustError(mismatched, config())).toMatch(/strategy kind/i);
   });
 
   it("encodes approval and depositWithMinShares for the smart-wallet receiver", () => {

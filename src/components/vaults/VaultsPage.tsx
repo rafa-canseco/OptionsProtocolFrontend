@@ -9,6 +9,10 @@ import { useBalances } from "@/hooks/useBalances";
 import { useFundVault } from "@/hooks/useFundVault";
 import { useWallet } from "@/hooks/useWallet";
 import {
+  BASE_SEPOLIA_COVERED_CALL_FUND,
+  BASE_SEPOLIA_CSP_FUND,
+} from "@/lib/fundDeployment";
+import {
   COVERED_CALL_VAULT_CARD,
   CSP_VAULT_CARD,
   mapFundPosition,
@@ -27,12 +31,28 @@ const ConnectButton = dynamic(
 );
 
 export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
-  const [dialogOpen, setDialogOpen] = useState(false);
+  const [dialogVault, setDialogVault] = useState<"csp" | "covered-call" | null>(
+    null,
+  );
   const { address } = useWallet();
   const balances = useBalances(address);
-  const fund = useFundVault(address);
-  const position = mapFundPosition(fund.position, fund.summary);
+  const cspFund = useFundVault(address, BASE_SEPOLIA_CSP_FUND);
+  const coveredCallFund = useFundVault(
+    address,
+    BASE_SEPOLIA_COVERED_CALL_FUND,
+  );
+  const cspPosition = mapFundPosition(cspFund.position, cspFund.summary);
+  const coveredCallPosition = mapFundPosition(
+    coveredCallFund.position,
+    coveredCallFund.summary,
+  );
   const isMyView = view === "my";
+  const hasCoveredCallPosition = coveredCallPosition.state !== "empty";
+  const fundsLoading = cspFund.loading || coveredCallFund.loading;
+
+  const refreshFunds = async () => {
+    await Promise.all([cspFund.refetch(), coveredCallFund.refetch()]);
+  };
 
   return (
     <div className="vault-experience min-h-dvh bg-[var(--vault-bg)] text-[var(--vault-text)]">
@@ -42,11 +62,25 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         balances={{
           usdc: balances.usd,
           eth: balances.eth,
-          shares: position.shares,
-          shareValue: position.accountingValue,
-          shareSymbol: fund.summary?.fund.shareToken.symbol ?? "b1CSP-V2",
+          weth: balances.weth,
           loading: balances.loading,
-          sharesLoading: fund.loading && !fund.position,
+          shareBalances: [
+            {
+              symbol: cspFund.summary?.fund.shareToken.symbol ?? "b1CSP-V2",
+              shares: cspPosition.shares,
+              shareValue: cspPosition.accountingValue,
+              assetSymbol: "USDC",
+              loading: cspFund.loading && !cspFund.position,
+            },
+            {
+              symbol:
+                coveredCallFund.summary?.fund.shareToken.symbol ?? "b1CALL-V2",
+              shares: coveredCallPosition.shares,
+              shareValue: coveredCallPosition.accountingValue,
+              assetSymbol: "WETH",
+              loading: coveredCallFund.loading && !coveredCallFund.position,
+            },
+          ],
         }}
       />
       <main className="mx-auto max-w-[1180px] px-4 py-10 sm:px-6 sm:py-14 lg:px-8 lg:py-16">
@@ -68,12 +102,12 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
           </div>
           <button
             type="button"
-            onClick={() => void fund.refetch()}
-            disabled={fund.loading}
+            onClick={() => void refreshFunds()}
+            disabled={fundsLoading}
             aria-label="Refresh fund data"
             className="grid size-11 shrink-0 place-items-center rounded-full border border-[var(--vault-border)] text-[var(--vault-text-muted)] disabled:cursor-wait disabled:opacity-50"
           >
-            <RefreshCw className={`size-4 ${fund.loading ? "animate-spin" : ""}`} />
+            <RefreshCw className={`size-4 ${fundsLoading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -83,18 +117,27 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         >
           <VaultCard
             vault={CSP_VAULT_CARD}
-            summary={fund.summary}
-            position={position}
-            onOpen={() => setDialogOpen(true)}
+            summary={cspFund.summary}
+            position={cspPosition}
+            onOpen={() => setDialogVault("csp")}
           />
-          {!isMyView ? (
+          {!isMyView || hasCoveredCallPosition ? (
             <VaultCard
               vault={COVERED_CALL_VAULT_CARD}
-              summary={null}
-              position={null}
+              summary={coveredCallFund.summary}
+              position={coveredCallPosition}
+              onOpen={() => setDialogVault("covered-call")}
             />
           ) : null}
-          {isMyView ? <PositionDetails position={position} /> : null}
+          {isMyView ? (
+            <PositionDetails position={cspPosition} assetSymbol="USDC" />
+          ) : null}
+          {isMyView && hasCoveredCallPosition ? (
+            <PositionDetails
+              position={coveredCallPosition}
+              assetSymbol="WETH"
+            />
+          ) : null}
         </section>
 
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
@@ -106,14 +149,28 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
       </main>
 
       <VaultDialog
-        summary={fund.summary}
-        position={fund.position}
-        config={fund.config}
-        loadError={fund.error ?? fund.trustError}
-        smartUsdcRaw={balances.usdRaw}
-        onRefetch={fund.refetch}
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
+        vault={CSP_VAULT_CARD}
+        deployment={BASE_SEPOLIA_CSP_FUND}
+        summary={cspFund.summary}
+        position={cspFund.position}
+        config={cspFund.config}
+        loadError={cspFund.error ?? cspFund.trustError}
+        smartAssetRaw={balances.usdRaw}
+        onRefetch={cspFund.refetch}
+        open={dialogVault === "csp"}
+        onOpenChange={(open) => setDialogVault(open ? "csp" : null)}
+      />
+      <VaultDialog
+        vault={COVERED_CALL_VAULT_CARD}
+        deployment={BASE_SEPOLIA_COVERED_CALL_FUND}
+        summary={coveredCallFund.summary}
+        position={coveredCallFund.position}
+        config={coveredCallFund.config}
+        loadError={coveredCallFund.error ?? coveredCallFund.trustError}
+        smartAssetRaw={balances.wethRaw}
+        onRefetch={coveredCallFund.refetch}
+        open={dialogVault === "covered-call"}
+        onOpenChange={(open) => setDialogVault(open ? "covered-call" : null)}
       />
     </div>
   );
@@ -125,12 +182,18 @@ type VaultHeaderProps = {
   balances: {
     usdc: number;
     eth: number;
-    shares: number;
-    shareValue: number;
-    shareSymbol: string;
+    weth: number;
     loading: boolean;
-    sharesLoading: boolean;
+    shareBalances: ShareBalance[];
   };
+};
+
+type ShareBalance = {
+  symbol: string;
+  shares: number;
+  shareValue: number;
+  assetSymbol: "USDC" | "WETH";
+  loading: boolean;
 };
 
 function VaultHeader({ view, address, balances }: VaultHeaderProps) {
@@ -153,11 +216,9 @@ function VaultHeader({ view, address, balances }: VaultHeaderProps) {
               address={address}
               usdc={balances.usdc}
               eth={balances.eth}
-              shares={balances.shares}
-              shareValue={balances.shareValue}
-              shareSymbol={balances.shareSymbol}
+              weth={balances.weth}
               loading={balances.loading}
-              sharesLoading={balances.sharesLoading}
+              shareBalances={balances.shareBalances}
             />
           ) : null}
           <ConnectButton />
@@ -171,20 +232,16 @@ function VaultBalances({
   address,
   usdc,
   eth,
-  shares,
-  shareValue,
-  shareSymbol,
+  weth,
   loading,
-  sharesLoading,
+  shareBalances,
 }: {
   address: string;
   usdc: number;
   eth: number;
-  shares: number;
-  shareValue: number;
-  shareSymbol: string;
+  weth: number;
   loading: boolean;
-  sharesLoading: boolean;
+  shareBalances: ShareBalance[];
 }) {
   return (
     <Popover>
@@ -213,13 +270,11 @@ function VaultBalances({
         </p>
         <div className="mt-4 space-y-3 border-t border-[var(--vault-border)] pt-4">
           <VaultBalanceRow icon="/usdc.svg" label="USDC" value={loading ? "—" : formatBalance(usdc, 2)} />
+          <VaultBalanceRow icon="/weth.png" label="WETH" value={loading ? "—" : formatBalance(weth, 6)} />
           <VaultBalanceRow icon="/eth.png" label="ETH gas" value={loading ? "—" : formatBalance(eth, 5)} />
-          <VaultShareBalance
-            symbol={shareSymbol}
-            shares={shares}
-            shareValue={shareValue}
-            loading={sharesLoading}
-          />
+          {shareBalances.map((balance) => (
+            <VaultShareBalance key={balance.symbol} {...balance} />
+          ))}
         </div>
         <p className="mt-4 text-xs leading-5 text-[var(--vault-text-subtle)]">
           Base Sepolia · Used for vault deposits and redemptions.
@@ -233,11 +288,13 @@ function VaultShareBalance({
   symbol,
   shares,
   shareValue,
+  assetSymbol,
   loading,
 }: {
   symbol: string;
   shares: number;
   shareValue: number;
+  assetSymbol: "USDC" | "WETH";
   loading: boolean;
 }) {
   return (
@@ -258,7 +315,14 @@ function VaultShareBalance({
       </div>
       <div className="mt-1.5 flex items-center justify-between gap-4 font-mono text-[10px] text-[var(--vault-text-subtle)]">
         <span>{symbol}</span>
-        <span>{loading ? "—" : `≈ ${formatBalance(shareValue, 2)} USDC`}</span>
+        <span>
+          {loading
+            ? "—"
+            : `≈ ${formatBalance(
+                shareValue,
+                assetSymbol === "USDC" ? 2 : 6,
+              )} ${assetSymbol}`}
+        </span>
       </div>
     </div>
   );
@@ -295,13 +359,34 @@ function truncateAddress(address: string): string {
   return `${address.slice(0, 6)}…${address.slice(-4)}`;
 }
 
-function PositionDetails({ position }: { position: ReturnType<typeof mapFundPosition> }) {
+function PositionDetails({
+  position,
+  assetSymbol,
+}: {
+  position: ReturnType<typeof mapFundPosition>;
+  assetSymbol: "USDC" | "WETH";
+}) {
   return (
     <section aria-label="Redemption status" className="mt-5 grid gap-4 sm:grid-cols-2">
-      <PositionMetric label="Pending redemption" value={`~$${position.pendingValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`} detail={`${position.pendingShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} shares`} />
-      <PositionMetric label="Claimable now" value={`$${position.claimableAssets.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} detail={`${position.claimableShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} processed shares`} />
+      <PositionMetric label="Pending redemption" value={`~${formatAccountingValue(position.pendingValue, assetSymbol)}`} detail={`${position.pendingShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} shares`} />
+      <PositionMetric label="Claimable now" value={formatAccountingValue(position.claimableAssets, assetSymbol)} detail={`${position.claimableShares.toLocaleString("en-US", { maximumFractionDigits: 6 })} processed shares`} />
     </section>
   );
+}
+
+function formatAccountingValue(
+  value: number,
+  assetSymbol: "USDC" | "WETH",
+): string {
+  if (assetSymbol === "USDC") {
+    return `$${value.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })}`;
+  }
+  return `${value.toLocaleString("en-US", {
+    maximumFractionDigits: 6,
+  })} WETH`;
 }
 
 function PositionMetric({ label, value, detail }: { label: string; value: string; detail: string }) {

@@ -386,6 +386,9 @@ export interface FundRegistryItem {
   fundAddress: string;
   shareToken: FundTokenMetadata;
   accountingAsset: FundTokenMetadata;
+  strategyKind?: "cash_secured_put" | "covered_call";
+  /** Premium/settlement token when it differs from the accounting asset. */
+  quoteAsset?: FundTokenMetadata | null;
   deploymentStatus: string;
 }
 
@@ -394,6 +397,10 @@ export interface FundComposition {
   strategyAccountingAssets: string;
   assignedWeth: string;
   reservedClaimAssets: string;
+  /** Transient USDC premium/called-away proceeds, in USDC base units. */
+  transientUsdc?: string;
+  /** WETH accounting-asset value of transient USDC inventory. */
+  transientUsdcValueAssets?: string;
   /** Total assets before option and settlement liabilities. */
   grossAssets?: string;
   /** USDC pledged to the open CSP. This remains a fund asset. */
@@ -404,6 +411,10 @@ export interface FundComposition {
   assignedWethValueAssets?: string;
   /** Expected settlement costs included in transactional NAV. */
   settlementCostAssets?: string;
+  /** Expected USDC-to-WETH normalization costs, in accounting-asset units. */
+  normalizationCostAssets?: string;
+  /** Expected option lifecycle exit costs, in accounting-asset units. */
+  optionExitCostAssets?: string;
 }
 
 export interface FundStressSnapshot {
@@ -413,7 +424,7 @@ export interface FundStressSnapshot {
   methodology?: string | null;
 }
 
-export interface CspPositionSummary {
+export interface FundOptionPositionSummary {
   positionId: number;
   lifecycle: string;
   strikePriceUsd8: string | null;
@@ -423,8 +434,12 @@ export interface CspPositionSummary {
   premiumEarnedAssets: string;
 }
 
+/** @deprecated Use FundOptionPositionSummary. */
+export type CspPositionSummary = FundOptionPositionSummary;
+
 export interface FundStrategySnapshot {
-  latestPosition: CspPositionSummary | null;
+  strategyKind?: "cash_secured_put" | "covered_call";
+  latestPosition: FundOptionPositionSummary | null;
   totalPremiumCollectedAssets: string;
   nextOpenAfter: number | null;
   nextOpenCondition: string;
