@@ -85,7 +85,16 @@ describe("VaultsPage", () => {
     expect(strategyDetails).not.toHaveAttribute("open");
     await user.click(screen.getByText("How this vault works"));
     expect(strategyDetails).toHaveAttribute("open");
-    expect(screen.getByText(/assigned WETH are reflected in the share price/i)).toBeInTheDocument();
+    expect(screen.getByText("≈15% below spot")).toBeInTheDocument();
+    expect(screen.getByText("≈48 hours")).toBeInTheDocument();
+    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
+    expect(screen.getByText("One at a time")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Assignment alone does not stop the loop/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/no eligible quote is available/i),
+    ).toBeInTheDocument();
     expect(screen.getByRole("tab", { name: "Deposit" })).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByRole("tab", { name: "Exit" }));
     expect(screen.getByRole("button", { name: "Request redemption" })).toBeDisabled();

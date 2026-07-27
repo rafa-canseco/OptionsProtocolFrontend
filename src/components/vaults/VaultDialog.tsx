@@ -104,13 +104,65 @@ function StrategyExplanation() {
         How this vault works
         <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180" />
       </summary>
-      <ol className="space-y-3 border-t border-[var(--vault-border)] px-4 py-4 text-sm leading-6 text-[var(--vault-text-muted)]">
-        <StrategyStep number="1" text="Deposit USDC and receive transferable fund shares." />
-        <StrategyStep number="2" text="The fund uses part of its USDC to sell cash-secured ETH puts." />
-        <StrategyStep number="3" text="Premium, liabilities, and any assigned WETH are reflected in the share price." />
-        <StrategyStep number="4" text="To exit, request a redemption and claim USDC after it is processed." />
-      </ol>
+      <div className="border-t border-[var(--vault-border)] px-4 py-5">
+        <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--vault-accent)]">
+              Current Base Sepolia strategy
+            </p>
+            <p className="mt-1 text-sm leading-6 text-[var(--vault-text-muted)]">
+              The vault continuously sells one ETH cash-secured put at a time.
+            </p>
+          </div>
+          <span className="mt-2 w-fit rounded-full border border-[var(--vault-border)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--vault-text-subtle)] sm:mt-0">
+            Automatic loop
+          </span>
+        </div>
+
+        <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--vault-border)] bg-[var(--vault-border)] sm:grid-cols-4">
+          <StrategyFact label="Strike" value="≈15% below spot" />
+          <StrategyFact label="Duration" value="≈48 hours" />
+          <StrategyFact label="Allocation" value="Up to 80%" />
+          <StrategyFact label="Positions" value="One at a time" />
+        </dl>
+
+        <ol className="mt-5 space-y-3 text-sm leading-6 text-[var(--vault-text-muted)]">
+          <StrategyStep
+            number="1"
+            text="Deposits receive transferable fund shares immediately. New USDC stays idle until the next position opens."
+          />
+          <StrategyStep
+            number="2"
+            text="The allocator uses up to 80% of the liquid USDC, capped at 800 USDC under the current test policy."
+          />
+          <StrategyStep
+            number="3"
+            text="After each put settles, the vault attempts to open the next eligible position for about another 48 hours."
+          />
+          <StrategyStep
+            number="4"
+            text="If assigned, WETH stays in the fund and the next put uses the remaining liquid USDC. Assignment alone does not stop the loop."
+          />
+          <StrategyStep
+            number="5"
+            text="The vault waits only when there is not enough USDC, pricing or NAV is not current, no eligible quote is available, or the strategy is explicitly paused."
+          />
+        </ol>
+      </div>
     </details>
+  );
+}
+
+function StrategyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-[var(--vault-bg)] px-3 py-3">
+      <dt className="text-[10px] uppercase tracking-[0.12em] text-[var(--vault-text-subtle)]">
+        {label}
+      </dt>
+      <dd className="mt-1 font-mono text-xs text-[var(--vault-text)]">
+        {value}
+      </dd>
+    </div>
   );
 }
 
