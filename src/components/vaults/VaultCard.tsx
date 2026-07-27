@@ -2,6 +2,7 @@ import type { FundSummaryResponse } from "@/lib/api";
 import { rawFundAmount } from "@/lib/fundVault";
 import { fundValuation } from "@/lib/fundValuation";
 import { type VaultPosition, VAULT_STATE_COPY } from "@/lib/vaults";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { VaultIcon } from "./VaultIcon";
 
 const currency = new Intl.NumberFormat("en-US", {
@@ -27,11 +28,19 @@ export function VaultCard({
     ? rawFundAmount(valuation.navPriceAssets, decimals)
     : null;
   const entryOpen = summary?.actions.deposit.available === true && !summary.stale;
+  const priceUpdating = Boolean(
+    summary &&
+      (summary.stale ||
+        summary.nav.stale ||
+        summary.actions.deposit.reasonCode === "NAV_NOT_ACTIVE"),
+  );
   const stateCopy = VAULT_STATE_COPY[position.state];
   const entryLabel = !summary
     ? "Loading"
     : entryOpen
       ? "Open"
+      : priceUpdating
+        ? "Price updating"
       : summary.status.depositsPaused
         ? "Deposits paused"
         : "Entry unavailable";
@@ -71,6 +80,7 @@ export function VaultCard({
         <Metric
           label="NAV price"
           value={sharePrice === null ? "—" : currency.format(sharePrice)}
+          help="The current value of one fund share. Deposits and exits use this price only while it is current."
         />
         <Metric label="Fund size" value={total === null ? "—" : currency.format(total)} />
         <Metric label="Strategy" value="ETH puts" />
@@ -93,10 +103,21 @@ export function VaultCard({
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({
+  label,
+  value,
+  help,
+}: {
+  label: string;
+  value: string;
+  help?: string;
+}) {
   return (
     <div>
-      <dt className="text-[10px] leading-4 text-[var(--vault-text-subtle)]">{label}</dt>
+      <dt className="flex items-center text-[10px] leading-4 text-[var(--vault-text-subtle)]">
+        <span>{label}</span>
+        {help ? <InfoTooltip title={label} text={help} /> : null}
+      </dt>
       <dd className="mt-1 font-mono text-xs text-[var(--vault-text)] sm:text-sm">{value}</dd>
     </div>
   );

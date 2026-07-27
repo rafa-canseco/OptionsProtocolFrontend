@@ -30,6 +30,7 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 type DialogAction = "deposit" | "redeem";
 type TxStatus = "idle" | "submitting" | "confirmed";
@@ -120,6 +121,8 @@ function FundOverview({
   const shareDecimals = summary?.fund.shareToken.decimals ?? 18;
   const composition = summary?.composition;
   const valuation = summary ? fundValuation(summary) : null;
+  const assignedWethValue = valuation?.assignedWethValueAssets;
+  const settlementCosts = valuation?.settlementCostAssets;
   return (
     <section className="border-b border-[var(--vault-border)] p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-10">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--vault-accent)]">
@@ -139,12 +142,17 @@ function FundOverview({
         <OverviewMetric
           label="Gross assets"
           value={assetValue(valuation?.grossAssets, assetDecimals)}
+          help="Everything the fund owns before deducting the open put obligation and settlement costs."
         />
-        <OverviewMetric label="Idle USDC" value={assetValue(composition?.idleAssets, assetDecimals)} />
+        <OverviewMetric
+          label="Idle USDC"
+          value={assetValue(composition?.idleAssets, assetDecimals)}
+          help="USDC that is not locked as put collateral. It remains available for the next position or redemption processing."
+        />
         <OverviewMetric
           label="Locked collateral"
           value={assetValue(valuation?.lockedCollateralAssets, assetDecimals)}
-          detail="Fund asset · not a loss"
+          help="USDC securing the open put. It still belongs to the fund and is not a loss."
         />
         <OverviewMetric
           label="Fair put liability"
@@ -152,22 +160,23 @@ function FundOverview({
             valuation?.fairOptionLiabilityAssets,
             assetDecimals,
           )}
+          help="The estimated value of the fund's open put obligation. This amount—not the collateral—is deducted to calculate NAV."
         />
-        <OverviewMetric
-          label="Assigned WETH value"
-          value={optionalAssetValue(
-            valuation?.assignedWethValueAssets,
-            assetDecimals,
-          )}
-          detail={`${amount.format(rawFundAmount(composition?.assignedWeth, 18))} WETH`}
-        />
-        <OverviewMetric
-          label="Settlement costs"
-          value={optionalAssetValue(
-            valuation?.settlementCostAssets,
-            assetDecimals,
-          )}
-        />
+        {isPositiveRaw(assignedWethValue) ? (
+          <OverviewMetric
+            label="Assigned WETH"
+            value={optionalAssetValue(assignedWethValue, assetDecimals)}
+            detail={`${amount.format(rawFundAmount(composition?.assignedWeth, 18))} WETH`}
+            help="WETH received after a put assignment. It remains inside the fund and is included in your share value."
+          />
+        ) : null}
+        {isPositiveRaw(settlementCosts) ? (
+          <OverviewMetric
+            label="Settlement costs"
+            value={optionalAssetValue(settlementCosts, assetDecimals)}
+            help="Expected costs to complete an option settlement. They are already deducted from NAV."
+          />
+        ) : null}
       </dl>
       <ValuationDetails summary={summary} />
     </section>
@@ -367,7 +376,11 @@ function ActionStatus({ loadError, availability, transaction }: {
   if (transaction.status === "confirmed") {
     return <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">Confirmed: {transaction.hash}</p>;
   }
-  return message ? <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">{message.replaceAll("_", " ").toLowerCase()}</p> : null;
+  return message ? (
+    <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
+      {actionMessage(message)}
+    </p>
+  ) : null;
 }
 
 function DepositNavPreview({
@@ -392,10 +405,10 @@ function DepositNavPreview({
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--vault-text-subtle)]">
-        Minted synchronously at the current NAV price of{" "}
+        Estimated using the current NAV price of{" "}
         {currency.format(
           rawFundAmount(valuation.navPriceAssets, assetDecimals),
-        )}. Market and stress prices are display-only.
+        )}. Your transaction includes minimum-share protection.
       </p>
     </div>
   );
@@ -409,48 +422,58 @@ function ValuationDetails({
   if (!summary) {
     return (
       <p className="mt-8 border-t border-[var(--vault-border)] pt-5 text-xs leading-5 text-[var(--vault-text-subtle)]">
-        NAV report —
+        Share price —
       </p>
     );
   }
   const valuation = fundValuation(summary);
   const decimals = summary.fund.accountingAsset.decimals;
   return (
-    <div className="mt-8 border-t border-[var(--vault-border)] pt-5 text-xs leading-5 text-[var(--vault-text-subtle)]">
-      <div className="grid grid-cols-3 gap-3">
-        <ValuationPrice
-          label="NAV price"
-          value={assetValue(valuation.navPriceAssets, decimals)}
-        />
-        <ValuationPrice
-          label="Market"
-          value={optionalAssetValue(valuation.marketPriceAssets, decimals)}
-        />
-        <ValuationPrice
-          label="Stress"
-          value={optionalAssetValue(valuation.stressPriceAssets, decimals)}
-        />
+    <div className="mt-8 flex items-end justify-between gap-6 border-t border-[var(--vault-border)] pt-5">
+      <ValuationPrice
+        label="NAV price"
+        value={assetValue(valuation.navPriceAssets, decimals)}
+        help="The current value of one fund share, calculated from everything the fund owns minus its option obligation and settlement costs."
+      />
+      <div className="text-right">
+        <div className="flex items-center justify-end">
+          <span
+            className={`size-1.5 rounded-full ${
+              valuation.stale
+                ? "bg-[var(--vault-text-subtle)]"
+                : "bg-[var(--vault-accent)]"
+            }`}
+            aria-hidden="true"
+          />
+          <span className="ml-2 text-xs text-[var(--vault-text-muted)]">
+            {valuation.stale ? "Price updating" : "Price current"}
+          </span>
+          <InfoTooltip
+            title="Price status"
+            text="Deposits and exits pause while the fund publishes an updated share price. They reopen automatically when the price is current."
+          />
+        </div>
       </div>
-      <p className="mt-4">
-        {valuation.stale ? "Stale" : "Fresh"} · {valuation.methodology}
-        {valuation.modelVersion ? ` · ${valuation.modelVersion}` : ""}
-        {valuation.sourceQuality ? ` · ${valuation.sourceQuality}` : ""}
-      </p>
-      <p>
-        Report {summary.nav.reportNonce} · block {summary.asOfBlock ?? "—"}
-        {valuation.observedAt
-          ? ` · ${formatObservedAt(valuation.observedAt)}`
-          : ""}
-      </p>
     </div>
   );
 }
 
-function ValuationPrice({ label, value }: { label: string; value: string }) {
+function ValuationPrice({
+  label,
+  value,
+  help,
+}: {
+  label: string;
+  value: string;
+  help: string;
+}) {
   return (
     <div>
-      <span>{label}</span>
-      <span className="mt-0.5 block font-mono text-[var(--vault-text)]">
+      <div className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+        <span>{label}</span>
+        <InfoTooltip title={label} text={help} />
+      </div>
+      <span className="mt-1 block font-mono text-sm text-[var(--vault-text)]">
         {value}
       </span>
     </div>
@@ -461,14 +484,19 @@ function OverviewMetric({
   label,
   value,
   detail,
+  help,
 }: {
   label: string;
   value: string;
   detail?: string;
+  help: string;
 }) {
   return (
     <div>
-      <dt className="text-[var(--vault-text-subtle)]">{label}</dt>
+      <dt className="flex items-center text-[var(--vault-text-subtle)]">
+        <span>{label}</span>
+        <InfoTooltip title={label} text={help} />
+      </dt>
       <dd className="mt-1 font-mono text-[var(--vault-text)]">{value}</dd>
       {detail ? (
         <dd className="mt-1 text-[10px] text-[var(--vault-text-subtle)]">
@@ -494,20 +522,38 @@ function liabilityValue(
   raw: string | null | undefined,
   decimals: number,
 ): string {
-  return raw == null ? "—" : `−${assetValue(raw, decimals)}`;
+  if (raw == null) return "—";
+  const value = rawFundAmount(raw, decimals);
+  if (value === 0) return currency.format(0);
+  if (value < 0.01) return "−<$0.01";
+  return `−${currency.format(value)}`;
 }
 
-function formatObservedAt(value: string): string {
-  const timestamp = new Date(value);
-  return Number.isNaN(timestamp.getTime())
-    ? value
-    : timestamp.toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZoneName: "short",
-      });
+function isPositiveRaw(raw: string | null | undefined): boolean {
+  if (!raw) return false;
+  try {
+    return BigInt(raw) > BigInt(0);
+  } catch {
+    return false;
+  }
+}
+
+function actionMessage(message: string): string {
+  const normalized = message.trim().toUpperCase();
+  if (
+    normalized === "NAV_NOT_ACTIVE" ||
+    normalized === "STALE_SNAPSHOT" ||
+    normalized === "NAV_STALE"
+  ) {
+    return "Price is updating. Deposits and exits will reopen automatically.";
+  }
+  if (normalized === "DEPOSITS_PAUSED") {
+    return "Deposits are temporarily paused.";
+  }
+  if (normalized === "REDEMPTIONS_PAUSED") {
+    return "Exits are temporarily paused.";
+  }
+  return message.replaceAll("_", " ").toLowerCase();
 }
 
 function formatInput(raw: bigint, decimals: number): string {
