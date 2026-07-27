@@ -63,13 +63,8 @@ export function VaultCard({
       className="flex h-full flex-col overflow-hidden rounded-[28px] border border-[var(--vault-border)] bg-[var(--vault-surface)] p-5 sm:p-7"
     >
       <header className="flex items-start justify-between gap-5">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--vault-surface-soft)]">
-            <VaultIcon icon={vault.icon} className="size-10" />
-          </div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--vault-text-subtle)]">
-            {vault.name}
-          </p>
+        <div className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--vault-surface-soft)]">
+          <VaultIcon icon={vault.icon} className="size-10" />
         </div>
         <span className="shrink-0 rounded-full border border-[var(--vault-border)] px-3 py-1.5 text-[11px] font-medium text-[var(--vault-text-muted)]">
           {entryLabel}
@@ -78,10 +73,13 @@ export function VaultCard({
 
       <h2
         id={`${vault.id}-title`}
-        className="mt-6 max-w-[26ch] text-2xl font-semibold leading-[1.18] tracking-[-0.035em] text-[var(--vault-text)] sm:text-[1.75rem]"
+        className="mt-5 text-xl font-semibold leading-tight tracking-[-0.035em] text-[var(--vault-text)] sm:text-2xl"
       >
-        {vault.description}
+        {vault.name}
       </h2>
+      <p className="mt-2 max-w-[46ch] text-sm leading-6 text-[var(--vault-text-muted)]">
+        {vault.description}
+      </p>
 
       <div className="mt-8">
         <p className="text-xs text-[var(--vault-text-subtle)]">Your value</p>

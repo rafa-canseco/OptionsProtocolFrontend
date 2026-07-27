@@ -51,12 +51,11 @@ vi.mock("@/hooks/useFundVault", () => ({
 describe("VaultsPage", () => {
   it("renders a minimal vault-first catalog and preserves manual trading", () => {
     render(<VaultsPage />);
-    expect(screen.getByText("ETH Cash-Secured Put")).toBeInTheDocument();
-    expect(screen.getByRole("heading", {
-      name: "Earn income while waiting to buy ETH at a lower price.",
-    })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "ETH Cash-Secured Put" }),
+    ).toBeInTheDocument();
     const coveredCallCard = screen
-      .getByRole("heading", { name: "Earn income on ETH you already own." })
+      .getByRole("heading", { name: "ETH Covered Call" })
       .closest("article");
     expect(coveredCallCard).not.toBeNull();
     expect(screen.getAllByText("NAV price")).toHaveLength(2);
@@ -104,12 +103,10 @@ describe("VaultsPage", () => {
     await user.click(screen.getByRole("button", { name: "Select cbBTC" }));
 
     const cspCard = screen
-      .getByRole("heading", {
-        name: "Earn income while waiting to buy cbBTC at a lower price.",
-      })
+      .getByRole("heading", { name: "cbBTC Cash-Secured Put" })
       .closest("article");
     const coveredCallCard = screen
-      .getByRole("heading", { name: "Earn income on cbBTC you already own." })
+      .getByRole("heading", { name: "cbBTC Covered Call" })
       .closest("article");
     expect(cspCard).not.toBeNull();
     expect(coveredCallCard).not.toBeNull();
@@ -138,10 +135,9 @@ describe("VaultsPage", () => {
   it("does not invent a covered-call position in My Vaults", () => {
     render(<VaultsPage view="my" />);
 
-    expect(screen.getByText("ETH Cash-Secured Put")).toBeInTheDocument();
-    expect(screen.getByRole("heading", {
-      name: "Earn income while waiting to buy ETH at a lower price.",
-    })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "ETH Cash-Secured Put" }),
+    ).toBeInTheDocument();
     expect(
       screen.queryByText("ETH Covered Call"),
     ).not.toBeInTheDocument();
