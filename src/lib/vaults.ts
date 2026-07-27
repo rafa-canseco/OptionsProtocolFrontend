@@ -1,6 +1,39 @@
 import type { FundPositionResponse, FundSummaryResponse } from "@/lib/api";
 import { rawFundAmount } from "@/lib/fundVault";
 
+export type VaultCardAvailability = "live" | "coming-soon";
+
+export type VaultCardMetadata = {
+  id: "eth-csp" | "eth-covered-call";
+  name: string;
+  assetLabel: string;
+  icon: "usdc" | "eth";
+  strategyLabel: string;
+  description: string;
+  availability: VaultCardAvailability;
+};
+
+export const CSP_VAULT_CARD: VaultCardMetadata = {
+  id: "eth-csp",
+  name: "ETH Cash-Secured Put",
+  assetLabel: "USDC vault",
+  icon: "usdc",
+  strategyLabel: "ETH puts",
+  description: "Earn premium by selling ETH puts backed by the vault's USDC.",
+  availability: "live",
+};
+
+export const COVERED_CALL_VAULT_CARD: VaultCardMetadata = {
+  id: "eth-covered-call",
+  name: "ETH Covered Call",
+  assetLabel: "WETH vault",
+  icon: "eth",
+  strategyLabel: "ETH calls",
+  description:
+    "Earn premium on WETH. Calls cap ETH upside, and an ITM settlement can temporarily move the fund into USDC before it returns to WETH.",
+  availability: "coming-soon",
+};
+
 export type VaultPositionState =
   | "empty"
   | "invested"

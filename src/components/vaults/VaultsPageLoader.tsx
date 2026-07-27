@@ -20,8 +20,7 @@ const VaultsPage = dynamic(
             <div className="mt-4 h-12 w-40 rounded-2xl bg-[var(--vault-surface-soft)]" />
             <div className="mt-4 h-5 w-full max-w-xl rounded-full bg-[var(--vault-surface-soft)]" />
           </div>
-          <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
-            <div className="min-h-[520px] rounded-[32px] border border-[var(--vault-border)] bg-[var(--vault-card)]" />
+          <div className="grid gap-5 lg:grid-cols-2">
             <div className="min-h-[520px] rounded-[32px] border border-[var(--vault-border)] bg-[var(--vault-card)]" />
             <div className="min-h-[520px] rounded-[32px] border border-[var(--vault-border)] bg-[var(--vault-card)]" />
           </div>

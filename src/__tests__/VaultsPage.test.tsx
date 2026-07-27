@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { VaultsPage } from "@/components/vaults/VaultsPage";
@@ -52,8 +52,21 @@ describe("VaultsPage", () => {
   it("renders a minimal vault-first catalog and preserves manual trading", () => {
     render(<VaultsPage />);
     expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
-    expect(screen.getAllByText("NAV price")).toHaveLength(1);
+    const coveredCallCard = screen
+      .getByRole("heading", { name: "ETH Covered Call" })
+      .closest("article");
+    expect(coveredCallCard).not.toBeNull();
+    expect(screen.getAllByText("NAV price")).toHaveLength(2);
     expect(screen.getByText("ETH puts")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("WETH vault")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("ETH calls")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("Prelaunch")).toBeInTheDocument();
+    expect(
+      within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
+    expect(
+      within(coveredCallCard!).getByText(/Calls cap ETH upside/i),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
@@ -61,6 +74,15 @@ describe("VaultsPage", () => {
     expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute("href", "/earn/eth");
     expect(screen.getByRole("link", { name: "My Vaults" })).toHaveAttribute("href", "/vaults/my");
     expect(screen.getByRole("button", { name: "Smart wallet balances" })).toHaveTextContent("125.00 USDC");
+  });
+
+  it("does not invent a covered-call position in My Vaults", () => {
+    render(<VaultsPage view="my" />);
+
+    expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
+    expect(
+      screen.queryByRole("heading", { name: "ETH Covered Call" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the vault wallet USDC and gas balances from the configured Base contracts", async () => {
