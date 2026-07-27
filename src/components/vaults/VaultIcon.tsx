@@ -23,7 +23,7 @@ export function VaultIcon({
   icon,
   className,
 }: {
-  icon: "usdc" | "eth" | "wheel";
+  icon: string;
   className?: string;
 }) {
   if (icon === "wheel") {
@@ -48,14 +48,28 @@ export function VaultIcon({
     return <EthMark className={className} />;
   }
 
+  if (icon === "usdc" || icon === "btc") {
+    return (
+      <Image
+        src={icon === "usdc" ? "/usdc.svg" : "/cbbtc.webp"}
+        alt=""
+        width={160}
+        height={160}
+        aria-hidden="true"
+        className={cn("rounded-full object-contain", className)}
+      />
+    );
+  }
+
   return (
-    <Image
-      src="/usdc.svg"
-      alt=""
-      width={160}
-      height={160}
+    <span
       aria-hidden="true"
-      className={cn("object-contain", className)}
-    />
+      className={cn(
+        "grid place-items-center rounded-full bg-[var(--vault-selected)] font-mono text-sm font-bold uppercase text-[var(--vault-text-muted)]",
+        className,
+      )}
+    >
+      {icon.charAt(0)}
+    </span>
   );
 }

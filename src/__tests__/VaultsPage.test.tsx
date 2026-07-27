@@ -64,9 +64,12 @@ describe("VaultsPage", () => {
     expect(
       within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
     ).toBeDisabled();
-    expect(
-      within(coveredCallCard!).getByText(/Calls cap ETH upside/i),
-    ).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText(
+      "Earn income on ETH you already own.",
+    )).toBeInTheDocument();
+    expect(screen.getByText(
+      "Earn income while waiting to buy ETH at a lower price.",
+    )).toBeInTheDocument();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
@@ -76,12 +79,60 @@ describe("VaultsPage", () => {
     expect(screen.getByRole("button", { name: "Smart wallet balances" })).toHaveTextContent("125.00 USDC");
   });
 
+  it("switches the catalog to another Base asset without inventing live funds", async () => {
+    const user = userEvent.setup();
+    render(<VaultsPage />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Select vault asset. Current asset ETH",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Select SOL" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select TSLAx" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Select cbBTC" }));
+
+    const cspCard = screen
+      .getByRole("heading", { name: "cbBTC Cash-Secured Put" })
+      .closest("article");
+    const coveredCallCard = screen
+      .getByRole("heading", { name: "cbBTC Covered Call" })
+      .closest("article");
+    expect(cspCard).not.toBeNull();
+    expect(coveredCallCard).not.toBeNull();
+    expect(within(cspCard!).getByText(
+      "Earn income while waiting to buy cbBTC at a lower price.",
+    )).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText(
+      "Earn income on cbBTC you already own.",
+    )).toBeInTheDocument();
+    expect(within(cspCard!).getByText("cbBTC puts")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("cbBTC calls")).toBeInTheDocument();
+    expect(
+      within(cspCard!).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
+    expect(
+      within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute(
+      "href",
+      "/earn/btc",
+    );
+  });
+
   it("does not invent a covered-call position in My Vaults", () => {
     render(<VaultsPage view="my" />);
 
     expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: "ETH Covered Call" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /select vault asset/i }),
     ).not.toBeInTheDocument();
   });
 

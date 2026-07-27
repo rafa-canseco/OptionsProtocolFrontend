@@ -8,16 +8,18 @@ import { ChevronDown, RefreshCw } from "lucide-react";
 import { useBalances } from "@/hooks/useBalances";
 import { useFundVault } from "@/hooks/useFundVault";
 import { useWallet } from "@/hooks/useWallet";
+import { ASSETS } from "@/lib/assets";
 import {
-  COVERED_CALL_VAULT_CARD,
   CSP_VAULT_CARD,
   mapFundPosition,
+  vaultCardMetadata,
 } from "@/lib/vaults";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { VaultAssetSelector } from "./VaultAssetSelector";
 import { VaultCard } from "./VaultCard";
 import { VaultDialog } from "./VaultDialog";
 
@@ -28,11 +30,17 @@ const ConnectButton = dynamic(
 
 export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [catalogAssetSlug, setCatalogAssetSlug] = useState("eth");
   const { address } = useWallet();
   const balances = useBalances(address);
   const fund = useFundVault(address);
   const position = mapFundPosition(fund.position, fund.summary);
   const isMyView = view === "my";
+  const catalogAsset = ASSETS[catalogAssetSlug] ?? ASSETS.eth;
+  const catalogCsp = vaultCardMetadata("csp", catalogAsset);
+  const catalogCoveredCall = vaultCardMetadata("covered-call", catalogAsset);
+  const catalogHasLiveFund = catalogAsset.slug === "eth";
+  const manualTradingAsset = isMyView ? "eth" : catalogAsset.slug;
 
   return (
     <div className="vault-experience min-h-dvh bg-[var(--vault-bg)] text-[var(--vault-text)]">
@@ -69,27 +77,48 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
           <button
             type="button"
             onClick={() => void fund.refetch()}
-            disabled={fund.loading}
+            disabled={fund.loading || (!isMyView && !catalogHasLiveFund)}
             aria-label="Refresh fund data"
-            className="grid size-11 shrink-0 place-items-center rounded-full border border-[var(--vault-border)] text-[var(--vault-text-muted)] disabled:cursor-wait disabled:opacity-50"
+            className="grid size-11 shrink-0 place-items-center rounded-full border border-[var(--vault-border)] text-[var(--vault-text-muted)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <RefreshCw className={`size-4 ${fund.loading ? "animate-spin" : ""}`} />
           </button>
         </div>
+
+        {!isMyView ? (
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-[var(--vault-text-subtle)]">
+                Underlying asset
+              </p>
+              <p className="mt-1 text-sm text-[var(--vault-text-muted)]">
+                {catalogAsset.name} strategies
+              </p>
+            </div>
+            <VaultAssetSelector
+              currentSlug={catalogAsset.slug}
+              onChange={setCatalogAssetSlug}
+            />
+          </div>
+        ) : null}
 
         <section
           aria-label={isMyView ? "Your vault positions" : "Available vaults"}
           className={isMyView ? "max-w-[640px]" : "grid gap-5 lg:grid-cols-2"}
         >
           <VaultCard
-            vault={CSP_VAULT_CARD}
-            summary={fund.summary}
-            position={position}
-            onOpen={() => setDialogOpen(true)}
+            vault={isMyView ? CSP_VAULT_CARD : catalogCsp}
+            summary={isMyView || catalogHasLiveFund ? fund.summary : null}
+            position={isMyView || catalogHasLiveFund ? position : null}
+            onOpen={
+              isMyView || catalogHasLiveFund
+                ? () => setDialogOpen(true)
+                : undefined
+            }
           />
           {!isMyView ? (
             <VaultCard
-              vault={COVERED_CALL_VAULT_CARD}
+              vault={catalogCoveredCall}
               summary={null}
               position={null}
             />
@@ -99,7 +128,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
 
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
           <span>v2 · Base Sepolia</span>
-          <Link href="/earn/eth" className="min-h-11 py-3 hover:text-[var(--vault-text)]">
+          <Link href={`/earn/${manualTradingAsset}`} className="min-h-11 py-3 hover:text-[var(--vault-text)]">
             Manual trading <span className="text-[var(--vault-text-muted)]">Open classic →</span>
           </Link>
         </footer>

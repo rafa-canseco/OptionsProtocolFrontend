@@ -1,38 +1,52 @@
 import type { FundPositionResponse, FundSummaryResponse } from "@/lib/api";
+import {
+  ASSETS,
+  ASSET_SLUGS,
+  type AssetConfig,
+} from "@/lib/assets";
 import { rawFundAmount } from "@/lib/fundVault";
 
 export type VaultCardAvailability = "live" | "coming-soon";
+export type VaultStrategy = "csp" | "covered-call";
 
 export type VaultCardMetadata = {
-  id: "eth-csp" | "eth-covered-call";
+  id: string;
   name: string;
   assetLabel: string;
-  icon: "usdc" | "eth";
+  icon: string;
   strategyLabel: string;
   description: string;
   availability: VaultCardAvailability;
 };
 
-export const CSP_VAULT_CARD: VaultCardMetadata = {
-  id: "eth-csp",
-  name: "ETH Cash-Secured Put",
-  assetLabel: "USDC vault",
-  icon: "usdc",
-  strategyLabel: "ETH puts",
-  description: "Earn premium by selling ETH puts backed by the vault's USDC.",
-  availability: "live",
-};
+export const VAULT_CATALOG_ASSET_SLUGS = ASSET_SLUGS.filter(
+  (slug) => ASSETS[slug].chain === "base",
+);
 
-export const COVERED_CALL_VAULT_CARD: VaultCardMetadata = {
-  id: "eth-covered-call",
-  name: "ETH Covered Call",
-  assetLabel: "WETH vault",
-  icon: "eth",
-  strategyLabel: "ETH calls",
-  description:
-    "Earn premium on WETH. Calls cap ETH upside, and an ITM settlement can temporarily move the fund into USDC before it returns to WETH.",
-  availability: "coming-soon",
-};
+export function vaultCardMetadata(
+  strategy: VaultStrategy,
+  asset: AssetConfig,
+): VaultCardMetadata {
+  const isCsp = strategy === "csp";
+  const isLive = isCsp && asset.slug === "eth";
+  return {
+    id: `${asset.slug}-${strategy}`,
+    name: isCsp
+      ? `${asset.symbol} Cash-Secured Put`
+      : `${asset.symbol} Covered Call`,
+    assetLabel: isCsp
+      ? `${asset.stableSymbol} vault`
+      : `${asset.wrappedSymbol} vault`,
+    icon: isCsp ? "usdc" : asset.slug,
+    strategyLabel: `${asset.symbol} ${isCsp ? "puts" : "calls"}`,
+    description: isCsp
+      ? `Earn income while waiting to buy ${asset.symbol} at a lower price.`
+      : `Earn income on ${asset.symbol} you already own.`,
+    availability: isLive ? "live" : "coming-soon",
+  };
+}
+
+export const CSP_VAULT_CARD = vaultCardMetadata("csp", ASSETS.eth);
 
 export type VaultPositionState =
   | "empty"
