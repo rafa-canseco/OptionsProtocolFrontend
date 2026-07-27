@@ -42,6 +42,21 @@ const currency = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
 });
+const strikeCurrency = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 0,
+});
+const optionAmount = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 8,
+});
+const cycleDate = new Intl.DateTimeFormat("en-US", {
+  month: "short",
+  day: "numeric",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZoneName: "short",
+});
 
 export function VaultDialog(props: {
   summary: FundSummaryResponse | null;
@@ -138,6 +153,7 @@ function FundOverview({
       <p className="mt-2 font-mono text-xs text-[var(--vault-text-subtle)]">
         {amount.format(rawFundAmount(position?.shares, shareDecimals))} fund shares
       </p>
+      <CspCycle summary={summary} />
       <dl className="mt-10 grid grid-cols-2 gap-5 text-sm">
         <OverviewMetric
           label="Gross assets"
@@ -180,6 +196,84 @@ function FundOverview({
       </dl>
       <ValuationDetails summary={summary} />
     </section>
+  );
+}
+
+function CspCycle({ summary }: { summary: FundSummaryResponse | null }) {
+  const strategy = summary?.strategy;
+  const latest = strategy?.latestPosition;
+  if (!summary || !strategy || !latest) return null;
+
+  const isCurrent =
+    latest.lifecycle === "open" ||
+    latest.lifecycle === "awaiting_physical_delivery";
+  const assetDecimals = summary.fund.accountingAsset.decimals;
+  const expiry = latest.expiryTimestamp
+    ? cycleDate.format(new Date(latest.expiryTimestamp * 1000))
+    : null;
+  const strike = latest.strikePriceUsd8
+    ? strikeCurrency.format(rawFundAmount(latest.strikePriceUsd8, 8))
+    : "ETH";
+
+  return (
+    <div className="mt-8 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>{isCurrent ? "Current CSP cycle" : "Latest CSP cycle"}</span>
+            <InfoTooltip
+              title="CSP cycle"
+              text="The most recently opened ETH cash-secured put and the USDC committed to it."
+            />
+          </div>
+          <p className="mt-1 font-mono text-lg text-[var(--vault-text)]">
+            {strike} put
+          </p>
+        </div>
+        <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--vault-accent)]">
+          {cycleStatus(latest.lifecycle)}
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[var(--vault-text-muted)]">
+        {optionAmount.format(rawFundAmount(latest.optionAmount8, 8))} ETH
+        {" · "}
+        {assetValue(latest.collateralAssets, assetDecimals)} secured
+        {expiry ? ` · Expires ${expiry}` : ""}
+      </p>
+      <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-[var(--vault-border)] pt-4 text-sm">
+        <div>
+          <dt className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>Total premium</span>
+            <InfoTooltip
+              title="Total premium"
+              text="All USDC premium collected across this vault's CSP cycles. It is already included in the fund's assets and NAV."
+            />
+          </dt>
+          <dd className="mt-1 font-mono text-[var(--vault-text)]">
+            {tokenValue(
+              strategy.totalPremiumCollectedAssets,
+              assetDecimals,
+            )}{" "}
+            {summary.fund.accountingAsset.symbol}
+          </dd>
+        </div>
+        <div>
+          <dt className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>Next position</span>
+            <InfoTooltip
+              title="Next position"
+              text="The earliest opening window. The vault must first settle the current put, then have a current NAV and an eligible quote."
+            />
+          </dt>
+          <dd className="mt-1 text-[var(--vault-text)]">
+            {nextPositionLabel(
+              strategy.nextOpenCondition,
+              strategy.nextOpenAfter,
+            )}
+          </dd>
+        </div>
+      </dl>
+    </div>
   );
 }
 
@@ -536,6 +630,35 @@ function isPositiveRaw(raw: string | null | undefined): boolean {
   } catch {
     return false;
   }
+}
+
+function tokenValue(raw: string | null | undefined, decimals: number): string {
+  if (raw == null) return "—";
+  return new Intl.NumberFormat("en-US", {
+    maximumFractionDigits: decimals,
+  }).format(rawFundAmount(raw, decimals));
+}
+
+function cycleStatus(lifecycle: string): string {
+  const labels: Record<string, string> = {
+    open: "Open",
+    awaiting_physical_delivery: "Settling",
+    settled_otm: "Settled OTM",
+    settled_itm: "Settled ITM",
+  };
+  return labels[lifecycle] ?? lifecycle.replaceAll("_", " ");
+}
+
+function nextPositionLabel(condition: string, nextOpenAfter: number | null): string {
+  if (condition === "after_current_settlement") {
+    return nextOpenAfter
+      ? `After ${cycleDate.format(new Date(nextOpenAfter * 1000))} settlement`
+      : "After current settlement";
+  }
+  if (condition === "when_pricing_is_ready") {
+    return "When pricing is ready";
+  }
+  return "After funding and pricing";
 }
 
 function actionMessage(message: string): string {

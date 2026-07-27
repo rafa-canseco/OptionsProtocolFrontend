@@ -129,6 +129,16 @@ describe("VaultsPage", () => {
     expect(screen.queryByText(/quorum/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Report 3/)).not.toBeInTheDocument();
     expect(screen.queryByText(/block 110/)).not.toBeInTheDocument();
+    expect(screen.getByText("Current CSP cycle")).toBeInTheDocument();
+    expect(screen.getByText("$1,625 put")).toBeInTheDocument();
+    expect(screen.getByText("Open")).toBeInTheDocument();
+    expect(screen.getByText(/0.49230769 ETH/)).toHaveTextContent(
+      "$800.00 secured",
+    );
+    expect(screen.getByText("Total premium")).toBeInTheDocument();
+    expect(screen.getByText("0.000061 USDC")).toBeInTheDocument();
+    expect(screen.getByText("Next position")).toBeInTheDocument();
+    expect(screen.getByText(/After Jul 29.*settlement/)).toBeInTheDocument();
 
     await user.hover(
       screen.getByRole("button", { name: "Info: Locked collateral" }),
@@ -297,6 +307,20 @@ function fairSummary(): FundSummaryResponse {
         liabilities: "800000000",
         methodology: "max-payout stress",
       },
+    },
+    strategy: {
+      latestPosition: {
+        positionId: 2,
+        lifecycle: "open",
+        strikePriceUsd8: "162500000000",
+        expiryTimestamp: 1785312000,
+        optionAmount8: "49230769",
+        collateralAssets: "800000000",
+        premiumEarnedAssets: "2",
+      },
+      totalPremiumCollectedAssets: "61",
+      nextOpenAfter: 1785312000,
+      nextOpenCondition: "after_current_settlement",
     },
     status: {
       reconciled: true,

@@ -413,6 +413,23 @@ export interface FundStressSnapshot {
   methodology?: string | null;
 }
 
+export interface CspPositionSummary {
+  positionId: number;
+  lifecycle: string;
+  strikePriceUsd8: string | null;
+  expiryTimestamp: number | null;
+  optionAmount8: string;
+  collateralAssets: string;
+  premiumEarnedAssets: string;
+}
+
+export interface FundStrategySnapshot {
+  latestPosition: CspPositionSummary | null;
+  totalPremiumCollectedAssets: string;
+  nextOpenAfter: number | null;
+  nextOpenCondition: string;
+}
+
 export interface FundNavWindow {
   reportNonce: number;
   validAfterBlock: number | null;
@@ -458,6 +475,8 @@ export interface FundSummaryResponse {
   stressPriceAssets?: string | null;
   composition: FundComposition;
   nav: FundNavWindow;
+  /** Current strategy cycle. Optional while older backend versions roll out. */
+  strategy?: FundStrategySnapshot;
   status: FundStatus;
   actions: FundActions;
   asOfBlock: number | null;
