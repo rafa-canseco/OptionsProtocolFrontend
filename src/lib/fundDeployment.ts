@@ -132,7 +132,7 @@ export const BASE_SEPOLIA_COVERED_CALL_FUND = {
   contracts: {
     fund_vault: {
       address: "0x9060946E6ACC4E430A823E90120743c7305EE2CA",
-      implementation: "0xAf51984EcC261a4B3052eA90c9a85768F81DE764",
+      implementation: "0xCae10a81aE1aA0183A4b4283A3ACbE9A2642613A",
     },
     fund_share: {
       address: "0xaA1070adb74C5455320285618BF1ED804d3745C3",
