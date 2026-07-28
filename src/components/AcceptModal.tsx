@@ -37,7 +37,10 @@ import {
   buildOptimisticPosition,
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
-import { isProductionReadOnlyAsset } from "@/lib/marketState";
+import {
+  isLazyOTokenEnabled,
+  isProductionReadOnlyAsset,
+} from "@/lib/marketState";
 import {
   prepareSeries,
   SeriesPreparationError,
@@ -130,6 +133,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
+  const lazyOTokenEnabled = isLazyOTokenEnabled();
   const assetConfig = getAssetConfig(assetSlug);
   const isSol = assetSlug === "sol";
   const marketReadOnly = isProductionReadOnlyAsset(
@@ -258,6 +262,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
         || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null
         || quote.maker_nonce == null) {
       setError("This option is not available on-chain yet.");
+      return;
+    }
+    if (
+      quote.chain === "base" &&
+      !lazyOTokenEnabled &&
+      quote.deployment_status != null &&
+      quote.deployment_status !== "ready"
+    ) {
+      setError("This option series is still being prepared. Refresh and try again shortly.");
       return;
     }
 
@@ -525,6 +538,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       // (6 decimals) against WETH/cbBTC balances (18/8 decimals), which
       // redirects a sufficiently funded buyer to the deposit modal.
       let wrapAmount = BigInt(0);
+      let nativeBalanceBefore: bigint | null = null;
       if (!isBuy) {
         setProgressMessage("Checking collateral...");
         if (isBtc) {
@@ -541,6 +555,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             readTokenBalance(ADDRESSES.weth, address),
             publicClient.getBalance({ address }),
           ]);
+          nativeBalanceBefore = nativeBal;
           if (wethBal + nativeBal < collateral) {
             setDepositToken("eth");
             setShowDeposit(true);
@@ -552,29 +567,32 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
         }
       }
 
-      updateStep("preparing");
-      setProgressMessage("Preparing trade...");
-      const preparationAbort = new AbortController();
-      preparationAbortRef.current = preparationAbort;
-      const accessToken = await getAccessToken();
-      if (preparationAbort.signal.aborted) return;
-      if (!accessToken) {
-        throw new SeriesPreparationError(
-          "auth",
-          "Your session expired. Reconnect your wallet and try again.",
-          { code: "AUTH_REQUIRED", retryable: true },
-        );
-      }
+      let executionQuote = quote;
+      if (lazyOTokenEnabled) {
+        updateStep("preparing");
+        setProgressMessage("Preparing trade...");
+        const preparationAbort = new AbortController();
+        preparationAbortRef.current = preparationAbort;
+        const accessToken = await getAccessToken();
+        if (preparationAbort.signal.aborted) return;
+        if (!accessToken) {
+          throw new SeriesPreparationError(
+            "auth",
+            "Your session expired. Reconnect your wallet and try again.",
+            { code: "AUTH_REQUIRED", retryable: true },
+          );
+        }
 
-      const executionQuote = await prepareSeries({
-        quote,
-        walletAddress: address,
-        amountRaw: oTokenAmount.toString(),
-        accessToken,
-        signal: preparationAbort.signal,
-        onCreating: () => setProgressMessage("Creating option series..."),
-      });
-      preparationAbortRef.current = null;
+        executionQuote = await prepareSeries({
+          quote,
+          walletAddress: address,
+          amountRaw: oTokenAmount.toString(),
+          accessToken,
+          signal: preparationAbort.signal,
+          onCreating: () => setProgressMessage("Creating option series..."),
+        });
+        preparationAbortRef.current = null;
+      }
 
       setProgressMessage("Trade ready. Confirming in wallet...");
       const executeData = encodeExecuteOrder(
@@ -589,33 +607,37 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
       updateStep("executing");
 
-      // If wrapping is needed: wrap ETH → WETH first, wait for receipt,
-      // then send approve + execute. This ensures WETH is available before
-      // the collateral transfer is attempted.
-      if (wrapAmount > BigInt(0)) {
-        setProgressMessage("Wrapping ETH...");
-        const wrapHash = await sendBatchTx([{
-          to: ADDRESSES.weth,
-          data: encodeFunctionData({ abi: WETH_ABI, functionName: "deposit", args: [] }),
-          value: wrapAmount,
-        }]) as `0x${string}`;
-        await publicClient.waitForTransactionReceipt({ hash: wrapHash });
-        console.log("[AcceptModal] ETH wrapped to WETH confirmed");
-      }
-
-      // After wrapping (if needed), WETH balance is sufficient. Now approve + execute.
       setProgressMessage(
-        currentAllowance < collateral
+        wrapAmount > BigInt(0) && currentAllowance < collateral
+          ? "Wrapping ETH, approving collateral, and executing order..."
+          : wrapAmount > BigInt(0)
+            ? "Wrapping ETH and executing order..."
+            : currentAllowance < collateral
           ? "Approving collateral and executing order..."
           : "Executing order on Base...",
       );
       const balanceBefore = await readTokenBalance(collateralAsset, address);
       const balanceDecreased = async () => {
+        if (wrapAmount > BigInt(0) && nativeBalanceBefore != null) {
+          const nativeBalance = await publicClient.getBalance({ address });
+          return nativeBalance < nativeBalanceBefore;
+        }
         const bal = await readTokenBalance(collateralAsset, address);
         return bal < balanceBefore;
       };
 
       const approveAndExecuteCalls: BatchCall[] = [];
+      if (wrapAmount > BigInt(0)) {
+        approveAndExecuteCalls.push({
+          to: ADDRESSES.weth,
+          data: encodeFunctionData({
+            abi: WETH_ABI,
+            functionName: "deposit",
+            args: [],
+          }),
+          value: wrapAmount,
+        });
+      }
       if (currentAllowance < collateral) {
         approveAndExecuteCalls.push({
           to: collateralAsset,
@@ -628,7 +650,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       }
       approveAndExecuteCalls.push({ to: ADDRESSES.batchSettler, data: executeData });
 
-      const label = currentAllowance < collateral ? "batch-approve-execute" : "executeOrder";
+      const label = wrapAmount > BigInt(0)
+        ? currentAllowance < collateral
+          ? "batch-wrap-approve-execute"
+          : "batch-wrap-execute"
+        : currentAllowance < collateral
+          ? "batch-approve-execute"
+          : "executeOrder";
       const resultHash = await fireAndPoll(
         () => sendBatchTx(approveAndExecuteCalls),
         balanceDecreased,

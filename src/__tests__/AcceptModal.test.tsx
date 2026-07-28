@@ -4,6 +4,9 @@ import userEvent from "@testing-library/user-event";
 import { AcceptModal } from "@/components/AcceptModal";
 import { ApiError, type PriceQuote } from "@/lib/api";
 
+const ORIGINAL_LAZY_OTOKEN_ENABLED =
+  process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED;
+
 // --- Hoisted mock state ---------------------------------------------------
 
 const { state } = vi.hoisted(() => ({
@@ -212,6 +215,7 @@ function buildBaseQuote(overrides: Partial<PriceQuote> = {}): PriceQuote {
 describe("AcceptModal Base buy with sufficient USDC", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "true";
     state.baseUsdcRaw = BigInt(7_613_000_000);
     state.checkDeficit.mockReturnValue({
       needsBridge: false,
@@ -240,6 +244,12 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+    if (ORIGINAL_LAZY_OTOKEN_ENABLED === undefined) {
+      delete process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED;
+    } else {
+      process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED =
+        ORIGINAL_LAZY_OTOKEN_ENABLED;
+    }
   });
 
   it("executes the trade instead of opening the deposit modal", async () => {
@@ -297,6 +307,61 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     expect(
       screen.queryByText(/Manage funds/i),
     ).not.toBeInTheDocument();
+  });
+
+  it("preserves eager ready execution without Privy ensure when the gate is off", async () => {
+    process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "false";
+
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ deployment_status: "ready" })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    await waitFor(() => {
+      expect(state.sendBatchTx).toHaveBeenCalledTimes(1);
+    });
+    expect(state.getAccessToken).not.toHaveBeenCalled();
+    expect(state.ensureSeries).not.toHaveBeenCalled();
+    expect(state.encodeExecuteOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it("blocks virtual series when the lazy rollout gate is off", async () => {
+    process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "false";
+
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ deployment_status: "virtual" })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    expect(
+      await screen.findByText(/option series is still being prepared/i),
+    ).toBeInTheDocument();
+    expect(state.getAccessToken).not.toHaveBeenCalled();
+    expect(state.ensureSeries).not.toHaveBeenCalled();
+    expect(state.encodeExecuteOrder).not.toHaveBeenCalled();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
   });
 
   it("still routes to deposit modal when USDC is actually insufficient", async () => {
@@ -478,6 +543,57 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     expect(
       state.ensureSeries.mock.calls[0][2].idempotencyKey,
     ).toBe(state.ensureSeries.mock.calls[1][2].idempotencyKey);
+  });
+
+  it("wraps ETH, approves WETH, and executes a call in one wallet batch", async () => {
+    const wethBefore = BigInt(200_000_000_000_000_000);
+    const nativeBefore = BigInt(1_000_000_000_000_000_000);
+    state.balanceOf.mockResolvedValue(wethBefore);
+    state.getBalance.mockResolvedValue(nativeBefore);
+    state.readAllowance.mockResolvedValue(BigInt(0));
+
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ option_type: "call" })}
+        side="sell"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="0.5"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    await waitFor(() => {
+      expect(state.sendBatchTx).toHaveBeenCalledTimes(1);
+    });
+
+    const calls = state.sendBatchTx.mock.calls[0][0];
+    expect(calls).toHaveLength(3);
+    expect(calls[0]).toEqual(
+      expect.objectContaining({
+        to: "0x0000000000000000000000000000000000000002",
+        value: BigInt(300_000_000_000_000_000),
+      }),
+    );
+    expect(calls[1]).toEqual(
+      expect.objectContaining({
+        to: "0x0000000000000000000000000000000000000002",
+      }),
+    );
+    expect(calls[2]).toEqual({
+      to: "0x0000000000000000000000000000000000000005",
+      data: "0xexecuteorder",
+    });
+    expect(state.waitForReceipt).not.toHaveBeenCalled();
+    expect(state.ensureSeries).toHaveBeenCalledTimes(1);
+    expect(
+      state.ensureSeries.mock.invocationCallOrder[0],
+    ).toBeLessThan(state.sendBatchTx.mock.invocationCallOrder[0]);
   });
 
   it("does not prepare Solana orders", async () => {

@@ -8,6 +8,10 @@ export function isSolanaEnabled(): boolean {
   return process.env.NEXT_PUBLIC_SOLANA_ENABLED === "true";
 }
 
+export function isLazyOTokenEnabled(): boolean {
+  return process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED === "true";
+}
+
 export function isProductionReadOnlyAsset(
   asset: Pick<AssetConfig, "slug" | "chain">,
 ): boolean {
@@ -25,6 +29,13 @@ export function isSolanaOffInProd(): boolean {
 
 export function isExecutableQuote(quote: PriceQuote): boolean {
   if (quote.deployment_status === "failed") return false;
+  if (
+    (quote.deployment_status === "virtual" ||
+      quote.deployment_status === "creating") &&
+    !isLazyOTokenEnabled()
+  ) {
+    return false;
+  }
   return !!(
     quote.otoken_address &&
     quote.signature &&

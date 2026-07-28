@@ -40,6 +40,7 @@ describe("marketState helpers", () => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
     delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
+    delete process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED;
   });
 
   afterEach(() => {
@@ -100,14 +101,25 @@ describe("marketState helpers", () => {
     ).toBe(false);
   });
 
-  it("allows virtual and creating firm quotes but blocks failed series", async () => {
+  it("keeps eager rollout safe by default", async () => {
     const mod = await loadMarketStateModule();
 
-    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(true);
-    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(true);
+    expect(mod.isLazyOTokenEnabled()).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(false);
     expect(mod.isExecutableQuote(buildQuote({ deployment_status: "ready" }))).toBe(true);
     expect(mod.isExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
     expect(mod.isExecutableQuote(buildQuote({ deployment_status: undefined }))).toBe(true);
+  });
+
+  it("allows virtual and creating firm quotes only when lazy rollout is enabled", async () => {
+    process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "true";
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isLazyOTokenEnabled()).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
   });
 
   it("keeps lazy series out of the two-leg range flow", async () => {
