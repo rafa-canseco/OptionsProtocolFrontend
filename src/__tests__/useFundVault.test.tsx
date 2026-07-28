@@ -20,6 +20,10 @@ vi.mock("@/lib/api", () => ({
 vi.mock("@/lib/fundVault", () => ({
   FUND_KEY: "base-sepolia:csp",
   FUND_ADDRESS: "0x1000000000000000000000000000000000000001",
+  configuredFundKey: vi.fn(() => "base-sepolia:csp"),
+  configuredFundAddress: vi.fn(
+    () => "0x1000000000000000000000000000000000000001",
+  ),
   fundTrustError: vi.fn(() => null),
 }));
 

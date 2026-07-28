@@ -8,7 +8,15 @@ import type {
   FundSummaryResponse,
 } from "@/lib/api";
 import { api } from "@/lib/api";
-import { FUND_ADDRESS, FUND_KEY, fundTrustError } from "@/lib/fundVault";
+import {
+  configuredFundAddress,
+  configuredFundKey,
+  fundTrustError,
+} from "@/lib/fundVault";
+import {
+  BASE_SEPOLIA_CSP_FUND,
+  type TrustedFundDeployment,
+} from "@/lib/fundDeployment";
 
 const FUND_REFRESH_INTERVAL_MS = 5_000;
 
@@ -22,27 +30,32 @@ export type FundVaultState = {
   refetch: () => Promise<void>;
 };
 
-export function useFundVault(address: Address | undefined): FundVaultState {
+export function useFundVault(
+  address: Address | undefined,
+  deployment: TrustedFundDeployment = BASE_SEPOLIA_CSP_FUND,
+): FundVaultState {
   const [summary, setSummary] = useState<FundSummaryResponse | null>(null);
   const [position, setPosition] = useState<FundPositionResponse | null>(null);
   const [config, setConfig] = useState<FundConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const requestId = useRef(0);
+  const fundKey = configuredFundKey(deployment);
+  const fundAddress = configuredFundAddress(deployment);
 
   const refetch = useCallback(async () => {
     const nextRequestId = ++requestId.current;
-    if (!FUND_KEY || !FUND_ADDRESS) {
-      setError("CSP fund allowlist is not configured.");
+    if (!fundKey || !fundAddress) {
+      setError("Fund allowlist is not configured.");
       setLoading(false);
       return;
     }
     setLoading(true);
     try {
       const [nextSummary, nextConfig, nextPosition] = await Promise.all([
-        api.getFund(FUND_KEY),
-        api.getFundConfig(FUND_KEY),
-        address ? api.getFundPosition(FUND_KEY, address) : null,
+        api.getFund(fundKey),
+        api.getFundConfig(fundKey),
+        address ? api.getFundPosition(fundKey, address) : null,
       ]);
       if (requestId.current !== nextRequestId) return;
       setSummary(nextSummary);
@@ -55,7 +68,7 @@ export function useFundVault(address: Address | undefined): FundVaultState {
     } finally {
       if (requestId.current === nextRequestId) setLoading(false);
     }
-  }, [address]);
+  }, [address, fundAddress, fundKey]);
 
   useEffect(() => {
     void refetch();
@@ -82,7 +95,7 @@ export function useFundVault(address: Address | undefined): FundVaultState {
   }, [refetch]);
 
   const trustError = summary && config
-    ? fundTrustError(summary, config, position, address)
+    ? fundTrustError(summary, config, position, address, deployment)
     : null;
   return { summary, position, config, loading, error, trustError, refetch };
 }

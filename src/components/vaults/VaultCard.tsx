@@ -5,7 +5,7 @@ import {
   CSP_VAULT_CARD,
   type VaultCardMetadata,
   type VaultPosition,
-  VAULT_STATE_COPY,
+  vaultStateCopy,
 } from "@/lib/vaults";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 import { VaultIcon } from "./VaultIcon";
@@ -42,7 +42,9 @@ export function VaultCard({
         summary.nav.stale ||
         summary.actions.deposit.reasonCode === "NAV_NOT_ACTIVE"),
   );
-  const stateCopy = position ? VAULT_STATE_COPY[position.state] : null;
+  const stateCopy = position
+    ? vaultStateCopy(position.state, vault.accountingAssetSymbol)
+    : null;
   const entryLabel = comingSoon
     ? "Coming soon"
     : !summary
@@ -84,7 +86,9 @@ export function VaultCard({
       <div className="mt-8">
         <p className="text-xs text-[var(--vault-text-subtle)]">Your value</p>
         <p className="mt-1 font-mono text-4xl tracking-[-0.055em] sm:text-5xl">
-          {position ? currency.format(position.accountingValue) : "—"}
+          {position
+            ? accountingValue(position.accountingValue, vault.accountingAssetSymbol)
+            : "—"}
         </p>
         <p className="mt-2 font-mono text-xs text-[var(--vault-text-subtle)]">
           {position
@@ -96,10 +100,21 @@ export function VaultCard({
       <dl className="mt-8 grid grid-cols-3 gap-4 rounded-2xl bg-[var(--vault-surface-soft)] p-4">
         <Metric
           label="NAV price"
-          value={sharePrice === null ? "—" : currency.format(sharePrice)}
+          value={
+            sharePrice === null
+              ? "—"
+              : accountingValue(sharePrice, vault.accountingAssetSymbol)
+          }
           help="The current value of one fund share. Deposits and exits use this price only while it is current."
         />
-        <Metric label="Fund size" value={total === null ? "—" : currency.format(total)} />
+        <Metric
+          label="Fund size"
+          value={
+            total === null
+              ? "—"
+              : accountingValue(total, vault.accountingAssetSymbol)
+          }
+        />
         <Metric label="Strategy" value={vault.strategyLabel} />
       </dl>
 
@@ -119,6 +134,13 @@ export function VaultCard({
       </div>
     </article>
   );
+}
+
+function accountingValue(value: number, symbol: string): string {
+  if (symbol === "USDC") return currency.format(value);
+  return `${value.toLocaleString("en-US", {
+    maximumFractionDigits: 6,
+  })} ${symbol}`;
 }
 
 function Metric({

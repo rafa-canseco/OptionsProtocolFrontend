@@ -8,7 +8,11 @@ import type {
   FundPositionResponse,
   FundSummaryResponse,
 } from "@/lib/api";
-import { EMPTY_VAULT_POSITION, VAULT_STATE_COPY } from "@/lib/vaults";
+import {
+  COVERED_CALL_VAULT_CARD,
+  EMPTY_VAULT_POSITION,
+  VAULT_STATE_COPY,
+} from "@/lib/vaults";
 
 vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
@@ -32,6 +36,8 @@ vi.mock("@/hooks/useBalances", () => ({
     usd: 125,
     usdRaw: BigInt(125_000000),
     eth: 0.01234,
+    weth: 0.75,
+    wethRaw: BigInt(750_000_000_000_000_000),
     loading: false,
   }),
 }));
@@ -63,16 +69,20 @@ describe("VaultsPage", () => {
     expect(within(coveredCallCard!).getByText("ETH Covered Call")).toBeInTheDocument();
     expect(within(coveredCallCard!).queryByText("WETH vault")).not.toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("ETH calls")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("Prelaunch")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("No position")).toBeInTheDocument();
     expect(
-      within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
-    ).toBeDisabled();
-    expect(within(coveredCallCard!).getByText(
-      "Earn income on ETH you already own.",
-    )).toBeInTheDocument();
-    expect(screen.getByText(
-      "Earn income while waiting to buy ETH at a lower price.",
-    )).toBeInTheDocument();
+      within(coveredCallCard!).getByRole("button", { name: "Deposit WETH" }),
+    ).toBeEnabled();
+    expect(
+      within(coveredCallCard!).getByText(
+        "Earn income on ETH you already own.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Earn income while waiting to buy ETH at a lower price.",
+      ),
+    ).toBeInTheDocument();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
     expect(
@@ -154,9 +164,13 @@ describe("VaultsPage", () => {
     expect(screen.getByText("0x4000…0004")).toBeInTheDocument();
     expect(screen.getByText("ETH gas")).toBeInTheDocument();
     expect(screen.getByText("0.01234")).toBeInTheDocument();
-    expect(screen.getByText("Fund shares")).toBeInTheDocument();
+    expect(screen.getByText("WETH")).toBeInTheDocument();
+    expect(screen.getByText("0.75")).toBeInTheDocument();
+    expect(screen.getAllByText("Fund shares")).toHaveLength(2);
     expect(screen.getByText("b1CSP-V2")).toBeInTheDocument();
+    expect(screen.getByText("b1CALL-V2")).toBeInTheDocument();
     expect(screen.getByText("≈ 0.00 USDC")).toBeInTheDocument();
+    expect(screen.getByText("≈ 0.00 WETH")).toBeInTheDocument();
   });
 
   it("opens accounting-asset entry and exit controls", async () => {
@@ -181,6 +195,22 @@ describe("VaultsPage", () => {
     expect(screen.getByRole("tab", { name: "Deposit" })).toHaveAttribute("aria-selected", "true");
     await user.click(screen.getByRole("tab", { name: "Exit" }));
     expect(screen.getByRole("button", { name: "Request redemption" })).toBeDisabled();
+  });
+
+  it("opens the live covered-call WETH flow and policy", async () => {
+    const user = userEvent.setup();
+    render(<VaultsPage />);
+
+    await user.click(screen.getByRole("button", { name: "Deposit WETH" }));
+
+    expect(screen.getByRole("dialog")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
+    await user.click(screen.getByText("How this vault works"));
+    expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
+    expect(screen.getByText("25% · ≤0.0025 WETH")).toBeInTheDocument();
+    expect(
+      screen.getByText(/keeps opening calls while enough WETH/i),
+    ).toBeInTheDocument();
   });
 
   it("defines one action for each supported position state", () => {
@@ -347,6 +377,73 @@ describe("VaultsPage", () => {
     expect(screen.getByText("Settlement costs")).toBeInTheDocument();
     expect(screen.getByText("$0.25")).toBeInTheDocument();
   });
+
+  it("renders the live covered-call lifecycle in WETH without treating it as dollars", async () => {
+    const user = userEvent.setup();
+    render(
+      <VaultDialog
+        vault={COVERED_CALL_VAULT_CARD}
+        summary={coveredCallSummary()}
+        position={emptyPosition({
+          fundKey: "base-sepolia:covered-call",
+          accountingValue: "0",
+        })}
+        config={null}
+        loadError={null}
+        smartAssetRaw={BigInt("750000000000000000")}
+        onRefetch={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("ETH CALL · WETH")).toBeInTheDocument();
+    expect(screen.getByText("Fair call liability")).toBeInTheDocument();
+    expect(screen.getByText("USDC being normalized")).toBeInTheDocument();
+    expect(screen.getAllByText("5 USDC")).toHaveLength(2);
+    expect(screen.getAllByText("0.0025 WETH")).toHaveLength(2);
+    expect(screen.getByText("After USDC returns to WETH")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Deposit WETH" })).toBeDisabled();
+    expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
+
+    await user.click(screen.getByText("How this vault works"));
+    expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
+    expect(screen.getByText("25% · ≤0.0025 WETH")).toBeInTheDocument();
+    expect(
+      screen.getByText(/keeps opening calls while enough WETH/i),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("$0.01")).not.toBeInTheDocument();
+  });
+
+  it("shows premium and next-open readiness before the first covered call", () => {
+    const summary = coveredCallSummary();
+    summary.strategy!.latestPosition = null;
+    summary.strategy!.totalPremiumCollectedAssets = "0";
+    summary.strategy!.nextOpenAfter = null;
+    summary.strategy!.nextOpenCondition = "when_funded_and_pricing_is_ready";
+
+    render(
+      <VaultDialog
+        vault={COVERED_CALL_VAULT_CARD}
+        summary={summary}
+        position={emptyPosition({
+          fundKey: "base-sepolia:covered-call",
+          accountingValue: "0",
+        })}
+        config={null}
+        loadError={null}
+        smartAssetRaw={BigInt("750000000000000000")}
+        onRefetch={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("No call opened yet")).toBeInTheDocument();
+    expect(screen.getByText("Waiting")).toBeInTheDocument();
+    expect(screen.getByText("0 USDC")).toBeInTheDocument();
+    expect(screen.getByText("When WETH and pricing are ready")).toBeInTheDocument();
+  });
 });
 
 function fairSummary(): FundSummaryResponse {
@@ -440,7 +537,64 @@ function fairSummary(): FundSummaryResponse {
   };
 }
 
-function emptyPosition(): FundPositionResponse {
+function coveredCallSummary(): FundSummaryResponse {
+  return {
+    ...fairSummary(),
+    fund: {
+      ...fairSummary().fund,
+      fundKey: "base-sepolia:covered-call",
+      shareToken: {
+        ...fairSummary().fund.shareToken,
+        symbol: "b1CC",
+      },
+      accountingAsset: {
+        address: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+        symbol: "WETH",
+        decimals: 18,
+      },
+      strategyKind: "covered_call",
+      quoteAsset: {
+        address: "0xAB51a471493832C1D70cef8ff937A850cf37c860",
+        symbol: "USDC",
+        decimals: 6,
+      },
+    },
+    netAssets: "8500000000000000",
+    sharePriceAssets: "1000000000000000",
+    composition: {
+      idleAssets: "6500000000000000",
+      strategyAccountingAssets: "2500000000000000",
+      assignedWeth: "0",
+      reservedClaimAssets: "0",
+      grossAssets: "9000000000000000",
+      lockedCollateralAssets: "2500000000000000",
+      fairOptionLiabilityAssets: "250000000000000",
+      transientUsdc: "5000000",
+      transientUsdcValueAssets: "2500000000000000",
+      normalizationCostAssets: "5000000000000",
+      optionExitCostAssets: "10000000000000",
+    },
+    strategy: {
+      strategyKind: "covered_call",
+      latestPosition: {
+        positionId: 1,
+        lifecycle: "normalizing_usdc",
+        strikePriceUsd8: "250000000000",
+        expiryTimestamp: 1785312000,
+        optionAmount8: "125000",
+        collateralAssets: "2500000000000000",
+        premiumEarnedAssets: "10000000000000",
+      },
+      totalPremiumCollectedAssets: "5000000",
+      nextOpenAfter: 1785312000,
+      nextOpenCondition: "after_usdc_normalization",
+    },
+  };
+}
+
+function emptyPosition(
+  overrides: Partial<FundPositionResponse> = {},
+): FundPositionResponse {
   return {
     fundKey: "base-sepolia:csp",
     address: "0x4000000000000000000000000000000000000004",
@@ -460,5 +614,6 @@ function emptyPosition(): FundPositionResponse {
     asOfBlock: 110,
     indexedAt: "2026-07-26T15:00:00Z",
     stale: false,
+    ...overrides,
   };
 }
