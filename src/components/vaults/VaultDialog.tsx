@@ -216,7 +216,7 @@ function FundOverview({
   const assignedWethValue = valuation?.assignedWethValueAssets;
   const idleHelp =
     vault.strategyKind === "covered_call"
-      ? `The current policy secures 25% of available ${vault.accountingAssetSymbol} per cycle. The rest stays liquid for exits and the next rebalance.`
+      ? `New positions secure up to 80% of the available ${vault.accountingAssetSymbol} at the start of each cycle. The remaining 20% stays liquid, and an open position is not resized mid-cycle.`
       : `${vault.accountingAssetSymbol} that is not locked as option collateral. It remains available for the next position or redemption processing.`;
   return (
     <section className="border-b border-[var(--vault-border)] p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-10">

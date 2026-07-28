@@ -77,7 +77,7 @@ function cspPolicy(asset: AssetConfig): VaultCardMetadata["policy"] {
     intro: `The vault continuously sells one ${asset.symbol} cash-secured put at a time.`,
     steps: [
       `Deposits receive transferable fund shares immediately. New ${asset.stableSymbol} stays idle until the next position opens.`,
-      `The allocator uses up to 80% of liquid ${asset.stableSymbol}, capped at 800 ${asset.stableSymbol} under the current ETH test policy.`,
+      `Each new position uses up to 80% of the liquid ${asset.stableSymbol} available then and keeps the remaining 20% as a reserve.`,
       "After each put settles, the vault attempts to open the next eligible position for about another 48 hours.",
       `If assigned, ${asset.wrappedSymbol} stays in the fund and the next put uses the remaining liquid ${asset.stableSymbol}. Assignment alone does not stop the loop.`,
       `The vault waits only when there is not enough ${asset.stableSymbol}, pricing or NAV is not current, no eligible quote is available, or the strategy is explicitly paused.`,
@@ -91,13 +91,13 @@ function coveredCallPolicy(
   return {
     strike: "Far above spot · Δ 0.05 ±0.015",
     duration: "≈48 hours",
-    allocation: `25% · ≤0.0025 ${asset.wrappedSymbol}`,
+    allocation: "Up to 80%",
     positionLimit: "One at a time",
     intro: `The vault repeatedly sells one covered ${asset.symbol} call at a time.`,
     steps: [
       `Deposits receive transferable fund shares immediately. New ${asset.wrappedSymbol} stays idle until the next position opens.`,
       "The allocator targets a low-delta call. Its exact percentage above spot changes with volatility; eligible quotes stay near delta 0.05.",
-      `Each testnet position uses 25% of liquid ${asset.wrappedSymbol}, capped at 0.0025 ${asset.wrappedSymbol}, and targets about 48 hours to expiry.`,
+      `Each new position uses up to 80% of the liquid ${asset.wrappedSymbol} available then, keeps the remaining 20% as a reserve, and targets about 48 hours to expiry.`,
       `After an OTM call settles, ${asset.wrappedSymbol} unlocks and the vault attempts to open the next eligible call.`,
       `${asset.stableSymbol} from an ITM settlement remains accounted inside the strategy while it is safely normalized back to ${asset.wrappedSymbol}; then the loop can continue.`,
       `The vault keeps opening calls while enough ${asset.wrappedSymbol}, current NAV and an eligible quote exist. It waits on unresolved normalization, caps or an explicit pause.`,

@@ -207,7 +207,7 @@ describe("VaultsPage", () => {
     expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
     await user.click(screen.getByText("How this vault works"));
     expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
-    expect(screen.getByText("25% · ≤0.0025 WETH")).toBeInTheDocument();
+    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
     expect(
       screen.getByText(/keeps opening calls while enough WETH/i),
     ).toBeInTheDocument();
@@ -414,7 +414,7 @@ describe("VaultsPage", () => {
       screen.getByRole("button", { name: "Info: Idle WETH" }),
     );
     expect(await screen.findByRole("tooltip")).toHaveTextContent(
-      "secures 25% of available WETH per cycle",
+      "secure up to 80% of the available WETH",
     );
     expect(
       screen.getByRole("button", {
@@ -424,7 +424,7 @@ describe("VaultsPage", () => {
 
     await user.click(screen.getByText("How this vault works"));
     expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
-    expect(screen.getByText("25% · ≤0.0025 WETH")).toBeInTheDocument();
+    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
     expect(
       screen.getByText(/keeps opening calls while enough WETH/i),
     ).toBeInTheDocument();
