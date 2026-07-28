@@ -220,6 +220,9 @@ describe("tokenized CSP fund", () => {
       "0xaA1070adb74C5455320285618BF1ED804d3745C3",
     );
     expect(
+      BASE_SEPOLIA_COVERED_CALL_FUND.contracts.fund_vault.implementation,
+    ).toBe("0xCae10a81aE1aA0183A4b4283A3ACbE9A2642613A");
+    expect(
       BASE_SEPOLIA_COVERED_CALL_FUND.contracts.covered_call_adapter
         .implementation,
     ).toBe("0x42e603131671Aba8C9e2b0B21b0f7B376C9151Be");
@@ -287,6 +290,28 @@ describe("tokenized CSP fund", () => {
         BASE_SEPOLIA_COVERED_CALL_FUND,
       ),
     ).toBeNull();
+
+    const previousImplementationConfig = {
+      ...coveredCallConfig,
+      contracts: coveredCallConfig.contracts.map((contract) =>
+        contract.role === "fund_vault"
+          ? {
+              ...contract,
+              implementationAddress:
+                "0xAf51984EcC261a4B3052eA90c9a85768F81DE764",
+            }
+          : contract,
+      ),
+    };
+    expect(
+      fundTrustError(
+        coveredCallSummary,
+        previousImplementationConfig,
+        null,
+        undefined,
+        BASE_SEPOLIA_COVERED_CALL_FUND,
+      ),
+    ).toBe("Trusted fund_vault implementation mismatch.");
   });
 
   it("uses the deployed FundVault entry, request, cancel, claim, and operator ABI", () => {

@@ -57,24 +57,37 @@ vi.mock("@/hooks/useFundVault", () => ({
 describe("VaultsPage", () => {
   it("renders a minimal vault-first catalog and preserves manual trading", () => {
     render(<VaultsPage />);
-    expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "ETH Cash-Secured Put" }),
+    ).toBeInTheDocument();
     const coveredCallCard = screen
       .getByRole("heading", { name: "ETH Covered Call" })
       .closest("article");
     expect(coveredCallCard).not.toBeNull();
     expect(screen.getAllByText("NAV price")).toHaveLength(2);
     expect(screen.getByText("ETH puts")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("WETH vault")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("ETH Covered Call")).toBeInTheDocument();
+    expect(within(coveredCallCard!).queryByText("WETH vault")).not.toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("ETH calls")).toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("No position")).toBeInTheDocument();
     expect(
       within(coveredCallCard!).getByRole("button", { name: "Deposit WETH" }),
     ).toBeEnabled();
     expect(
-      within(coveredCallCard!).getByText(/Calls cap ETH upside/i),
+      within(coveredCallCard!).getByText(
+        "Earn income on ETH you already own.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Earn income while waiting to buy ETH at a lower price.",
+      ),
     ).toBeInTheDocument();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Refresh fund data" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
     expect(screen.queryByText("How this vault works")).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute("href", "/earn/eth");
@@ -82,12 +95,64 @@ describe("VaultsPage", () => {
     expect(screen.getByRole("button", { name: "Smart wallet balances" })).toHaveTextContent("125.00 USDC");
   });
 
+  it("switches the catalog to another Base asset without inventing live funds", async () => {
+    const user = userEvent.setup();
+    render(<VaultsPage />);
+
+    await user.click(
+      screen.getByRole("button", {
+        name: "Select vault asset. Current asset ETH",
+      }),
+    );
+    expect(
+      screen.queryByRole("button", { name: "Select SOL" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Select TSLAx" }),
+    ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Select cbBTC" }));
+
+    const cspCard = screen
+      .getByRole("heading", { name: "cbBTC Cash-Secured Put" })
+      .closest("article");
+    const coveredCallCard = screen
+      .getByRole("heading", { name: "cbBTC Covered Call" })
+      .closest("article");
+    expect(cspCard).not.toBeNull();
+    expect(coveredCallCard).not.toBeNull();
+    expect(within(cspCard!).getByText(
+      "Earn income while waiting to buy cbBTC at a lower price.",
+    )).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText(
+      "Earn income on cbBTC you already own.",
+    )).toBeInTheDocument();
+    expect(within(cspCard!).getByText("cbBTC puts")).toBeInTheDocument();
+    expect(within(cspCard!).getByText("cbBTC Cash-Secured Put")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("cbBTC calls")).toBeInTheDocument();
+    expect(within(coveredCallCard!).getByText("cbBTC Covered Call")).toBeInTheDocument();
+    expect(
+      within(cspCard!).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
+    expect(
+      within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
+    expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute(
+      "href",
+      "/earn/btc",
+    );
+  });
+
   it("does not invent a covered-call position in My Vaults", () => {
     render(<VaultsPage view="my" />);
 
-    expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
     expect(
-      screen.queryByRole("heading", { name: "ETH Covered Call" }),
+      screen.getByRole("heading", { name: "ETH Cash-Secured Put" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("ETH Covered Call"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /select vault asset/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -142,7 +207,7 @@ describe("VaultsPage", () => {
     expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
     await user.click(screen.getByText("How this vault works"));
     expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
-    expect(screen.getByText("25% · ≤0.0025 WETH")).toBeInTheDocument();
+    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
     expect(
       screen.getByText(/keeps opening calls while enough WETH/i),
     ).toBeInTheDocument();
@@ -287,7 +352,7 @@ describe("VaultsPage", () => {
     expect(screen.queryByText("−$0.00")).not.toBeInTheDocument();
   });
 
-  it("reveals assigned inventory and settlement costs only when present", () => {
+  it("keeps assigned inventory visible while lifecycle costs stay inside NAV", () => {
     const summary = fairSummary();
     summary.composition.assignedWeth = "1000000000000000000";
     summary.composition.assignedWethValueAssets = "1900000000";
@@ -309,8 +374,8 @@ describe("VaultsPage", () => {
     expect(screen.getByText("Assigned WETH")).toBeInTheDocument();
     expect(screen.getByText("1 WETH")).toBeInTheDocument();
     expect(screen.getByText("$1,900.00")).toBeInTheDocument();
-    expect(screen.getByText("Settlement costs")).toBeInTheDocument();
-    expect(screen.getByText("$0.25")).toBeInTheDocument();
+    expect(screen.queryByText("Settlement costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("$0.25")).not.toBeInTheDocument();
   });
 
   it("renders the live covered-call lifecycle in WETH without treating it as dollars", async () => {
@@ -334,16 +399,32 @@ describe("VaultsPage", () => {
 
     expect(screen.getByText("ETH CALL · WETH")).toBeInTheDocument();
     expect(screen.getByText("Fair call liability")).toBeInTheDocument();
-    expect(screen.getByText("USDC being normalized")).toBeInTheDocument();
+    expect(screen.getByText("Premium awaiting conversion")).toBeInTheDocument();
     expect(screen.getAllByText("5 USDC")).toHaveLength(2);
-    expect(screen.getAllByText("0.0025 WETH")).toHaveLength(2);
+    expect(screen.getByText("0.0025 WETH")).toBeInTheDocument();
+    expect(screen.getByText("≈ 0.0025 WETH in NAV")).toBeInTheDocument();
     expect(screen.getByText("After USDC returns to WETH")).toBeInTheDocument();
+    expect(screen.queryByText("Settlement costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Normalization costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Option lifecycle costs")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deposit WETH" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
 
+    await user.hover(
+      screen.getByRole("button", { name: "Info: Idle WETH" }),
+    );
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "secure up to 80% of the available WETH",
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Info: Premium awaiting conversion",
+      }),
+    ).toBeInTheDocument();
+
     await user.click(screen.getByText("How this vault works"));
     expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
-    expect(screen.getByText("25% · ≤0.0025 WETH")).toBeInTheDocument();
+    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
     expect(
       screen.getByText(/keeps opening calls while enough WETH/i),
     ).toBeInTheDocument();

@@ -65,28 +65,25 @@ export function VaultCard({
       className="flex h-full flex-col overflow-hidden rounded-[28px] border border-[var(--vault-border)] bg-[var(--vault-surface)] p-5 sm:p-7"
     >
       <header className="flex items-start justify-between gap-5">
-        <div className="flex min-w-0 items-center gap-4">
-          <div className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--vault-surface-soft)]">
-            <VaultIcon icon={vault.icon} className="size-10" />
-          </div>
-          <div>
-            <p className="font-mono text-[11px] uppercase tracking-[0.16em] text-[var(--vault-text-subtle)]">
-              {vault.assetLabel}
-            </p>
-            <h2
-              id={`${vault.id}-title`}
-              className="mt-1 text-xl font-semibold tracking-[-0.035em] sm:text-2xl"
-            >
-              {vault.name}
-            </h2>
-          </div>
+        <div className="grid size-14 shrink-0 place-items-center rounded-full bg-[var(--vault-surface-soft)]">
+          <VaultIcon icon={vault.icon} className="size-10" />
         </div>
         <span className="shrink-0 rounded-full border border-[var(--vault-border)] px-3 py-1.5 text-[11px] font-medium text-[var(--vault-text-muted)]">
           {entryLabel}
         </span>
       </header>
 
-      <div className="mt-9">
+      <h2
+        id={`${vault.id}-title`}
+        className="mt-5 text-xl font-semibold leading-tight tracking-[-0.035em] text-[var(--vault-text)] sm:text-2xl"
+      >
+        {vault.name}
+      </h2>
+      <p className="mt-2 max-w-[46ch] text-sm leading-6 text-[var(--vault-text-muted)]">
+        {vault.description}
+      </p>
+
+      <div className="mt-8">
         <p className="text-xs text-[var(--vault-text-subtle)]">Your value</p>
         <p className="mt-1 font-mono text-4xl tracking-[-0.055em] sm:text-5xl">
           {position
@@ -120,10 +117,6 @@ export function VaultCard({
         />
         <Metric label="Strategy" value={vault.strategyLabel} />
       </dl>
-
-      <p className="mt-5 min-h-10 flex-1 text-xs leading-5 text-[var(--vault-text-muted)]">
-        {vault.description}
-      </p>
 
       <div className="mt-5 flex items-center justify-between border-t border-[var(--vault-border)] pt-5">
         <div>

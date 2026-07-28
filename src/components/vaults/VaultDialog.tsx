@@ -214,9 +214,10 @@ function FundOverview({
   const composition = summary?.composition;
   const valuation = summary ? fundValuation(summary) : null;
   const assignedWethValue = valuation?.assignedWethValueAssets;
-  const settlementCosts = valuation?.settlementCostAssets;
-  const normalizationCosts = valuation?.normalizationCostAssets;
-  const optionExitCosts = valuation?.optionExitCostAssets;
+  const idleHelp =
+    vault.strategyKind === "covered_call"
+      ? `New positions secure up to 80% of the available ${vault.accountingAssetSymbol} at the start of each cycle. The remaining 20% stays liquid, and an open position is not resized mid-cycle.`
+      : `${vault.accountingAssetSymbol} that is not locked as option collateral. It remains available for the next position or redemption processing.`;
   return (
     <section className="border-b border-[var(--vault-border)] p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-10">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--vault-accent)]">
@@ -255,7 +256,7 @@ function FundOverview({
             assetDecimals,
             vault.accountingAssetSymbol,
           )}
-          help={`${vault.accountingAssetSymbol} that is not locked as option collateral. It remains available for the next position or redemption processing.`}
+          help={idleHelp}
         />
         <OverviewMetric
           label="Locked collateral"
@@ -278,14 +279,14 @@ function FundOverview({
         {vault.strategyKind === "covered_call" &&
         isPositiveRaw(composition?.transientUsdc) ? (
           <OverviewMetric
-            label="USDC being normalized"
-            value={optionalAssetValue(
+            label="Premium awaiting conversion"
+            value={`${amount.format(rawFundAmount(composition?.transientUsdc, 6))} USDC`}
+            detail={`≈ ${optionalAssetValue(
               composition?.transientUsdcValueAssets,
               assetDecimals,
               vault.accountingAssetSymbol,
-            )}
-            detail={`${amount.format(rawFundAmount(composition?.transientUsdc, 6))} USDC`}
-            help="Premium or called-away proceeds still held as USDC. They remain in NAV and must be safely converted back to WETH before shareholder exits or the next cycle."
+            )} in NAV`}
+            help="Covered-call premiums arrive in USDC. The vault includes their WETH-equivalent value in NAV and converts them to WETH after settlement before opening the next cycle."
           />
         ) : null}
         {isPositiveRaw(assignedWethValue) ? (
@@ -298,39 +299,6 @@ function FundOverview({
             )}
             detail={`${amount.format(rawFundAmount(composition?.assignedWeth, 18))} WETH`}
             help="WETH received after a put assignment. It remains inside the fund and is included in your share value."
-          />
-        ) : null}
-        {isPositiveRaw(settlementCosts) ? (
-          <OverviewMetric
-            label="Settlement costs"
-            value={optionalAssetValue(
-              settlementCosts,
-              assetDecimals,
-              vault.accountingAssetSymbol,
-            )}
-            help="Expected costs to complete an option settlement. They are already deducted from NAV."
-          />
-        ) : null}
-        {isPositiveRaw(normalizationCosts) ? (
-          <OverviewMetric
-            label="Normalization costs"
-            value={optionalAssetValue(
-              normalizationCosts,
-              assetDecimals,
-              vault.accountingAssetSymbol,
-            )}
-            help="Expected cost to convert accounted USDC inventory back into WETH. It is already deducted from NAV."
-          />
-        ) : null}
-        {isPositiveRaw(optionExitCosts) ? (
-          <OverviewMetric
-            label="Option lifecycle costs"
-            value={optionalAssetValue(
-              optionExitCosts,
-              assetDecimals,
-              vault.accountingAssetSymbol,
-            )}
-            help="Expected costs to complete the current option lifecycle. They are already deducted from NAV."
           />
         ) : null}
       </dl>
