@@ -70,7 +70,7 @@ function quoteIsValid(q: PriceQuote): boolean {
 }
 
 function deadlineOk(q: PriceQuote): boolean {
-  return (q.deadline ?? 0) > Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_S;
+  return Number(q.deadline ?? 0) > Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_S;
 }
 
 export function RangeAcceptModal({

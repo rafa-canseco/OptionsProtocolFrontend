@@ -99,4 +99,36 @@ describe("marketState helpers", () => {
       ),
     ).toBe(false);
   });
+
+  it("allows virtual and creating firm quotes but blocks failed series", async () => {
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "ready" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: undefined }))).toBe(true);
+  });
+
+  it("keeps lazy series out of the two-leg range flow", async () => {
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "ready" }))).toBe(true);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: undefined }))).toBe(true);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(false);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(false);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
+  });
+
+  it("replaces a selected quote when signed fields refresh at the same strike", async () => {
+    const mod = await loadMarketStateModule();
+    const selected = buildQuote({ quote_id: "41", signature: "old" });
+    const refreshed = buildQuote({
+      quote_id: "42",
+      signature: "new",
+      deadline: "1900000040",
+    });
+
+    expect(mod.reconcileSelectedQuote(selected, [refreshed])).toBe(refreshed);
+  });
 });

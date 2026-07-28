@@ -1,6 +1,8 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export type OptionType = "call" | "put";
+export type QuoteSeriesStatus = "virtual" | "creating" | "ready" | "failed";
+export type QuoteRawUint = string | number;
 
 export interface PriceQuote {
   option_type: OptionType;
@@ -15,15 +17,64 @@ export interface PriceQuote {
   expires_at: number;
   available_amount: number;
   otoken_address: string | null;
+  deployment_status?: QuoteSeriesStatus;
   signature: string | null;
   mm_address: string | null;
-  bid_price_raw: number | null;
-  deadline: number | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  bid_price_raw: QuoteRawUint | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  deadline: QuoteRawUint | null;
   quote_id: string | null;
-  max_amount_raw: number | null;
-  maker_nonce: number | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  max_amount_raw: QuoteRawUint | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  maker_nonce: QuoteRawUint | null;
   position_count: number;
   chain: "base" | "solana";
+}
+
+export interface ExecutionQuoteSnapshot {
+  otoken_address: string;
+  bid_price_raw: string;
+  deadline: string;
+  quote_id: string;
+  max_amount_raw: string;
+  maker_nonce: string;
+  signature: string;
+  mm_address: string;
+}
+
+export interface EnsureSeriesRequest {
+  wallet_address: string;
+  expected_otoken_address: string;
+  amount_raw: string;
+  quote: ExecutionQuoteSnapshot;
+}
+
+export interface EnsureSeriesResponse {
+  status: "ready" | "creating";
+  otoken_address: string;
+  retry_after_ms?: number;
+  deployment_tx_hash?: string | null;
+  execution_quote: ExecutionQuoteSnapshot;
+}
+
+export interface ApiErrorDetail {
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: ApiErrorDetail;
+
+  constructor(status: number, detail: ApiErrorDetail) {
+    super(`API ${status}: ${detail.message || "Request failed"}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
 }
 
 export interface Position {
@@ -546,7 +597,31 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${body}`);
+    let detail: ApiErrorDetail = {};
+    if (body) {
+      try {
+        const parsed = JSON.parse(body) as {
+          detail?: ApiErrorDetail | string;
+          code?: string;
+          message?: string;
+          retryable?: boolean;
+        };
+        detail =
+          typeof parsed.detail === "object" && parsed.detail !== null
+            ? parsed.detail
+            : {
+                code: parsed.code,
+                message:
+                  typeof parsed.detail === "string"
+                    ? parsed.detail
+                    : parsed.message,
+                retryable: parsed.retryable,
+              };
+      } catch {
+        detail = { message: body };
+      }
+    }
+    throw new ApiError(res.status, detail);
   }
   return res.json();
 }
@@ -554,6 +629,23 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
 export const api = {
   getPrices: (asset?: string) =>
     fetchAPI<PriceQuote[]>(asset ? `/prices?asset=${asset}` : "/prices"),
+
+  ensureSeries: (
+    request: EnsureSeriesRequest,
+    accessToken: string,
+    options?: { signal?: AbortSignal; idempotencyKey?: string },
+  ) =>
+    fetchAPI<EnsureSeriesResponse>("/series/ensure", {
+      method: "POST",
+      body: JSON.stringify(request),
+      signal: options?.signal,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(options?.idempotencyKey
+          ? { "Idempotency-Key": options.idempotencyKey }
+          : {}),
+      },
+    }),
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),

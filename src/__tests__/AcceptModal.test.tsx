@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AcceptModal } from "@/components/AcceptModal";
-import type { PriceQuote } from "@/lib/api";
+import { ApiError, type PriceQuote } from "@/lib/api";
 
 // --- Hoisted mock state ---------------------------------------------------
 
@@ -16,6 +16,9 @@ const { state } = vi.hoisted(() => ({
     waitForReceipt: vi.fn(),
     checkDeficit: vi.fn(),
     executeBridgeAndTrade: vi.fn(),
+    ensureSeries: vi.fn(),
+    getAccessToken: vi.fn(),
+    encodeExecuteOrder: vi.fn(),
   },
 }));
 
@@ -30,6 +33,23 @@ vi.mock("@/hooks/useWallet", () => ({
     isConnected: true,
   }),
 }));
+
+vi.mock("@privy-io/react-auth", () => ({
+  usePrivy: () => ({
+    getAccessToken: state.getAccessToken,
+  }),
+}));
+
+vi.mock("@/lib/api", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
+  return {
+    ...actual,
+    api: {
+      ...actual.api,
+      ensureSeries: state.ensureSeries,
+    },
+  };
+});
 
 vi.mock("@/hooks/useBalances", () => ({
   useBalances: () => ({
@@ -154,7 +174,7 @@ vi.mock("@/lib/execution", async () => {
       return typeof result === "string" ? (result as `0x${string}`) : null;
     },
     buildOptimisticPosition: vi.fn(() => ({})),
-    encodeExecuteOrder: () => "0xexecuteorder" as `0x${string}`,
+    encodeExecuteOrder: state.encodeExecuteOrder,
   };
 });
 
@@ -204,6 +224,18 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     state.getBalance.mockResolvedValue(BigInt(0));
     state.waitForReceipt.mockResolvedValue({});
     state.sendBatchTx.mockResolvedValue("0xsuccess");
+    state.getAccessToken.mockResolvedValue("privy-token");
+    state.ensureSeries.mockImplementation(
+      async (request: {
+        expected_otoken_address: string;
+        quote: Record<string, string>;
+      }) => ({
+        status: "ready",
+        otoken_address: request.expected_otoken_address,
+        execution_quote: request.quote,
+      }),
+    );
+    state.encodeExecuteOrder.mockReturnValue("0xexecuteorder");
   });
 
   afterEach(() => {
@@ -229,6 +261,37 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     await waitFor(() => {
       expect(state.sendBatchTx).toHaveBeenCalled();
     });
+
+    expect(state.getAccessToken).toHaveBeenCalledTimes(1);
+    expect(state.ensureSeries).toHaveBeenCalledTimes(1);
+    expect(state.encodeExecuteOrder).toHaveBeenCalledTimes(1);
+    expect(
+      state.ensureSeries.mock.invocationCallOrder[0],
+    ).toBeLessThan(state.encodeExecuteOrder.mock.invocationCallOrder[0]);
+    expect(
+      state.encodeExecuteOrder.mock.invocationCallOrder[0],
+    ).toBeLessThan(state.sendBatchTx.mock.invocationCallOrder[0]);
+    expect(state.ensureSeries).toHaveBeenCalledWith(
+      expect.objectContaining({
+        wallet_address: "0xSmartWallet",
+        expected_otoken_address: "0xOtoken",
+        amount_raw: "478260",
+        quote: expect.objectContaining({
+          bid_price_raw: "280000",
+          deadline: "1900000030",
+          quote_id: "quote-1",
+          max_amount_raw: "200000000",
+          maker_nonce: "7",
+          signature: "0xsig",
+          mm_address: "0xMaker",
+        }),
+      }),
+      "privy-token",
+      expect.objectContaining({
+        signal: expect.any(AbortSignal),
+        idempotencyKey: expect.stringContaining("quote-1"),
+      }),
+    );
 
     // Deposit modal must NOT have been rendered (regression for B1N-309).
     expect(
@@ -264,5 +327,185 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     });
 
     expect(state.sendBatchTx).not.toHaveBeenCalled();
+    expect(state.ensureSeries).not.toHaveBeenCalled();
+  });
+
+  it("waits through creating before encoding or prompting the wallet", async () => {
+    state.ensureSeries
+      .mockImplementationOnce(
+        async (request: {
+          expected_otoken_address: string;
+          quote: Record<string, string>;
+        }) => ({
+          status: "creating",
+          otoken_address: request.expected_otoken_address,
+          retry_after_ms: 1,
+          execution_quote: request.quote,
+        }),
+      )
+      .mockImplementationOnce(
+        async (request: {
+          expected_otoken_address: string;
+          quote: Record<string, string>;
+        }) => ({
+          status: "ready",
+          otoken_address: request.expected_otoken_address,
+          execution_quote: request.quote,
+        }),
+      );
+
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ deployment_status: "virtual" })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    expect(await screen.findByText(/Creating option series/i)).toBeInTheDocument();
+    expect(state.encodeExecuteOrder).not.toHaveBeenCalled();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
+
+    await waitFor(() => {
+      expect(state.ensureSeries).toHaveBeenCalledTimes(2);
+      expect(state.sendBatchTx).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("fails closed when the prepared quote does not match", async () => {
+    const onQuoteInvalid = vi.fn();
+    state.ensureSeries.mockImplementation(
+      async (request: {
+        expected_otoken_address: string;
+        quote: Record<string, string>;
+      }) => ({
+        status: "ready",
+        otoken_address: request.expected_otoken_address,
+        execution_quote: {
+          ...request.quote,
+          maker_nonce: "8",
+        },
+      }),
+    );
+
+    render(
+      <AcceptModal
+        quote={buildBaseQuote()}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        onQuoteInvalid={onQuoteInvalid}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    expect(
+      await screen.findByText(/quote changed while the trade was being prepared/i),
+    ).toBeInTheDocument();
+    expect(state.encodeExecuteOrder).not.toHaveBeenCalled();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Refresh quote/i }),
+    );
+    expect(onQuoteInvalid).toHaveBeenCalledTimes(1);
+  });
+
+  it("shows a retryable preparation failure and only prompts the wallet after retry", async () => {
+    state.ensureSeries
+      .mockRejectedValueOnce(
+        new ApiError(503, {
+          code: "SERIES_CREATION_FAILED",
+          message: "Series creation is temporarily unavailable.",
+          retryable: true,
+        }),
+      )
+      .mockImplementationOnce(
+        async (request: {
+          expected_otoken_address: string;
+          quote: Record<string, string>;
+        }) => ({
+          status: "ready",
+          otoken_address: request.expected_otoken_address,
+          execution_quote: request.quote,
+        }),
+      );
+
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ deployment_status: "virtual" })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    expect(
+      await screen.findByText(/Series creation is temporarily unavailable/i),
+    ).toBeInTheDocument();
+    expect(state.encodeExecuteOrder).not.toHaveBeenCalled();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Retry preparation/i }),
+    );
+
+    await waitFor(() => {
+      expect(state.ensureSeries).toHaveBeenCalledTimes(2);
+      expect(state.sendBatchTx).toHaveBeenCalledTimes(1);
+    });
+    expect(
+      state.ensureSeries.mock.calls[0][2].idempotencyKey,
+    ).toBe(state.ensureSeries.mock.calls[1][2].idempotencyKey);
+  });
+
+  it("does not prepare Solana orders", async () => {
+    const previousSolanaEnabled = process.env.NEXT_PUBLIC_SOLANA_ENABLED;
+    process.env.NEXT_PUBLIC_SOLANA_ENABLED = "true";
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ chain: "solana" })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="SOL"
+        assetSlug="sol"
+      />,
+    );
+
+    await userEvent.click(
+      await screen.findByRole("button", { name: /Accept/i }),
+    );
+
+    await waitFor(() => {
+      expect(state.ensureSeries).not.toHaveBeenCalled();
+    });
+    if (previousSolanaEnabled === undefined) {
+      delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
+    } else {
+      process.env.NEXT_PUBLIC_SOLANA_ENABLED = previousSolanaEnabled;
+    }
   });
 });
