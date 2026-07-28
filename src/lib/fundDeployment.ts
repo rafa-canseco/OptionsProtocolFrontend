@@ -5,6 +5,21 @@ export type TrustedFundBinding = {
   implementation: Address | null;
 };
 
+export type FundStrategyKind = "cash_secured_put" | "covered_call";
+
+export type TrustedFundDeployment = {
+  chainId: number;
+  fundKey: string;
+  fundAddress: Address;
+  shareAddress: Address;
+  accountingAssetAddress: Address;
+  wethAddress: Address;
+  deploymentFirstBlock: number;
+  strategyKind: FundStrategyKind;
+  environmentPrefix: "CSP_FUND" | "COVERED_CALL_FUND";
+  contracts: Record<string, TrustedFundBinding>;
+};
+
 /**
  * B1N-352 v2 trust anchor for the only fund supported in Hito 1.
  *
@@ -20,6 +35,8 @@ export const BASE_SEPOLIA_CSP_FUND = {
   accountingAssetAddress: "0xAB51a471493832C1D70cef8ff937A850cf37c860",
   wethAddress: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
   deploymentFirstBlock: 44_541_995,
+  strategyKind: "cash_secured_put",
+  environmentPrefix: "CSP_FUND",
   contracts: {
     fund_vault: {
       address: "0x53e38Baf2fC55259729085b7542BFF066F6a509e",
@@ -94,6 +111,100 @@ export const BASE_SEPOLIA_CSP_FUND = {
       implementation: null,
     },
   } satisfies Record<string, TrustedFundBinding>,
-} as const;
+} as const satisfies TrustedFundDeployment;
 
-export type TrustedFundRole = keyof typeof BASE_SEPOLIA_CSP_FUND.contracts;
+/**
+ * B1N-360 Base Sepolia trust anchor for the WETH covered-call fund.
+ *
+ * The backend registry and config response must match every binding before
+ * smart-wallet writes are enabled.
+ */
+export const BASE_SEPOLIA_COVERED_CALL_FUND = {
+  chainId: 84532,
+  fundKey: "base-sepolia:covered-call",
+  fundAddress: "0x9060946E6ACC4E430A823E90120743c7305EE2CA",
+  shareAddress: "0xaA1070adb74C5455320285618BF1ED804d3745C3",
+  accountingAssetAddress: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+  wethAddress: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+  deploymentFirstBlock: 44_709_928,
+  strategyKind: "covered_call",
+  environmentPrefix: "COVERED_CALL_FUND",
+  contracts: {
+    fund_vault: {
+      address: "0x9060946E6ACC4E430A823E90120743c7305EE2CA",
+      implementation: "0xAf51984EcC261a4B3052eA90c9a85768F81DE764",
+    },
+    fund_share: {
+      address: "0xaA1070adb74C5455320285618BF1ED804d3745C3",
+      implementation: "0x900264215ED313a6cC95e8BA8BF47b20069777fC",
+    },
+    fund_accounting: {
+      address: "0x9a112A65FE8510bCf5DC894fFBf06aEa8d12d311",
+      implementation: "0xca698509f7770465A580Be3733E56D3CbC8bCd76",
+    },
+    fund_flow_manager: {
+      address: "0x59fc0d88aAF3D14b82696cc7E91ea37b629E48cc",
+      implementation: "0x20EB957dfF753074a52487CbC3F4297879E9536e",
+    },
+    strategy_manager: {
+      address: "0x745422dd14E84ee27C2E56D2845C3BB1658027d9",
+      implementation: "0x88CDCF59F289b0346F568a751Fd8e08409B08271",
+    },
+    covered_call_adapter: {
+      address: "0x0BF96C5cE0D637d4D686d342aE42Bc00fDa19De9",
+      implementation: "0x42e603131671Aba8C9e2b0B21b0f7B376C9151Be",
+    },
+    controller: {
+      address: "0xD52EFbBaA1b02BA65A7f0A1604A5dFb4C4dB1572",
+      implementation: "0x5cfB9ca0437D4a5b3735bba0d9E2490a05F532bc",
+    },
+    batch_settler: {
+      address: "0xb94D6270B336dca566C2077d50c2C50F06398cB8",
+      implementation: "0x040219e594de2862D1480a6A3c1d45c5c032aCE6",
+    },
+    claim_escrow: {
+      address: "0x8842372431CA713402Ac15E868Eb7d8A7c98A807",
+      implementation: null,
+    },
+    access_manager: {
+      address: "0x5AfD3d840ec2f7fE078b44b75462C2dCD3DC3F6D",
+      implementation: null,
+    },
+    address_book: {
+      address: "0x033d9d37Baf83dBc71935239b6fA22a6905dbaa0",
+      implementation: null,
+    },
+    covered_call_valuator: {
+      address: "0xA1BFC1bE3C7fCA77CA0b32d25de1Ce58A50333A0",
+      implementation: null,
+    },
+    margin_pool: {
+      address: "0xeEab53b8022C32349A80C8d905492EBa6b2deaE9",
+      implementation: null,
+    },
+    nav_verifier: {
+      address: "0xb71252822F1Bd5F526E80A225ade2520d6903dB8",
+      implementation: null,
+    },
+    oracle: {
+      address: "0xF95CC4aED4a0bD68e0F1BE7c779BC281189F8187",
+      implementation: null,
+    },
+    otoken_factory: {
+      address: "0x193ED89eB64d0179b4dB08E87E541b7b3c30002A",
+      implementation: null,
+    },
+    swap_router: {
+      address: "0x7442287A564D7A7f412a12Ff986a242E1A969abB",
+      implementation: null,
+    },
+    whitelist: {
+      address: "0xe0Ca66a93341eB0af0C136651c8B57C187aa60Ab",
+      implementation: null,
+    },
+  } satisfies Record<string, TrustedFundBinding>,
+} as const satisfies TrustedFundDeployment;
+
+export type TrustedFundRole =
+  | keyof typeof BASE_SEPOLIA_CSP_FUND.contracts
+  | keyof typeof BASE_SEPOLIA_COVERED_CALL_FUND.contracts;

@@ -17,6 +17,7 @@ import type {
 import { ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
 import {
   BASE_SEPOLIA_CSP_FUND,
+  type TrustedFundDeployment,
   type TrustedFundBinding,
 } from "@/lib/fundDeployment";
 
@@ -34,17 +35,28 @@ const PROXY_ROLES = new Set<string>([
   "fund_flow_manager",
   "strategy_manager",
   "csp_adapter",
+  "covered_call_adapter",
   "controller",
   "batch_settler",
 ]);
-
-const REQUIRED_ROLES = new Set<string>(Object.keys(BASE_SEPOLIA_CSP_FUND.contracts));
 
 export type FundActionKey =
   | "deposit"
   | "requestRedemption"
   | "cancelRedemption"
   | "claimRedemption";
+
+export function configuredFundKey(
+  deployment: TrustedFundDeployment,
+): string {
+  return deploymentEnv(deployment, "KEY") || deployment.fundKey;
+}
+
+export function configuredFundAddress(
+  deployment: TrustedFundDeployment,
+): string {
+  return deploymentEnv(deployment, "ADDRESS") || deployment.fundAddress;
+}
 
 export const FUND_VAULT_ABI = [
   {
@@ -196,41 +208,50 @@ export function fundTrustError(
   config: FundConfigResponse,
   position?: FundPositionResponse | null,
   smartWallet?: Address,
+  deployment: TrustedFundDeployment = BASE_SEPOLIA_CSP_FUND,
 ): string | null {
-  const fundKey =
-    process.env.NEXT_PUBLIC_CSP_FUND_KEY || BASE_SEPOLIA_CSP_FUND.fundKey;
-  const fundAddress =
-    process.env.NEXT_PUBLIC_CSP_FUND_ADDRESS || BASE_SEPOLIA_CSP_FUND.fundAddress;
+  const fundKey = configuredFundKey(deployment);
+  const fundAddress = configuredFundAddress(deployment);
   const shareAddress =
-    process.env.NEXT_PUBLIC_CSP_FUND_SHARE_ADDRESS ||
-    BASE_SEPOLIA_CSP_FUND.shareAddress;
+    deploymentEnv(deployment, "SHARE_ADDRESS") || deployment.shareAddress;
   const assetAddress =
-    process.env.NEXT_PUBLIC_CSP_FUND_ASSET_ADDRESS ||
-    BASE_SEPOLIA_CSP_FUND.accountingAssetAddress;
+    deploymentEnv(deployment, "ASSET_ADDRESS") || deployment.accountingAssetAddress;
+  const product = deployment.strategyKind === "covered_call" ? "Covered Call" : "CSP";
   if (![fundAddress, shareAddress, assetAddress].every((value) => isAddress(value))) {
-    return "CSP fund allowlist contains an invalid address.";
+    return `${product} fund allowlist contains an invalid address.`;
   }
-  if (CHAIN.id !== FUND_CHAIN_ID || summary.fund.chainId !== FUND_CHAIN_ID) {
-    return "CSP fund is only enabled on Base Sepolia.";
+  if (CHAIN.id !== deployment.chainId || summary.fund.chainId !== deployment.chainId) {
+    return `${product} fund is only enabled on Base Sepolia.`;
   }
   if (summary.fund.fundKey !== fundKey || config.fundKey !== fundKey) {
-    return "CSP fund key does not match frontend configuration.";
+    return `${product} fund key does not match frontend configuration.`;
+  }
+  if (
+    summary.strategy?.strategyKind &&
+    summary.strategy.strategyKind !== deployment.strategyKind
+  ) {
+    return `${product} strategy kind does not match frontend configuration.`;
   }
   if (
     !sameAddress(summary.fund.fundAddress, fundAddress) ||
     !sameAddress(summary.fund.shareToken.address, shareAddress) ||
     !sameAddress(summary.fund.accountingAsset.address, assetAddress)
   ) {
-    return "CSP fund registry does not match the frontend allowlist.";
+    return `${product} fund registry does not match the frontend allowlist.`;
   }
+  const expectedAsset =
+    deployment.strategyKind === "covered_call" ? ADDRESSES.weth : ADDRESSES.usdc;
+  const expectedSymbol =
+    deployment.strategyKind === "covered_call" ? "WETH" : "USDC";
+  const expectedDecimals = deployment.strategyKind === "covered_call" ? 18 : 6;
   if (
-    summary.fund.accountingAsset.symbol !== "USDC" ||
-    summary.fund.accountingAsset.decimals !== 6 ||
-    !sameAddress(summary.fund.accountingAsset.address, ADDRESSES.usdc)
+    summary.fund.accountingAsset.symbol !== expectedSymbol ||
+    summary.fund.accountingAsset.decimals !== expectedDecimals ||
+    !sameAddress(summary.fund.accountingAsset.address, expectedAsset)
   ) {
-    return "CSP fund accounting asset does not match configured USDC.";
+    return `${product} fund accounting asset does not match configured ${expectedSymbol}.`;
   }
-  const contractError = trustedContractsError(config);
+  const contractError = trustedContractsError(config, deployment);
   if (contractError) return contractError;
   if (position && position.fundKey !== fundKey) return "Position fund key mismatch.";
   if (position && (!smartWallet || !sameAddress(position.address, smartWallet))) {
@@ -245,9 +266,16 @@ export function assertFundWriteAllowed(
   position: FundPositionResponse | null,
   actionKey: FundActionKey,
   smartWallet: Address,
+  deployment: TrustedFundDeployment = BASE_SEPOLIA_CSP_FUND,
 ): FundActionAvailability {
   if (!summary || !config) throw new Error("Fund data is still loading.");
-  const trustError = fundTrustError(summary, config, position, smartWallet);
+  const trustError = fundTrustError(
+    summary,
+    config,
+    position,
+    smartWallet,
+    deployment,
+  );
   if (trustError) throw new Error(trustError);
   if (summary.stale || config.writesEnabled === false || position?.stale) {
     throw new Error(
@@ -348,19 +376,23 @@ export function buildFundActionCall({
   };
 }
 
-function trustedContractsError(config: FundConfigResponse): string | null {
-  const configuredAllowlist = process.env.NEXT_PUBLIC_CSP_FUND_CONTRACT_ALLOWLIST;
+function trustedContractsError(
+  config: FundConfigResponse,
+  deployment: TrustedFundDeployment,
+): string | null {
+  const configuredAllowlist = deploymentEnv(deployment, "CONTRACT_ALLOWLIST");
   const allowlist = configuredAllowlist
     ? parseContractAllowlist(configuredAllowlist)
-    : deploymentContractAllowlist();
+    : deploymentContractAllowlist(deployment);
+  const requiredRoles = new Set<string>(Object.keys(deployment.contracts));
   if (!allowlist || allowlist.size === 0) return "Trusted contract allowlist is missing.";
   if (
-    allowlist.size !== REQUIRED_ROLES.size ||
-    [...REQUIRED_ROLES].some((role) => !allowlist.has(role))
+    allowlist.size !== requiredRoles.size ||
+    [...requiredRoles].some((role) => !allowlist.has(role))
   ) {
     return "Trusted contract allowlist is incomplete.";
   }
-  if (config.deploymentStatus !== "DEPLOYED") return "CSP fund deployment is not active.";
+  if (config.deploymentStatus !== "DEPLOYED") return "Fund deployment is not active.";
   if (config.contracts.length !== allowlist.size) return "Trusted contract role set mismatch.";
   for (const contract of config.contracts) {
     const expected = allowlist.get(contract.role);
@@ -380,10 +412,38 @@ function trustedContractsError(config: FundConfigResponse): string | null {
   return null;
 }
 
-function deploymentContractAllowlist() {
+function deploymentContractAllowlist(deployment: TrustedFundDeployment) {
   return new Map<string, TrustedFundBinding>(
-    Object.entries(BASE_SEPOLIA_CSP_FUND.contracts),
+    Object.entries(deployment.contracts),
   );
+}
+
+function deploymentEnv(
+  deployment: TrustedFundDeployment,
+  suffix: "KEY" | "ADDRESS" | "SHARE_ADDRESS" | "ASSET_ADDRESS" | "CONTRACT_ALLOWLIST",
+): string | undefined {
+  if (deployment.environmentPrefix === "COVERED_CALL_FUND") {
+    if (suffix === "KEY") return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_KEY;
+    if (suffix === "ADDRESS") {
+      return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_ADDRESS;
+    }
+    if (suffix === "SHARE_ADDRESS") {
+      return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_SHARE_ADDRESS;
+    }
+    if (suffix === "ASSET_ADDRESS") {
+      return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_ASSET_ADDRESS;
+    }
+    return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_CONTRACT_ALLOWLIST;
+  }
+  if (suffix === "KEY") return process.env.NEXT_PUBLIC_CSP_FUND_KEY;
+  if (suffix === "ADDRESS") return process.env.NEXT_PUBLIC_CSP_FUND_ADDRESS;
+  if (suffix === "SHARE_ADDRESS") {
+    return process.env.NEXT_PUBLIC_CSP_FUND_SHARE_ADDRESS;
+  }
+  if (suffix === "ASSET_ADDRESS") {
+    return process.env.NEXT_PUBLIC_CSP_FUND_ASSET_ADDRESS;
+  }
+  return process.env.NEXT_PUBLIC_CSP_FUND_CONTRACT_ALLOWLIST;
 }
 
 function parseContractAllowlist(value: string) {

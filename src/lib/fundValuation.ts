@@ -9,6 +9,8 @@ export type FundValuationBreakdown = {
   fairOptionLiabilityAssets: string | null;
   assignedWethValueAssets: string | null;
   settlementCostAssets: string | null;
+  normalizationCostAssets: string | null;
+  optionExitCostAssets: string | null;
   methodology: string;
   modelVersion: string | null;
   observedAt: string | null;
@@ -30,7 +32,8 @@ export function fundValuation(
   const legacyGross =
     unsigned(composition.idleAssets) +
     unsigned(composition.strategyAccountingAssets) +
-    (assignedValue === null ? BigInt(0) : assignedValue);
+    (assignedValue === null ? BigInt(0) : assignedValue) +
+    unsigned(composition.transientUsdcValueAssets);
 
   return {
     navPriceAssets: unsignedString(summary.sharePriceAssets),
@@ -50,6 +53,12 @@ export function fundValuation(
       assignedValue === null ? null : assignedValue.toString(),
     settlementCostAssets: optionalUnsignedString(
       composition.settlementCostAssets,
+    ),
+    normalizationCostAssets: optionalUnsignedString(
+      composition.normalizationCostAssets,
+    ),
+    optionExitCostAssets: optionalUnsignedString(
+      composition.optionExitCostAssets,
     ),
     methodology: summary.nav.methodology?.trim() || "Reported fair NAV",
     modelVersion: optionalModelVersion(summary.nav.modelVersion),
