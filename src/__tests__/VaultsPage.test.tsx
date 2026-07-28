@@ -352,7 +352,7 @@ describe("VaultsPage", () => {
     expect(screen.queryByText("−$0.00")).not.toBeInTheDocument();
   });
 
-  it("reveals assigned inventory and settlement costs only when present", () => {
+  it("keeps assigned inventory visible while lifecycle costs stay inside NAV", () => {
     const summary = fairSummary();
     summary.composition.assignedWeth = "1000000000000000000";
     summary.composition.assignedWethValueAssets = "1900000000";
@@ -374,8 +374,8 @@ describe("VaultsPage", () => {
     expect(screen.getByText("Assigned WETH")).toBeInTheDocument();
     expect(screen.getByText("1 WETH")).toBeInTheDocument();
     expect(screen.getByText("$1,900.00")).toBeInTheDocument();
-    expect(screen.getByText("Settlement costs")).toBeInTheDocument();
-    expect(screen.getByText("$0.25")).toBeInTheDocument();
+    expect(screen.queryByText("Settlement costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("$0.25")).not.toBeInTheDocument();
   });
 
   it("renders the live covered-call lifecycle in WETH without treating it as dollars", async () => {
@@ -399,12 +399,28 @@ describe("VaultsPage", () => {
 
     expect(screen.getByText("ETH CALL · WETH")).toBeInTheDocument();
     expect(screen.getByText("Fair call liability")).toBeInTheDocument();
-    expect(screen.getByText("USDC being normalized")).toBeInTheDocument();
+    expect(screen.getByText("Premium awaiting conversion")).toBeInTheDocument();
     expect(screen.getAllByText("5 USDC")).toHaveLength(2);
-    expect(screen.getAllByText("0.0025 WETH")).toHaveLength(2);
+    expect(screen.getByText("0.0025 WETH")).toBeInTheDocument();
+    expect(screen.getByText("≈ 0.0025 WETH in NAV")).toBeInTheDocument();
     expect(screen.getByText("After USDC returns to WETH")).toBeInTheDocument();
+    expect(screen.queryByText("Settlement costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Normalization costs")).not.toBeInTheDocument();
+    expect(screen.queryByText("Option lifecycle costs")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Deposit WETH" })).toBeDisabled();
     expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
+
+    await user.hover(
+      screen.getByRole("button", { name: "Info: Idle WETH" }),
+    );
+    expect(await screen.findByRole("tooltip")).toHaveTextContent(
+      "secures 25% of available WETH per cycle",
+    );
+    expect(
+      screen.getByRole("button", {
+        name: "Info: Premium awaiting conversion",
+      }),
+    ).toBeInTheDocument();
 
     await user.click(screen.getByText("How this vault works"));
     expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
