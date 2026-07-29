@@ -9,10 +9,16 @@ import type {
   FundSummaryResponse,
 } from "@/lib/api";
 import {
+  CSP_VAULT_CARD,
   COVERED_CALL_VAULT_CARD,
   EMPTY_VAULT_POSITION,
   VAULT_STATE_COPY,
+  mapFundPosition,
 } from "@/lib/vaults";
+import {
+  applyOptimisticFundDeposits,
+  type OptimisticFundDeposit,
+} from "@/lib/fundDepositReconciliation";
 
 vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
@@ -459,6 +465,87 @@ describe("VaultsPage", () => {
     expect(screen.getByText("Waiting")).toBeInTheDocument();
     expect(screen.getByText("0 USDC")).toBeInTheDocument();
     expect(screen.getByText("When WETH and pricing are ready")).toBeInTheDocument();
+  });
+
+  it("updates card and dialog together while an old confirmed deposit remains syncing", () => {
+    const canonicalSummary = fairSummary();
+    const canonicalPosition = emptyPosition();
+    const deposit: OptimisticFundDeposit = {
+      transactionHash: `0x${"a".repeat(64)}`,
+      fundKey: canonicalSummary.fund.fundKey,
+      fundAddress: canonicalSummary.fund.fundAddress as `0x${string}`,
+      smartWallet: canonicalPosition.address as `0x${string}`,
+      sender: canonicalPosition.address as `0x${string}`,
+      assets: "194000000",
+      shares: "200000000000000000000",
+      blockNumber: "111",
+      positionSharesBefore: "0",
+      confirmedAt: 1_000,
+    };
+
+    function SharedDepositHarness({ confirmed }: { confirmed: boolean }) {
+      const display = applyOptimisticFundDeposits(
+        canonicalSummary,
+        canonicalPosition,
+        confirmed ? [deposit] : [],
+        canonicalPosition.address as `0x${string}`,
+      )!;
+      return (
+        <>
+          <VaultCard
+            vault={CSP_VAULT_CARD}
+            summary={display.summary}
+            position={mapFundPosition(display.position, display.summary)}
+            onOpen={vi.fn()}
+          />
+          <VaultDialog
+            summary={display.summary}
+            position={display.position}
+            canonicalSummary={canonicalSummary}
+            canonicalPosition={canonicalPosition}
+            config={null}
+            loadError={null}
+            smartUsdcRaw={BigInt(500_000000)}
+            onRefetch={async () => null}
+            optimisticDeposits={confirmed ? [deposit] : []}
+            open
+            onOpenChange={vi.fn()}
+          />
+        </>
+      );
+    }
+
+    const { container, rerender } = render(
+      <SharedDepositHarness confirmed={false} />,
+    );
+    const card = container.querySelector("article") as HTMLElement;
+    const dialog = screen.getByRole("dialog");
+    expect(within(card).getByText("$0.00")).toBeInTheDocument();
+    expect(within(dialog).getByText("$0.00")).toBeInTheDocument();
+
+    rerender(<SharedDepositHarness confirmed />);
+
+    const updatedCard = container.querySelector("article") as HTMLElement;
+    const updatedDialog = screen.getByRole("dialog");
+    expect(updatedCard).toBe(card);
+    expect(updatedDialog).toBe(dialog);
+    expect(within(updatedCard).getByText("$194.00")).toBeInTheDocument();
+    expect(within(updatedCard).getByText("200 shares")).toBeInTheDocument();
+    expect(within(updatedDialog).getByText("$194.00")).toBeInTheDocument();
+    expect(within(updatedDialog).getByText("200 fund shares")).toBeInTheDocument();
+    expect(
+      within(updatedDialog).getByText(
+        "Confirmed on-chain · Vault data is still syncing",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(updatedDialog).getByRole("link", {
+        name: deposit.transactionHash,
+      }),
+    ).toHaveAttribute(
+      "href",
+      `https://base-sepolia.blockscout.com/tx/${deposit.transactionHash}`,
+    );
   });
 });
 
