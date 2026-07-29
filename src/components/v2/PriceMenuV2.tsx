@@ -17,7 +17,11 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { isExecutableQuote, isProductionReadOnlyAsset } from "@/lib/marketState";
+import {
+  isExecutableQuote,
+  isProductionReadOnlyAsset,
+  reconcileSelectedQuote,
+} from "@/lib/marketState";
 import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
@@ -378,13 +382,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
-    setSelectedQuote((prev) => {
-      if (!prev) return prev;
-      const match = filteredPrices.find((q) => q.strike === prev.strike);
-      if (!match) return null;
-      if (match.premium !== prev.premium || match.expiry_days !== prev.expiry_days) return match;
-      return prev;
-    });
+    setSelectedQuote((prev) => reconcileSelectedQuote(prev, filteredPrices));
   }, [filteredPrices]);
 
   const selectedEarnings =
