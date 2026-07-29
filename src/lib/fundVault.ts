@@ -9,6 +9,7 @@ import {
 import type { BatchCall } from "@/hooks/useWallet";
 import type {
   FundActionAvailability,
+  FundApiStrategyKind,
   FundActions,
   FundConfigResponse,
   FundPositionResponse,
@@ -226,10 +227,13 @@ export function fundTrustError(
   if (summary.fund.fundKey !== fundKey || config.fundKey !== fundKey) {
     return `${product} fund key does not match frontend configuration.`;
   }
-  if (
-    summary.strategy?.strategyKind &&
-    summary.strategy.strategyKind !== deployment.strategyKind
-  ) {
+  const observedStrategyKinds = [
+    summary.fund.strategyKind,
+    summary.strategy?.strategyKind,
+  ].filter((kind): kind is FundApiStrategyKind => kind !== undefined);
+  if (observedStrategyKinds.some(
+    (kind) => trustedStrategyKind(kind) !== deployment.strategyKind
+  )) {
     return `${product} strategy kind does not match frontend configuration.`;
   }
   if (
@@ -258,6 +262,12 @@ export function fundTrustError(
     return "Fund position does not belong to the connected smart wallet.";
   }
   return null;
+}
+
+function trustedStrategyKind(
+  strategyKind: FundApiStrategyKind,
+): TrustedFundDeployment["strategyKind"] {
+  return strategyKind === "csp" ? "cash_secured_put" : strategyKind;
 }
 
 export function assertFundWriteAllowed(
