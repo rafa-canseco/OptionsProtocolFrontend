@@ -61,6 +61,16 @@ export function configuredFundAddress(
 
 export const FUND_VAULT_ABI = [
   {
+    type: "event",
+    name: "Deposit",
+    inputs: [
+      { name: "sender", type: "address", indexed: true },
+      { name: "owner", type: "address", indexed: true },
+      { name: "assets", type: "uint256", indexed: false },
+      { name: "shares", type: "uint256", indexed: false },
+    ],
+  },
+  {
     type: "function",
     name: "depositWithMinShares",
     inputs: [
