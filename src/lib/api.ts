@@ -431,13 +431,15 @@ export interface FundTokenMetadata {
   decimals: number;
 }
 
+export type FundApiStrategyKind = "csp" | "covered_call";
+
 export interface FundRegistryItem {
   fundKey: string;
   chainId: number;
   fundAddress: string;
   shareToken: FundTokenMetadata;
   accountingAsset: FundTokenMetadata;
-  strategyKind?: "cash_secured_put" | "covered_call";
+  strategyKind?: FundApiStrategyKind;
   /** Premium/settlement token when it differs from the accounting asset. */
   quoteAsset?: FundTokenMetadata | null;
   deploymentStatus: string;
@@ -489,7 +491,7 @@ export interface FundOptionPositionSummary {
 export type CspPositionSummary = FundOptionPositionSummary;
 
 export interface FundStrategySnapshot {
-  strategyKind?: "cash_secured_put" | "covered_call";
+  strategyKind?: FundApiStrategyKind;
   latestPosition: FundOptionPositionSummary | null;
   totalPremiumCollectedAssets: string;
   nextOpenAfter: number | null;

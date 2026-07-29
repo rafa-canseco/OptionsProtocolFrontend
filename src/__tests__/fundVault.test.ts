@@ -187,6 +187,7 @@ describe("tokenized CSP fund", () => {
     const trustedSummary = summary({
       fund: {
         ...summary().fund,
+        strategyKind: "csp",
         fundAddress: BASE_SEPOLIA_CSP_FUND.fundAddress,
         shareToken: {
           ...summary().fund.shareToken,
@@ -196,6 +197,13 @@ describe("tokenized CSP fund", () => {
           ...summary().fund.accountingAsset,
           address: BASE_SEPOLIA_CSP_FUND.accountingAssetAddress,
         },
+      },
+      strategy: {
+        strategyKind: "csp",
+        latestPosition: null,
+        totalPremiumCollectedAssets: "0",
+        nextOpenAfter: null,
+        nextOpenCondition: "when_funded_and_pricing_is_ready",
       },
     });
     const trustedConfig = config({
