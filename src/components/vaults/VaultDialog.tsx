@@ -14,6 +14,8 @@ import {
   assertFundWriteAllowed,
   buildFundActionCall,
   buildFundDepositCalls,
+  configuredFundAddress,
+  configuredFundKey,
   fundAction,
   parseFundAmount,
   rawFundAmount,
@@ -22,6 +24,13 @@ import {
   transactionHashFromResult,
   type FundActionKey,
 } from "@/lib/fundVault";
+import {
+  confirmedFundDepositFromReceipt,
+  fundDepositIsIndexed,
+  fundDepositTransactionUrl,
+  type FundVaultSnapshot,
+  type OptimisticFundDeposit,
+} from "@/lib/fundDepositReconciliation";
 import { fundValuation } from "@/lib/fundValuation";
 import {
   BASE_SEPOLIA_CSP_FUND,
@@ -41,7 +50,15 @@ import {
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
 
 type DialogAction = "deposit" | "redeem";
-type TxStatus = "idle" | "submitting" | "confirmed";
+type TxStatus =
+  | "idle"
+  | "submitting"
+  | "confirming"
+  | "confirmed_onchain"
+  | "syncing"
+  | "synced"
+  | "confirmed";
+const NO_OPTIMISTIC_DEPOSITS: readonly OptimisticFundDeposit[] = [];
 
 const amount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
 const currency = new Intl.NumberFormat("en-US", {
@@ -71,12 +88,16 @@ type VaultDialogProps = {
   deployment?: TrustedFundDeployment;
   summary: FundSummaryResponse | null;
   position: FundPositionResponse | null;
+  canonicalSummary?: FundSummaryResponse | null;
+  canonicalPosition?: FundPositionResponse | null;
   config: FundConfigResponse | null;
   loadError: string | null;
   smartAssetRaw?: bigint;
   /** @deprecated Use smartAssetRaw. */
   smartUsdcRaw?: bigint;
-  onRefetch: () => Promise<void>;
+  onRefetch: () => Promise<FundVaultSnapshot | null>;
+  optimisticDeposits?: readonly OptimisticFundDeposit[];
+  onDepositConfirmed?: (deposit: OptimisticFundDeposit) => void;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -421,30 +442,41 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
   const [action, setAction] = useState<DialogAction>("deposit");
   const [value, setValue] = useState("");
   const transaction = useFundTransaction(props, action, value, setValue);
+  const canonicalSummary =
+    props.canonicalSummary === undefined
+      ? props.summary
+      : props.canonicalSummary;
+  const canonicalPosition =
+    props.canonicalPosition === undefined
+      ? props.position
+      : props.canonicalPosition;
   const plan = exitPlan(
-    props.position,
+    canonicalPosition,
     props.vault.accountingAssetSymbol,
   );
-  const decimals = props.summary?.fund.accountingAsset.decimals ?? 6;
+  const decimals = canonicalSummary?.fund.accountingAsset.decimals ?? 6;
   const availableRaw = action === "deposit"
     ? props.smartAssetRaw
-    : BigInt(props.position?.accountingValue ?? "0");
+    : BigInt(canonicalPosition?.accountingValue ?? "0");
   const needsAmount = action === "deposit" || plan.key === "requestRedemption";
   const availability = action === "deposit"
-    ? fundAction(props.summary?.actions, "deposit")
-    : fundAction(props.position?.actions, plan.key);
+    ? fundAction(canonicalSummary?.actions, "deposit")
+    : fundAction(canonicalPosition?.actions, plan.key);
   const rawInput = parseFundAmount(value, decimals);
   const expectedShares =
-    action === "deposit" && props.summary && rawInput > BigInt(0)
-      ? sharesForDeposit(rawInput, props.summary)
+    action === "deposit" && canonicalSummary && rawInput > BigInt(0)
+      ? sharesForDeposit(rawInput, canonicalSummary)
       : BigInt(0);
+  const transactionBusy =
+    transaction.status === "submitting" ||
+    transaction.status === "confirming";
   const disabled = Boolean(
     props.loadError ||
-    props.summary?.stale ||
-    props.position?.stale ||
+    canonicalSummary?.stale ||
+    canonicalPosition?.stale ||
     !props.config?.writesEnabled ||
     !availability.available ||
-    transaction.status === "submitting" ||
+    transactionBusy ||
     (needsAmount && (rawInput <= BigInt(0) || rawInput > availableRaw)),
   );
 
@@ -474,16 +506,18 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
       ) : (
         <p className="mt-3 rounded-[22px] border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] px-5 py-5 text-sm leading-6 text-[var(--vault-text-muted)]">{plan.description}</p>
       )}
-      {action === "deposit" && props.summary && expectedShares > BigInt(0) ? (
+      {action === "deposit" && canonicalSummary && expectedShares > BigInt(0) ? (
         <DepositNavPreview
-          summary={props.summary}
+          summary={canonicalSummary}
           expectedShares={expectedShares}
           assetSymbol={props.vault.accountingAssetSymbol}
         />
       ) : null}
       <button type="button" disabled={disabled} onClick={() => void transaction.submit(plan.key)} className="mt-6 min-h-14 w-full rounded-2xl border border-[var(--vault-accent)] text-base font-semibold text-[var(--vault-accent)] hover:bg-[var(--vault-accent-dim)] disabled:cursor-not-allowed disabled:border-[var(--vault-border)] disabled:text-[var(--vault-text-subtle)]">
         {transaction.status === "submitting"
-          ? "Confirming..."
+          ? "Submitting..."
+          : transaction.status === "confirming"
+            ? "Confirming..."
           : action === "deposit"
             ? `Deposit ${props.vault.accountingAssetSymbol}`
             : plan.label}
@@ -503,15 +537,46 @@ function useFundTransaction(
   const [status, setStatus] = useState<TxStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
+  const [depositRegistered, setDepositRegistered] = useState(false);
+  const optimisticDeposits =
+    props.optimisticDeposits ?? NO_OPTIMISTIC_DEPOSITS;
+  const unresolvedDeposit = hash
+    ? optimisticDeposits.find(
+        (deposit) =>
+          deposit.transactionHash.toLowerCase() === hash.toLowerCase(),
+      ) ?? null
+    : optimisticDeposits.at(-1) ?? null;
+
+  useEffect(() => {
+    if (
+      status === "syncing" &&
+      depositRegistered &&
+      hash &&
+      !optimisticDeposits.some(
+        (deposit) =>
+          deposit.transactionHash.toLowerCase() === hash.toLowerCase(),
+      )
+    ) {
+      setStatus("synced");
+    }
+  }, [depositRegistered, hash, optimisticDeposits, status]);
 
   async function submit(exitAction: Exclude<FundActionKey, "deposit">) {
     if (!address) return setError("Smart wallet not ready.");
+    let confirmedOnchain = false;
     setStatus("submitting");
     setError(null);
     try {
-      const summary = props.summary;
-      const position = props.position;
+      const summary =
+        props.canonicalSummary === undefined
+          ? props.summary
+          : props.canonicalSummary;
+      const position =
+        props.canonicalPosition === undefined
+          ? props.position
+          : props.canonicalPosition;
       const key = action === "deposit" ? "deposit" : exitAction;
+      const positionSharesBefore = BigInt(props.position?.shares ?? "0");
       assertFundWriteAllowed(
         summary,
         props.config,
@@ -528,15 +593,53 @@ function useFundTransaction(
             props.smartAssetRaw,
           )
         : [exitCall(summary!, position!, exitAction, address as Address, value)];
-      const confirmedHash = await sendAndWait(sendBatchTx(calls));
-      setHash(confirmedHash);
+      const transaction = await sendAndWait(sendBatchTx(calls), (submittedHash) => {
+        setHash(submittedHash);
+        setStatus("confirming");
+      });
+      confirmedOnchain = true;
+      if (action === "deposit") {
+        setStatus("confirmed_onchain");
+        const deposit = confirmedFundDepositFromReceipt({
+          receipt: transaction.receipt,
+          transactionHash: transaction.transactionHash,
+          fundKey: configuredFundKey(props.deployment),
+          fundAddress: configuredFundAddress(props.deployment) as Address,
+          smartWallet: address as Address,
+          positionSharesBefore,
+        });
+        if (!props.onDepositConfirmed) {
+          throw new Error("Deposit reconciliation is unavailable.");
+        }
+        props.onDepositConfirmed(deposit);
+        setDepositRegistered(true);
+        setStatus("syncing");
+        clearValue("");
+        window.dispatchEvent(new Event("balance:refetch"));
+        const snapshot = await props.onRefetch();
+        if (snapshot && fundDepositIsIndexed(snapshot, deposit)) {
+          setStatus("synced");
+        }
+        return;
+      }
       setStatus("confirmed");
       clearValue("");
       window.dispatchEvent(new Event("balance:refetch"));
       await props.onRefetch();
     } catch (cause) {
-      setStatus("idle");
-      setError(cause instanceof Error ? cause.message : "Fund transaction failed.");
+      if (confirmedOnchain) {
+        setStatus("confirmed_onchain");
+        setError(
+          cause instanceof Error
+            ? cause.message
+            : "Confirmed deposit could not be reconciled automatically.",
+        );
+      } else {
+        setStatus("idle");
+        setError(
+          cause instanceof Error ? cause.message : "Fund transaction failed.",
+        );
+      }
     }
   }
 
@@ -544,8 +647,9 @@ function useFundTransaction(
     setStatus("idle");
     setError(null);
     setHash(null);
+    setDepositRegistered(false);
   }
-  return { status, error, hash, submit, reset };
+  return { status, error, hash, unresolvedDeposit, submit, reset };
 }
 
 async function depositCalls(
@@ -587,11 +691,15 @@ function exitCall(
   return buildFundActionCall({ summary, position, actionKey: action, controller, shares });
 }
 
-async function sendAndWait(result: Promise<unknown>): Promise<string> {
+async function sendAndWait(
+  result: Promise<unknown>,
+  onSubmitted: (hash: `0x${string}`) => void,
+) {
   const hash = transactionHashFromResult(await result);
+  onSubmitted(hash);
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error("Fund transaction reverted.");
-  return hash;
+  return { transactionHash: hash, receipt };
 }
 
 function exitPlan(
@@ -631,8 +739,77 @@ function ActionStatus({ loadError, availability, transaction }: {
   transaction: ReturnType<typeof useFundTransaction>;
 }) {
   const message = transaction.error ?? loadError ?? (!availability.available ? availability.reasonCode : null);
+  const syncingDeposit = transaction.unresolvedDeposit;
+  if (syncingDeposit) {
+    return (
+      <div className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
+        <p className="text-[var(--vault-accent)]">
+          Confirmed on-chain · Vault data is still syncing
+        </p>
+        <a
+          href={fundDepositTransactionUrl(syncingDeposit.transactionHash)}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 block break-all font-mono underline decoration-[var(--vault-border-strong)] underline-offset-4 hover:text-[var(--vault-text)]"
+        >
+          {syncingDeposit.transactionHash}
+        </a>
+      </div>
+    );
+  }
+  if (transaction.status === "confirming" && transaction.hash) {
+    return (
+      <div className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
+        <p>Transaction submitted · Waiting for confirmation</p>
+        <a
+          href={fundDepositTransactionUrl(transaction.hash)}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 block break-all font-mono underline decoration-[var(--vault-border-strong)] underline-offset-4 hover:text-[var(--vault-text)]"
+        >
+          {transaction.hash}
+        </a>
+      </div>
+    );
+  }
+  if (transaction.status === "synced" && transaction.hash) {
+    return (
+      <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">
+        Deposit synced:{" "}
+        <a
+          href={fundDepositTransactionUrl(transaction.hash)}
+          target="_blank"
+          rel="noreferrer"
+          className="underline underline-offset-4"
+        >
+          {transaction.hash}
+        </a>
+      </p>
+    );
+  }
+  if (transaction.status === "confirmed_onchain" && transaction.hash) {
+    return (
+      <div className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
+        <p className="text-[var(--vault-accent)]">
+          Confirmed on-chain · Automatic vault sync needs attention
+        </p>
+        <a
+          href={fundDepositTransactionUrl(transaction.hash)}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-1 block break-all font-mono underline decoration-[var(--vault-border-strong)] underline-offset-4 hover:text-[var(--vault-text)]"
+        >
+          {transaction.hash}
+        </a>
+      </div>
+    );
+  }
   if (transaction.status === "confirmed") {
-    return <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">Confirmed: {transaction.hash}</p>;
+    return (
+      <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">
+        Confirmed: {transaction.hash}
+      </p>
+    );
   }
   return message ? (
     <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">

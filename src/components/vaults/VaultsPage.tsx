@@ -182,10 +182,14 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         deployment={BASE_SEPOLIA_CSP_FUND}
         summary={cspFund.summary}
         position={cspFund.position}
+        canonicalSummary={cspFund.canonicalSummary}
+        canonicalPosition={cspFund.canonicalPosition}
         config={cspFund.config}
         loadError={cspFund.error ?? cspFund.trustError}
         smartAssetRaw={balances.usdRaw}
         onRefetch={cspFund.refetch}
+        optimisticDeposits={cspFund.optimisticDeposits}
+        onDepositConfirmed={cspFund.addConfirmedDeposit}
         open={dialogVault === "csp"}
         onOpenChange={(open) => setDialogVault(open ? "csp" : null)}
       />
@@ -194,10 +198,14 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         deployment={BASE_SEPOLIA_COVERED_CALL_FUND}
         summary={coveredCallFund.summary}
         position={coveredCallFund.position}
+        canonicalSummary={coveredCallFund.canonicalSummary}
+        canonicalPosition={coveredCallFund.canonicalPosition}
         config={coveredCallFund.config}
         loadError={coveredCallFund.error ?? coveredCallFund.trustError}
         smartAssetRaw={balances.wethRaw}
         onRefetch={coveredCallFund.refetch}
+        optimisticDeposits={coveredCallFund.optimisticDeposits}
+        onDepositConfirmed={coveredCallFund.addConfirmedDeposit}
         open={dialogVault === "covered-call"}
         onOpenChange={(open) => setDialogVault(open ? "covered-call" : null)}
       />
