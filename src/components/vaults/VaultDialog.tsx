@@ -66,6 +66,12 @@ const cycleDate = new Intl.DateTimeFormat("en-US", {
   timeZoneName: "short",
 });
 
+function feePercent(bps: number): string {
+  return `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(
+    bps / 100,
+  )}%`;
+}
+
 type VaultDialogProps = {
   vault?: VaultCardMetadata;
   deployment?: TrustedFundDeployment;
@@ -127,13 +133,19 @@ export function VaultDialog(props: VaultDialogProps) {
           />
           <FundActionPanel {...resolved} />
         </div>
-        <StrategyExplanation vault={resolved.vault} />
+        <StrategyExplanation vault={resolved.vault} config={props.config} />
       </DialogContent>
     </Dialog>
   );
 }
 
-function StrategyExplanation({ vault }: { vault: VaultCardMetadata }) {
+function StrategyExplanation({
+  vault,
+  config,
+}: {
+  vault: VaultCardMetadata;
+  config: FundConfigResponse | null;
+}) {
   return (
     <details className="group mx-6 mb-6 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] sm:mx-8 sm:mb-8">
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 text-sm font-medium text-[var(--vault-text-muted)] [&::-webkit-details-marker]:hidden">
@@ -161,6 +173,36 @@ function StrategyExplanation({ vault }: { vault: VaultCardMetadata }) {
           <StrategyFact label="Allocation" value={vault.policy.allocation} />
           <StrategyFact label="Positions" value={vault.policy.positionLimit} />
         </dl>
+
+        {config?.fees ? (
+          <section
+            aria-label="Vault fees"
+            className="mt-5 rounded-xl border border-[var(--vault-border)] bg-[var(--vault-bg)] p-4"
+          >
+            <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--vault-accent)]">
+              Active fees
+            </p>
+            <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
+              <StrategyFact
+                label="Management"
+                value={`${feePercent(config.fees.managementFeeBps)} annually`}
+              />
+              <StrategyFact
+                label="Performance"
+                value={feePercent(config.fees.performanceFeeBps)}
+              />
+              <StrategyFact
+                label="Option premium"
+                value={feePercent(config.fees.premiumFeeBps)}
+              />
+            </dl>
+            <p className="mt-3 text-xs leading-5 text-[var(--vault-text-muted)]">
+              Performance fees apply only to gains in NAV per share above the
+              previous high-water mark. Premium and earnings shown here are net
+              of the fee charged on gross option premium.
+            </p>
+          </section>
+        ) : null}
 
         <ol className="mt-5 space-y-3 text-sm leading-6 text-[var(--vault-text-muted)]">
           {vault.policy.steps.map((step, index) => (
@@ -383,10 +425,10 @@ function OptionCycle({
       <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-[var(--vault-border)] pt-4 text-sm">
         <div>
           <dt className="flex items-center text-xs text-[var(--vault-text-subtle)]">
-            <span>Total premium</span>
+            <span>Net premium</span>
             <InfoTooltip
-              title="Total premium"
-              text={`All ${premiumSymbol} collected across this vault's ${optionLabel} cycles. It remains accounted inside the fund and is included in NAV.`}
+              title="Net premium"
+              text={`${premiumSymbol} retained after the protocol fee across this vault's ${optionLabel} cycles. It remains accounted inside the fund and is included in NAV.`}
             />
           </dt>
           <dd className="mt-1 font-mono text-[var(--vault-text)]">

@@ -5,6 +5,7 @@ import { VaultsPage } from "@/components/vaults/VaultsPage";
 import { VaultDialog } from "@/components/vaults/VaultDialog";
 import { VaultCard } from "@/components/vaults/VaultCard";
 import type {
+  FundConfigResponse,
   FundPositionResponse,
   FundSummaryResponse,
 } from "@/lib/api";
@@ -53,6 +54,31 @@ vi.mock("@/hooks/useFundVault", () => ({
     refetch: vi.fn(),
   }),
 }));
+
+const FEE_CONFIG = {
+  fundKey: "base-sepolia:csp",
+  deploymentStatus: "DEPLOYED",
+  contracts: [],
+  fees: {
+    managementFeeWad: "20000000000000000",
+    managementFeeBps: 200,
+    performanceFeeBps: 1_000,
+    premiumFeeBps: 1_000,
+    highWaterMarkSharePriceAssets: "1000000",
+    feeRecipient: "0x4000000000000000000000000000000000000004",
+    performanceFeeBasis: "high_water_mark",
+    premiumFeeBasis: "gross_premium",
+    reportedPremiumBasis: "net_of_premium_fee",
+  },
+  capabilities: {
+    deposit: { available: true, reasonCode: null },
+    requestRedemption: { available: true, reasonCode: null },
+    cancelRedemption: { available: false, reasonCode: "NO_PENDING_REDEMPTION" },
+    claimRedemption: { available: false, reasonCode: "NO_CLAIMABLE_REDEMPTION" },
+  },
+  writesEnabled: true,
+  blockedReasonCode: null,
+} satisfies FundConfigResponse;
 
 describe("VaultsPage", () => {
   it("renders a minimal vault-first catalog and preserves manual trading", () => {
@@ -227,7 +253,7 @@ describe("VaultsPage", () => {
       <VaultDialog
         summary={fairSummary()}
         position={emptyPosition()}
-        config={null}
+        config={FEE_CONFIG}
         loadError={null}
         smartUsdcRaw={BigInt(500_000000)}
         onRefetch={vi.fn()}
@@ -257,10 +283,15 @@ describe("VaultsPage", () => {
     expect(screen.getByText(/0.49230769 ETH/)).toHaveTextContent(
       "$800.00 secured",
     );
-    expect(screen.getByText("Total premium")).toBeInTheDocument();
+    expect(screen.getByText("Net premium")).toBeInTheDocument();
     expect(screen.getByText("0.000061 USDC")).toBeInTheDocument();
     expect(screen.getByText("Next position")).toBeInTheDocument();
     expect(screen.getByText(/After Jul 29.*settlement/)).toBeInTheDocument();
+    const feePolicy = screen.getByRole("region", { name: "Vault fees" });
+    expect(within(feePolicy).getByText("2% annually")).toBeInTheDocument();
+    expect(within(feePolicy).getAllByText("10%")).toHaveLength(2);
+    expect(feePolicy).toHaveTextContent("high-water mark");
+    expect(feePolicy).toHaveTextContent("net of the fee");
 
     await user.hover(
       screen.getByRole("button", { name: "Info: Locked collateral" }),

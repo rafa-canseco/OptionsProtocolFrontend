@@ -583,10 +583,23 @@ export interface FundTrustedContract {
   interfaceVersion: number;
 }
 
+export interface FundFeePolicy {
+  managementFeeWad: string;
+  managementFeeBps: number;
+  performanceFeeBps: number;
+  premiumFeeBps: number;
+  highWaterMarkSharePriceAssets: string;
+  feeRecipient: string | null;
+  performanceFeeBasis: "high_water_mark";
+  premiumFeeBasis: "gross_premium";
+  reportedPremiumBasis: "net_of_premium_fee";
+}
+
 export interface FundConfigResponse {
   fundKey: string;
   deploymentStatus: string;
   contracts: FundTrustedContract[];
+  fees: FundFeePolicy;
   capabilities: FundActions;
   writesEnabled: boolean;
   blockedReasonCode: string | null;
