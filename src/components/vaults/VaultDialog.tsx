@@ -259,11 +259,21 @@ function FundOverview({
   const idleHelp =
     vault.strategyKind === "covered_call"
       ? `New positions secure up to 80% of the available ${vault.accountingAssetSymbol} at the start of each cycle. The remaining 20% stays liquid, and an open position is not resized mid-cycle.`
+      : vault.strategyKind === "meta_wheel"
+        ? "USDC waiting for a CSP lane, a redemption batch, or the next safe rebalance. Assigned WETH is tracked separately and never sold merely to appear idle."
       : `${vault.accountingAssetSymbol} that is not locked as option collateral. It remains available for the next position or redemption processing.`;
+  const optionObligation = vault.strategyKind === "meta_wheel"
+    ? "option obligations"
+    : `${vault.strategyKind === "covered_call" ? "call" : "put"} obligation`;
+  const productLabel = vault.strategyKind === "covered_call"
+    ? "ETH CALL"
+    : vault.strategyKind === "meta_wheel"
+      ? "ETH WHEEL"
+      : "ETH CSP";
   return (
     <section className="border-b border-[var(--vault-border)] p-6 sm:p-8 lg:border-b-0 lg:border-r lg:p-10">
       <p className="font-mono text-xs uppercase tracking-[0.16em] text-[var(--vault-accent)]">
-        {vault.strategyKind === "covered_call" ? "ETH CALL" : "ETH CSP"} ·{" "}
+        {productLabel} ·{" "}
         {vault.accountingAssetSymbol}
       </p>
       <h2 className="mt-3 pr-12 text-3xl font-semibold tracking-[-0.04em]">
@@ -289,7 +299,7 @@ function FundOverview({
             assetDecimals,
             vault.accountingAssetSymbol,
           )}
-          help={`Everything the fund owns before deducting the open ${vault.strategyKind === "covered_call" ? "call" : "put"} obligation and settlement costs.`}
+          help={`Everything the fund owns before deducting open ${optionObligation} and settlement costs.`}
         />
         <OverviewMetric
           label={`Idle ${vault.accountingAssetSymbol}`}
@@ -310,13 +320,13 @@ function FundOverview({
           help={`${vault.accountingAssetSymbol} securing the open option. It still belongs to the fund and is not a loss.`}
         />
         <OverviewMetric
-          label={`Fair ${vault.strategyKind === "covered_call" ? "call" : "put"} liability`}
+          label={vault.strategyKind === "meta_wheel" ? "Fair option liabilities" : `Fair ${vault.strategyKind === "covered_call" ? "call" : "put"} liability`}
           value={liabilityValue(
             valuation?.fairOptionLiabilityAssets,
             assetDecimals,
             vault.accountingAssetSymbol,
           )}
-          help={`The estimated value of the fund's open ${vault.strategyKind === "covered_call" ? "call" : "put"} obligation. This amount—not the collateral—is deducted to calculate NAV.`}
+          help={`The estimated value of the fund's open ${optionObligation}. This amount—not collateral notional—is deducted to calculate NAV.`}
         />
         {vault.strategyKind === "covered_call" &&
         isPositiveRaw(composition?.transientUsdc) ? (
@@ -356,6 +366,9 @@ function OptionCycle({
   vault: VaultCardMetadata;
   summary: FundSummaryResponse | null;
 }) {
+  if (vault.strategyKind === "meta_wheel") {
+    return <MetaWheelCycle summary={summary} />;
+  }
   const strategy = summary?.strategy;
   const latest = strategy?.latestPosition;
   if (!summary || !strategy) return null;
@@ -455,6 +468,72 @@ function OptionCycle({
           </dd>
         </div>
       </dl>
+    </div>
+  );
+}
+
+function MetaWheelCycle({ summary }: { summary: FundSummaryResponse | null }) {
+  const wheel = summary?.wheel;
+  if (!summary || !wheel) return null;
+  const usdcDecimals = summary.fund.accountingAsset.decimals;
+  const protectedFloor = wheel.protectedAssignmentFloorUsd8
+    ? strikeCurrency.format(rawFundAmount(wheel.protectedAssignmentFloorUsd8, 8))
+    : "No assigned lot";
+
+  return (
+    <div className="mt-8 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="flex items-center text-xs text-[var(--vault-text-subtle)]">
+            <span>Current wheel state</span>
+            <InfoTooltip
+              title="Parallel wheel lanes"
+              text="New USDC can enter CSP while previously assigned WETH runs covered calls. Every assignment lot keeps its own protected sale floor."
+            />
+          </div>
+          <p className="mt-1 font-mono text-lg text-[var(--vault-text)]">
+            {wheelPhaseLabel(wheel.currentPhase)}
+          </p>
+        </div>
+        <span className="rounded-full border border-[var(--vault-border)] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--vault-accent)]">
+          {wheel.activeTrancheCount} {wheel.activeTrancheCount === 1 ? "tranche" : "tranches"}
+        </span>
+      </div>
+      <p className="mt-2 text-xs leading-5 text-[var(--vault-text-muted)]">
+        Next: {wheel.nextAction || "Awaiting eligible allocation"}
+      </p>
+      <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-[var(--vault-border)] pt-4 text-sm sm:grid-cols-3">
+        <WheelMetric
+          label="Pending CSP"
+          value={assetValue(wheel.pendingCspAssets, usdcDecimals, "USDC")}
+        />
+        <WheelMetric
+          label="CSP lanes"
+          value={assetValue(wheel.cspValueAssets, usdcDecimals, "USDC")}
+        />
+        <WheelMetric
+          label="Covered-call lanes"
+          value={assetValue(wheel.coveredCallValueAssets, usdcDecimals, "USDC")}
+        />
+        <WheelMetric
+          label="WETH in transition"
+          value={`${amount.format(rawFundAmount(wheel.transitionWeth, 18))} WETH`}
+        />
+        <WheelMetric label="Protected call floor" value={protectedFloor} />
+        <WheelMetric
+          label="Net option premium"
+          value={assetValue(wheel.cumulativeNetPremiumAssets, usdcDecimals, "USDC")}
+        />
+      </dl>
+    </div>
+  );
+}
+
+function WheelMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-[var(--vault-text-subtle)]">{label}</dt>
+      <dd className="mt-1 font-mono text-[var(--vault-text)]">{value}</dd>
     </div>
   );
 }
@@ -873,6 +952,19 @@ function cycleStatus(lifecycle: string): string {
     normalizing_usdc: "Returning to WETH",
   };
   return labels[lifecycle] ?? lifecycle.replaceAll("_", " ");
+}
+
+function wheelPhaseLabel(phase: string): string {
+  const labels: Record<string, string> = {
+    pending_csp: "USDC pending CSP",
+    csp: "CSP lanes active",
+    weth_transition: "Assignment moving to calls",
+    covered_call: "Covered-call lanes active",
+    usdc_transition: "Called-away USDC returning to CSP",
+    mixed: "CSP and covered-call lanes active",
+    idle: "Awaiting eligible allocation",
+  };
+  return labels[phase] ?? phase.replaceAll("_", " ");
 }
 
 function nextPositionLabel(condition: string, nextOpenAfter: number | null): string {

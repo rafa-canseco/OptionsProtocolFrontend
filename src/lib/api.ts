@@ -431,7 +431,7 @@ export interface FundTokenMetadata {
   decimals: number;
 }
 
-export type FundApiStrategyKind = "csp" | "covered_call";
+export type FundApiStrategyKind = "csp" | "covered_call" | "meta_wheel";
 
 export interface FundRegistryItem {
   fundKey: string;
@@ -498,6 +498,45 @@ export interface FundStrategySnapshot {
   nextOpenCondition: string;
 }
 
+export type MetaWheelLeg =
+  | "pending_csp"
+  | "csp"
+  | "weth_transition"
+  | "covered_call"
+  | "usdc_transition";
+
+export interface MetaWheelTrancheSummary {
+  trancheId: number;
+  leg: MetaWheelLeg;
+  lifecycle: string;
+  childVault: string | null;
+  childPositionId: number | null;
+  accountingValueAssets: string;
+  assignmentLotIds: number[];
+  protectedCallFloorUsd8: string | null;
+  expiryTimestamp: number | null;
+  nextAction: string;
+}
+
+/** Parent-fund allocation view. All `Assets` values use the USDC accounting decimals. */
+export interface MetaWheelSnapshot {
+  pendingCspAssets: string;
+  cspValueAssets: string;
+  transitionWeth: string;
+  transitionWethValueAssets: string;
+  coveredCallValueAssets: string;
+  returnedUsdcAssets: string;
+  reservedRedemptionAssets: string;
+  activeTrancheCount: number;
+  protectedAssignmentFloorUsd8: string | null;
+  currentPhase: string;
+  nextAction: string;
+  cumulativeGrossPremiumAssets: string;
+  cumulativeProtocolFeeAssets: string;
+  cumulativeNetPremiumAssets: string;
+  tranches: MetaWheelTrancheSummary[];
+}
+
 export interface FundNavWindow {
   reportNonce: number;
   validAfterBlock: number | null;
@@ -545,6 +584,8 @@ export interface FundSummaryResponse {
   nav: FundNavWindow;
   /** Current strategy cycle. Optional while older backend versions roll out. */
   strategy?: FundStrategySnapshot;
+  /** Meta Wheel allocation and tranche state. Omitted for standalone CSP/CC funds. */
+  wheel?: MetaWheelSnapshot | null;
   status: FundStatus;
   actions: FundActions;
   asOfBlock: number | null;

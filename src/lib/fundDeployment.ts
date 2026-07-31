@@ -5,7 +5,10 @@ export type TrustedFundBinding = {
   implementation: Address | null;
 };
 
-export type FundStrategyKind = "cash_secured_put" | "covered_call";
+export type FundStrategyKind =
+  | "cash_secured_put"
+  | "covered_call"
+  | "meta_wheel";
 
 export type TrustedFundDeployment = {
   chainId: number;
@@ -16,7 +19,7 @@ export type TrustedFundDeployment = {
   wethAddress: Address;
   deploymentFirstBlock: number;
   strategyKind: FundStrategyKind;
-  environmentPrefix: "CSP_FUND" | "COVERED_CALL_FUND";
+  environmentPrefix: "CSP_FUND" | "COVERED_CALL_FUND" | "META_WHEEL_FUND";
   contracts: Record<string, TrustedFundBinding>;
 };
 

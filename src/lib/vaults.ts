@@ -68,6 +68,35 @@ export const COVERED_CALL_VAULT_CARD = vaultCardMetadata(
   ASSETS.eth,
 );
 
+export const META_WHEEL_VAULT_CARD: VaultCardMetadata = {
+  id: "eth-meta-wheel",
+  strategyKind: "meta_wheel",
+  name: "ETH Meta Wheel",
+  assetLabel: "USDC vault",
+  accountingAssetSymbol: "USDC",
+  icon: "wheel",
+  strategyLabel: "ETH wheel",
+  description:
+    "Automate CSP and covered-call cycles while protecting every assignment price.",
+  availability: "coming-soon",
+  policy: {
+    strike: "Calls never below assignment",
+    duration: "≈48 hours per leg",
+    allocation: "Bounded parallel lanes",
+    positionLimit: "Multiple tracked tranches",
+    intro:
+      "The parent vault moves USDC through dedicated CSP and covered-call lanes and keeps each assignment lot's sale floor onchain.",
+    steps: [
+      "Deposits receive parent fund shares immediately and enter the pending CSP queue; users only deposit and redeem USDC.",
+      "When a CSP is assigned, its exact WETH and literal strike become an immutable assignment lot instead of being sold and repurchased.",
+      "Covered calls may consume one or more lots only when their strike is at or above every consumed lot's assignment strike plus the configured cost buffer.",
+      "New USDC can continue into CSP lanes while assigned WETH runs covered calls in separate bounded lanes.",
+      "Called-away USDC returns to the CSP queue. If no eligible call clears the protected floor, WETH remains idle rather than realizing a below-assignment sale.",
+      "Redemptions are requested and settled in USDC without weakening the protected call floor.",
+    ],
+  },
+};
+
 function cspPolicy(asset: AssetConfig): VaultCardMetadata["policy"] {
   return {
     strike: "≈15% below spot",
@@ -195,6 +224,9 @@ export function deriveFundPositionState(
 export function fundStrategyState(summary: FundSummaryResponse | null): string {
   if (!summary) return "Unavailable";
   if (summary.status.flowProcessing) return "Processing redemptions";
+  if (summary.fund.strategyKind === "meta_wheel" && summary.wheel) {
+    return summary.wheel.currentPhase || "Wheel active";
+  }
   if (BigInt(summary.composition.assignedWeth) > BigInt(0)) return "Assigned inventory";
   if (BigInt(summary.composition.strategyAccountingAssets) > BigInt(0)) {
     return summary.strategy?.strategyKind === "covered_call"
