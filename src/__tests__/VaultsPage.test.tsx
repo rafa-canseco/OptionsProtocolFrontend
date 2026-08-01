@@ -568,6 +568,12 @@ function metaWheelSummary(): FundSummaryResponse {
     cumulativeGrossPremiumAssets: "13000000",
     cumulativeProtocolFeeAssets: "2000000",
     cumulativeNetPremiumAssets: "11000000",
+    policyVersion: 1,
+    policyHash: "0xdb47fcd1",
+    navCoherent: true,
+    navSnapshotBlock: 123,
+    navSnapshotBlockHash: "0xabc",
+    paused: false,
     tranches: [],
   };
   return summary;

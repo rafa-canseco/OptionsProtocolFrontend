@@ -498,23 +498,18 @@ export interface FundStrategySnapshot {
   nextOpenCondition: string;
 }
 
-export type MetaWheelLeg =
-  | "pending_csp"
-  | "csp"
-  | "weth_transition"
-  | "covered_call"
-  | "usdc_transition";
-
 export interface MetaWheelTrancheSummary {
-  trancheId: number;
-  leg: MetaWheelLeg;
-  lifecycle: string;
+  trancheId: string;
   childVault: string | null;
-  childPositionId: number | null;
-  accountingValueAssets: string;
-  assignmentLotIds: number[];
-  protectedCallFloorUsd8: string | null;
-  expiryTimestamp: number | null;
+  state: string;
+  principalAssets: string;
+  childShares: string;
+  childPositionId: string | null;
+  assignmentLotIds: string[];
+  literalAssignmentFloorUsd8: string;
+  protectedAssignmentFloorUsd8: string;
+  callStrikeUsd8: string | null;
+  transitionNonce: number;
   nextAction: string;
 }
 
@@ -534,6 +529,12 @@ export interface MetaWheelSnapshot {
   cumulativeGrossPremiumAssets: string;
   cumulativeProtocolFeeAssets: string;
   cumulativeNetPremiumAssets: string;
+  policyVersion: number;
+  policyHash: string | null;
+  navCoherent: boolean;
+  navSnapshotBlock: number | null;
+  navSnapshotBlockHash: string | null;
+  paused: boolean;
   tranches: MetaWheelTrancheSummary[];
 }
 
