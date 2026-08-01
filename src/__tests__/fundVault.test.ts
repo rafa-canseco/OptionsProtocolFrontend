@@ -19,6 +19,11 @@ import {
 import {
   BASE_SEPOLIA_COVERED_CALL_FUND,
   BASE_SEPOLIA_CSP_FUND,
+  BASE_SEPOLIA_META_WHEEL_FUND,
+  BASE_SEPOLIA_META_WHEEL_HANDOFF,
+  isMetaWheelFrontendReady,
+  type MetaWheelDeploymentHandoff,
+  type TrustedFundDeployment,
 } from "@/lib/fundDeployment";
 import { fundValuation } from "@/lib/fundValuation";
 import { deriveFundPositionState, fundStrategyState, mapFundPosition } from "@/lib/vaults";
@@ -331,6 +336,82 @@ describe("tokenized CSP fund", () => {
         BASE_SEPOLIA_COVERED_CALL_FUND,
       ),
     ).toBe("Trusted fund_vault implementation mismatch.");
+  });
+
+  it("keeps Meta Wheel fail-closed until canonical handoff and trust anchors exist", () => {
+    vi.stubEnv("NEXT_PUBLIC_META_WHEEL_FUND_ADDRESS", FUND);
+    vi.stubEnv("NEXT_PUBLIC_META_WHEEL_FUND_SHARE_ADDRESS", SHARE);
+    vi.stubEnv("NEXT_PUBLIC_META_WHEEL_FUND_ASSET_ADDRESS", USDC);
+    expect(BASE_SEPOLIA_META_WHEEL_FUND).toBeNull();
+    expect(BASE_SEPOLIA_META_WHEEL_HANDOFF).toBeNull();
+    expect(
+      isMetaWheelFrontendReady(
+        BASE_SEPOLIA_META_WHEEL_FUND,
+        BASE_SEPOLIA_META_WHEEL_HANDOFF,
+      ),
+    ).toBe(false);
+
+    const roles = [
+      "access_manager", "address_book", "batch_settler", "claim_escrow",
+      "controller", "fund_accounting", "fund_flow_manager", "fund_share",
+      "fund_vault", "margin_pool", "meta_wheel_valuator", "nav_verifier",
+      "oracle", "otoken_factory", "strategy_manager", "swap_router",
+      "wheel_coordinator", "whitelist",
+    ];
+    const proxyRoles = new Set([
+      "batch_settler", "controller", "fund_accounting", "fund_flow_manager",
+      "fund_share", "fund_vault", "strategy_manager", "wheel_coordinator",
+    ]);
+    const deployment: TrustedFundDeployment = {
+      chainId: 84532,
+      fundKey: "base-sepolia:meta-wheel",
+      fundAddress: FUND,
+      shareAddress: SHARE,
+      accountingAssetAddress: USDC,
+      wethAddress: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+      deploymentFirstBlock: 45_000_000,
+      strategyKind: "meta_wheel",
+      environmentPrefix: "META_WHEEL_FUND",
+      contracts: Object.fromEntries(
+        roles.map((role) => [
+          role,
+          {
+            address: role === "fund_share" ? SHARE : FUND,
+            implementation: proxyRoles.has(role) ? IMPLEMENTATION : null,
+          },
+        ]),
+      ),
+    };
+    const confirmed: MetaWheelDeploymentHandoff = {
+      schemaVersion: "1.0.0",
+      issue: "B1N-419",
+      status: "CONFIRMED_CANONICAL_RECEIPTS",
+      deploymentStatus: "DEPLOYED",
+      handoffReady: true,
+      network: { name: "base-sepolia", chainId: 84532 },
+    };
+    expect(isMetaWheelFrontendReady(deployment, confirmed)).toBe(true);
+    expect(
+      isMetaWheelFrontendReady(deployment, {
+        ...confirmed,
+        status: "UNCONFIRMED_REQUIRES_CANONICAL_RECEIPTS",
+      }),
+    ).toBe(false);
+    expect(
+      isMetaWheelFrontendReady(
+        {
+          ...deployment,
+          contracts: {
+            ...deployment.contracts,
+            wheel_coordinator: {
+              ...deployment.contracts.wheel_coordinator,
+              implementation: null,
+            },
+          },
+        },
+        confirmed,
+      ),
+    ).toBe(false);
   });
 
   it("uses the deployed FundVault entry, request, cancel, claim, and operator ABI", () => {

@@ -530,16 +530,31 @@ describe("VaultsPage", () => {
     expect(screen.getByText("Current wheel state")).toBeInTheDocument();
     expect(screen.getByText("CSP and covered-call lanes active")).toBeInTheDocument();
     expect(screen.getByText("2 tranches")).toBeInTheDocument();
+    expect(screen.getByText("Literal assignment floor")).toBeInTheDocument();
+    expect(screen.getAllByText("$1,640")).toHaveLength(2);
     expect(screen.getByText("Protected call floor")).toBeInTheDocument();
-    expect(screen.getByText("$1,650")).toBeInTheDocument();
+    expect(screen.getAllByText("$1,650")).toHaveLength(2);
+    expect(screen.getByText("Redemption reserve")).toBeInTheDocument();
+    expect(screen.getByText("$40.00")).toBeInTheDocument();
+    expect(screen.getByText("$35.00 principal tracked")).toBeInTheDocument();
     expect(screen.getByText("Net option premium")).toBeInTheDocument();
     expect(screen.getByText("$11.00")).toBeInTheDocument();
     expect(screen.getByText("Fair option liabilities")).toBeInTheDocument();
+    expect(screen.getByText(/Physical delivery is pending/i)).toBeInTheDocument();
+
+    await user.click(screen.getByText(/Tracked capital · 2 active tranches/i));
+    expect(screen.getByText("CSP position open")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting physical delivery")).toBeInTheDocument();
+    expect(screen.getByText("Wait for physical delivery")).toBeInTheDocument();
+    expect(screen.getAllByText("Literal assignment")).toHaveLength(2);
+    expect(screen.getByText(/Execution hash 0x111111…111111/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAV reconciliation: coherent at block 123/i)).toBeInTheDocument();
+    expect(screen.queryByText(/child shares/i)).not.toBeInTheDocument();
 
     await user.click(screen.getByText("How this vault works"));
     expect(screen.getByText("Calls never below assignment")).toBeInTheDocument();
     expect(
-      screen.getByText(/only when their strike is at or above every consumed lot/i),
+      screen.getByText(/one assignment lot.*literal CSP assignment strike/i),
     ).toBeInTheDocument();
     expect(
       screen.getByText(/remains idle rather than realizing a below-assignment sale/i),
@@ -560,7 +575,11 @@ function metaWheelSummary(): FundSummaryResponse {
     transitionWethValueAssets: "170000000",
     coveredCallValueAssets: "200000000",
     returnedUsdcAssets: "0",
-    reservedRedemptionAssets: "0",
+    reservedRedemptionAssets: "40000000",
+    redemption: {
+      reservedAssets: "40000000",
+      reservedPrincipalAssets: "35000000",
+    },
     activeTrancheCount: 2,
     protectedAssignmentFloorUsd8: "165000000000",
     currentPhase: "mixed",
@@ -574,7 +593,42 @@ function metaWheelSummary(): FundSummaryResponse {
     navSnapshotBlock: 123,
     navSnapshotBlockHash: "0xabc",
     paused: false,
-    tranches: [],
+    tranches: [
+      {
+        trancheId: "17",
+        childVault: "0x5000000000000000000000000000000000000005",
+        state: "call_settling",
+        principalAssets: "250000000",
+        pendingAssets: "0",
+        childShares: "250000000000000000000",
+        childPositionId: "4",
+        childExecutionStateHash: `0x${"1".repeat(64)}`,
+        settlementKind: "pending_delivery",
+        assignmentLotIds: ["9"],
+        literalAssignmentFloorUsd8: "164000000000",
+        protectedAssignmentFloorUsd8: "165000000000",
+        callStrikeUsd8: "170000000000",
+        transitionNonce: 6,
+        nextAction: "wait_for_physical_delivery",
+      },
+      {
+        trancheId: "18",
+        childVault: "0x6000000000000000000000000000000000000006",
+        state: "csp_open",
+        principalAssets: "420000000",
+        pendingAssets: "0",
+        childShares: "420000000000000000000",
+        childPositionId: "5",
+        childExecutionStateHash: `0x${"2".repeat(64)}`,
+        settlementKind: null,
+        assignmentLotIds: [],
+        literalAssignmentFloorUsd8: "0",
+        protectedAssignmentFloorUsd8: "0",
+        callStrikeUsd8: null,
+        transitionNonce: 2,
+        nextAction: "wait_for_csp_expiry",
+      },
+    ],
   };
   return summary;
 }

@@ -1,4 +1,4 @@
-import type { Address } from "viem";
+import { isAddress, type Address } from "viem";
 
 export type TrustedFundBinding = {
   address: Address;
@@ -22,6 +22,108 @@ export type TrustedFundDeployment = {
   environmentPrefix: "CSP_FUND" | "COVERED_CALL_FUND" | "META_WHEEL_FUND";
   contracts: Record<string, TrustedFundBinding>;
 };
+
+/**
+ * Minimal frontend gate copied from the canonical B1N-419 backend handoff.
+ * The backend remains responsible for validating receipts, code hashes, roles,
+ * linked libraries and unchanged standalone baselines before emitting this
+ * confirmed state.
+ */
+export type MetaWheelDeploymentHandoff = {
+  schemaVersion: "1.0.0";
+  issue: "B1N-419";
+  status:
+    | "CONFIRMED_CANONICAL_RECEIPTS"
+    | "UNCONFIRMED_REQUIRES_CANONICAL_RECEIPTS";
+  deploymentStatus: string;
+  handoffReady: boolean;
+  network: {
+    name: string;
+    chainId: number;
+  };
+};
+
+const META_WHEEL_TRUSTED_ROLES = [
+  "access_manager",
+  "address_book",
+  "batch_settler",
+  "claim_escrow",
+  "controller",
+  "fund_accounting",
+  "fund_flow_manager",
+  "fund_share",
+  "fund_vault",
+  "margin_pool",
+  "meta_wheel_valuator",
+  "nav_verifier",
+  "oracle",
+  "otoken_factory",
+  "strategy_manager",
+  "swap_router",
+  "wheel_coordinator",
+  "whitelist",
+] as const;
+
+export function isMetaWheelFrontendReady(
+  deployment: TrustedFundDeployment | null,
+  handoff: MetaWheelDeploymentHandoff | null,
+): boolean {
+  if (
+    !deployment ||
+    !handoff ||
+    handoff.schemaVersion !== "1.0.0" ||
+    handoff.issue !== "B1N-419" ||
+    handoff.status !== "CONFIRMED_CANONICAL_RECEIPTS" ||
+    handoff.deploymentStatus !== "DEPLOYED" ||
+    handoff.handoffReady !== true ||
+    handoff.network.name !== "base-sepolia" ||
+    handoff.network.chainId !== 84532 ||
+    deployment.chainId !== 84532 ||
+    deployment.fundKey !== "base-sepolia:meta-wheel" ||
+    deployment.strategyKind !== "meta_wheel" ||
+    deployment.environmentPrefix !== "META_WHEEL_FUND" ||
+    deployment.deploymentFirstBlock <= 0 ||
+    ![
+      deployment.fundAddress,
+      deployment.shareAddress,
+      deployment.accountingAssetAddress,
+      deployment.wethAddress,
+    ].every(isNonZeroAddress) ||
+    deployment.contracts.fund_vault?.address.toLowerCase() !==
+      deployment.fundAddress.toLowerCase() ||
+    deployment.contracts.fund_share?.address.toLowerCase() !==
+      deployment.shareAddress.toLowerCase()
+  ) {
+    return false;
+  }
+  return META_WHEEL_TRUSTED_ROLES.every((role) => {
+    const binding = deployment.contracts[role];
+    if (!binding || !isNonZeroAddress(binding.address)) return false;
+    const requiresImplementation = [
+      "fund_vault",
+      "fund_share",
+      "fund_accounting",
+      "fund_flow_manager",
+      "strategy_manager",
+      "wheel_coordinator",
+      "controller",
+      "batch_settler",
+    ].includes(role);
+    return !requiresImplementation || isNonZeroAddress(binding.implementation);
+  });
+}
+
+function isNonZeroAddress(value: string | null | undefined): value is Address {
+  return Boolean(value && isAddress(value) && !/^0x0{40}$/i.test(value));
+}
+
+/**
+ * Deliberately unset until B1N-419 supplies receipt-confirmed Base Sepolia
+ * values. Environment variables cannot turn a placeholder into a trust anchor.
+ */
+export const BASE_SEPOLIA_META_WHEEL_FUND: TrustedFundDeployment | null = null;
+export const BASE_SEPOLIA_META_WHEEL_HANDOFF: MetaWheelDeploymentHandoff | null =
+  null;
 
 /**
  * B1N-352 v2 trust anchor for the only fund supported in Hito 1.
@@ -210,4 +312,5 @@ export const BASE_SEPOLIA_COVERED_CALL_FUND = {
 
 export type TrustedFundRole =
   | keyof typeof BASE_SEPOLIA_CSP_FUND.contracts
-  | keyof typeof BASE_SEPOLIA_COVERED_CALL_FUND.contracts;
+  | keyof typeof BASE_SEPOLIA_COVERED_CALL_FUND.contracts
+  | (typeof META_WHEEL_TRUSTED_ROLES)[number];

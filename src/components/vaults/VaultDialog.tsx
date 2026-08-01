@@ -8,6 +8,7 @@ import type {
   FundConfigResponse,
   FundPositionResponse,
   FundSummaryResponse,
+  MetaWheelTrancheSummary,
 } from "@/lib/api";
 import { ERC20_ABI, publicClient } from "@/lib/contracts";
 import {
@@ -476,9 +477,21 @@ function MetaWheelCycle({ summary }: { summary: FundSummaryResponse | null }) {
   const wheel = summary?.wheel;
   if (!summary || !wheel) return null;
   const usdcDecimals = summary.fund.accountingAsset.decimals;
+  const activeTranches = wheel.tranches.filter(
+    (tranche) => tranche.state !== "closed",
+  );
+  const literalFloorRaw = maxRaw(
+    activeTranches.map((tranche) => tranche.literalAssignmentFloorUsd8),
+  );
+  const literalFloor = isPositiveRaw(literalFloorRaw)
+    ? strikeCurrency.format(rawFundAmount(literalFloorRaw, 8))
+    : "No assigned lot";
   const protectedFloor = isPositiveRaw(wheel.protectedAssignmentFloorUsd8)
     ? strikeCurrency.format(rawFundAmount(wheel.protectedAssignmentFloorUsd8, 8))
     : "No assigned lot";
+  const delayedDelivery = activeTranches.some(
+    (tranche) => tranche.settlementKind === "pending_delivery",
+  );
 
   return (
     <div className="mt-8 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] p-4">
@@ -500,8 +513,15 @@ function MetaWheelCycle({ summary }: { summary: FundSummaryResponse | null }) {
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--vault-text-muted)]">
-        Next: {wheel.nextAction || "Awaiting eligible allocation"}
+        Next: {wheelActionLabel(wheel.nextAction)}
       </p>
+      {delayedDelivery ? (
+        <p className="mt-3 rounded-xl border border-[var(--vault-border)] bg-[var(--vault-bg)] px-3 py-2 text-xs leading-5 text-[var(--vault-text-muted)]">
+          Physical delivery is pending for at least one tranche. Its assets and
+          principal remain tracked while the other eligible CSP or covered-call
+          lanes can continue.
+        </p>
+      ) : null}
       <dl className="mt-4 grid grid-cols-2 gap-4 border-t border-[var(--vault-border)] pt-4 text-sm sm:grid-cols-3">
         <WheelMetric
           label="Pending CSP"
@@ -519,22 +539,137 @@ function MetaWheelCycle({ summary }: { summary: FundSummaryResponse | null }) {
           label="WETH in transition"
           value={`${amount.format(rawFundAmount(wheel.transitionWeth, 18))} WETH`}
         />
+        <WheelMetric label="Literal assignment floor" value={literalFloor} />
         <WheelMetric label="Protected call floor" value={protectedFloor} />
+        <WheelMetric
+          label="Redemption reserve"
+          value={assetValue(
+            wheel.redemption.reservedAssets,
+            usdcDecimals,
+            "USDC",
+          )}
+          detail={`${assetValue(
+            wheel.redemption.reservedPrincipalAssets,
+            usdcDecimals,
+            "USDC",
+          )} principal tracked`}
+        />
         <WheelMetric
           label="Net option premium"
           value={assetValue(wheel.cumulativeNetPremiumAssets, usdcDecimals, "USDC")}
         />
       </dl>
+      <MetaWheelTranches
+        tranches={activeTranches}
+        usdcDecimals={usdcDecimals}
+        navCoherent={wheel.navCoherent}
+        navSnapshotBlock={wheel.navSnapshotBlock}
+        navSnapshotBlockHash={wheel.navSnapshotBlockHash}
+      />
     </div>
   );
 }
 
-function WheelMetric({ label, value }: { label: string; value: string }) {
+function WheelMetric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+}) {
   return (
     <div>
       <dt className="text-xs text-[var(--vault-text-subtle)]">{label}</dt>
       <dd className="mt-1 font-mono text-[var(--vault-text)]">{value}</dd>
+      {detail ? (
+        <dd className="mt-1 text-[10px] text-[var(--vault-text-subtle)]">
+          {detail}
+        </dd>
+      ) : null}
     </div>
+  );
+}
+
+function MetaWheelTranches({
+  tranches,
+  usdcDecimals,
+  navCoherent,
+  navSnapshotBlock,
+  navSnapshotBlockHash,
+}: {
+  tranches: MetaWheelTrancheSummary[];
+  usdcDecimals: number;
+  navCoherent: boolean;
+  navSnapshotBlock: number | null;
+  navSnapshotBlockHash: string | null;
+}) {
+  if (tranches.length === 0) return null;
+  return (
+    <details className="group mt-4 border-t border-[var(--vault-border)] pt-4">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-4 text-xs font-medium text-[var(--vault-text-muted)] [&::-webkit-details-marker]:hidden">
+        <span>
+          Tracked capital · {tranches.length} active {tranches.length === 1 ? "tranche" : "tranches"}
+        </span>
+        <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180" />
+      </summary>
+      <div className="space-y-3 pt-2">
+        {tranches.map((tranche) => (
+          <article
+            key={tranche.trancheId}
+            className="rounded-xl border border-[var(--vault-border)] bg-[var(--vault-bg)] p-3"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--vault-text-subtle)]">
+                  Tranche {tranche.trancheId}
+                </p>
+                <p className="mt-1 text-sm text-[var(--vault-text)]">
+                  {wheelTrancheStateLabel(tranche)}
+                </p>
+              </div>
+              <span className="rounded-full border border-[var(--vault-border)] px-2 py-1 text-[10px] text-[var(--vault-accent)]">
+                {wheelActionLabel(tranche.nextAction)}
+              </span>
+            </div>
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-xs sm:grid-cols-4">
+              <WheelMetric
+                label="Principal"
+                value={assetValue(tranche.principalAssets, usdcDecimals, "USDC")}
+              />
+              <WheelMetric
+                label="Pending USDC"
+                value={assetValue(tranche.pendingAssets, usdcDecimals, "USDC")}
+              />
+              <WheelMetric
+                label="Literal assignment"
+                value={wheelStrikeLabel(tranche.literalAssignmentFloorUsd8)}
+              />
+              <WheelMetric
+                label="Minimum call"
+                value={wheelStrikeLabel(tranche.protectedAssignmentFloorUsd8)}
+                detail={
+                  isPositiveRaw(tranche.callStrikeUsd8)
+                    ? `Open call ${wheelStrikeLabel(tranche.callStrikeUsd8)}`
+                    : undefined
+                }
+              />
+            </dl>
+            <p className="mt-3 border-t border-[var(--vault-border)] pt-2 font-mono text-[10px] text-[var(--vault-text-subtle)]">
+              Execution hash {shortHash(tranche.childExecutionStateHash)}
+            </p>
+          </article>
+        ))}
+        <p className="px-1 text-[10px] leading-4 text-[var(--vault-text-subtle)]">
+          NAV reconciliation: {navCoherent ? "coherent" : "updating"}
+          {navSnapshotBlock == null ? "" : ` at block ${navSnapshotBlock}`}
+          {navSnapshotBlockHash ? ` · ${shortHash(navSnapshotBlockHash)}` : ""}.
+          Execution hashes track lifecycle actions; the NAV checkpoint separately
+          commits the value of all lanes.
+        </p>
+      </div>
+    </details>
   );
 }
 
@@ -965,6 +1100,66 @@ function wheelPhaseLabel(phase: string): string {
     idle: "Awaiting eligible allocation",
   };
   return labels[phase] ?? phase.replaceAll("_", " ");
+}
+
+function wheelTrancheStateLabel(tranche: MetaWheelTrancheSummary): string {
+  if (tranche.settlementKind === "pending_delivery") {
+    return "Awaiting physical delivery";
+  }
+  const labels: Record<MetaWheelTrancheSummary["state"], string> = {
+    pending_csp: "USDC pending CSP",
+    csp_open: "CSP position open",
+    csp_settling: "CSP settling",
+    weth_transition: "Assigned WETH awaiting a safe call",
+    call_open: "Covered call open",
+    call_settling: "Covered call settling",
+    closed: "Closed",
+  };
+  return labels[tranche.state];
+}
+
+function wheelActionLabel(action: string | null | undefined): string {
+  const labels: Record<string, string> = {
+    allocate_csp_lane: "Open CSP",
+    open_csp: "Open CSP",
+    wait_for_csp_expiry: "Wait for CSP expiry",
+    handoff_csp: "Complete CSP handoff",
+    open_covered_call_above_floor: "Open call above floor",
+    wait_for_call_expiry: "Wait for call expiry",
+    handoff_covered_call: "Complete call handoff",
+    wait_for_physical_delivery: "Wait for physical delivery",
+    process_ready_tranches: "Process ready tranches",
+    paused: "Allocations paused",
+    wait: "Await eligible allocation",
+    none: "Complete",
+  };
+  if (!action) return "Await eligible allocation";
+  return labels[action] ?? action.replaceAll("_", " ");
+}
+
+function wheelStrikeLabel(raw: string | null | undefined): string {
+  return isPositiveRaw(raw)
+    ? strikeCurrency.format(rawFundAmount(raw ?? "0", 8))
+    : "—";
+}
+
+function maxRaw(values: Array<string | null | undefined>): string {
+  let maximum = BigInt(0);
+  for (const value of values) {
+    try {
+      const candidate = BigInt(value ?? "0");
+      if (candidate > maximum) maximum = candidate;
+    } catch {
+      // Invalid read-model values stay fail-closed and are never shown as floors.
+    }
+  }
+  return maximum.toString();
+}
+
+function shortHash(value: string | null | undefined): string {
+  if (!value) return "not active";
+  if (value.length <= 14) return value;
+  return `${value.slice(0, 8)}…${value.slice(-6)}`;
 }
 
 function nextPositionLabel(condition: string, nextOpenAfter: number | null): string {

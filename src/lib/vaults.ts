@@ -82,17 +82,18 @@ export const META_WHEEL_VAULT_CARD: VaultCardMetadata = {
   policy: {
     strike: "Calls never below assignment",
     duration: "≈48 hours per leg",
-    allocation: "Bounded parallel lanes",
-    positionLimit: "Multiple tracked tranches",
+    allocation: "4 CSP + 4 call lanes",
+    positionLimit: "One assignment lot per call lane",
     intro:
       "The parent vault moves USDC through dedicated CSP and covered-call lanes and keeps each assignment lot's sale floor onchain.",
     steps: [
       "Deposits receive parent fund shares immediately and enter the pending CSP queue; users only deposit and redeem USDC.",
       "When a CSP is assigned, its exact WETH and literal strike become an immutable assignment lot instead of being sold and repurchased.",
-      "Covered calls may consume one or more lots only when their strike is at or above every consumed lot's assignment strike plus the configured cost buffer.",
+      "Each covered-call lane uses one assignment lot and can open only at or above that lot's literal CSP assignment strike plus the configured execution-cost buffer.",
       "New USDC can continue into CSP lanes while assigned WETH runs covered calls in separate bounded lanes.",
-      "Called-away USDC returns to the CSP queue. If no eligible call clears the protected floor, WETH remains idle rather than realizing a below-assignment sale.",
-      "Redemptions are requested and settled in USDC without weakening the protected call floor.",
+      "Called-away USDC returns to the CSP queue. Physical delivery may keep a tranche settling; other eligible lanes can continue independently.",
+      "If no eligible call clears the protected floor, WETH remains idle rather than realizing a below-assignment sale.",
+      "Redemptions reserve exact available USDC together with its principal basis and settle in USDC without weakening the protected call floor.",
     ],
   },
 };
