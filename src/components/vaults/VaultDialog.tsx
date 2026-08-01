@@ -476,7 +476,7 @@ function MetaWheelCycle({ summary }: { summary: FundSummaryResponse | null }) {
   const wheel = summary?.wheel;
   if (!summary || !wheel) return null;
   const usdcDecimals = summary.fund.accountingAsset.decimals;
-  const protectedFloor = wheel.protectedAssignmentFloorUsd8
+  const protectedFloor = isPositiveRaw(wheel.protectedAssignmentFloorUsd8)
     ? strikeCurrency.format(rawFundAmount(wheel.protectedAssignmentFloorUsd8, 8))
     : "No assigned lot";
 
