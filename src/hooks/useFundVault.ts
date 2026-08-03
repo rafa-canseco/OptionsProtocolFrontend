@@ -8,6 +8,10 @@ import type {
   FundSummaryResponse,
 } from "@/lib/api";
 import { api } from "@/lib/api";
+import { subscribeDataInvalidation } from "@/lib/dataInvalidation";
+import { sharedRequest } from "@/lib/sharedRequest";
+import { useVisibilityPolling } from "@/hooks/useVisibilityPolling";
+import { useRequestGeneration } from "@/hooks/useRequestGeneration";
 import {
   configuredFundAddress,
   configuredFundKey,
@@ -19,6 +23,7 @@ import {
 } from "@/lib/fundDeployment";
 
 const FUND_REFRESH_INTERVAL_MS = 5_000;
+const FUND_CONFIG_CACHE_TTL_MS = 5 * 60_000;
 
 export type FundVaultState = {
   summary: FundSummaryResponse | null;
@@ -38,64 +43,117 @@ export function useFundVault(
   const [position, setPosition] = useState<FundPositionResponse | null>(null);
   const [config, setConfig] = useState<FundConfigResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const requestId = useRef(0);
+  const [errorState, setErrorState] = useState<{
+    pollKey: string;
+    message: string | null;
+  } | null>(null);
+  const snapshotKeyRef = useRef<string | null>(null);
+  const [snapshotKey, setSnapshotKey] = useState<string | null>(null);
   const fundKey = configuredFundKey(deployment);
   const fundAddress = configuredFundAddress(deployment);
+  const enabled = Boolean(fundKey && fundAddress);
+  const pollKey = [
+    fundKey ?? "unconfigured",
+    fundAddress ?? "unconfigured",
+    address ?? "anonymous",
+  ].join(":");
+  const requestGeneration = useRequestGeneration(pollKey);
 
-  const refetch = useCallback(async () => {
-    const nextRequestId = ++requestId.current;
+  const fetchFund = useCallback(async () => {
+    const generation = requestGeneration.capture();
     if (!fundKey || !fundAddress) {
-      setError("Fund allowlist is not configured.");
+      if (!requestGeneration.isCurrent(generation)) return;
+      setErrorState({
+        pollKey,
+        message: "Fund allowlist is not configured.",
+      });
       setLoading(false);
       return;
     }
-    setLoading(true);
+    if (snapshotKeyRef.current !== pollKey) setLoading(true);
     try {
       const [nextSummary, nextConfig, nextPosition] = await Promise.all([
         api.getFund(fundKey),
-        api.getFundConfig(fundKey),
+        sharedRequest(
+          `fund-config:${fundKey}:${fundAddress}`,
+          FUND_CONFIG_CACHE_TTL_MS,
+          () => api.getFundConfig(fundKey),
+        ),
         address ? api.getFundPosition(fundKey, address) : null,
       ]);
-      if (requestId.current !== nextRequestId) return;
+      if (!requestGeneration.isCurrent(generation)) return;
       setSummary(nextSummary);
       setConfig(nextConfig);
       setPosition(nextPosition);
-      setError(null);
+      snapshotKeyRef.current = pollKey;
+      setSnapshotKey(pollKey);
+      setErrorState({ pollKey, message: null });
     } catch (cause) {
-      if (requestId.current !== nextRequestId) return;
-      setError(cause instanceof Error ? cause.message : "Could not refresh fund data.");
+      if (!requestGeneration.isCurrent(generation)) return;
+      if (snapshotKeyRef.current !== pollKey) {
+        setSummary(null);
+        setConfig(null);
+        setPosition(null);
+        snapshotKeyRef.current = pollKey;
+        setSnapshotKey(pollKey);
+      }
+      setErrorState({
+        pollKey,
+        message:
+          cause instanceof Error
+            ? cause.message
+            : "Could not refresh fund data.",
+      });
     } finally {
-      if (requestId.current === nextRequestId) setLoading(false);
+      if (requestGeneration.isCurrent(generation)) setLoading(false);
     }
-  }, [address, fundAddress, fundKey]);
+  }, [address, fundAddress, fundKey, pollKey, requestGeneration]);
 
+  const { refreshNow } = useVisibilityPolling({
+    refresh: fetchFund,
+    enabled,
+    pollKey,
+    intervalMs: FUND_REFRESH_INTERVAL_MS,
+    staleTimeMs: FUND_REFRESH_INTERVAL_MS,
+  });
+  useEffect(
+    () => subscribeDataInvalidation("vault", () => void refreshNow()),
+    [refreshNow],
+  );
   useEffect(() => {
-    void refetch();
-  }, [refetch]);
+    if (enabled) return;
+    setSummary(null);
+    setConfig(null);
+    setPosition(null);
+    snapshotKeyRef.current = pollKey;
+    setSnapshotKey(pollKey);
+    setErrorState({
+      pollKey,
+      message: "Fund allowlist is not configured.",
+    });
+    setLoading(false);
+  }, [enabled, pollKey]);
 
-  useEffect(() => {
-    const handleFocus = () => void refetch();
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") void refetch();
-    };
-    window.addEventListener("focus", handleFocus);
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      window.removeEventListener("focus", handleFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [refetch]);
-
-  useEffect(() => {
-    const interval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void refetch();
-    }, FUND_REFRESH_INTERVAL_MS);
-    return () => window.clearInterval(interval);
-  }, [refetch]);
-
-  const trustError = summary && config
-    ? fundTrustError(summary, config, position, address, deployment)
+  const snapshotIsCurrent = snapshotKey === pollKey;
+  const currentSummary = snapshotIsCurrent ? summary : null;
+  const currentPosition = snapshotIsCurrent ? position : null;
+  const currentConfig = snapshotIsCurrent ? config : null;
+  const trustError = currentSummary && currentConfig
+    ? fundTrustError(
+        currentSummary,
+        currentConfig,
+        currentPosition,
+        address,
+        deployment,
+      )
     : null;
-  return { summary, position, config, loading, error, trustError, refetch };
+  return {
+    summary: currentSummary,
+    position: currentPosition,
+    config: currentConfig,
+    loading: enabled ? !snapshotIsCurrent || loading : false,
+    error: errorState?.pollKey === pollKey ? errorState.message : null,
+    trustError,
+    refetch: refreshNow,
+  };
 }

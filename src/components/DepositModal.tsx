@@ -19,6 +19,7 @@ import {
 import { isSolanaOffInProd } from "@/lib/marketState";
 import { SOLANA_TSLAX_MINT, solanaConnection, solanaTxUrl, toPublicKey } from "@/lib/solana";
 import { api, type BridgeJob, type BridgeJobStatus } from "@/lib/api";
+import { invalidateData } from "@/lib/dataInvalidation";
 
 type Tab = "deposit" | "withdraw";
 type Chain = "base" | "solana";
@@ -84,7 +85,7 @@ function chainIcon(chain: Chain): string {
 }
 
 function refetchBalancesSoon() {
-  window.dispatchEvent(new Event("balance:refetch"));
+  invalidateData(["balances"], "funding-balance-changed");
 }
 
 function TokenIcon({

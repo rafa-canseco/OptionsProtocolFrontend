@@ -39,6 +39,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import { invalidateData } from "@/lib/dataInvalidation";
 
 type DialogAction = "deposit" | "redeem";
 type TxStatus = "idle" | "submitting" | "confirmed";
@@ -574,7 +575,7 @@ function useFundTransaction(
       setHash(confirmedHash);
       setStatus("confirmed");
       clearValue("");
-      window.dispatchEvent(new Event("balance:refetch"));
+      invalidateData(["balances", "vault"], "vault-transaction-confirmed");
       await props.onRefetch();
     } catch (cause) {
       setStatus("idle");

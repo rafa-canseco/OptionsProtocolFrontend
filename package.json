@@ -7,8 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "check:fast": "bun run lint && bun run typecheck && bun run test",
+    "check:full": "bun run check:fast && bun run build"
   },
   "dependencies": {
     "@privy-io/react-auth": "^3.18.0",

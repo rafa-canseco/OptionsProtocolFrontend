@@ -46,6 +46,7 @@ import {
   SeriesPreparationError,
 } from "@/lib/seriesPreparation";
 import { clearPendingBridge, savePendingBridge } from "@/lib/pendingBridge";
+import { invalidateData } from "@/lib/dataInvalidation";
 import type { YieldMetric } from "./YieldToggle";
 import { DepositModal } from "@/components/DepositModal";
 
@@ -358,7 +359,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             setChainExecuted(result.chainExecuted ?? null);
             updateStep("confirmed");
             onAccepted({ amount: acceptedAmount, txHash: result.txHash ?? null });
-            window.dispatchEvent(new Event("balance:refetch"));
+            invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
             const pos = buildOptimisticPosition(
               quote, acceptedAmount, isBuy, address!, assetSlug,
@@ -458,7 +459,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
               user: solanaPk.toBase58(),
               transaction: Buffer.from(signedSetup).toString("base64"),
             });
-            window.dispatchEvent(new Event("balance:refetch"));
+            invalidateData(["balances"], "transaction-confirmed");
           } else {
             setProgressMessage("Preparing Solana accounts...");
             const setupTx = await buildSolanaTradeSetupTransaction(
@@ -473,7 +474,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             if (setupTx) {
               setProgressMessage("Confirming Solana setup...");
               await sendSolanaTransaction(setupTx);
-              window.dispatchEvent(new Event("balance:refetch"));
+              invalidateData(["balances"], "transaction-confirmed");
             }
           }
 
@@ -499,7 +500,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
         setChainExecuted("solana");
         updateStep("confirmed");
         onAccepted({ amount, txHash: signature });
-        window.dispatchEvent(new Event("balance:refetch"));
+        invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
         const pos = buildOptimisticPosition(
           quote, amount, isBuy,
@@ -667,7 +668,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       setChainExecuted(executionQuote.chain ?? "base");
       updateStep("confirmed");
       onAccepted({ amount, txHash: resultHash });
-      window.dispatchEvent(new Event("balance:refetch"));
+      invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
       const pos = buildOptimisticPosition(
         executionQuote,
