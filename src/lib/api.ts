@@ -431,7 +431,7 @@ export interface FundTokenMetadata {
   decimals: number;
 }
 
-export type FundApiStrategyKind = "csp" | "covered_call";
+export type FundApiStrategyKind = "csp" | "covered_call" | "meta_wheel";
 
 export interface FundRegistryItem {
   fundKey: string;
@@ -450,6 +450,8 @@ export interface FundComposition {
   strategyAccountingAssets: string;
   assignedWeth: string;
   reservedClaimAssets: string;
+  /** Accounting asset held by the strategy adapter but not committed to a position. */
+  adapterFreeAccountingAssets?: string;
   /** Transient USDC premium/called-away proceeds, in USDC base units. */
   transientUsdc?: string;
   /** WETH accounting-asset value of transient USDC inventory. */
@@ -464,6 +466,8 @@ export interface FundComposition {
   assignedWethValueAssets?: string;
   /** Expected settlement costs included in transactional NAV. */
   settlementCostAssets?: string;
+  /** Settlement proceeds receivable but not yet delivered to the fund. */
+  settlementReceivableAssets?: string;
   /** Expected USDC-to-WETH normalization costs, in accounting-asset units. */
   normalizationCostAssets?: string;
   /** Expected option lifecycle exit costs, in accounting-asset units. */
@@ -485,17 +489,100 @@ export interface FundOptionPositionSummary {
   optionAmount8: string;
   collateralAssets: string;
   premiumEarnedAssets: string;
+  calledAwayUsdc?: string;
+  fallbackWethRecoveredAssets?: string;
+  mmWethPayoutAssets?: string;
 }
 
 /** @deprecated Use FundOptionPositionSummary. */
 export type CspPositionSummary = FundOptionPositionSummary;
 
+export interface FundStrategyOperationSummary {
+  operationType: string;
+  positionId: number | null;
+  blockNumber: number | null;
+}
+
 export interface FundStrategySnapshot {
   strategyKind?: FundApiStrategyKind;
   latestPosition: FundOptionPositionSummary | null;
+  latestOperation?: FundStrategyOperationSummary | null;
   totalPremiumCollectedAssets: string;
   nextOpenAfter: number | null;
   nextOpenCondition: string;
+}
+
+export type MetaWheelTrancheState =
+  | "pending_csp"
+  | "csp_open"
+  | "csp_settling"
+  | "weth_transition"
+  | "call_open"
+  | "call_settling"
+  | "closed";
+
+export type MetaWheelSettlementKind =
+  | "pending_delivery"
+  | "csp_otm"
+  | "csp_assigned"
+  | "call_otm"
+  | "call_away"
+  | "weth_fallback";
+
+export interface MetaWheelTrancheSummary {
+  trancheId: string;
+  childVault: string | null;
+  state: MetaWheelTrancheState;
+  /** Original user-capital basis carried across CSP/CC handoffs. */
+  principalAssets: string;
+  /** Liquid USDC currently available in this tranche for its next CSP leg. */
+  pendingAssets: string;
+  childShares: string;
+  childPositionId: string | null;
+  /** Stable lifecycle commitment used by managed execution checks. */
+  childExecutionStateHash: string | null;
+  /** `pending_delivery` keeps the tranche settling until physical delivery completes. */
+  settlementKind: MetaWheelSettlementKind | null;
+  assignmentLotIds: string[];
+  literalAssignmentFloorUsd8: string;
+  protectedAssignmentFloorUsd8: string;
+  callStrikeUsd8: string | null;
+  transitionNonce: number;
+  nextAction: string;
+}
+
+export interface MetaWheelRedemptionSummary {
+  /** USDC removed from CSP allocation and reserved for asynchronous claims. */
+  reservedAssets: string;
+  /** Principal basis attached to the exact reserved USDC. */
+  reservedPrincipalAssets: string;
+}
+
+/** Parent-fund allocation view. All `Assets` values use the USDC accounting decimals. */
+export interface MetaWheelSnapshot {
+  pendingCspAssets: string;
+  cspValueAssets: string;
+  transitionWeth: string;
+  transitionWethValueAssets: string;
+  coveredCallValueAssets: string;
+  returnedUsdcAssets: string;
+  reservedRedemptionAssets: string;
+  redemption: MetaWheelRedemptionSummary;
+  activeTrancheCount: number;
+  protectedAssignmentFloorUsd8: string;
+  currentPhase: string;
+  nextAction: string;
+  cumulativeGrossPremiumAssets: string;
+  cumulativeProtocolFeeAssets: string;
+  cumulativeNetPremiumAssets: string;
+  policyVersion: number;
+  policyHash: string | null;
+  /** NAV reconciliation commitment; distinct from per-child execution hashes. */
+  navCoherent: boolean;
+  navSnapshotBlock: number | null;
+  navSnapshotBlockHash: string | null;
+  paused: boolean;
+  tranches: MetaWheelTrancheSummary[];
 }
 
 export interface FundNavWindow {
@@ -545,6 +632,8 @@ export interface FundSummaryResponse {
   nav: FundNavWindow;
   /** Current strategy cycle. Optional while older backend versions roll out. */
   strategy?: FundStrategySnapshot;
+  /** Meta Wheel allocation and tranche state. Omitted for standalone CSP/CC funds. */
+  wheel?: MetaWheelSnapshot | null;
   status: FundStatus;
   actions: FundActions;
   asOfBlock: number | null;

@@ -16,6 +16,7 @@ import {
 import {
   COVERED_CALL_VAULT_CARD,
   CSP_VAULT_CARD,
+  META_WHEEL_VAULT_CARD,
   mapFundPosition,
   vaultCardMetadata,
 } from "@/lib/vaults";
@@ -120,7 +121,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
 
         <section
           aria-label={isMyView ? "Your vault positions" : "Available vaults"}
-          className={isMyView ? "max-w-[640px]" : "grid gap-5 lg:grid-cols-2"}
+          className={isMyView ? "max-w-[640px]" : "grid gap-5 lg:grid-cols-2 xl:grid-cols-3"}
         >
           <VaultCard
             vault={isMyView ? CSP_VAULT_CARD : catalogCsp}
@@ -156,6 +157,13 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
                   ? () => setDialogVault("covered-call")
                   : undefined
               }
+            />
+          ) : null}
+          {!isMyView && catalogAsset.slug === "eth" ? (
+            <VaultCard
+              vault={META_WHEEL_VAULT_CARD}
+              summary={null}
+              position={null}
             />
           ) : null}
           {isMyView ? (

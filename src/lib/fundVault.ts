@@ -37,6 +37,8 @@ const PROXY_ROLES = new Set<string>([
   "strategy_manager",
   "csp_adapter",
   "covered_call_adapter",
+  "wheel_coordinator",
+  "meta_wheel_adapter",
   "controller",
   "batch_settler",
 ]);
@@ -217,7 +219,11 @@ export function fundTrustError(
     deploymentEnv(deployment, "SHARE_ADDRESS") || deployment.shareAddress;
   const assetAddress =
     deploymentEnv(deployment, "ASSET_ADDRESS") || deployment.accountingAssetAddress;
-  const product = deployment.strategyKind === "covered_call" ? "Covered Call" : "CSP";
+  const product = deployment.strategyKind === "covered_call"
+    ? "Covered Call"
+    : deployment.strategyKind === "meta_wheel"
+      ? "Meta Wheel"
+      : "CSP";
   if (![fundAddress, shareAddress, assetAddress].every((value) => isAddress(value))) {
     return `${product} fund allowlist contains an invalid address.`;
   }
@@ -432,6 +438,19 @@ function deploymentEnv(
   deployment: TrustedFundDeployment,
   suffix: "KEY" | "ADDRESS" | "SHARE_ADDRESS" | "ASSET_ADDRESS" | "CONTRACT_ALLOWLIST",
 ): string | undefined {
+  if (deployment.environmentPrefix === "META_WHEEL_FUND") {
+    if (suffix === "KEY") return process.env.NEXT_PUBLIC_META_WHEEL_FUND_KEY;
+    if (suffix === "ADDRESS") {
+      return process.env.NEXT_PUBLIC_META_WHEEL_FUND_ADDRESS;
+    }
+    if (suffix === "SHARE_ADDRESS") {
+      return process.env.NEXT_PUBLIC_META_WHEEL_FUND_SHARE_ADDRESS;
+    }
+    if (suffix === "ASSET_ADDRESS") {
+      return process.env.NEXT_PUBLIC_META_WHEEL_FUND_ASSET_ADDRESS;
+    }
+    return process.env.NEXT_PUBLIC_META_WHEEL_FUND_CONTRACT_ALLOWLIST;
+  }
   if (deployment.environmentPrefix === "COVERED_CALL_FUND") {
     if (suffix === "KEY") return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_KEY;
     if (suffix === "ADDRESS") {

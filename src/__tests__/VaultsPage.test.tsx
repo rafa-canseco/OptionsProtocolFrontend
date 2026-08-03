@@ -12,6 +12,7 @@ import type {
 import {
   COVERED_CALL_VAULT_CARD,
   EMPTY_VAULT_POSITION,
+  META_WHEEL_VAULT_CARD,
   VAULT_STATE_COPY,
 } from "@/lib/vaults";
 
@@ -90,7 +91,7 @@ describe("VaultsPage", () => {
       .getByRole("heading", { name: "ETH Covered Call" })
       .closest("article");
     expect(coveredCallCard).not.toBeNull();
-    expect(screen.getAllByText("NAV price")).toHaveLength(2);
+    expect(screen.getAllByText("NAV price")).toHaveLength(3);
     expect(screen.getByText("ETH puts")).toBeInTheDocument();
     expect(within(coveredCallCard!).getByText("ETH Covered Call")).toBeInTheDocument();
     expect(within(coveredCallCard!).queryByText("WETH vault")).not.toBeInTheDocument();
@@ -109,6 +110,17 @@ describe("VaultsPage", () => {
         "Earn income while waiting to buy ETH at a lower price.",
       ),
     ).toBeInTheDocument();
+    const wheelCard = screen
+      .getByRole("heading", { name: "ETH Meta Wheel" })
+      .closest("article");
+    expect(wheelCard).not.toBeNull();
+    expect(within(wheelCard!).getByText("ETH wheel")).toBeInTheDocument();
+    expect(
+      within(wheelCard!).getByText(/protecting every assignment price/i),
+    ).toBeInTheDocument();
+    expect(
+      within(wheelCard!).getByRole("button", { name: "Coming soon" }),
+    ).toBeDisabled();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
     expect(
@@ -162,6 +174,9 @@ describe("VaultsPage", () => {
     expect(
       within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
     ).toBeDisabled();
+    expect(
+      screen.queryByRole("heading", { name: "ETH Meta Wheel" }),
+    ).not.toBeInTheDocument();
     expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute(
       "href",
       "/earn/btc",
@@ -491,7 +506,132 @@ describe("VaultsPage", () => {
     expect(screen.getByText("0 USDC")).toBeInTheDocument();
     expect(screen.getByText("When WETH and pricing are ready")).toBeInTheDocument();
   });
+
+  it("shows parallel wheel allocations and the protected assignment floor", async () => {
+    const user = userEvent.setup();
+    render(
+      <VaultDialog
+        vault={META_WHEEL_VAULT_CARD}
+        summary={metaWheelSummary()}
+        position={emptyPosition({
+          fundKey: "base-sepolia:meta-wheel",
+          accountingValue: "0",
+        })}
+        config={null}
+        loadError={null}
+        smartAssetRaw={BigInt(500_000000)}
+        onRefetch={vi.fn()}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("ETH WHEEL · USDC")).toBeInTheDocument();
+    expect(screen.getByText("Current wheel state")).toBeInTheDocument();
+    expect(screen.getByText("CSP and covered-call lanes active")).toBeInTheDocument();
+    expect(screen.getByText("2 tranches")).toBeInTheDocument();
+    expect(screen.getByText("Literal assignment floor")).toBeInTheDocument();
+    expect(screen.getAllByText("$1,640")).toHaveLength(2);
+    expect(screen.getByText("Protected call floor")).toBeInTheDocument();
+    expect(screen.getAllByText("$1,650")).toHaveLength(2);
+    expect(screen.getByText("Redemption reserve")).toBeInTheDocument();
+    expect(screen.getByText("$40.00")).toBeInTheDocument();
+    expect(screen.getByText("$35.00 principal tracked")).toBeInTheDocument();
+    expect(screen.getByText("Net option premium")).toBeInTheDocument();
+    expect(screen.getByText("$11.00")).toBeInTheDocument();
+    expect(screen.getByText("Fair option liabilities")).toBeInTheDocument();
+    expect(screen.getByText(/Physical delivery is pending/i)).toBeInTheDocument();
+
+    await user.click(screen.getByText(/Tracked capital · 2 active tranches/i));
+    expect(screen.getByText("CSP position open")).toBeInTheDocument();
+    expect(screen.getByText("Awaiting physical delivery")).toBeInTheDocument();
+    expect(screen.getByText("Wait for physical delivery")).toBeInTheDocument();
+    expect(screen.getAllByText("Literal assignment")).toHaveLength(2);
+    expect(screen.getByText(/Execution hash 0x111111…111111/i)).toBeInTheDocument();
+    expect(screen.getByText(/NAV reconciliation: coherent at block 123/i)).toBeInTheDocument();
+    expect(screen.queryByText(/child shares/i)).not.toBeInTheDocument();
+
+    await user.click(screen.getByText("How this vault works"));
+    expect(screen.getByText("Calls never below assignment")).toBeInTheDocument();
+    expect(
+      screen.getByText(/one assignment lot.*literal CSP assignment strike/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/remains idle rather than realizing a below-assignment sale/i),
+    ).toBeInTheDocument();
+  });
 });
+
+function metaWheelSummary(): FundSummaryResponse {
+  const summary = fairSummary();
+  summary.fund.fundKey = "base-sepolia:meta-wheel";
+  summary.fund.strategyKind = "meta_wheel";
+  summary.fund.shareToken.symbol = "b1WHEEL";
+  summary.strategy = undefined;
+  summary.wheel = {
+    pendingCspAssets: "180000000",
+    cspValueAssets: "420000000",
+    transitionWeth: "100000000000000000",
+    transitionWethValueAssets: "170000000",
+    coveredCallValueAssets: "200000000",
+    returnedUsdcAssets: "0",
+    reservedRedemptionAssets: "40000000",
+    redemption: {
+      reservedAssets: "40000000",
+      reservedPrincipalAssets: "35000000",
+    },
+    activeTrancheCount: 2,
+    protectedAssignmentFloorUsd8: "165000000000",
+    currentPhase: "mixed",
+    nextAction: "Open an eligible covered call above the protected floor",
+    cumulativeGrossPremiumAssets: "13000000",
+    cumulativeProtocolFeeAssets: "2000000",
+    cumulativeNetPremiumAssets: "11000000",
+    policyVersion: 1,
+    policyHash: "0xdb47fcd1",
+    navCoherent: true,
+    navSnapshotBlock: 123,
+    navSnapshotBlockHash: "0xabc",
+    paused: false,
+    tranches: [
+      {
+        trancheId: "17",
+        childVault: "0x5000000000000000000000000000000000000005",
+        state: "call_settling",
+        principalAssets: "250000000",
+        pendingAssets: "0",
+        childShares: "250000000000000000000",
+        childPositionId: "4",
+        childExecutionStateHash: `0x${"1".repeat(64)}`,
+        settlementKind: "pending_delivery",
+        assignmentLotIds: ["9"],
+        literalAssignmentFloorUsd8: "164000000000",
+        protectedAssignmentFloorUsd8: "165000000000",
+        callStrikeUsd8: "170000000000",
+        transitionNonce: 6,
+        nextAction: "wait_for_physical_delivery",
+      },
+      {
+        trancheId: "18",
+        childVault: "0x6000000000000000000000000000000000000006",
+        state: "csp_open",
+        principalAssets: "420000000",
+        pendingAssets: "0",
+        childShares: "420000000000000000000",
+        childPositionId: "5",
+        childExecutionStateHash: `0x${"2".repeat(64)}`,
+        settlementKind: null,
+        assignmentLotIds: [],
+        literalAssignmentFloorUsd8: "0",
+        protectedAssignmentFloorUsd8: "0",
+        callStrikeUsd8: null,
+        transitionNonce: 2,
+        nextAction: "wait_for_csp_expiry",
+      },
+    ],
+  };
+  return summary;
+}
 
 function fairSummary(): FundSummaryResponse {
   return {
