@@ -105,6 +105,39 @@ describe("useVisibilityPolling", () => {
     unmount();
   });
 
+  it("bounds 3-second fast polling and returns to the regular cadence", async () => {
+    vi.useFakeTimers({ now: new Date("2026-08-03T10:00:00Z") });
+    const refresh = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
+    const { result, unmount } = renderHook(() =>
+      useVisibilityPolling({
+        refresh,
+        pollKey: "bounded-fast-polling",
+        intervalMs: 15_000,
+        fastIntervalMs: 3_000,
+        fastDurationMs: 30_000,
+      }),
+    );
+    await act(async () => Promise.resolve());
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    act(() => result.current.startFastPolling());
+    await act(async () => Promise.resolve());
+    expect(refresh).toHaveBeenCalledTimes(2);
+
+    await act(async () => vi.advanceTimersByTimeAsync(2_999));
+    expect(refresh).toHaveBeenCalledTimes(2);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(refresh).toHaveBeenCalledTimes(3);
+
+    await act(async () => vi.advanceTimersByTimeAsync(27_000));
+    expect(refresh).toHaveBeenCalledTimes(12);
+    await act(async () => vi.advanceTimersByTimeAsync(14_999));
+    expect(refresh).toHaveBeenCalledTimes(12);
+    await act(async () => vi.advanceTimersByTimeAsync(1));
+    expect(refresh).toHaveBeenCalledTimes(13);
+    unmount();
+  });
+
   it("coalesces concurrent refreshes into exactly one trailing request", async () => {
     vi.useFakeTimers();
     let resolveFirst: (() => void) | undefined;
