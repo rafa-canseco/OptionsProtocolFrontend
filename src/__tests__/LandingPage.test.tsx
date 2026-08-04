@@ -1,59 +1,122 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { LandingPage } from "@/components/landing/LandingPage";
+
+const prohibitedCopy = [
+  "onchain",
+  "crosschain",
+  "blockchain",
+  "smart contract",
+  "cash-secured put",
+  "covered call",
+  "strike",
+  "premium",
+  "assignment",
+  "collateral",
+  "market maker",
+];
 
 describe("LandingPage", () => {
   beforeEach(() => {
-    delete process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
-    delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
-    delete process.env.NEXT_PUBLIC_FEATURED_ASSET;
-  });
-
-  it("renders the AssetsStrip with the four supported assets", () => {
-    render(<LandingPage />);
-    const assetsList = screen.getByLabelText(/tslax on solana, new/i).closest("ul");
-    expect(assetsList).not.toBeNull();
-    const items = assetsList?.querySelectorAll("li") ?? [];
-    const texts = Array.from(items).map((el) => el.textContent);
-    expect(texts.some((t) => t?.includes("ETH"))).toBe(true);
-    expect(texts.some((t) => t?.includes("cbBTC"))).toBe(true);
-    expect(texts.some((t) => t?.includes("SOL"))).toBe(true);
-    expect(texts.some((t) => t?.includes("TSLAx"))).toBe(true);
-  });
-
-  it("renders the HowItWorks narrative section", () => {
-    render(<LandingPage />);
-    expect(
-      screen.getByRole("heading", { level: 2, name: /how it works/i }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { level: 3, name: /pick your conditions/i }),
-    ).toBeInTheDocument();
-  });
-
-  it("removes the MechanismSection (no 'Try it with live prices' or 'Here\\'s how it works')", () => {
-    render(<LandingPage />);
-    expect(
-      screen.queryByRole("heading", { level: 2, name: /try it with live prices/i }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { level: 2, name: /here's how it works/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("places AssetsStrip immediately before HowItWorks", () => {
-    const { container } = render(<LandingPage />);
-    const assetsStripList = container.querySelector("ul");
-    const howItWorksHeading = screen.getByRole("heading", {
-      level: 2,
-      name: /how it works/i,
+    delete document.documentElement.dataset.landingTheme;
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockImplementation(() => null);
+    const values = new Map<string, string>();
+    Object.defineProperty(window, "localStorage", {
+      configurable: true,
+      value: {
+        clear: () => values.clear(),
+        getItem: (key: string) => values.get(key) ?? null,
+        removeItem: (key: string) => values.delete(key),
+        setItem: (key: string, value: string) => values.set(key, value),
+      },
     });
-    expect(assetsStripList).not.toBeNull();
-    expect(howItWorksHeading).toBeInTheDocument();
-    if (assetsStripList) {
-      const pos = assetsStripList.compareDocumentPosition(howItWorksHeading);
-      // HowItWorks comes after the AssetsStrip list in document order
-      expect(pos & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it("presents the retail positioning and three strategy families", () => {
+    render(<LandingPage />);
+
+    expect(
+      screen.getByRole("heading", {
+        level: 1,
+        name: /your investments.*autopilot/i,
+      }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Strategic Entry" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Income Strategy" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Automatic Cycle" })).toBeInTheDocument();
+    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+  });
+
+  it("labels familiar markets as illustrative examples", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByLabelText(/illustrative markets/i)).toBeInTheDocument();
+    expect(screen.getByText(/examples only\. availability may vary/i)).toBeInTheDocument();
+    expect(screen.getAllByText("TSLA")).not.toHaveLength(0);
+    expect(screen.getAllByText("AAPL")).not.toHaveLength(0);
+  });
+
+  it("keeps implementation and derivatives terminology out of user-facing copy", () => {
+    const { container } = render(<LandingPage />);
+    const copy = container.textContent?.toLowerCase() ?? "";
+
+    for (const term of prohibitedCopy) {
+      expect(copy).not.toContain(term);
     }
+  });
+
+  it("localizes the landing content and navigation labels in Spanish", () => {
+    const { container } = render(<LandingPage initialLocale="es" />);
+
+    expect(container.firstElementChild).toHaveAttribute("lang", "es");
+    expect(screen.getByRole("button", { name: /cambiar al modo oscuro/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /abrir navegación/i })).toBeInTheDocument();
+    expect(screen.getByRole("navigation", { name: /navegación principal/i })).toBeInTheDocument();
+  });
+
+  it("persists the selected landing theme", () => {
+    const { container } = render(<LandingPage />);
+    const landing = container.firstElementChild;
+
+    expect(landing).toHaveAttribute("data-theme", "light");
+    fireEvent.click(screen.getByRole("button", { name: /switch to dark mode/i }));
+    expect(landing).toHaveAttribute("data-theme", "dark");
+    expect(window.localStorage.getItem("b1nary-landing-theme")).toBe("dark");
+    expect(document.documentElement.dataset.landingTheme).toBe("dark");
+  });
+
+  it("restores a persisted dark theme before interaction", () => {
+    window.localStorage.setItem("b1nary-landing-theme", "dark");
+    const { container } = render(<LandingPage />);
+    expect(container.firstElementChild).toHaveAttribute("data-theme", "dark");
+  });
+
+  it("provides working navigation to the existing application", () => {
+    render(<LandingPage />);
+
+    expect(screen.getByRole("link", { name: /open app/i })).toHaveAttribute("href", "/vaults");
+    const appLinks = screen.getAllByRole("link", { name: /view strategies/i });
+    expect(appLinks.length).toBeGreaterThan(0);
+    for (const link of appLinks) expect(link).toHaveAttribute("href", "/vaults");
+  });
+
+  it("keeps the illustrative review chrome out of the tab order", () => {
+    const { container } = render(<LandingPage />);
+    const hiddenPreview = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
+      .find((element) => element.textContent?.includes("Illustrative review"));
+    expect(hiddenPreview).toBeDefined();
+    expect(hiddenPreview?.querySelector("button, a, input, select, textarea")).toBeNull();
+  });
+
+  it("uses accessible expandable FAQ controls", () => {
+    render(<LandingPage />);
+
+    const question = screen.getByRole("button", {
+      name: /are returns guaranteed/i,
+    });
+    expect(question).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(question);
+    expect(question).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByText(/every strategy carries market risk/i)).toBeVisible();
   });
 });
