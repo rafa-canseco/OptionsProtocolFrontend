@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   api,
   type YieldUserSummary,
@@ -8,6 +8,9 @@ import {
   type YieldUserHistory,
   type YieldStats,
 } from "@/lib/api";
+import { subscribeDataInvalidation } from "@/lib/dataInvalidation";
+import { useRequestGeneration } from "@/hooks/useRequestGeneration";
+import { useVisibilityPolling } from "@/hooks/useVisibilityPolling";
 
 interface YieldData {
   summary: YieldUserSummary | null;
@@ -15,6 +18,14 @@ interface YieldData {
   history: YieldUserHistory | null;
   stats: YieldStats | null;
 }
+
+const EMPTY_YIELD_DATA: YieldData = {
+  summary: null,
+  positions: null,
+  history: null,
+  stats: null,
+};
+const MANUAL_REFRESH_INTERVAL_MS = 60_000;
 
 function mergeAssetSummaries(summaries: YieldUserSummary[]): YieldUserSummary | null {
   if (summaries.length === 0) return null;
@@ -46,9 +57,7 @@ function mergeYieldPositions(all: YieldUserPositions[]): YieldUserPositions | nu
   const totalsMap = new Map<string, YieldUserPositions["totals"][number]>();
 
   for (const entry of all) {
-    for (const pos of entry.positions) {
-      positionsMap.set(pos.id, pos);
-    }
+    for (const pos of entry.positions) positionsMap.set(pos.id, pos);
     for (const total of entry.totals) {
       const prev = totalsMap.get(total.asset);
       totalsMap.set(total.asset, {
@@ -70,9 +79,7 @@ function mergeYieldHistory(all: YieldUserHistory[]): YieldUserHistory | null {
   const wallet = all[0]?.wallet ?? "";
   const historyMap = new Map<string, YieldUserHistory["history"][number]>();
   for (const entry of all) {
-    for (const item of entry.history) {
-      historyMap.set(item.id, item);
-    }
+    for (const item of entry.history) historyMap.set(item.id, item);
   }
   return { wallet, history: Array.from(historyMap.values()) };
 }
@@ -81,56 +88,91 @@ export function useYield(
   address: string | undefined,
   solanaAddress?: string | undefined,
 ) {
-  const [data, setData] = useState<YieldData>({
-    summary: null,
-    positions: null,
-    history: null,
-    stats: null,
-  });
+  const sourceKey = `yield:${address?.toLowerCase() ?? "none"}:${solanaAddress ?? "none"}`;
+  const addresses = [address, solanaAddress].filter(
+    (value, index, values): value is string =>
+      Boolean(value) && values.indexOf(value) === index,
+  );
+  const enabled = addresses.length > 0;
+  const [snapshot, setSnapshot] = useState<{
+    sourceKey: string;
+    data: YieldData;
+  }>({ sourceKey, data: EMPTY_YIELD_DATA });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<{
+    sourceKey: string;
+    message: string | null;
+  }>({ sourceKey, message: null });
+  const requestGeneration = useRequestGeneration(sourceKey);
 
-  const refresh = useCallback(async () => {
-    const addresses = [address, solanaAddress].filter(
-      (value, index, arr): value is string =>
-        Boolean(value) && arr.indexOf(value) === index,
-    );
-
-    if (addresses.length === 0) {
-      setData({ summary: null, positions: null, history: null, stats: null });
-      setLoading(false);
-      return;
-    }
+  const fetchYield = useCallback(async () => {
+    const generation = requestGeneration.capture();
+    if (addresses.length === 0) return;
     try {
       const [summaries, positionsList, historyList, stats] = await Promise.all([
-        Promise.all(addresses.map((addr) => api.getYieldSummary(addr))),
-        Promise.all(addresses.map((addr) => api.getYieldPositions(addr))),
-        Promise.all(addresses.map((addr) => api.getYieldHistory(addr))),
+        Promise.all(addresses.map((item) => api.getYieldSummary(item))),
+        Promise.all(addresses.map((item) => api.getYieldPositions(item))),
+        Promise.all(addresses.map((item) => api.getYieldHistory(item))),
         api.getYieldStats(),
       ]);
-      setData({
-        summary: mergeAssetSummaries(summaries),
-        positions: mergeYieldPositions(positionsList),
-        history: mergeYieldHistory(historyList),
-        stats,
+      if (!requestGeneration.isCurrent(generation)) return;
+      setSnapshot({
+        sourceKey,
+        data: {
+          summary: mergeAssetSummaries(summaries),
+          positions: mergeYieldPositions(positionsList),
+          history: mergeYieldHistory(historyList),
+          stats,
+        },
       });
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to fetch yield data");
+      setErrorState({ sourceKey, message: null });
+    } catch (cause) {
+      if (!requestGeneration.isCurrent(generation)) return;
+      setSnapshot((previous) =>
+        previous.sourceKey === sourceKey
+          ? previous
+          : { sourceKey, data: EMPTY_YIELD_DATA },
+      );
+      setErrorState({
+        sourceKey,
+        message:
+          cause instanceof Error ? cause.message : "Failed to fetch yield data",
+      });
     } finally {
-      setLoading(false);
+      if (requestGeneration.isCurrent(generation)) setLoading(false);
     }
-  }, [address, solanaAddress]);
+  }, [addresses, requestGeneration, sourceKey]);
+
+  const { refreshNow } = useVisibilityPolling({
+    refresh: fetchYield,
+    enabled,
+    pollKey: sourceKey,
+    intervalMs: MANUAL_REFRESH_INTERVAL_MS,
+    periodic: false,
+  });
 
   useEffect(() => {
-    refresh();
-  }, [refresh]);
+    if (enabled) {
+      setLoading(true);
+      return;
+    }
+    setSnapshot({ sourceKey, data: EMPTY_YIELD_DATA });
+    setErrorState({ sourceKey, message: null });
+    setLoading(false);
+  }, [enabled, sourceKey]);
 
-  useEffect(() => {
-    const handler = () => refresh();
-    window.addEventListener("balance:refetch", handler);
-    return () => window.removeEventListener("balance:refetch", handler);
-  }, [refresh]);
+  useEffect(
+    () => subscribeDataInvalidation("yield", () => void refreshNow()),
+    [refreshNow],
+  );
 
-  return { ...data, loading, error, refresh };
+  const snapshotIsCurrent = snapshot.sourceKey === sourceKey;
+  const data = snapshotIsCurrent ? snapshot.data : EMPTY_YIELD_DATA;
+  return {
+    ...data,
+    loading: enabled ? !snapshotIsCurrent || loading : false,
+    error:
+      errorState.sourceKey === sourceKey ? errorState.message : null,
+    refresh: refreshNow,
+  };
 }

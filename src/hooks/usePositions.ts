@@ -1,7 +1,44 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, type Position } from "@/lib/api";
+import {
+  subscribeDataInvalidation,
+  wasDataInvalidatedRecently,
+} from "@/lib/dataInvalidation";
+import {
+  invalidateSharedRequest,
+  sharedRequest,
+} from "@/lib/sharedRequest";
+import { useVisibilityPolling } from "@/hooks/useVisibilityPolling";
+import { useRequestGeneration } from "@/hooks/useRequestGeneration";
+
+const POSITION_REQUEST_TTL_MS = 1_000;
+const POSITION_FAST_INTERVAL_MS = 3_000;
+const POSITION_FAST_DURATION_MS = 30_000;
+
+function uniqueCaseSensitive(values: Array<string | undefined>): string[] {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function uniqueBaseAddresses(values: Array<string | undefined>): string[] {
+  return Array.from(
+    new Set(
+      values
+        .filter((value): value is string => Boolean(value))
+        .map((value) => value.toLowerCase()),
+    ),
+  );
+}
+
+function dedupePositions(positions: Position[]): Position[] {
+  const seen = new Set<string>();
+  return positions.filter((position) => {
+    if (seen.has(position.id)) return false;
+    seen.add(position.id);
+    return true;
+  });
+}
 
 export function usePositions(
   address: string | undefined,
@@ -11,105 +48,125 @@ export function usePositions(
   baseAddresses?: string[],
   b1naryPrivyUserId?: string,
 ) {
-  const [positions, setPositions] = useState<Position[]>([]);
+  const baseKey = uniqueBaseAddresses([
+    address,
+    fundingAddress,
+    ...(baseAddresses ?? []),
+  ])
+    .sort()
+    .join("|");
+  const solanaKey = uniqueCaseSensitive(
+    Array.isArray(solanaAddresses) ? solanaAddresses : [solanaAddresses],
+  )
+    .sort()
+    .join("|");
+  const baseWallets = useMemo(() => (baseKey ? baseKey.split("|") : []), [baseKey]);
+  const solanaWallets = useMemo(
+    () => (solanaKey ? solanaKey.split("|") : []),
+    [solanaKey],
+  );
+  const sourceKey = b1naryPrivyUserId
+    ? `privy:${b1naryPrivyUserId}`
+    : `wallets:${baseKey}:${solanaKey}`;
+  const enabled = Boolean(b1naryPrivyUserId || baseKey || solanaKey);
+  const requestKey = `positions:${sourceKey}`;
+  const [snapshot, setSnapshot] = useState<{
+    sourceKey: string;
+    positions: Position[];
+  }>({ sourceKey, positions: [] });
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [errorState, setErrorState] = useState<{
+    sourceKey: string;
+    message: string | null;
+  }>({ sourceKey, message: null });
+  const requestGeneration = useRequestGeneration(sourceKey);
 
-  const refresh = useCallback(async () => {
-    const uniqueSolanaAddresses = Array.from(
-      new Set(
-        (Array.isArray(solanaAddresses)
-          ? solanaAddresses
-          : [solanaAddresses]
-        ).filter((value): value is string => Boolean(value)),
-      ),
-    );
-    const uniqueBaseAddresses = Array.from(
-      new Set([address, fundingAddress, ...(baseAddresses ?? [])].filter(
-        (value): value is string => Boolean(value),
-      )),
-    );
+  const loadPositions = useCallback(async () => {
+    if (!enabled) return [];
+    return sharedRequest(requestKey, POSITION_REQUEST_TTL_MS, async () => {
+      if (b1naryPrivyUserId) {
+        const response = await api.getB1naryPositionsByPrivyUserId(
+          b1naryPrivyUserId,
+        );
+        return response.positions;
+      }
+      const results = await Promise.all(
+        [...baseWallets, ...solanaWallets].map((wallet) =>
+          api.getPositions(wallet),
+        ),
+      );
+      return dedupePositions(results.flat());
+    });
+  }, [b1naryPrivyUserId, baseWallets, enabled, requestKey, solanaWallets]);
 
-    if (
-      !b1naryPrivyUserId &&
-      uniqueBaseAddresses.length === 0 &&
-      uniqueSolanaAddresses.length === 0
-    ) {
-      setPositions([]);
-      setLoading(false);
+  const fetchPositions = useCallback(async () => {
+    const generation = requestGeneration.capture();
+    try {
+      const nextPositions = await loadPositions();
+      if (!requestGeneration.isCurrent(generation)) return;
+      setSnapshot({ sourceKey, positions: nextPositions });
+      setErrorState({ sourceKey, message: null });
+    } catch (cause) {
+      if (!requestGeneration.isCurrent(generation)) return;
+      setSnapshot((previous) =>
+        previous.sourceKey === sourceKey
+          ? previous
+          : { sourceKey, positions: [] },
+      );
+      setErrorState({
+        sourceKey,
+        message:
+          cause instanceof Error ? cause.message : "Failed to fetch positions",
+      });
+    } finally {
+      if (requestGeneration.isCurrent(generation)) setLoading(false);
+    }
+  }, [loadPositions, requestGeneration, sourceKey]);
+
+  const { refreshNow, startFastPolling } = useVisibilityPolling({
+    refresh: fetchPositions,
+    enabled,
+    pollKey: sourceKey,
+    intervalMs: pollInterval,
+    staleTimeMs: pollInterval,
+    fastIntervalMs: POSITION_FAST_INTERVAL_MS,
+    fastDurationMs: POSITION_FAST_DURATION_MS,
+  });
+
+  useEffect(() => {
+    if (enabled) {
+      setLoading(true);
       return;
     }
-    try {
-      // Fetch from both addresses, deduplicate by id
-      const queries: Promise<Position[]>[] = [];
-      if (b1naryPrivyUserId) {
-        queries.push(
-          api
-            .getB1naryPositionsByPrivyUserId(b1naryPrivyUserId)
-            .then((response) => response.positions),
-        );
-      }
-      for (const baseAddress of uniqueBaseAddresses) {
-        queries.push(api.getPositions(baseAddress));
-      }
-      for (const solanaAddress of uniqueSolanaAddresses) {
-        queries.push(api.getPositions(solanaAddress));
-      }
+    setSnapshot({ sourceKey, positions: [] });
+    setErrorState({ sourceKey, message: null });
+    setLoading(false);
+  }, [enabled, sourceKey]);
 
-      const results = await Promise.all(queries);
-      const merged = results.flat();
-
-      const seen = new Set<string>();
-      const deduped = merged.filter((p) => {
-        if (seen.has(p.id)) return false;
-        seen.add(p.id);
-        return true;
-      });
-
-      setPositions(deduped);
-      setError(null);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to fetch positions");
-    } finally {
-      setLoading(false);
+  useEffect(() => {
+    if (
+      wasDataInvalidatedRecently("positions", POSITION_FAST_DURATION_MS)
+    ) {
+      invalidateSharedRequest(requestKey);
+      startFastPolling();
     }
-  }, [address, b1naryPrivyUserId, baseAddresses, fundingAddress, solanaAddresses]);
+    return subscribeDataInvalidation("positions", () => {
+      invalidateSharedRequest(requestKey);
+      startFastPolling(true);
+    });
+  }, [requestKey, startFastPolling]);
 
-  useEffect(() => {
-    refresh();
-    const hasSolanaAddress = Array.isArray(solanaAddresses)
-      ? solanaAddresses.some(Boolean)
-      : Boolean(solanaAddresses);
-    const hasBaseAddress = Boolean(
-      address || fundingAddress || (baseAddresses?.length ?? 0) > 0,
-    );
-    if (!b1naryPrivyUserId && !hasBaseAddress && !hasSolanaAddress) return;
+  const refresh = useCallback(async () => {
+    invalidateSharedRequest(requestKey);
+    await refreshNow();
+  }, [refreshNow, requestKey]);
 
-    // Poll faster for the first 30s after mount (new position may still be indexing)
-    const fastPoll = setInterval(refresh, 3_000);
-    const stopFastPoll = setTimeout(() => clearInterval(fastPoll), 30_000);
-    const slowPoll = setInterval(refresh, pollInterval);
-
-    return () => {
-      clearInterval(fastPoll);
-      clearTimeout(stopFastPoll);
-      clearInterval(slowPoll);
-    };
-  }, [
+  const snapshotIsCurrent = snapshot.sourceKey === sourceKey;
+  return {
+    positions: snapshotIsCurrent ? snapshot.positions : [],
+    loading: enabled ? !snapshotIsCurrent || loading : false,
+    error:
+      errorState.sourceKey === sourceKey ? errorState.message : null,
     refresh,
-    address,
-    b1naryPrivyUserId,
-    baseAddresses,
-    fundingAddress,
-    solanaAddresses,
-    pollInterval,
-  ]);
-
-  useEffect(() => {
-    const handler = () => refresh();
-    window.addEventListener("balance:refetch", handler);
-    return () => window.removeEventListener("balance:refetch", handler);
-  }, [refresh]);
-
-  return { positions, loading, error, refresh };
+  };
 }
