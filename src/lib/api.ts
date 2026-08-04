@@ -102,6 +102,8 @@ export interface Position {
   settlement_tx_hash: string | null;
   settlement_tx_url?: string | null;
   indexed_at: string;
+  /** Revision clock used by bounded portfolio streams. */
+  updated_at?: string | null;
   settlement_type: string | null;
   delivered_asset: string | null;
   delivered_amount: number | null;
@@ -286,6 +288,54 @@ export interface B1naryAccountResponse {
 export interface B1naryPositionsResponse {
   positions: Position[];
   errors: string[];
+}
+
+export type PositionPortfolioStream = "active" | "settled" | "changes";
+
+export interface PositionPortfolioTraversal {
+  limit: number;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
+export interface PositionPortfolioPagination {
+  bounded: true;
+  watermark: string;
+  active: PositionPortfolioTraversal;
+  settled: PositionPortfolioTraversal;
+}
+
+export interface PositionPortfolioSnapshotResponse {
+  positions: Position[];
+  errors?: string[];
+  pagination?: PositionPortfolioPagination;
+}
+
+export interface PositionPortfolioPageResponse {
+  positions: Position[];
+  errors?: string[];
+  stream: PositionPortfolioStream;
+  limit: number;
+  has_more: boolean;
+  next_cursor: string | null;
+  watermark: string;
+}
+
+export interface PositionPortfolioWallet {
+  chain: B1naryWalletChain;
+  address: string;
+}
+
+export interface PositionPortfolioPageRequest {
+  stream: PositionPortfolioStream;
+  cursor?: string | null;
+  limit?: number;
+  changedAfter?: string | null;
+}
+
+export interface PositionPortfolioHttpResponse<T> {
+  data: T;
+  headers: Headers;
 }
 
 export interface TrustedWalletRequest {
@@ -694,7 +744,10 @@ export interface FundConfigResponse {
   blockedReasonCode: string | null;
 }
 
-async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
+async function fetchAPIResponse<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<PositionPortfolioHttpResponse<T>> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
@@ -727,7 +780,23 @@ async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(res.status, detail);
   }
-  return res.json();
+  return { data: await res.json(), headers: res.headers };
+}
+
+async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await fetchAPIResponse<T>(path, init)).data;
+}
+
+function positionPortfolioQuery(
+  request?: PositionPortfolioPageRequest,
+  prefix: "&" | "?" = "&",
+): string {
+  if (!request) return "";
+  const params = new URLSearchParams({ stream: request.stream });
+  if (request.cursor) params.set("cursor", request.cursor);
+  if (request.limit !== undefined) params.set("limit", String(request.limit));
+  if (request.changedAfter) params.set("changed_after", request.changedAfter);
+  return `${prefix}${params.toString()}`;
 }
 
 export const api = {
@@ -753,6 +822,14 @@ export const api = {
 
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
+
+  getPositionPortfolioDirect: (
+    address: string,
+    request?: PositionPortfolioPageRequest,
+  ) =>
+    fetchAPIResponse<Position[] | PositionPortfolioPageResponse>(
+      `/positions/${encodeURIComponent(address)}${positionPortfolioQuery(request, "?")}`,
+    ),
 
   getFund: (fundKey: string) =>
     fetchAPI<FundSummaryResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}`),
@@ -817,6 +894,36 @@ export const api = {
   getB1naryPositionsByPrivyUserId: (privyUserId: string) =>
     fetchAPI<B1naryPositionsResponse>(
       `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}`,
+    ),
+
+  getB1naryPositionPortfolio: (
+    privyUserId: string,
+    request?: PositionPortfolioPageRequest,
+  ) =>
+    fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
+      `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}${positionPortfolioQuery(request)}`,
+    ),
+
+  getPositionPortfolioBatch: (
+    wallets: PositionPortfolioWallet[],
+    request?: PositionPortfolioPageRequest,
+  ) =>
+    fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
+      "/positions/batch",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          wallets,
+          ...(request
+            ? {
+                stream: request.stream,
+                cursor: request.cursor ?? null,
+                limit: request.limit,
+                changed_after: request.changedAfter ?? null,
+              }
+            : {}),
+        }),
+      },
     ),
 
   joinWaitlist: (email: string) =>
