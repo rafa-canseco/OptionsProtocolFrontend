@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Providers } from "@/lib/providers";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import "@blossom-carousel/react/style.css";
 import "./globals.css";
 
 export const dynamic = "force-dynamic";

@@ -11,6 +11,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@blossom-carousel/react": "^1.5.2",
     "@privy-io/react-auth": "^3.18.0",
     "@solana-program/memo": "^0.11.0",
     "@solana/spl-token": "^0.4.14",

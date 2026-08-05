@@ -44,16 +44,17 @@ describe("LandingPage", () => {
     expect(screen.getByRole("heading", { name: "Strategic Entry" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Income Strategy" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Automatic Cycle" })).toBeInTheDocument();
-    expect(screen.getByText("Coming soon")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Previous strategy" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Next strategy" })).toBeInTheDocument();
+    expect(screen.queryByText("Coming soon")).not.toBeInTheDocument();
   });
 
-  it("labels familiar markets as illustrative examples", () => {
+  it("does not advertise illustrative tickers", () => {
     render(<LandingPage />);
 
-    expect(screen.getByLabelText(/illustrative markets/i)).toBeInTheDocument();
-    expect(screen.getByText(/examples only\. availability may vary/i)).toBeInTheDocument();
-    expect(screen.getAllByText("TSLA")).not.toHaveLength(0);
-    expect(screen.getAllByText("AAPL")).not.toHaveLength(0);
+    expect(screen.queryByText(/examples only\. availability may vary/i)).not.toBeInTheDocument();
+    expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
+    expect(screen.queryByText("NVDA")).not.toBeInTheDocument();
   });
 
   it("keeps implementation and derivatives terminology out of user-facing copy", () => {
@@ -94,18 +95,10 @@ describe("LandingPage", () => {
   it("provides working navigation to the existing application", () => {
     render(<LandingPage />);
 
-    expect(screen.getByRole("link", { name: /open app/i })).toHaveAttribute("href", "/vaults");
-    const appLinks = screen.getAllByRole("link", { name: /view strategies/i });
-    expect(appLinks.length).toBeGreaterThan(0);
-    for (const link of appLinks) expect(link).toHaveAttribute("href", "/vaults");
-  });
-
-  it("keeps the illustrative review chrome out of the tab order", () => {
-    const { container } = render(<LandingPage />);
-    const hiddenPreview = Array.from(container.querySelectorAll('[aria-hidden="true"]'))
-      .find((element) => element.textContent?.includes("Illustrative review"));
-    expect(hiddenPreview).toBeDefined();
-    expect(hiddenPreview?.querySelector("button, a, input, select, textarea")).toBeNull();
+    const openAppLinks = screen.getAllByRole("link", { name: /open app/i });
+    expect(openAppLinks.length).toBeGreaterThan(0);
+    for (const link of openAppLinks) expect(link).toHaveAttribute("href", "/vaults");
+    expect(screen.getByRole("link", { name: /view strategies/i })).toHaveAttribute("href", "/vaults");
   });
 
   it("uses accessible expandable FAQ controls", () => {

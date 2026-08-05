@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { BlossomCarousel, BlossomDot, BlossomDots, BlossomNext, BlossomPrev } from "@blossom-carousel/react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,10 +21,10 @@ import {
 import {
   ArrowRight,
   Banknote,
+  Bot,
+  ChevronLeft,
   Check,
   ChevronRight,
-  CircleDollarSign,
-  Eye,
   Moon,
   RefreshCw,
   ShieldCheck,
@@ -37,11 +38,11 @@ type LandingTheme = "light" | "dark";
 type LandingLocale = "en" | "es";
 
 const THEME_STORAGE_KEY = "b1nary-landing-theme";
-const marketTickers = ["TSLA", "NVDA", "AAPL", "BTC", "ETH", "XAU", "SPX", "AMZN", "GOOGL", "META", "MSFT", "NFLX"];
-
+const illustrativeBuyIncome = ["+$18", "+$24", "+$31"] as const;
+const illustrativeSellIncome = ["+$12", "+$20", "+$27"] as const;
 const contentByLocale = {
   en: {
-    nav: ["Strategies", "How it works", "Clarity"],
+    nav: ["Strategies", "How it works", "FAQs"],
     openApp: "Open app",
     viewStrategies: "View strategies",
     mobileDescription: "Automated strategies, explained clearly.",
@@ -50,27 +51,23 @@ const contentByLocale = {
     heroDefinition: "An automated investing platform that turns advanced strategies into simple products. Your investment plan shouldn’t end after you buy.",
     explore: "Explore strategies",
     howItWorks: "How it works",
-    marketLabel: "Illustrative markets",
-    marketExamples: ["Global companies", "Gold", "Global indexes"],
-    marketNote: "Examples only. Availability may vary.",
-    strategiesHeading: ["Choose your approach", "The market matters. So does how you invest in it.", "Each strategy packages a clear objective, a defined process, and the outcomes you should understand before investing."],
+    strategiesHeading: ["Choose how you want to invest.", "Start with money or an asset. Then choose a strategic entry, income strategy, or automatic cycle."],
+    startsWith: "Starts with",
     possibleOutcome: "Possible outcome",
-    principalRisk: "Principal risk",
     understandProcess: "Understand the process",
     strategies: [
-      { number: "01", eyebrow: "Buy with intention", title: "Strategic Entry", description: "Seek income while waiting for a familiar asset to reach a lower entry level you are comfortable with.", outcome: "Stay in dollars or enter at the defined level.", risk: "The asset can keep falling after the strategy enters.", icon: Target },
-      { number: "02", eyebrow: "Put a position to work", title: "Income Strategy", description: "Seek additional income from an existing position while accepting a clear level where it may be sold.", outcome: "Keep the position or sell at the defined level.", risk: "You may miss gains above the chosen sale level.", icon: CircleDollarSign },
-      { number: "03", eyebrow: "Keep the process moving", title: "Automatic Cycle", description: "A planned strategy that may move between a strategic entry and an income position as each stage completes.", outcome: "It may move between dollars and the selected market over time.", risk: "It can remain invested during a decline or exit before a larger rise.", availability: "Coming soon", icon: RefreshCw },
+      { input: "Money", eyebrow: "Buy lower", title: "Strategic Entry", description: "Set a lower buy price and get paid while you wait.", outcome: "Keep your money or buy at the defined price." },
+      { input: "Asset", eyebrow: "Sell higher", title: "Income Strategy", description: "Set a higher sale price for an asset you own and get paid while you wait.", outcome: "Keep the asset or sell at the defined price." },
+      { input: "Money", eyebrow: "Buy. Sell. Repeat.", title: "Automatic Cycle", description: "Combines both stages and moves forward when a stage results in a purchase or sale.", outcome: "Move between money and the asset automatically." },
     ],
-    how: ["How it works", "Choose the idea. Understand the plan.", "You should not need a trading desk to understand your investment. Every step is organized around a decision you already know how to make."],
+    how: ["Where the payment comes from", "It works like price insurance.", "The strategy makes a simple promise: buy if the price falls to the defined level, or sell if it rises. Specialized market participants pay for that protection."],
+    paymentFlow: ["Price protection", "Example payment to the strategy"],
     steps: [
-      { number: "01", title: "Choose a market", text: "Start with one of the markets currently available and review the example before continuing." },
-      { number: "02", title: "Choose your goal", text: "Decide whether you want a strategic entry, additional income, or an automatic cycle." },
-      { number: "03", title: "Follow the progress", text: "See your balance, current stage, possible outcomes, and next step in one place." },
+      { number: "01", title: "Define the promise", text: "Choose the asset, price, and how long the commitment lasts." },
+      { number: "02", title: "Receive a payment", text: "A professional market participant pays the strategy when the stage begins." },
+      { number: "03", title: "Complete or repeat", text: "At the end of the stage, the strategy completes any resulting purchase or sale. If neither happens, it can begin the same stage again. Either way, the payment is yours to keep." },
     ],
-    clarity: ["Clarity before action", "Know what you are choosing.", "A simple interface should never hide a meaningful tradeoff. Review the process, timing, costs, and principal risk before you invest."],
-    clarityItems: [["Plain-language risk", "See the main downside without decoding financial terminology."], ["Visible outcomes", "Understand what happens when the market moves in either direction."], ["Current status", "Follow where your money is and what stage comes next."]],
-    review: ["Illustrative review", "Example amount", "Strategy", "Current stage", "Example preview", "Next availability", "Shown before confirmation", "Costs", "Review and continue"],
+    agentReady: ["Agent ready", "Built for you. Ready for your agent.", "Let an AI assistant follow progress, compare strategies, and prepare actions. You stay in control."],
     faqHeading: ["Common questions", "Understand before you invest.", "The essential answers should be easy to find and easier to understand."],
     faqs: [
       { question: "How are these strategies different from buying an asset?", answer: "Buying an asset mainly depends on its price rising. A b1nary strategy follows predefined entry or sale levels and seeks income while it moves through each cycle." },
@@ -83,7 +80,7 @@ const contentByLocale = {
     footerLinks: ["Strategies", "Risk information", "FAQs"],
   },
   es: {
-    nav: ["Estrategias", "Cómo funciona", "Claridad"],
+    nav: ["Estrategias", "Cómo funciona", "Preguntas"],
     openApp: "Abrir app",
     viewStrategies: "Ver estrategias",
     mobileDescription: "Estrategias automatizadas, explicadas con claridad.",
@@ -92,27 +89,23 @@ const contentByLocale = {
     heroDefinition: "Una plataforma de inversión automatizada que convierte estrategias avanzadas en productos simples. Tu plan de inversión no debería terminar después de comprar.",
     explore: "Explorar estrategias",
     howItWorks: "Cómo funciona",
-    marketLabel: "Mercados ilustrativos",
-    marketExamples: ["Empresas globales", "Oro", "Índices globales"],
-    marketNote: "Solo ejemplos. La disponibilidad puede variar.",
-    strategiesHeading: ["Elige tu enfoque", "El mercado importa. También cómo inviertes en él.", "Cada estrategia reúne un objetivo claro, un proceso definido y los posibles resultados que debes entender antes de invertir."],
+    strategiesHeading: ["Elige cómo quieres invertir.", "Comienza con dinero o con un activo. Después elige una entrada estratégica, una estrategia de ingresos o el ciclo automático."],
+    startsWith: "Comienza con",
     possibleOutcome: "Posible resultado",
-    principalRisk: "Riesgo principal",
     understandProcess: "Entender el proceso",
     strategies: [
-      { number: "01", eyebrow: "Compra con intención", title: "Entrada Estratégica", description: "Busca generar ingresos mientras esperas que un activo conocido alcance un nivel de entrada más bajo con el que te sientas cómodo.", outcome: "Permanecer en dólares o entrar al nivel definido.", risk: "El activo puede seguir bajando después de que la estrategia entre.", icon: Target },
-      { number: "02", eyebrow: "Pon una posición a trabajar", title: "Estrategia de Ingresos", description: "Busca ingresos adicionales sobre una posición existente mientras aceptas un nivel claro en el que podría venderse.", outcome: "Conservar la posición o vender al nivel definido.", risk: "Puedes perder ganancias por encima del nivel de venta elegido.", icon: CircleDollarSign },
-      { number: "03", eyebrow: "Mantén el proceso en movimiento", title: "Ciclo Automático", description: "Una estrategia planeada que puede alternar entre una entrada estratégica y una posición de ingresos conforme termina cada etapa.", outcome: "Puede alternar entre dólares y el mercado seleccionado con el tiempo.", risk: "Puede permanecer invertida durante una caída o salir antes de una subida mayor.", availability: "Próximamente", icon: RefreshCw },
+      { input: "Dinero", eyebrow: "Compra más abajo", title: "Entrada Estratégica", description: "Define un precio de compra más bajo y recibe un pago mientras esperas.", outcome: "Conservar tu dinero o comprar al precio definido." },
+      { input: "Activo", eyebrow: "Vende más arriba", title: "Estrategia de Ingresos", description: "Define un precio de venta más alto para un activo que ya tienes y recibe un pago mientras esperas.", outcome: "Conservar el activo o vender al precio definido." },
+      { input: "Dinero", eyebrow: "Compra. Vende. Repite.", title: "Ciclo Automático", description: "Combina ambas etapas y avanza cuando una etapa termina en una compra o venta.", outcome: "Alternar automáticamente entre dinero y el activo." },
     ],
-    how: ["Cómo funciona", "Elige la idea. Entiende el plan.", "No necesitas una mesa de operaciones para entender tu inversión. Cada paso se organiza alrededor de una decisión que ya sabes tomar."],
+    how: ["De dónde viene el pago", "Funciona como un seguro de precio.", "La estrategia hace una promesa sencilla: comprar si el precio baja al nivel definido o vender si sube. Empresas especializadas pagan por esa protección."],
+    paymentFlow: ["Protección de precio", "Pago de ejemplo a la estrategia"],
     steps: [
-      { number: "01", title: "Elige un mercado", text: "Empieza con uno de los mercados disponibles y revisa el ejemplo antes de continuar." },
-      { number: "02", title: "Elige tu objetivo", text: "Decide si buscas una entrada estratégica, ingresos adicionales o un ciclo automático." },
-      { number: "03", title: "Sigue el progreso", text: "Consulta tu balance, etapa actual, posibles resultados y siguiente paso en un solo lugar." },
+      { number: "01", title: "Define la promesa", text: "Elige el activo, el precio y cuánto tiempo dura el compromiso." },
+      { number: "02", title: "Recibe un pago", text: "Un participante profesional paga a la estrategia cuando comienza la etapa." },
+      { number: "03", title: "Cumple o repite", text: "Al terminar la etapa, la estrategia completa cualquier compra o venta resultante. Si ninguna ocurre, puede iniciar nuevamente la misma etapa. En cualquier caso, el pago es tuyo." },
     ],
-    clarity: ["Claridad antes de actuar", "Entiende lo que estás eligiendo.", "Una interfaz simple nunca debe ocultar una decisión importante. Revisa el proceso, los tiempos, los costos y el riesgo principal antes de invertir."],
-    clarityItems: [["Riesgo en lenguaje claro", "Conoce la principal desventaja sin descifrar terminología financiera."], ["Resultados visibles", "Entiende qué puede ocurrir cuando el mercado se mueve en cualquier dirección."], ["Estado actual", "Sigue dónde está tu dinero y qué etapa viene después."]],
-    review: ["Revisión ilustrativa", "Monto de ejemplo", "Estrategia", "Etapa actual", "Vista previa de ejemplo", "Próxima disponibilidad", "Visible antes de confirmar", "Costos", "Revisar y continuar"],
+    agentReady: ["Listo para agentes", "Diseñado para ti. Listo para tu agente.", "Permite que un asistente de IA siga el progreso, compare estrategias y prepare acciones. Tú mantienes el control."],
     faqHeading: ["Preguntas frecuentes", "Entiende antes de invertir.", "Las respuestas esenciales deben ser fáciles de encontrar y aún más fáciles de entender."],
     faqs: [
       { question: "¿Cómo se diferencian estas estrategias de comprar un activo?", answer: "Comprar un activo depende principalmente de que su precio suba. Una estrategia sigue niveles predefinidos de entrada o venta y busca ingresos mientras avanza por cada ciclo." },
@@ -166,7 +159,7 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
           <nav className={styles.desktopNav} aria-label={locale === "es" ? "Navegación principal" : "Main navigation"}>
             <a href="#strategies">{copy.nav[0]}</a>
             <a href="#how-it-works">{copy.nav[1]}</a>
-            <a href="#clarity">{copy.nav[2]}</a>
+            <a href="#faq">{copy.nav[2]}</a>
           </nav>
 
           <div className={styles.headerActions}>
@@ -191,12 +184,9 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
             >
               {locale === "en" ? "ES" : "EN"}
             </Button>
-            <Button asChild variant="link" className={styles.signInLink}>
-              <Link href="/vaults">{copy.openApp}</Link>
-            </Button>
             <Button asChild size="lg" className={styles.headerCta}>
               <Link href="/vaults">
-                {copy.viewStrategies} <ArrowRight aria-hidden="true" />
+                {copy.openApp} <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
             <Sheet open={menuOpen} onOpenChange={setMenuOpen}>
@@ -224,12 +214,12 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
                 <nav className={styles.mobileSheetNav} aria-label={locale === "es" ? "Navegación móvil" : "Mobile navigation"}>
                   <SheetClose asChild><a href="#strategies">{copy.nav[0]}</a></SheetClose>
                   <SheetClose asChild><a href="#how-it-works">{copy.nav[1]}</a></SheetClose>
-                  <SheetClose asChild><a href="#clarity">{copy.nav[2]}</a></SheetClose>
+                  <SheetClose asChild><a href="#faq">{copy.nav[2]}</a></SheetClose>
                 </nav>
                 <div className={styles.mobileSheetFooter}>
                   <SheetClose asChild>
                     <Button asChild size="lg" className={styles.mobileSheetCta}>
-                      <Link href="/vaults">{copy.viewStrategies} <ArrowRight aria-hidden="true" /></Link>
+                      <Link href="/vaults">{copy.openApp} <ArrowRight aria-hidden="true" /></Link>
                     </Button>
                   </SheetClose>
                 </div>
@@ -243,69 +233,90 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
       <main>
         <HalftoneHero theme={theme} locale={locale} />
 
-        <section className={styles.tickerStrip} aria-label={copy.marketLabel}>
-          <p className={styles.tickerNote}>{copy.marketNote}</p>
-          <div className={styles.tickerViewport}>
-            <div className={styles.tickerTrack}>
-              <div className={styles.tickerGroup}>
-                {marketTickers.map((ticker) => <span key={ticker}>{ticker}<i>✦</i></span>)}
-              </div>
-              <div className={styles.tickerGroup} aria-hidden="true">
-                {marketTickers.map((ticker) => <span key={ticker}>{ticker}<i>✦</i></span>)}
-              </div>
-            </div>
-          </div>
-        </section>
-
         <WaysSection locale={locale} />
+        <CycleStagesSection locale={locale} />
 
         <section id="strategies" className={styles.strategiesSection}>
-          <SectionHeading
-            label={copy.strategiesHeading[0]}
-            title={copy.strategiesHeading[1]}
-            text={copy.strategiesHeading[2]}
-          />
-
-          <div className={styles.strategyGrid}>
-            {copy.strategies.map((strategy) => {
-              const Icon = strategy.icon;
-              return (
-                <article className={styles.strategyCard} key={strategy.title}>
-                  <div className={styles.strategyTopline}>
-                    <span>{strategy.number}</span>
-                    {"availability" in strategy ? (
-                      <span className={styles.availabilityBadge}>{strategy.availability}</span>
-                    ) : (
-                      <Icon aria-hidden="true" />
-                    )}
-                  </div>
-                  <p className={styles.cardEyebrow}>{strategy.eyebrow}</p>
-                  <h3>{strategy.title}</h3>
-                  <p className={styles.cardDescription}>{strategy.description}</p>
-                  <dl className={styles.outcomes}>
-                    <div>
-                      <dt>{copy.possibleOutcome}</dt>
-                      <dd>{strategy.outcome}</dd>
-                    </div>
-                    <div>
-                      <dt>{copy.principalRisk}</dt>
-                      <dd>{strategy.risk}</dd>
-                    </div>
-                  </dl>
-                  <a href="#how-it-works">
-                    {copy.understandProcess} <ChevronRight aria-hidden="true" />
-                  </a>
-                </article>
-              );
-            })}
+          <div className={styles.strategySectionHeading}>
+            <h2>{copy.strategiesHeading[0]}</h2>
+            <p>{copy.strategiesHeading[1]}</p>
           </div>
+
+          <div className={styles.strategyCarouselShell} aria-roledescription="carousel" aria-label={copy.strategiesHeading[0]}>
+            <BlossomCarousel id="strategy-carousel" as="ul" className={styles.strategyCarousel}>
+              {copy.strategies.map((strategy, index) => {
+                return (
+                  <li className={styles.strategySlide} data-blossom-slide key={strategy.title}>
+                    <article className={styles.strategyCard}>
+                      <div className={styles.strategyCardVisual}>
+                        {index === 0 ? (
+                          <div className={styles.strategyParticleSphere}><ParticleSphere /></div>
+                        ) : index === 1 ? (
+                          <StrategyParticleVisual shape="pyramid" />
+                        ) : (
+                          <StrategyParticleVisual shape="cycle" />
+                        )}
+                        <span>{copy.startsWith} <strong>{strategy.input}</strong></span>
+                      </div>
+                      <div className={styles.strategyCardContent}>
+                        <p className={styles.cardEyebrow}>{strategy.eyebrow}</p>
+                        <h3>{strategy.title}</h3>
+                        <p className={styles.cardDescription}>{strategy.description}</p>
+                        <dl className={styles.outcomes}>
+                          <div>
+                            <dt>{copy.possibleOutcome}</dt>
+                            <dd>{strategy.outcome}</dd>
+                          </div>
+                        </dl>
+                        <a href="#how-it-works">
+                          {copy.understandProcess} <ChevronRight aria-hidden="true" />
+                        </a>
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </BlossomCarousel>
+            <div className={styles.strategyCarouselControls}>
+              <BlossomPrev for="strategy-carousel" aria-label={locale === "es" ? "Estrategia anterior" : "Previous strategy"}>
+                <ChevronLeft aria-hidden="true" />
+              </BlossomPrev>
+              <BlossomDots for="strategy-carousel" aria-label={locale === "es" ? "Elegir estrategia" : "Choose strategy"}>
+                {({ index, active }) => (
+                  <BlossomDot
+                    className={styles.strategyDot}
+                    data-active={active}
+                    aria-label={locale === "es" ? `Mostrar ${copy.strategies[index].title}` : `Show ${copy.strategies[index].title}`}
+                  ><span /></BlossomDot>
+                )}
+              </BlossomDots>
+              <BlossomNext for="strategy-carousel" aria-label={locale === "es" ? "Siguiente estrategia" : "Next strategy"}>
+                <ChevronRight aria-hidden="true" />
+              </BlossomNext>
+            </div>
+          </div>
+
         </section>
 
         <section id="how-it-works" className={styles.howSection}>
           <div className={styles.howIntro}>
             <p className={styles.eyebrow}>{copy.how[0]}</p>
             <h2>{copy.how[1]}</h2>
-            <p>{copy.how[2]}</p>
+            <p className={styles.howLead}>{copy.how[2]}</p>
+            <div className={styles.paymentOriginVisual} aria-hidden="true">
+              <div className={styles.paymentPromise}>
+                <ShieldCheck />
+                <span>{copy.paymentFlow[0]}</span>
+              </div>
+              <div className={styles.paymentTransfer}>
+                <i /><i /><i />
+                <ArrowRight />
+              </div>
+              <div className={styles.paymentFigure}>
+                <small>{copy.paymentFlow[1]}</small>
+                <NumberPopIn value="+$48" delay={250} />
+              </div>
+            </div>
           </div>
           <ol className={styles.stepsList}>
             {copy.steps.map((step) => (
@@ -320,38 +331,15 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
           </ol>
         </section>
 
-        <section id="clarity" className={styles.claritySection}>
-          <div className={styles.clarityVisual} aria-hidden="true">
-            <div className={styles.clarityWindow}>
-              <div className={styles.clarityWindowHeader}>
-                <span />
-                <p>{copy.review[0]}</p>
-                <Eye />
-              </div>
-              <div className={styles.reviewAmount}>
-                <small>{copy.review[1]}</small>
-                <strong>$1,000.00</strong>
-                <span>USD</span>
-              </div>
-              <div className={styles.reviewRows}>
-                <p><span>{copy.review[2]}</span><strong>{copy.strategies[0].title}</strong></p>
-                <p><span>{copy.review[3]}</span><strong>{copy.review[4]}</strong></p>
-                <p><span>{copy.review[5]}</span><strong>{copy.review[6]}</strong></p>
-                <p><span>{copy.review[7]}</span><strong>{copy.review[6]}</strong></p>
-              </div>
-              <div className={styles.reviewMockButton}>{copy.review[8]}</div>
-            </div>
+        <section className={styles.agentReadySection}>
+          <div className={styles.agentReadyVisual} aria-hidden="true">
+            <span className={styles.agentOrbit}><i /><i /><i /></span>
+            <span className={styles.agentCore}><Bot /></span>
           </div>
-
-          <div className={styles.clarityCopy}>
-            <p className={styles.eyebrow}>{copy.clarity[0]}</p>
-            <h2>{copy.clarity[1]}</h2>
-            <p className={styles.clarityLead}>{copy.clarity[2]}</p>
-            <ul>
-              <li><ShieldCheck aria-hidden="true" /><span><strong>{copy.clarityItems[0][0]}</strong>{copy.clarityItems[0][1]}</span></li>
-              <li><TrendingUp aria-hidden="true" /><span><strong>{copy.clarityItems[1][0]}</strong>{copy.clarityItems[1][1]}</span></li>
-              <li><Eye aria-hidden="true" /><span><strong>{copy.clarityItems[2][0]}</strong>{copy.clarityItems[2][1]}</span></li>
-            </ul>
+          <div className={styles.agentReadyCopy}>
+            <p className={styles.eyebrow}>{copy.agentReady[0]}</p>
+            <h2>{copy.agentReady[1]}</h2>
+            <p>{copy.agentReady[2]}</p>
           </div>
         </section>
 
@@ -394,7 +382,7 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
         <p>{copy.footerRisk}</p>
         <div>
           <a href="#strategies">{copy.footerLinks[0]}</a>
-          <a href="#clarity">{copy.footerLinks[1]}</a>
+          <a href="#faq">{copy.footerLinks[1]}</a>
           <a href="#faq">{copy.footerLinks[2]}</a>
           <span>© {new Date().getFullYear()} b1nary</span>
         </div>
@@ -432,6 +420,124 @@ function WaysSection({ locale }: { locale: LandingLocale }) {
   );
 }
 
+function CycleStagesSection({ locale }: { locale: LandingLocale }) {
+  const text = locale === "es"
+    ? {
+        label: "Ciclo Automático",
+        title: "Define una compra más baja. Define una venta más alta.",
+        lead: "Recibe un pago en cada etapa. Al terminar, si compra o vende, avanza. Si no, repite.",
+        money: "Dinero",
+        buy: "Compra debajo del precio actual",
+        income: "Ingreso de ejemplo",
+        bought: "Si compra · avanza",
+        asset: "Activo",
+        sell: "Venta arriba del precio actual",
+        sold: "Si vende · reinicia",
+        buyRepeat: "Si no compra · repite",
+        sellRepeat: "Si no vende · repite",
+        floor: "Nunca programa una venta debajo del precio de compra",
+        restart: "Vuelve a dinero y comienza otra vez",
+        oneSide: "También puedes usar solo la etapa de compra o solo la de venta.",
+      }
+    : {
+        label: "Automatic Cycle",
+        title: "Set a lower buy price. Set a higher sell price.",
+        lead: "Get paid at each step. At the end, move forward if it buys or sells. Otherwise, repeat.",
+        money: "Money",
+        buy: "Buy below the current price",
+        income: "Example income",
+        bought: "If it buys · move forward",
+        asset: "Asset",
+        sell: "Sell above the current price",
+        sold: "If it sells · restart",
+        buyRepeat: "If it does not buy · repeat",
+        sellRepeat: "If it does not sell · repeat",
+        floor: "Never schedules a sale below the purchase price",
+        restart: "Return to money and start again",
+        oneSide: "You can also use only the buy stage or only the sell stage.",
+      };
+
+  return (
+    <section id="automatic-cycle" className={styles.cycleStagesSection}>
+      <div className={styles.cycleStagesHeading}>
+        <p className={styles.eyebrow}>{text.label}</p>
+        <h2>{text.title}</h2>
+        <p>{text.lead}</p>
+      </div>
+
+      <div className={styles.wheelRoad}>
+        <div className={styles.roadNode}>
+          <div className={styles.roadParticle}><ParticleSphere /><strong>{text.money}</strong></div>
+        </div>
+        <div className={styles.roadArrow}><ArrowRight aria-hidden="true" /></div>
+        <div className={`${styles.roadNode} ${styles.roadDecision}`}>
+          <CycleIncomeCounter label={text.income} values={illustrativeBuyIncome} />
+          <Target aria-hidden="true" />
+          <strong>{text.buy}</strong>
+          <span><RefreshCw aria-hidden="true" />{text.buyRepeat}</span>
+        </div>
+        <div className={styles.roadArrow}><span>{text.bought}</span><ArrowRight aria-hidden="true" /></div>
+        <div className={styles.roadNode}>
+          <div className={styles.roadParticle}><ParticleCube /><strong>{text.asset}</strong></div>
+        </div>
+        <div className={styles.roadArrow}><ArrowRight aria-hidden="true" /></div>
+        <div className={`${styles.roadNode} ${styles.roadDecision}`}>
+          <CycleIncomeCounter label={text.income} values={illustrativeSellIncome} />
+          <TrendingUp aria-hidden="true" />
+          <strong>{text.sell}</strong>
+          <span><RefreshCw aria-hidden="true" />{text.sellRepeat}</span>
+          <small>{text.floor}</small>
+        </div>
+
+        <svg className={styles.roadReturn} viewBox="0 0 1000 120" preserveAspectRatio="none" aria-hidden="true">
+          <defs>
+            <marker id="road-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" />
+            </marker>
+          </defs>
+          <path d="M930 8 C930 98 760 104 500 104 C240 104 70 98 70 8" markerEnd="url(#road-arrow)" />
+          <circle className={styles.roadTraveler} r="4" />
+        </svg>
+        <span className={styles.roadSold}>{text.sold}</span>
+        <span className={styles.roadRestart}>{text.restart}</span>
+      </div>
+      <p className={styles.oneSideNote}>{text.oneSide}</p>
+    </section>
+  );
+}
+
+function AppleMark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
+    </svg>
+  );
+}
+
+function CycleIncomeCounter({ label, values }: { label: string; values: readonly string[] }) {
+  const [index, setIndex] = useState(0);
+
+  useEffect(() => {
+    let interval = 0;
+    const timeout = window.setTimeout(() => {
+      setIndex((current) => (current + 1) % values.length);
+      interval = window.setInterval(() => setIndex((current) => (current + 1) % values.length), 6000);
+    }, 6000);
+    return () => {
+      window.clearTimeout(timeout);
+      if (interval) window.clearInterval(interval);
+    };
+  }, [values.length]);
+
+  const value = values[index];
+  return (
+    <div className={styles.cycleIncomeCounter} aria-label={label}>
+      <small>{label}</small>
+      <NumberPopIn key={value} value={value} />
+    </div>
+  );
+}
+
 function NumberPopIn({ value, delay = 0 }: { value: string; delay?: number }) {
   const [playing, setPlaying] = useState(false);
 
@@ -462,11 +568,7 @@ function VaultCycleFlow({ stages, outcome }: { stages: readonly string[]; outcom
         <div className={styles.vaultCycleStep}>
           <div className={styles.assetChoiceGlyph} aria-hidden="true">
             <span><Banknote /></span>
-            <span>
-              <svg viewBox="0 0 24 24" role="img" aria-label="Apple">
-                <path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701" />
-              </svg>
-            </span>
+            <span><AppleMark /></span>
           </div>
           <NumberPopIn value="01" /><strong>{stages[0]}</strong>
         </div>
@@ -479,6 +581,222 @@ function VaultCycleFlow({ stages, outcome }: { stages: readonly string[]; outcom
       </div>
     </div>
   );
+}
+
+function StrategyParticleVisual({ shape }: { shape: "pyramid" | "cycle" }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const points: Array<{ x: number; y: number; z: number; group: number }> = [];
+    if (shape === "pyramid") {
+      const top = { x: 0, y: -0.92, z: 0 };
+      const bottom = { x: 0, y: 0.92, z: 0 };
+      const rim = [
+        { x: 0.78, y: 0, z: 0 },
+        { x: 0, y: 0, z: 0.78 },
+        { x: -0.78, y: 0, z: 0 },
+        { x: 0, y: 0, z: -0.78 },
+      ];
+      const faces = rim.flatMap((point, index) => {
+        const next = rim[(index + 1) % rim.length];
+        return [[top, point, next], [bottom, next, point]];
+      });
+      faces.forEach((face, group) => {
+        for (let row = 0; row <= 11; row++) {
+          for (let column = 0; column <= 11 - row; column++) {
+            const a = row / 11;
+            const b = column / 11;
+            const c = 1 - a - b;
+            points.push({
+              x: face[0].x * a + face[1].x * b + face[2].x * c,
+              y: face[0].y * a + face[1].y * b + face[2].y * c,
+              z: face[0].z * a + face[1].z * b + face[2].z * c,
+              group,
+            });
+          }
+        }
+      });
+    } else {
+      const major = 0.62;
+      const minor = 0.22;
+      for (let ring = 0; ring < 36; ring++) {
+        const u = (ring / 36) * Math.PI * 2;
+        for (let side = 0; side < 14; side++) {
+          const v = (side / 14) * Math.PI * 2;
+          points.push({
+            x: (major + minor * Math.cos(v)) * Math.cos(u),
+            y: minor * Math.sin(v),
+            z: (major + minor * Math.cos(v)) * Math.sin(u),
+            group: ring,
+          });
+        }
+      }
+    }
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let frame = 0;
+    let inViewport = true;
+
+    const draw = (time: number) => {
+      frame = 0;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, rect.width, rect.height);
+      const styles = getComputedStyle(canvas);
+      const ink = styles.getPropertyValue("--landing-ink").trim() || "#11130f";
+      const accent = styles.getPropertyValue("--landing-accent").trim() || "#3157ff";
+      const scale = Math.min(rect.width, rect.height) * (shape === "pyramid" ? 0.39 : 0.42);
+      const rotation = reduceMotion ? 0.42 : time * 0.00018;
+      const cosine = Math.cos(rotation);
+      const sine = Math.sin(rotation);
+
+      points.forEach((point, index) => {
+        let x = point.x;
+        let y = point.y;
+        let z = point.z;
+        const rotatedX = x * cosine - z * sine;
+        z = x * sine + z * cosine;
+        x = rotatedX;
+        const tilt = shape === "cycle" ? 0.58 : 0.34;
+        const rotatedY = y * Math.cos(tilt) - z * Math.sin(tilt);
+        z = y * Math.sin(tilt) + z * Math.cos(tilt);
+        y = rotatedY;
+        const perspective = 2.7 / (2.7 - z);
+        context.globalAlpha = 0.2 + ((z + 1) / 2) * 0.8;
+        context.fillStyle = index % 19 === 0 ? accent : ink;
+        context.beginPath();
+        context.arc(rect.width / 2 + x * scale * perspective, rect.height / 2 + y * scale * perspective, 0.8 + Math.max(0, z) * 0.6, 0, Math.PI * 2);
+        context.fill();
+      });
+      context.globalAlpha = 1;
+      if (!reduceMotion && inViewport && !document.hidden) frame = window.requestAnimationFrame(draw);
+    };
+
+    const resume = () => {
+      if (reduceMotion || !inViewport || document.hidden || frame) return;
+      frame = window.requestAnimationFrame(draw);
+    };
+    const pause = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      inViewport = entry.isIntersecting;
+      if (inViewport) resume();
+      else pause();
+    });
+    const onVisibilityChange = () => document.hidden ? pause() : resume();
+
+    observer.observe(canvas);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    if (reduceMotion) draw(0);
+    else resume();
+    return () => {
+      pause();
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [shape]);
+
+  return <canvas ref={canvasRef} className={styles.strategyParticleObject} aria-hidden="true" />;
+}
+
+function ParticleSphere() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const context = canvas.getContext("2d");
+    if (!context) return;
+
+    const points = Array.from({ length: 420 }, (_, index) => {
+      const y = 1 - ((index + 0.5) / 420) * 2;
+      const radius = Math.sqrt(1 - y * y);
+      const theta = Math.PI * (3 - Math.sqrt(5)) * index;
+      return { x: Math.cos(theta) * radius, y, z: Math.sin(theta) * radius };
+    });
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let frame = 0;
+    let inViewport = true;
+
+    const draw = (time: number) => {
+      frame = 0;
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+      }
+      context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      context.clearRect(0, 0, rect.width, rect.height);
+      const color = getComputedStyle(canvas).getPropertyValue("--landing-ink").trim() || "#11130f";
+      const angle = reduceMotion ? 0.55 : time * 0.00012;
+      const cosine = Math.cos(angle);
+      const sine = Math.sin(angle);
+      const scale = Math.min(rect.width, rect.height) * 0.38;
+
+      points.forEach((point) => {
+        const x = point.x * cosine - point.z * sine;
+        const z = point.x * sine + point.z * cosine;
+        const perspective = 2.8 / (2.8 - z);
+        context.globalAlpha = 0.18 + ((z + 1) / 2) * 0.82;
+        context.fillStyle = color;
+        context.beginPath();
+        context.arc(
+          rect.width / 2 + x * scale * perspective,
+          rect.height / 2 + point.y * scale * perspective,
+          0.7 + ((z + 1) / 2) * 1.15,
+          0,
+          Math.PI * 2,
+        );
+        context.fill();
+      });
+      context.globalAlpha = 1;
+      if (!reduceMotion && inViewport && !document.hidden) frame = window.requestAnimationFrame(draw);
+    };
+
+    const resume = () => {
+      if (reduceMotion || !inViewport || document.hidden || frame) return;
+      frame = window.requestAnimationFrame(draw);
+    };
+    const pause = () => {
+      if (frame) window.cancelAnimationFrame(frame);
+      frame = 0;
+    };
+    const observer = new IntersectionObserver(([entry]) => {
+      inViewport = entry.isIntersecting;
+      if (inViewport) resume();
+      else pause();
+    });
+    const onVisibilityChange = () => document.hidden ? pause() : resume();
+
+    observer.observe(canvas);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    if (reduceMotion) draw(0);
+    else resume();
+    return () => {
+      pause();
+      observer.disconnect();
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
+  return <canvas ref={canvasRef} className={styles.particleSphere} aria-hidden="true" />;
 }
 
 function ParticleCube() {

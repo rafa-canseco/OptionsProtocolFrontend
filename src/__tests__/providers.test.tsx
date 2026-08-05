@@ -124,11 +124,27 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = "test-app-id";
     privyProviderSpy.mockClear();
-    mockUsePathname.mockReturnValue("/");
+    mockUsePathname.mockReturnValue("/vaults");
   });
 
   afterEach(() => {
     process.env = { ...ORIGINAL_ENV };
+  });
+
+  it("skips wallet providers on the public landing route", async () => {
+    mockUsePathname.mockReturnValue("/");
+    const { Providers } = await loadProvidersModule();
+
+    const { getByText } = render(
+      createElement(
+        Providers,
+        null as unknown as { children: ReactNode },
+        createElement("div", null, "landing child"),
+      ),
+    );
+
+    expect(getByText("landing child")).toBeInTheDocument();
+    expect(privyProviderSpy).not.toHaveBeenCalled();
   });
 
   it("passes createOnLogin off to PrivyProvider in mainnet", async () => {

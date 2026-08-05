@@ -71,6 +71,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     pathname?.startsWith(route),
   );
 
+  // The public landing page does not need wallet infrastructure. Keeping Privy
+  // off this route also allows local HTTP preview; embedded wallets require HTTPS.
+  if (pathname === "/") return children;
+
   return (
     <PrivyProvider appId={getPrivyAppId()} config={buildPrivyConfig()}>
       <SmartWalletsProvider>
