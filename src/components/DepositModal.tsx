@@ -3,29 +3,15 @@
 import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
 import { useLogin, usePrivy, type WalletListEntry } from "@privy-io/react-auth";
-import { useWallet, type BatchCall, type ExternalWallet } from "@/hooks/useWallet";
+import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
-import {
-  buildEvmBurnCalls,
-  DOMAIN_BASE,
-  DOMAIN_SOLANA,
-  getFastCctpMaxFee,
-  getSolanaUsdcTokenAccount,
-  solanaToBytes32,
-} from "@/lib/cctp";
-import { isSolanaOffInProd } from "@/lib/marketState";
-import { SOLANA_TSLAX_MINT, solanaConnection, solanaTxUrl, toPublicKey } from "@/lib/solana";
-import { api, type BridgeJob, type BridgeJobStatus } from "@/lib/api";
 import { useAppPreferences } from "@/lib/preferences";
 import { invalidateData } from "@/lib/dataInvalidation";
 
 type Tab = "deposit" | "withdraw";
-type Chain = "base" | "solana";
-type Token = "usdc" | "eth" | "weth" | "btc" | "sol" | "wsol" | "tslax";
-type AccountBalanceToken = Token;
+type Token = "usdc" | "eth" | "weth" | "btc";
 
 interface TokenConfig {
   label: string;
@@ -33,56 +19,27 @@ interface TokenConfig {
   decimals: number;
 }
 
-const TOKEN_META: Record<AccountBalanceToken, TokenConfig> = {
+const TOKEN_META: Record<Token, TokenConfig> = {
   usdc: { label: "USDC", icon: "/usdc.svg", decimals: 6 },
   eth: { label: "ETH", icon: "/eth.png", decimals: 18 },
   weth: { label: "WETH", icon: "/weth.png", decimals: 18 },
   btc: { label: "cbBTC", icon: "/cbbtc.webp", decimals: 8 },
-  sol: { label: "SOL", icon: "/sol.png", decimals: 9 },
-  tslax: { label: "TSLAx", icon: "/tslax.svg", decimals: 8 },
-  wsol: { label: "wSOL", icon: "/sol.png", decimals: 9 },
 };
 
-const TOKENS_BY_CHAIN: Record<Chain, Token[]> = {
-  base: ["usdc", "eth", "weth", "btc"],
-  solana: ["usdc", "sol", "tslax"],
-};
+const BASE_TOKENS: Token[] = ["usdc", "eth", "weth", "btc"];
 
-const SOLANA_WITHDRAW_TOKENS: Token[] = ["usdc", "sol", "wsol", "tslax"];
-
-function tokensFor(chain: Chain, tab: Tab): Token[] {
-  if (chain === "solana" && tab === "withdraw") {
-    return SOLANA_WITHDRAW_TOKENS;
-  }
-  return TOKENS_BY_CHAIN[chain];
+function normalizeRequiredToken(requiredToken?: string): Token {
+  return BASE_TOKENS.find((token) => token === requiredToken) ?? "usdc";
 }
-
-const SOL_FEE_RESERVE_LAMPORTS = BigInt(5_000_000);
-const BRIDGE_POLL_INTERVAL_MS = 2_000;
-const BRIDGE_MAX_POLL_ATTEMPTS = 180;
-const BRIDGE_TERMINAL_STATUSES: BridgeJobStatus[] = [
-  "completed",
-  "failed",
-  "mint_completed",
-  "mint_completed_trade_failed",
-];
 
 interface Props {
   onClose: () => void;
-  requiredToken?: Token;
+  requiredToken?: string;
   onComplete?: () => void;
 }
 
 function truncate(addr: string): string {
   return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
-}
-
-function chainLabel(chain: Chain): string {
-  return chain === "base" ? "Base" : "Solana";
-}
-
-function chainIcon(chain: Chain): string {
-  return chain === "base" ? "/base.svg" : "/sol.png";
 }
 
 function refetchBalancesSoon() {
@@ -93,7 +50,7 @@ function TokenIcon({
   token,
   className,
 }: {
-  token: AccountBalanceToken;
+  token: Token;
   className: string;
 }) {
   const meta = TOKEN_META[token];
@@ -105,176 +62,8 @@ function TokenIcon({
         aria-hidden="true"
         className="h-full w-full rounded-full"
       />
-      {token === "wsol" && (
-        <span className="absolute -bottom-0.5 -right-0.5 flex h-3 w-3 items-center justify-center rounded-full bg-[var(--accent)] text-[8px] font-bold leading-none text-[var(--bg)]">
-          W
-        </span>
-      )}
     </span>
   );
-}
-
-function ChainIcon({ chain, className }: { chain: Chain; className: string }) {
-  return (
-    <span className={`inline-flex shrink-0 ${className}`}>
-      <img
-        src={chainIcon(chain)}
-        alt=""
-        aria-hidden="true"
-        className={`h-full w-full ${chain === "solana" ? "rounded-full" : ""}`}
-      />
-    </span>
-  );
-}
-
-async function pollBridgeJob(
-  jobId: string,
-  setProgressMessage: (message: string) => void,
-): Promise<BridgeJob> {
-  let lastStatus: BridgeJobStatus | null = null;
-
-  for (let i = 0; i < BRIDGE_MAX_POLL_ATTEMPTS; i++) {
-    const job = await api.getBridgeStatus(jobId);
-    if (job.status !== lastStatus) {
-      lastStatus = job.status;
-      console.log("[DepositModal] withdrawal bridge status:", jobId, job.status);
-      setProgressMessage(bridgeStatusMessage(job));
-    }
-
-    if (BRIDGE_TERMINAL_STATUSES.includes(job.status)) {
-      return job;
-    }
-
-    await new Promise((resolve) => setTimeout(resolve, BRIDGE_POLL_INTERVAL_MS));
-  }
-
-  throw new Error(
-    "Timed out waiting for bridge completion. Your USDC may still be in transit.",
-  );
-}
-
-function bridgeStatusMessage(job: BridgeJob): string {
-  switch (job.status) {
-    case "completed":
-    case "mint_completed":
-      return `USDC arrived on ${chainLabel(job.dest_chain)}.`;
-    case "mint_completed_trade_failed":
-      return `USDC arrived on ${chainLabel(job.dest_chain)}.`;
-    case "failed":
-      return "Bridge failed.";
-    default:
-      return `Waiting for USDC to arrive on ${chainLabel(job.dest_chain)}...`;
-  }
-}
-
-async function readSolanaUsdcBalanceRaw(ownerAddress: string): Promise<bigint> {
-  if (!solanaConnection) {
-    throw new Error("Solana RPC not configured");
-  }
-  const owner = toPublicKey(ownerAddress, "Solana owner");
-  const tokenAccount = await getSolanaUsdcTokenAccount(owner);
-  try {
-    const balance = await solanaConnection.getTokenAccountBalance(
-      tokenAccount,
-      "confirmed",
-    );
-    return BigInt(balance.value.amount);
-  } catch {
-    return BigInt(0);
-  }
-}
-
-export function resolveSolanaUsdcWithdrawAmount(
-  requestedRaw: bigint,
-  availableRaw: bigint,
-): bigint {
-  return availableRaw < requestedRaw ? availableRaw : requestedRaw;
-}
-
-async function bridgeBaseUsdcToSolana(
-  solanaRecipient: string,
-  amount: bigint,
-  userId: string,
-  sendBatchTx: (calls: BatchCall[]) => Promise<unknown>,
-  setProgressMessage: (message: string) => void,
-): Promise<BridgeJob> {
-  const solanaRecipientPk = toPublicKey(solanaRecipient, "Solana recipient");
-  setProgressMessage("Resolving Solana USDC account...");
-  const solanaUsdcAccount = await getSolanaUsdcTokenAccount(solanaRecipientPk);
-  const recipient = solanaToBytes32(solanaUsdcAccount);
-  setProgressMessage("Checking bridge fee...");
-  const maxFee = await getFastCctpMaxFee(DOMAIN_BASE, DOMAIN_SOLANA, amount);
-  const burnCalls = buildEvmBurnCalls(amount, recipient, maxFee);
-
-  setProgressMessage("Sending USDC from Base to Solana...");
-  const burnTxHash = (await sendBatchTx(burnCalls)) as string;
-  if (!burnTxHash || !burnTxHash.startsWith("0x")) {
-    throw new Error("Base bridge transaction did not return a hash.");
-  }
-  console.log("[DepositModal] Base withdrawal bridge burn tx:", burnTxHash);
-
-  setProgressMessage("Starting bridge confirmation...");
-  const { job_id: jobId } = await api.bridgeAndTrade({
-    burnTxHash,
-    signedTradeTx: null,
-    quoteId: null,
-    sourceChain: "base",
-    destChain: "solana",
-    userId,
-    mintRecipient: solanaUsdcAccount.toBase58(),
-    burnAmount: amount.toString(),
-  });
-  console.log("[DepositModal] Base withdrawal bridge job:", jobId);
-
-  setProgressMessage("Waiting for USDC to arrive on Solana...");
-  const job = await pollBridgeJob(jobId, setProgressMessage);
-  if (job.status === "failed") {
-    throw new Error(job.error_message ?? "Bridge failed.");
-  }
-  return job;
-}
-
-async function bridgeSolanaUsdcToBase(
-  solanaOwner: string,
-  baseRecipient: Address,
-  amount: bigint,
-  userId: string,
-  signSolanaTransaction: (serializedTx: Uint8Array) => Promise<Uint8Array>,
-  setProgressMessage: (message: string) => void,
-): Promise<BridgeJob> {
-  setProgressMessage("Preparing sponsored Solana transfer...");
-  const preparedBurn = await api.prepareSolanaCctpBurn({
-    owner: solanaOwner,
-    destChain: "base",
-    mintRecipient: baseRecipient,
-    burnAmount: amount.toString(),
-    maxFee: "0",
-    minFinalityThreshold: 2000,
-  });
-
-  setProgressMessage("Confirming Solana transfer...");
-  const signedBurnBytes = await signSolanaTransaction(
-    new Uint8Array(Buffer.from(preparedBurn.transaction_base64, "base64")),
-  );
-
-  setProgressMessage("Sending USDC to Base...");
-  const { job_id: jobId } = await api.submitSolanaCctpBurn({
-    signedTransactionBase64: Buffer.from(signedBurnBytes).toString("base64"),
-    destChain: "base",
-    userId,
-    mintRecipient: baseRecipient,
-    burnAmount: amount.toString(),
-    quoteId: `withdraw:${userId}:${Date.now()}`,
-    signedTradeTx: null,
-  });
-  console.log("[DepositModal] Solana withdrawal bridge job:", jobId);
-
-  setProgressMessage("Waiting for USDC to arrive on Base...");
-  const job = await pollBridgeJob(jobId, setProgressMessage);
-  if (job.status === "failed") {
-    throw new Error(job.error_message ?? "Bridge failed.");
-  }
-  return job;
 }
 
 function translateDepositError(message: string): string {
@@ -282,7 +71,6 @@ function translateDepositError(message: string): string {
     ["Enter an amount", "Ingresa un monto"],
     ["Invalid amount", "Monto inválido"],
     ["Amount exceeds available balance", "El monto supera el saldo disponible"],
-    ["Leave at least 0.005 SOL in your wallet for network fees", "Deja al menos 0.005 SOL en tu wallet para las comisiones de red"],
     ["Wallet not ready. Please reconnect", "La wallet no está lista. Vuelve a conectarla"],
     ["Wallet not connected", "Wallet no conectada"],
     ["Smart wallet not ready", "La wallet inteligente no está lista"],
@@ -297,20 +85,8 @@ function translateDepositProgress(message: string): string {
   const translations: Array<[string, string]> = [
     ["Preparing transfer", "Preparando transferencia"],
     ["Preparing withdrawal", "Preparando retiro"],
-    ["Checking bridge fee", "Revisando comisión del puente"],
-    ["Confirming Solana transfer", "Confirmando transferencia en Solana"],
-    ["Consolidating USDC on Base", "Consolidando USDC en Base"],
-    ["Consolidating USDC on Solana", "Consolidando USDC en Solana"],
-    ["Preparing sponsored Solana transfer", "Preparando transferencia patrocinada en Solana"],
-    ["Resolving Solana USDC account", "Buscando cuenta USDC en Solana"],
-    ["Sending USDC from Base to Solana", "Enviando USDC de Base a Solana"],
-    ["Sending USDC to Base", "Enviando USDC a Base"],
-    ["Starting bridge confirmation", "Iniciando confirmación del puente"],
-    ["Waiting for USDC to arrive on Base", "Esperando que USDC llegue a Base"],
-    ["Waiting for USDC to arrive on Solana", "Esperando que USDC llegue a Solana"],
     ["Withdrawal confirmed", "Retiro confirmado"],
     ["Withdrawing USDC from Base", "Retirando USDC de Base"],
-    ["Withdrawing USDC from Solana", "Retirando USDC de Solana"],
   ];
   return translations.reduce((result, [english, spanish]) => result.replace(english, spanish), message);
 }
@@ -318,153 +94,77 @@ function translateDepositProgress(message: string): string {
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const { locale } = useAppPreferences();
   const translate = (en: string, es: string) => locale === "es" ? es : en;
-  const { authenticated, user } = usePrivy();
+  const { authenticated } = usePrivy();
   const { login } = useLogin();
   const {
     address,
     fundingAddress,
-    solanaAddress,
     externalWallets: rawExternalWallets,
     sendBatchTx,
     sendFundingTx,
-    sendSolanaDeposit,
-    sendSolanaSolDeposit,
-    sendSolanaWithdraw,
-    sendSolanaSolWithdraw,
-    signSolanaTransaction,
     activateSmartWallet,
     connectFundingWallet,
     disconnect,
   } = useWallet();
-  const solanaDisabled = isSolanaOffInProd();
-  const externalWallets = solanaDisabled
-    ? rawExternalWallets.filter((w) => w.chain !== "solana")
-    : rawExternalWallets;
+  const externalWallets = useMemo(
+    () => rawExternalWallets.filter((wallet) => wallet.chain === "base"),
+    [rawExternalWallets],
+  );
   const [tab, setTab] = useState<Tab>("deposit");
   const [selectedWallet, setSelectedWallet] =
     useState<ExternalWallet | null>(null);
-  const initialToken: Token =
-    requiredToken && !(solanaDisabled && (requiredToken === "sol" || requiredToken === "wsol" || requiredToken === "tslax"))
-      ? requiredToken
-      : "usdc";
-  const initialChain: Chain =
-    !solanaDisabled && (initialToken === "sol" || initialToken === "wsol" || initialToken === "tslax")
-      ? "solana"
-      : "base";
-  const [activeChain, setActiveChain] = useState<Chain>(initialChain);
-  const [token, setToken] = useState<Token>(initialToken);
+  const [token, setToken] = useState<Token>(() =>
+    normalizeRequiredToken(requiredToken),
+  );
 
   const { wallets: b1naryWallets } = useB1naryAccount({
     autoSyncTrustedWallets: false,
   });
-  const b1naryTradingWallets = b1naryWallets.filter((wallet) =>
-    wallet.role === "trading" &&
-    wallet.verified_at &&
-    (wallet.chain !== "base" || wallet.wallet_type === "smart"),
-  );
-  const b1naryBaseTradingAddresses = b1naryTradingWallets
-    .filter((wallet) => wallet.chain === "base")
+  const b1naryBaseTradingAddresses = b1naryWallets
+    .filter((wallet) =>
+      wallet.role === "trading" &&
+      wallet.verified_at &&
+      wallet.chain === "base" &&
+      wallet.wallet_type === "smart",
+    )
     .map((wallet) => wallet.address as Address);
-  const b1narySolanaTradingAddresses = b1naryTradingWallets
-    .filter((wallet) => wallet.chain === "solana")
-    .map((wallet) => wallet.address);
 
   const smartBalances = useBalances(
     b1naryBaseTradingAddresses.length > 0
       ? b1naryBaseTradingAddresses
       : address,
   );
-  const selectedBaseAddress =
-    selectedWallet?.chain === "base"
-      ? (selectedWallet.address as Address)
-      : undefined;
+  const selectedBaseAddress = selectedWallet?.address as Address | undefined;
   const eoaBalances = useBalances(selectedBaseAddress ?? fundingAddress);
-  const solBalance = useSolanaBalance(
-    b1narySolanaTradingAddresses.length > 0
-      ? b1narySolanaTradingAddresses
-      : solanaAddress,
-  );
-  const solExternalBalance = useSolanaBalance(
-    selectedWallet?.chain === "solana" ? selectedWallet.address : undefined,
-  );
   const [amountStr, setAmountStr] = useState("");
   const [status, setStatus] = useState<
     "idle" | "pending" | "done" | "activating"
   >("idle");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
-  const [txChain, setTxChain] = useState<"base" | "solana" | null>(null);
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
-  const [chainMenuOpen, setChainMenuOpen] = useState(false);
   const [progressMessage, setProgressMessage] = useState("Preparing transfer...");
 
-  const chainWallets = useMemo(
-    () => externalWallets.filter((w) => w.chain === activeChain),
-    [activeChain, externalWallets],
-  );
-
-  // Keep the selected external wallet scoped to the chosen network.
   useEffect(() => {
-    if (selectedWallet?.chain === activeChain) return;
-    setSelectedWallet(chainWallets[0] ?? null);
-  }, [activeChain, chainWallets, selectedWallet]);
+    if (selectedWallet?.chain === "base") return;
+    setSelectedWallet(externalWallets[0] ?? null);
+  }, [externalWallets, selectedWallet]);
 
-  useEffect(() => {
-    const available = tokensFor(activeChain, tab);
-    if (!available.includes(token)) {
-      setToken(available[0]);
-      setAmountStr("");
-    }
-  }, [activeChain, tab, token]);
-
-  const chain = activeChain;
   const meta = TOKEN_META[token];
-  const availableTokens = tokensFor(chain, tab);
-  const availableChains: Chain[] = solanaDisabled ? ["base"] : ["base", "solana"];
+  const availableTokens = BASE_TOKENS;
 
   // --- Available balance for deposit/withdraw ---
-  const solanaWalletBalance =
-    tab === "deposit" ? solExternalBalance : solBalance;
 
   const getRawBalance = useCallback((asset: Token): bigint => {
-    if (tab === "withdraw" && asset === "usdc") {
-      return smartBalances.usdRaw + solBalance.solanaUsdcRaw;
-    }
-    if (chain === "solana") {
-      if (asset === "sol") return solanaWalletBalance.solanaSolRaw;
-      if (asset === "usdc") return solanaWalletBalance.solanaUsdcRaw;
-      if (asset === "wsol") return solanaWalletBalance.solanaWsolRaw;
-      if (asset === "tslax") return solanaWalletBalance.solanaTslaxRaw;
-      return BigInt(0);
-    }
-    if (tab === "deposit") {
-      if (asset === "usdc") return eoaBalances.usdRaw;
-      if (asset === "eth") return eoaBalances.ethRaw;
-      if (asset === "weth") return eoaBalances.wethRaw;
-      if (asset === "btc") return eoaBalances.wbtcRaw;
-      return BigInt(0);
-    }
-    if (asset === "usdc") return smartBalances.usdRaw;
-    if (asset === "eth") return smartBalances.ethRaw;
-    if (asset === "weth") return smartBalances.wethRaw;
-    if (asset === "btc") return smartBalances.wbtcRaw;
+    const balances = tab === "deposit" ? eoaBalances : smartBalances;
+    if (asset === "usdc") return balances.usdRaw;
+    if (asset === "eth") return balances.ethRaw;
+    if (asset === "weth") return balances.wethRaw;
+    if (asset === "btc") return balances.wbtcRaw;
     return BigInt(0);
-  }, [
-    chain,
-    eoaBalances,
-    smartBalances,
-    solBalance.solanaUsdcRaw,
-    solanaWalletBalance,
-    tab,
-  ]);
+  }, [eoaBalances, smartBalances, tab]);
 
-  const getSpendableRaw = useCallback((asset: Token): bigint => {
-    const balance = getRawBalance(asset);
-    if (asset !== "sol") return balance;
-    return balance > SOL_FEE_RESERVE_LAMPORTS
-      ? balance - SOL_FEE_RESERVE_LAMPORTS
-      : BigInt(0);
-  }, [getRawBalance]);
+  const getSpendableRaw = getRawBalance;
 
   const maxSpendableRaw = getSpendableRaw(token);
   const maxSpendableBalance = Number(formatUnits(maxSpendableRaw, meta.decimals));
@@ -485,19 +185,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   }, [getSpendableRaw]);
 
   const handleConnectWallet = useCallback(() => {
-    const walletChainType = chain === "base" ? "ethereum-only" : "solana-only";
-    const walletList: WalletListEntry[] = chain === "base"
-      ? [
-          "detected_ethereum_wallets",
-          "metamask",
-          "coinbase_wallet",
-          "rainbow",
-          "wallet_connect",
-        ]
-      : [
-          "detected_solana_wallets",
-          "phantom",
-        ];
+    const walletChainType = "ethereum-only";
+    const walletList: WalletListEntry[] = [
+      "detected_ethereum_wallets",
+      "metamask",
+      "coinbase_wallet",
+      "rainbow",
+      "wallet_connect",
+    ];
     if (!authenticated) {
       login({
         loginMethods: ["wallet"],
@@ -508,9 +203,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     connectFundingWallet({
       walletList,
       walletChainType,
-      description: `Choose the ${chainLabel(chain)} wallet you want to use for deposits and withdrawals.`,
+      description: "Choose the Base wallet you want to use for deposits and withdrawals.",
     });
-  }, [authenticated, chain, connectFundingWallet, login]);
+  }, [authenticated, connectFundingWallet, login]);
 
   const handleMax = useCallback(() => {
     if (maxSpendableRaw > BigInt(0)) {
@@ -526,28 +221,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setError(null);
     setStatus("idle");
     setTxHash(null);
-    setTxChain(null);
     setProgressMessage("Preparing transfer...");
     setTokenMenuOpen(false);
   }, []);
-
-  const selectChain = useCallback((nextChain: Chain) => {
-    const nextTokens = tokensFor(nextChain, tab);
-    setActiveChain(nextChain);
-    setAmountStr("");
-    setError(null);
-    setStatus("idle");
-    setTxHash(null);
-    setTxChain(null);
-    setProgressMessage("Preparing transfer...");
-    setChainMenuOpen(false);
-    setTokenMenuOpen(false);
-    setToken((currentToken) =>
-      nextTokens.includes(currentToken)
-        ? currentToken
-        : nextTokens[0],
-    );
-  }, [tab]);
 
   const parseAmount = useCallback((): bigint | null => {
     try {
@@ -557,11 +233,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         return null;
       }
       if (amount > maxSpendableRaw) {
-        setError(
-          token === "sol"
-            ? "Leave at least 0.005 SOL in your wallet for network fees."
-            : "Amount exceeds available balance.",
-        );
+        setError("Amount exceeds available balance.");
         return null;
       }
       return amount;
@@ -570,7 +242,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       setError("Invalid amount.");
       return null;
     }
-  }, [amountStr, maxSpendableRaw, meta.decimals, token]);
+  }, [amountStr, maxSpendableRaw, meta.decimals]);
 
   // --- Base deposit (existing EVM flow) ---
   const handleBaseDeposit = useCallback(async () => {
@@ -584,7 +256,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setError(null);
     setStatus("pending");
     setTxHash(null);
-    setTxChain(null);
     const BASE_DEPOSIT_TOKEN_ADDRESS: Partial<Record<Token, Address>> = {
       usdc: ADDRESSES.usdc,
       weth: ADDRESSES.weth,
@@ -617,7 +288,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       }
       await publicClient.waitForTransactionReceipt({ hash });
       setTxHash(hash);
-      setTxChain("base");
       setStatus("done");
       refetchBalancesSoon();
       onComplete?.();
@@ -633,56 +303,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     token, sendFundingTx, onComplete,
   ]);
 
-  // --- Solana deposit (SPL USDC or native SOL transfer) ---
-  const handleSolanaDeposit = useCallback(async () => {
-    if (solanaDisabled) {
-      setError("Solana deposits are disabled in production.");
-      return;
-    }
-    if (!selectedWallet || selectedWallet.chain !== "solana") {
-      setError("No Solana wallet selected.");
-      return;
-    }
-    const amount = parseAmount();
-    if (amount == null) return;
-
-    setError(null);
-    setStatus("pending");
-    setTxHash(null);
-    setTxChain(null);
-    try {
-      let signature: string;
-      if (token === "sol") {
-        signature = await sendSolanaSolDeposit(selectedWallet.address, amount);
-      } else {
-        signature = await sendSolanaDeposit(
-          selectedWallet.address,
-          amount,
-          token === "tslax" ? "tslax" : "usdc",
-        );
-      }
-      setTxHash(signature);
-      setTxChain("solana");
-      setStatus("done");
-      refetchBalancesSoon();
-      onComplete?.();
-    } catch (err) {
-      console.error("[DepositModal] solana deposit failed:", err);
-      const msg = err instanceof Error ? err.message : "";
-      if (/reject|denied|cancel/i.test(msg)) {
-        setError("Transaction cancelled.");
-      } else {
-        setError(msg || "Transaction failed.");
-      }
-      setStatus("idle");
-    }
-  }, [
-    solanaDisabled, selectedWallet, parseAmount, token,
-    sendSolanaDeposit, sendSolanaSolDeposit, onComplete,
-  ]);
-
-  const handleDeposit =
-    chain === "solana" ? handleSolanaDeposit : handleBaseDeposit;
+  const handleDeposit = handleBaseDeposit;
   const needsWallet = !selectedWallet;
 
   const handleActivate = useCallback(async () => {
@@ -720,7 +341,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     setStatus("pending");
     setProgressMessage("Preparing withdrawal...");
     setTxHash(null);
-    setTxChain(null);
     const BASE_WITHDRAW_TOKEN_ADDRESS: Partial<Record<Token, Address | null>> = {
       usdc: ADDRESSES.usdc,
       eth: null,
@@ -736,30 +356,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
     try {
       let hash: `0x${string}` | null = null;
-      let bridgeJob: BridgeJob | null = null;
 
       if (token === "usdc") {
-        const bridgeAmount =
-          smartBalances.usdRaw >= amount ? BigInt(0) : amount - smartBalances.usdRaw;
-
-        if (bridgeAmount > BigInt(0)) {
-          if (!solanaAddress) {
-            throw new Error("Solana trading account not ready.");
-          }
-          if (!user?.id) {
-            throw new Error("User session not ready.");
-          }
-          setProgressMessage("Consolidating USDC on Base...");
-          bridgeJob = await bridgeSolanaUsdcToBase(
-            solanaAddress,
-            address,
-            bridgeAmount,
-            user.id,
-            signSolanaTransaction,
-            setProgressMessage,
-          );
-        }
-
         setProgressMessage("Withdrawing USDC from Base...");
         const result = await sendBatchTx([
           {
@@ -801,10 +399,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         await publicClient.waitForTransactionReceipt({ hash });
       }
 
-      const finalHash = bridgeJob?.mint_tx_hash ?? hash;
-      if (finalHash) {
-        setTxHash(finalHash);
-        setTxChain(finalHash.startsWith("0x") ? "base" : "solana");
+      if (hash) {
+        setTxHash(hash);
       }
       setStatus("done");
       setProgressMessage("Withdrawal confirmed.");
@@ -819,103 +415,10 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     }
   }, [
     address, selectedWallet, parseAmount,
-    token, sendBatchTx, smartBalances.usdRaw, solanaAddress,
-    user, signSolanaTransaction, meta.label,
+    token, sendBatchTx, meta.label,
   ]);
 
-  const handleSolanaWithdraw = useCallback(async () => {
-    if (solanaDisabled) {
-      setError("Solana withdrawals are disabled in production.");
-      return;
-    }
-    if (!selectedWallet || selectedWallet.chain !== "solana") {
-      setError("Select a Solana wallet to receive funds.");
-      return;
-    }
-    const amount = parseAmount();
-    if (amount == null) return;
-
-    setError(null);
-    setStatus("pending");
-    setProgressMessage("Preparing withdrawal...");
-    setTxHash(null);
-    setTxChain(null);
-    try {
-      let signature: string | null = null;
-      let bridgeJob: BridgeJob | null = null;
-
-      if (token === "usdc") {
-        const bridgeAmount =
-          solBalance.solanaUsdcRaw >= amount ? BigInt(0) : amount - solBalance.solanaUsdcRaw;
-
-        if (bridgeAmount > BigInt(0)) {
-          if (!solanaAddress) {
-            throw new Error("Solana trading account not ready.");
-          }
-          if (!user?.id) {
-            throw new Error("User session not ready.");
-          }
-          setProgressMessage("Consolidating USDC on Solana...");
-          bridgeJob = await bridgeBaseUsdcToSolana(
-            solanaAddress,
-            bridgeAmount,
-            user.id,
-            sendBatchTx,
-            setProgressMessage,
-          );
-        }
-
-        setProgressMessage("Withdrawing USDC from Solana...");
-        const withdrawAmount =
-          bridgeJob && solanaAddress
-            ? resolveSolanaUsdcWithdrawAmount(
-                amount,
-                await readSolanaUsdcBalanceRaw(solanaAddress),
-              )
-            : amount;
-        if (withdrawAmount <= BigInt(0)) {
-          throw new Error("USDC arrived on Solana, but no withdrawable balance was found. Check your balance before retrying.");
-        }
-        signature = await sendSolanaWithdraw(
-          selectedWallet.address,
-          withdrawAmount,
-          "usdc",
-        );
-      } else {
-        setProgressMessage(`Withdrawing ${meta.label} from Solana...`);
-        signature = token === "sol"
-          ? await sendSolanaSolWithdraw(selectedWallet.address, amount)
-          : await sendSolanaWithdraw(
-              selectedWallet.address,
-              amount,
-              token === "tslax" ? "tslax" : token === "wsol" ? "wsol" : "usdc",
-            );
-      }
-
-      const finalHash = signature ?? bridgeJob?.mint_tx_hash;
-      if (finalHash) {
-        setTxHash(finalHash);
-        setTxChain(finalHash.startsWith("0x") ? "base" : "solana");
-      }
-      setStatus("done");
-      setProgressMessage("Withdrawal confirmed.");
-      refetchBalancesSoon();
-    } catch (err) {
-      console.error("[DepositModal] solana withdraw failed:", err);
-      setError(
-        err instanceof Error ? err.message : "Transaction failed.",
-      );
-      setStatus("idle");
-      setProgressMessage("Preparing transfer...");
-    }
-  }, [
-    solanaDisabled, selectedWallet, parseAmount, token,
-    sendSolanaSolWithdraw, sendSolanaWithdraw, solBalance.solanaUsdcRaw,
-    solanaAddress, user, sendBatchTx, meta.label,
-  ]);
-
-  const handleWithdraw =
-    chain === "solana" ? handleSolanaWithdraw : handleBaseWithdraw;
+  const handleWithdraw = handleBaseWithdraw;
 
   const isPending = status === "pending" || status === "activating";
   const isDone = status === "done";
@@ -956,15 +459,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 setError(null);
                 setStatus("idle");
                 setTxHash(null);
-                setTxChain(null);
                 setTokenMenuOpen(false);
-                setChainMenuOpen(false);
-                setToken((currentToken) => {
-                  const nextTokens = tokensFor(activeChain, t);
-                  return nextTokens.includes(currentToken)
-                    ? currentToken
-                    : nextTokens[0];
-                });
               }}
               disabled={isPending}
               className={`flex-1 rounded-lg py-2 text-sm font-semibold transition-colors capitalize ${
@@ -996,10 +491,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               <button
                 type="button"
                 aria-label={`Token ${meta.label}`}
-                onClick={() => {
-                  setTokenMenuOpen((open) => !open);
-                  setChainMenuOpen(false);
-                }}
+                onClick={() => setTokenMenuOpen((open) => !open)}
                 disabled={isPending || isDone}
                 className="flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-40"
               >
@@ -1031,45 +523,15 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 </div>
               )}
             </div>
-            <div className="relative space-y-1.5">
+            <div className="space-y-1.5">
               <span className="text-xs font-semibold text-[var(--text)]">{translate("Network", "Red")}</span>
-              <button
-                type="button"
-                aria-label={`Network ${chainLabel(activeChain)}`}
-                onClick={() => {
-                  setChainMenuOpen((open) => !open);
-                  setTokenMenuOpen(false);
-                }}
-                disabled={isPending || isDone}
-                className="flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm font-semibold text-[var(--text)] hover:border-[var(--accent)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-40"
+              <div
+                aria-label="Network Base"
+                className="flex h-12 w-full items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm font-semibold text-[var(--text)]"
               >
-                <span className="flex min-w-0 items-center gap-2">
-                  <ChainIcon chain={activeChain} className="h-6 w-6" />
-                  <span className="truncate">{chainLabel(activeChain)}</span>
-                </span>
-                <span className="text-[var(--text-secondary)]">⌄</span>
-              </button>
-              {chainMenuOpen && (
-                <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--bg)] shadow-xl">
-                  {availableChains.map((network) => (
-                    <button
-                      key={network}
-                      type="button"
-                      onClick={() => selectChain(network)}
-                      className={`flex w-full items-center gap-2 px-3 py-3 text-left text-sm ${
-                        activeChain === network
-                          ? "bg-[var(--accent)]/10"
-                          : "hover:bg-[var(--surface)]"
-                      }`}
-                    >
-                      <ChainIcon chain={network} className="h-5 w-5" />
-                      <span className="font-semibold text-[var(--text)]">
-                        {chainLabel(network)}
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              )}
+                <img src="/base.svg" alt="" aria-hidden="true" className="h-6 w-6" />
+                <span className="truncate">Base</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1086,7 +548,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
                     {truncate(selectedWallet.address)}
                     <span className="ml-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
-                      {selectedWallet.name} · {chainLabel(chain)} wallet
+                      {selectedWallet.name} · Base wallet
                     </span>
                   </p>
                 </div>
@@ -1099,9 +561,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   {translate("Connect", "Conectar")}
                 </button>
               </div>
-              {chainWallets.length > 1 && (
+              {externalWallets.length > 1 && (
                 <div className="grid gap-2">
-                  {chainWallets.map((wallet) => {
+                  {externalWallets.map((wallet) => {
                     const selected =
                       wallet.address.toLowerCase() ===
                       selectedWallet.address.toLowerCase();
@@ -1129,7 +591,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-[var(--text)]">
-                  {locale === "es" ? `No hay una wallet de ${chainLabel(chain)} conectada` : `No ${chainLabel(chain)} wallet connected`}
+                  {translate("No Base wallet connected", "No hay una wallet de Base conectada")}
                 </p>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
                   {tab === "deposit"
@@ -1143,7 +605,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 disabled={isPending}
                 className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
               >
-                {translate("Connect", "Conectar")} {chainLabel(chain)} wallet
+                {translate("Connect Base wallet", "Conectar wallet de Base")}
               </button>
             </div>
           )}
@@ -1152,7 +614,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         {/* Base activation gate — show activate button instead of deposit/withdraw UI */}
         {needsWallet ? (
           null
-        ) : needsBaseActivation && chain === "base" ? (
+        ) : needsBaseActivation ? (
           <div className="space-y-3">
             <p className="text-sm text-[var(--text-secondary)]">
               {translate(
@@ -1198,7 +660,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                       className="w-full bg-transparent text-[var(--text)] font-semibold text-3xl focus:outline-none"
                     />
                     <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                      {tab === "deposit" ? translate("Deposit", "Depositar") : translate("Withdraw", "Retirar")} {translate("on", "en")} {chainLabel(chain)}
+                      {tab === "deposit" ? translate("Deposit on Base", "Depositar en Base") : translate("Withdraw on Base", "Retirar en Base")}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-semibold text-[var(--text)]">
@@ -1226,11 +688,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   ? `From ${selectedWallet?.name ?? "wallet"}`
                   : `To ${selectedWallet?.name ?? "wallet"}`}
               </p>
-              {chain === "solana" && token === "tslax" && !SOLANA_TSLAX_MINT && (
-                <p className="text-xs text-amber-400 mt-1">
-                  TSLAx mint is not configured in this deployment.
-                </p>
-              )}
             </div>
 
             {displayError && (
@@ -1247,9 +704,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   <span>{displayProgress}</span>
                 </div>
                 <p className="mt-1 pl-4 text-xs text-[var(--text-secondary)]">
-                  {tab === "withdraw"
-                    ? translate("Cross-chain withdrawals can take a few minutes.", "Los retiros entre redes pueden tardar unos minutos.")
-                    : translate("This can take a few moments.", "Esto puede tardar unos momentos.")}
+                  {translate("This can take a few moments.", "Esto puede tardar unos momentos.")}
                 </p>
               </div>
             )}
@@ -1261,13 +716,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     ? translate("Deposit confirmed.", "Depósito confirmado.")
                     : translate("Withdrawal confirmed.", "Retiro confirmado.")}
                 </p>
-                {txHash && txChain && (
+                {txHash && (
                   <a
-                    href={
-                      txChain === "solana"
-                        ? solanaTxUrl(txHash)
-                        : `${CHAIN.blockExplorers?.default.url}/tx/${txHash}`
-                    }
+                    href={`${CHAIN.blockExplorers?.default.url}/tx/${txHash}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="block text-center text-sm text-[var(--accent)] hover:underline"
