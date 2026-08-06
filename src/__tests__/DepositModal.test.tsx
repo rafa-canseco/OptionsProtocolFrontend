@@ -191,29 +191,49 @@ describe("DepositModal Dynerox stage preview", () => {
   it("keeps the simplified Base crypto transfer flow as the default", () => {
     render(<DepositModal onClose={vi.fn()} />);
 
+    expect(screen.getByRole("button", { name: "Crypto" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     expect(screen.getByText("Transfer Crypto")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Token USDC" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
     expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Continue to Dynerox/i }),
+      screen.queryByRole("button", { name: /Open Ethereum preview/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("opens the exact on-ramp Checkout in a protected new tab", async () => {
+  it("presents email and Privy wallet onboarding before opening the exact on-ramp", async () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<DepositModal onClose={vi.fn()} />);
 
     await userEvent.click(
-      screen.getByRole("button", { name: /Bank transfer \(MXN\)/i }),
+      screen.getByRole("button", { name: /Onboard with MXN/i }),
     );
 
+    expect(screen.getByRole("button", { name: /Onboard with MXN/i })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("Preview: fund with pesos")).toBeInTheDocument();
+    expect(screen.getByText("You will continue with your email")).toBeInTheDocument();
+    expect(screen.getByText("Privy will create or recover your Base wallet")).toBeInTheDocument();
+    expect(screen.getByText("Your USDC will arrive in that wallet")).toBeInTheDocument();
+    expect(screen.getByText("Planned Base destination")).toBeInTheDocument();
+    expect(screen.getByText("0x1111...1111")).toBeInTheDocument();
+    expect(screen.getByText("Not connected")).toBeInTheDocument();
+    expect(screen.getByText("USDC · Base")).toBeInTheDocument();
+    expect(screen.getByText("Ethereum stage preview")).toBeInTheDocument();
+    expect(
+      screen.getByText(/will not fund the Base wallet shown above/i),
+    ).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Token USDC" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
     expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
 
     await userEvent.click(
-      screen.getByRole("button", { name: /Continue to Dynerox/i }),
+      screen.getByRole("button", { name: /Open Ethereum preview/i }),
     );
 
     expect(openSpy).toHaveBeenCalledWith(
@@ -229,10 +249,13 @@ describe("DepositModal Dynerox stage preview", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /Withdraw/i }));
     await userEvent.click(
-      screen.getByRole("button", { name: /Bank transfer \(MXN\)/i }),
+      screen.getByRole("button", { name: /Withdraw to MXN/i }),
     );
+    expect(
+      screen.getByText(/will not debit the Base wallet shown above/i),
+    ).toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: /Continue to Dynerox/i }),
+      screen.getByRole("button", { name: /Open Ethereum preview/i }),
     );
 
     expect(openSpy).toHaveBeenCalledWith(
@@ -251,35 +274,35 @@ describe("DepositModal Dynerox stage preview", () => {
     await userEvent.click(screen.getByRole("button", { name: "Deposit USDC" }));
 
     const bankMethod = screen.getByRole("button", {
-      name: /Bank transfer \(MXN\)/i,
+      name: /Onboard with MXN/i,
     });
     await waitFor(() => expect(bankMethod).toBeDisabled());
     await userEvent.click(bankMethod);
 
     expect(screen.getByText("Transfer Crypto")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Continue to Dynerox/i }),
+      screen.queryByRole("button", { name: /Open Ethereum preview/i }),
     ).not.toBeInTheDocument();
     expect(openSpy).not.toHaveBeenCalled();
   });
 
-  it("hides the bank method when preview configuration is incomplete", () => {
+  it("hides MXN onboarding when preview configuration is incomplete", () => {
     delete process.env.NEXT_PUBLIC_DYNEROX_TENANT_CODE;
 
     render(<DepositModal onClose={vi.fn()} />);
 
     expect(
-      screen.queryByRole("button", { name: /Bank transfer \(MXN\)/i }),
+      screen.queryByRole("button", { name: /Onboard with MXN/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("hides the bank method in mainnet even when public config is present", () => {
+  it("hides MXN onboarding in mainnet even when public config is present", () => {
     process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
 
     render(<DepositModal onClose={vi.fn()} />);
 
     expect(
-      screen.queryByRole("button", { name: /Bank transfer \(MXN\)/i }),
+      screen.queryByRole("button", { name: /Onboard with MXN/i }),
     ).not.toBeInTheDocument();
   });
 });
