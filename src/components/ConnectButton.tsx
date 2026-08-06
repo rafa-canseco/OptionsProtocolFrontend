@@ -3,8 +3,10 @@
 import { useState } from "react";
 import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { DepositModal } from "@/components/DepositModal";
+import { useAppPreferences } from "@/lib/preferences";
 
 export function ConnectButton() {
+  const { locale } = useAppPreferences();
   const { isConnected, isReady } = useWalletSummary();
   const [showDeposit, setShowDeposit] = useState(false);
 
@@ -21,7 +23,7 @@ export function ConnectButton() {
           onClick={() => setShowDeposit(true)}
           className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
-          Deposit
+          {locale === "es" ? "Depositar" : "Deposit"}
         </button>
 
         {showDeposit && (
@@ -37,7 +39,7 @@ export function ConnectButton() {
         onClick={() => setShowDeposit(true)}
         className="rounded-full bg-[var(--accent)] px-5 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
       >
-        Connect
+        {locale === "es" ? "Conectar" : "Connect"}
       </button>
 
       {showDeposit && (

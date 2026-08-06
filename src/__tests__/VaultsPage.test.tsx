@@ -20,6 +20,14 @@ vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
 }));
 
+vi.mock("@/components/AppPreferenceControls", () => ({
+  AppPreferenceControls: () => <div data-testid="preference-controls" />,
+}));
+
+vi.mock("@/lib/preferences", () => ({
+  useAppPreferences: () => ({ locale: "en", theme: "light" }),
+}));
+
 vi.mock("@/lib/contracts", () => ({
   CHAIN: { id: 84532 },
   ERC20_ABI: [],

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { AppPreferencesProvider, type AppLocale } from "@/lib/preferences";
 
 const prohibitedCopy = [
   "onchain",
@@ -15,6 +16,14 @@ const prohibitedCopy = [
   "collateral",
   "market maker",
 ];
+
+function renderLanding(initialLocale: AppLocale = "en") {
+  return render(
+    <AppPreferencesProvider initialLocale={initialLocale}>
+      <LandingPage initialLocale={initialLocale} />
+    </AppPreferencesProvider>,
+  );
+}
 
 describe("LandingPage", () => {
   beforeEach(() => {
@@ -33,7 +42,7 @@ describe("LandingPage", () => {
   });
 
   it("presents the retail positioning and three strategy families", () => {
-    render(<LandingPage />);
+    renderLanding();
 
     expect(
       screen.getByRole("heading", {
@@ -50,7 +59,7 @@ describe("LandingPage", () => {
   });
 
   it("does not advertise illustrative tickers", () => {
-    render(<LandingPage />);
+    renderLanding();
 
     expect(screen.queryByText(/examples only\. availability may vary/i)).not.toBeInTheDocument();
     expect(screen.queryByText("TSLA")).not.toBeInTheDocument();
@@ -58,7 +67,7 @@ describe("LandingPage", () => {
   });
 
   it("keeps implementation and derivatives terminology out of user-facing copy", () => {
-    const { container } = render(<LandingPage />);
+    const { container } = renderLanding();
     const copy = container.textContent?.toLowerCase() ?? "";
 
     for (const term of prohibitedCopy) {
@@ -67,7 +76,7 @@ describe("LandingPage", () => {
   });
 
   it("localizes the landing content and navigation labels in Spanish", () => {
-    const { container } = render(<LandingPage initialLocale="es" />);
+    const { container } = renderLanding("es");
 
     expect(container.firstElementChild).toHaveAttribute("lang", "es");
     expect(screen.getByRole("button", { name: /cambiar al modo oscuro/i })).toBeInTheDocument();
@@ -76,7 +85,7 @@ describe("LandingPage", () => {
   });
 
   it("persists the selected landing theme", () => {
-    const { container } = render(<LandingPage />);
+    const { container } = renderLanding();
     const landing = container.firstElementChild;
 
     expect(landing).toHaveAttribute("data-theme", "light");
@@ -88,12 +97,13 @@ describe("LandingPage", () => {
 
   it("restores a persisted dark theme before interaction", () => {
     window.localStorage.setItem("b1nary-landing-theme", "dark");
-    const { container } = render(<LandingPage />);
+    document.documentElement.dataset.landingTheme = "dark";
+    const { container } = renderLanding();
     expect(container.firstElementChild).toHaveAttribute("data-theme", "dark");
   });
 
   it("provides working navigation to the existing application", () => {
-    render(<LandingPage />);
+    renderLanding();
 
     const openAppLinks = screen.getAllByRole("link", { name: /open app/i });
     expect(openAppLinks.length).toBeGreaterThan(0);
@@ -102,7 +112,7 @@ describe("LandingPage", () => {
   });
 
   it("uses accessible expandable FAQ controls", () => {
-    render(<LandingPage />);
+    renderLanding();
 
     const question = screen.getByRole("button", {
       name: /are returns guaranteed/i,

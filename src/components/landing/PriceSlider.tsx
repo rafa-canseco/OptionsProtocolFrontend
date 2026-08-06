@@ -6,6 +6,7 @@ import { usePrices } from "@/hooks/usePrices";
 import { useSliderAnalytics } from "@/hooks/useSliderAnalytics";
 import type { PriceQuote } from "@/lib/api";
 import { SimulationResult } from "./SimulationResult";
+import { useAppPreferences } from "@/lib/preferences";
 
 const STRIKE_INTERVAL = 100; // $100 increments
 
@@ -72,6 +73,7 @@ function estimatePremium(strike: number, side: "buy" | "sell", spot: number): nu
 }
 
 export function PriceSlider({ spot }: { spot: number }) {
+  const { locale } = useAppPreferences();
   const [side, setSide] = useState<"buy" | "sell">("buy");
   const { low, high } = useMemo(() => strikeRange(spot, side), [spot, side]);
   const strikes = useMemo(() => generateStrikes(low, high), [low, high]);
@@ -129,7 +131,7 @@ export function PriceSlider({ spot }: { spot: number }) {
               : "text-[var(--text-secondary)] hover:text-[var(--text)]"
           }`}
         >
-          I have USD
+          {locale === "es" ? "Tengo USD" : "I have USD"}
         </button>
         <button
           onClick={() => handleSideChange("sell")}
@@ -139,19 +141,19 @@ export function PriceSlider({ spot }: { spot: number }) {
               : "text-[var(--text-secondary)] hover:text-[var(--text)]"
           }`}
         >
-          I have ETH
+          {locale === "es" ? "Tengo ETH" : "I have ETH"}
         </button>
       </div>
 
       {/* Header */}
       <div className="space-y-2">
         <h2 className="text-[clamp(1.3rem,3vw,2rem)] text-[var(--bone)] font-light">
-          I&apos;d {side} ETH at{" "}
+          {locale === "es" ? (side === "buy" ? "Compraría" : "Vendería") : `I'd ${side}`} ETH {locale === "es" ? "a" : "at"}{" "}
           <span className="text-[var(--accent)] font-semibold font-mono transition-all duration-200">
             ${selectedStrike.toLocaleString()}
           </span>
           <span className="text-[var(--text-secondary)] text-base font-normal ml-2 transition-all duration-200">
-            ({distancePct}% {side === "buy" ? "below" : "above"} spot)
+            ({distancePct}% {locale === "es" ? (side === "buy" ? "debajo" : "encima") : (side === "buy" ? "below" : "above")} {locale === "es" ? "del precio actual" : "spot"})
           </span>
         </h2>
       </div>
@@ -165,7 +167,7 @@ export function PriceSlider({ spot }: { spot: number }) {
           step={STRIKE_INTERVAL}
           value={selectedStrike}
           onChange={(e) => handleSliderChange(Number(e.target.value))}
-          aria-label={`Strike price: $${selectedStrike.toLocaleString()}`}
+          aria-label={`${locale === "es" ? "Precio" : "Strike price"}: $${selectedStrike.toLocaleString()}`}
           className="w-full accent-[var(--accent)] cursor-pointer"
           style={{ height: "8px" }}
         />

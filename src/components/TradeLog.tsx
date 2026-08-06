@@ -15,6 +15,7 @@ import {
   getPositionTermDays,
 } from "@/lib/positionDates";
 import { solanaTxUrl } from "@/lib/solana";
+import { useAppPreferences } from "@/lib/preferences";
 
 const EXPLORER_BASE = CHAIN.blockExplorers?.default.url ?? null;
 const DEFAULT_VISIBLE = 5;
@@ -53,6 +54,8 @@ interface Props {
 }
 
 export function TradeLog({ items }: Props) {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [showAll, setShowAll] = useState(false);
 
@@ -82,15 +85,15 @@ export function TradeLog({ items }: Props) {
         <thead>
           <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] text-xs">
             <th className="text-left py-3 px-4 font-medium w-6"></th>
-            <th className="text-left py-3 px-4 font-medium">Opened</th>
-            <th className="text-left py-3 px-4 font-medium hidden md:table-cell">Expired</th>
-            <th className="text-left py-3 px-4 font-medium">Type</th>
-            <th className="text-right py-3 px-4 font-medium">Strike</th>
-            <th className="text-right py-3 px-4 font-medium hidden lg:table-cell">Term</th>
-            <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">Maturity</th>
-            <th className="text-left py-3 px-4 font-medium">Outcome</th>
-            <th className="text-right py-3 px-4 font-medium">Premium</th>
-            <th className="text-right py-3 px-4 font-medium">Next Step</th>
+            <th className="text-left py-3 px-4 font-medium">{t("Opened", "Apertura")}</th>
+            <th className="text-left py-3 px-4 font-medium hidden md:table-cell">{t("Expired", "Vencimiento")}</th>
+            <th className="text-left py-3 px-4 font-medium">{t("Type", "Tipo")}</th>
+            <th className="text-right py-3 px-4 font-medium">{t("Strike", "Precio")}</th>
+            <th className="text-right py-3 px-4 font-medium hidden lg:table-cell">{t("Term", "Plazo")}</th>
+            <th className="text-right py-3 px-4 font-medium hidden sm:table-cell">{t("Maturity", "Rendimiento")}</th>
+            <th className="text-left py-3 px-4 font-medium">{t("Outcome", "Resultado")}</th>
+            <th className="text-right py-3 px-4 font-medium">{t("Premium", "Pago")}</th>
+            <th className="text-right py-3 px-4 font-medium">{t("Next Step", "Siguiente paso")}</th>
           </tr>
         </thead>
         <tbody>
@@ -123,7 +126,7 @@ export function TradeLog({ items }: Props) {
           onClick={() => setShowAll(true)}
           className="w-full py-3 text-sm font-medium text-[var(--accent)] hover:bg-[var(--surface)] transition-colors border-t border-[var(--border)]"
         >
-          Show all ({sorted.length})
+          {t("Show all", "Mostrar todo")} ({sorted.length})
         </button>
       )}
     </div>

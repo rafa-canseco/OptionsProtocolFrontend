@@ -8,13 +8,12 @@ import { getPositionPremiumUsd } from "@/lib/positionMath";
 type Period = "1M" | "3M" | "ALL";
 const PERIODS: Period[] = ["1M", "3M", "ALL"];
 
-// Hardcode chart colors — shadcn overrides var(--accent) to near-white
-const ACCENT = "#22D3EE";
-const ACCENT_FILL_TOP = "rgba(34, 211, 238, 0.25)";
-const ACCENT_FILL_BOT = "rgba(34, 211, 238, 0.02)";
-const DANGER = "#EF4444";
-const GRID = "#27272A";
-const TEXT_SEC = "#A1A1AA";
+const ACCENT = "var(--accent)";
+const ACCENT_FILL_TOP = "color-mix(in srgb, var(--accent) 25%, transparent)";
+const ACCENT_FILL_BOT = "color-mix(in srgb, var(--accent) 2%, transparent)";
+const DANGER = "var(--danger)";
+const GRID = "var(--border)";
+const TEXT_SEC = "var(--text-secondary)";
 const FONT_MONO = "'JetBrains Mono', monospace";
 
 interface ChartPoint {

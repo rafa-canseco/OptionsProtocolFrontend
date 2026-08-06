@@ -28,6 +28,8 @@ import {
 import { VaultAssetSelector } from "./VaultAssetSelector";
 import { VaultCard } from "./VaultCard";
 import { VaultDialog } from "./VaultDialog";
+import { AppPreferenceControls } from "@/components/AppPreferenceControls";
+import { useAppPreferences } from "@/lib/preferences";
 
 const ConnectButton = dynamic(
   () => import("@/components/ConnectButton").then((module) => module.ConnectButton),
@@ -35,6 +37,7 @@ const ConnectButton = dynamic(
 );
 
 export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
+  const { locale } = useAppPreferences();
   const [dialogVault, setDialogVault] = useState<"csp" | "covered-call" | null>(
     null,
   );
@@ -92,17 +95,21 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         <div className="mb-8 sm:mb-10">
           <div>
             <p className="font-mono text-xs uppercase tracking-[0.18em] text-[var(--vault-accent)]">
-              {isMyView
-                ? "Base Sepolia · Automated CSP"
-                : "Base Sepolia · Automated strategies"}
+              {locale === "es"
+                ? isMyView ? "Base Sepolia · CSP automatizado" : "Base Sepolia · Estrategias automatizadas"
+                : isMyView ? "Base Sepolia · Automated CSP" : "Base Sepolia · Automated strategies"}
             </p>
             <h1 className="mt-3 text-4xl font-semibold tracking-[-0.05em] sm:text-5xl">
-              {isMyView ? "My Vaults" : "Vaults"}
+              {locale === "es" ? (isMyView ? "Mis bóvedas" : "Bóvedas") : (isMyView ? "My Vaults" : "Vaults")}
             </h1>
             <p className="mt-3 max-w-xl text-base text-[var(--vault-text-muted)]">
-              {isMyView
-                ? "Your fund position, redemption status, and next action."
-                : "Automated ETH option strategies. Choose a vault asset and let the fund manage each cycle."}
+              {locale === "es"
+                ? isMyView
+                  ? "Tu posición, estado de retiro y siguiente acción."
+                  : "Estrategias automatizadas de ETH. Elige un activo y deja que la estrategia gestione cada ciclo."
+                : isMyView
+                  ? "Your fund position, redemption status, and next action."
+                  : "Automated ETH option strategies. Choose a vault asset and let the fund manage each cycle."}
             </p>
           </div>
         </div>
@@ -180,7 +187,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         <footer className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
           <span>v2 · Base Sepolia</span>
           <Link href={`/earn/${manualTradingAsset}`} className="min-h-11 py-3 hover:text-[var(--vault-text)]">
-            Manual trading <span className="text-[var(--vault-text-muted)]">Open classic →</span>
+            {locale === "es" ? "Operación manual" : "Manual trading"} <span className="text-[var(--vault-text-muted)]">{locale === "es" ? "Abrir clásico →" : "Open classic →"}</span>
           </Link>
         </footer>
       </main>
@@ -234,20 +241,21 @@ type ShareBalance = {
 };
 
 function VaultHeader({ view, address, balances }: VaultHeaderProps) {
+  const { locale } = useAppPreferences();
   return (
     <header className="border-b border-[var(--vault-border)]">
-      <div className="mx-auto flex max-w-[1180px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-8">
+      <div className="mx-auto flex max-w-[1180px] items-start justify-between gap-2 px-3 py-3 sm:px-6 sm:py-4 lg:items-center lg:px-8">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:gap-8">
           <Link href="/vaults" className="font-mono text-lg font-bold tracking-[-0.04em] text-[var(--bone)]">
             b<span className="text-[var(--vault-accent)]">1</span>nary
-            <span className="ml-2 font-sans text-sm font-medium tracking-normal text-[var(--vault-text-subtle)]">v2</span>
+            <span className="ml-2 hidden font-sans text-sm font-medium tracking-normal text-[var(--vault-text-subtle)] sm:inline">v2</span>
           </Link>
-          <nav aria-label="Vault navigation" className="hidden gap-6 text-sm sm:flex">
-            <Link href="/vaults" aria-current={view === "catalog" ? "page" : undefined}>Vaults</Link>
-            <Link href="/vaults/my" aria-current={view === "my" ? "page" : undefined}>My Vaults</Link>
+          <nav aria-label={locale === "es" ? "Navegación de bóvedas" : "Vault navigation"} className="order-3 flex w-full gap-4 pt-1 text-xs sm:text-sm lg:order-none lg:w-auto lg:gap-6 lg:pt-0">
+            <Link href="/vaults" aria-current={view === "catalog" ? "page" : undefined}>{locale === "es" ? "Bóvedas" : "Vaults"}</Link>
+            <Link href="/vaults/my" aria-current={view === "my" ? "page" : undefined}>{locale === "es" ? "Mis bóvedas" : "My Vaults"}</Link>
           </nav>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex shrink-0 items-center gap-1 sm:gap-3">
           {address ? (
             <VaultBalances
               address={address}
@@ -258,6 +266,7 @@ function VaultHeader({ view, address, balances }: VaultHeaderProps) {
               shareBalances={balances.shareBalances}
             />
           ) : null}
+          <AppPreferenceControls vault />
           <ConnectButton />
         </div>
       </div>

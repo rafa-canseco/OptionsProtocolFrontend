@@ -71,6 +71,10 @@ const defaultWallet: WalletStub = {
 
 let walletOverrides: Partial<WalletStub> = {};
 
+vi.mock("@/lib/preferences", () => ({
+  useAppPreferences: () => ({ locale: "en" }),
+}));
+
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: () => ({ ...defaultWallet, ...walletOverrides }),
 }));

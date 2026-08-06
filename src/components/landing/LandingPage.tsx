@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { BlossomCarousel, BlossomDot, BlossomDots, BlossomNext, BlossomPrev } from "@blossom-carousel/react";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -32,12 +32,12 @@ import {
   Target,
   TrendingUp,
 } from "lucide-react";
+import { useAppPreferences } from "@/lib/preferences";
 import styles from "./LandingPage.module.css";
 
 type LandingTheme = "light" | "dark";
 type LandingLocale = "en" | "es";
 
-const THEME_STORAGE_KEY = "b1nary-landing-theme";
 const illustrativeBuyIncome = ["+$18", "+$24", "+$31"] as const;
 const illustrativeSellIncome = ["+$12", "+$20", "+$27"] as const;
 const contentByLocale = {
@@ -120,32 +120,22 @@ const contentByLocale = {
 } as const;
 
 export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingLocale }) {
-  const [theme, setTheme] = useState<LandingTheme>("light");
-  const [locale, setLocale] = useState<LandingLocale>(initialLocale);
+  const { theme, locale, setTheme, setLocale } = useAppPreferences();
   const [menuOpen, setMenuOpen] = useState(false);
   const copy = contentByLocale[locale];
 
-  useLayoutEffect(() => {
-    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark") {
-      setTheme(stored);
-      document.documentElement.dataset.landingTheme = stored;
-    }
-  }, [initialLocale]);
+  useEffect(() => {
+    if (locale !== initialLocale) setLocale(initialLocale);
+    // The server-provided locale is only an initialization hint.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function toggleTheme() {
-    setTheme((current) => {
-      const next = current === "light" ? "dark" : "light";
-      window.localStorage.setItem(THEME_STORAGE_KEY, next);
-      document.documentElement.dataset.landingTheme = next;
-      return next;
-    });
+    setTheme(theme === "light" ? "dark" : "light");
   }
 
   function toggleLocale() {
-    const next = locale === "en" ? "es" : "en";
-    setLocale(next);
-    document.cookie = `b1nary-locale=${next}; path=/; max-age=31536000; samesite=lax`;
+    setLocale(locale === "en" ? "es" : "en");
   }
 
   return (

@@ -41,6 +41,10 @@ vi.mock("@/lib/contracts", () => ({
   CHAIN: { id: 8453, name: "base" },
 }));
 
+vi.mock("@/lib/preferences", () => ({
+  useAppPreferences: () => ({ theme: "dark" }),
+}));
+
 vi.mock("@/lib/solana", () => ({
   SOLANA_CHAIN: "solana:mainnet",
   SOLANA_RPC_URL: "https://api.devnet.solana.com",

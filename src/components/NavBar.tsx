@@ -10,6 +10,8 @@ import { useSpot } from "@/hooks/useSpot";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { ConnectButton } from "./ConnectButton";
 import { FaucetButton } from "./FaucetButton";
+import { AppPreferenceControls } from "./AppPreferenceControls";
+import { useAppPreferences } from "@/lib/preferences";
 import { ASSETS } from "@/lib/assets";
 import { TRADING_NAV_LINKS } from "@/lib/navigation";
 import type { B1naryWallet } from "@/lib/api";
@@ -81,10 +83,11 @@ function TradingAccountRow({
   copiedAddress: string | null;
   onCopy: (address: string) => void;
 }) {
+  const { locale } = useAppPreferences();
   const isBase = wallet.chain === "base";
   const label = isBase ? "Base" : "Solana";
   const icon = isBase ? "/base.svg" : "/sol.png";
-  const accountType = wallet.wallet_type === "smart" ? "Smart" : "Embedded";
+  const accountType = wallet.wallet_type === "smart" ? "Smart" : locale === "es" ? "Integrada" : "Embedded";
   const copied = copiedAddress === wallet.address;
 
   return (
@@ -101,7 +104,7 @@ function TradingAccountRow({
             {label}
           </span>
           <span className="block text-[11px] text-[var(--text-secondary)]">
-            {accountType} trading
+            {accountType} {locale === "es" ? "de operación" : "trading"}
           </span>
         </span>
       </span>
@@ -110,7 +113,7 @@ function TradingAccountRow({
         onClick={() => onCopy(wallet.address)}
         className="shrink-0 rounded-md px-1.5 py-1 font-mono text-xs text-[var(--text-secondary)] transition-colors hover:bg-[var(--surface)] hover:text-[var(--text)]"
       >
-        {copied ? "Copied" : truncateAddress(wallet.address)}
+        {copied ? (locale === "es" ? "Copiada" : "Copied") : truncateAddress(wallet.address)}
       </button>
     </div>
   );
@@ -118,6 +121,7 @@ function TradingAccountRow({
 
 export function NavBar() {
   const pathname = usePathname();
+  const { locale } = useAppPreferences();
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
   const {
     address,
@@ -215,14 +219,17 @@ export function NavBar() {
           STAGING — staging.b1nary.app
         </div>
       )}
-      <header className="flex items-center justify-between px-6 py-4 border-b border-[var(--border)]">
-        <div className="flex items-center gap-6">
+      <header className="flex items-start justify-between gap-2 border-b border-[var(--border)] px-3 py-3 sm:px-6 sm:py-4 lg:items-center">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-3 sm:gap-6">
           <Link href="/" className="text-lg font-bold tracking-tight text-[var(--bone)] font-mono">
             b<span className="text-[var(--accent)]">1</span>nary
           </Link>
-          <nav className="flex gap-4 text-sm">
-            {TRADING_NAV_LINKS.map(({ href, label }) => (
-              <Link
+          <nav className="order-3 flex w-full gap-3 overflow-x-auto whitespace-nowrap pt-1 text-xs sm:text-sm lg:order-none lg:w-auto lg:gap-4 lg:pt-0">
+            {TRADING_NAV_LINKS.map(({ href, label }) => {
+              const localizedLabel = locale === "es"
+                ? href === "/vaults" ? "Bóvedas v2" : href === "/earn" ? "Operar" : "Mis ingresos"
+                : label;
+              return <Link
                 key={href}
                 href={href}
                 className={`transition-colors ${
@@ -231,18 +238,18 @@ export function NavBar() {
                     : "text-[var(--text-secondary)] hover:text-[var(--text)]"
                 }`}
               >
-                {label}
-              </Link>
-            ))}
+                {localizedLabel}
+              </Link>;
+            })}
           </nav>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-3">
           {isConnected && b1naryAccount && (
             <Popover>
               <PopoverTrigger asChild>
                 <button className="hidden md:flex max-w-[180px] items-center gap-1.5 rounded-full border border-[var(--border)] px-4 py-2 text-sm text-[var(--text-secondary)] hover:text-[var(--text)] hover:border-[var(--text-secondary)] transition-colors">
                   <span className="truncate">
-                    hello @{b1naryAccount.username}
+                    {locale === "es" ? "hola" : "hello"} @{b1naryAccount.username}
                   </span>
                   <span className="text-[var(--text-secondary)]">⌄</span>
                 </button>
@@ -257,7 +264,7 @@ export function NavBar() {
                       @{b1naryAccount.username}
                     </p>
                     <p className="text-xs text-[var(--text-secondary)]">
-                      Trading accounts
+                      {locale === "es" ? "Cuentas de operación" : "Trading accounts"}
                     </p>
                   </div>
                   {tradingAccounts.length > 0 ? (
@@ -273,7 +280,7 @@ export function NavBar() {
                     </div>
                   ) : (
                     <p className="rounded-md border border-[var(--border)] px-3 py-2 text-xs text-[var(--text-secondary)]">
-                      No trading accounts linked yet.
+                      {locale === "es" ? "Aún no hay cuentas de operación vinculadas." : "No trading accounts linked yet."}
                     </p>
                   )}
                 </div>
@@ -311,6 +318,7 @@ export function NavBar() {
           {SHOW_FAUCET && isConnected && !balLoading && (fundingAddress || solanaAddress) && (
             <FaucetButton address={fundingAddress} solanaAddress={solanaAddress} refetch={refetch} />
           )}
+          <AppPreferenceControls />
           <ConnectButton />
         </div>
       </header>

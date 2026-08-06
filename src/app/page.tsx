@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { cookies, headers } from "next/headers";
 import { LandingPage } from "@/components/landing/LandingPage";
+import { detectAppLocale } from "@/lib/locale";
 
 const title = "b1nary · Automated investment strategies";
 const description =
@@ -22,35 +23,13 @@ export const metadata: Metadata = {
   },
 };
 
-const themeBootstrap = `
-  try {
-    const theme = localStorage.getItem("b1nary-landing-theme");
-    if (theme === "light" || theme === "dark") {
-      document.documentElement.dataset.landingTheme = theme;
-    }
-  } catch {}
-`;
-
-const spanishSpeakingCountries = new Set([
-  "AR", "BO", "CL", "CO", "CR", "CU", "DO", "EC", "ES", "GQ", "GT",
-  "HN", "MX", "NI", "PA", "PE", "PR", "PY", "SV", "UY", "VE",
-]);
-
 export default async function Home() {
   const [cookieStore, requestHeaders] = await Promise.all([cookies(), headers()]);
-  const savedLocale = cookieStore.get("b1nary-locale")?.value;
-  const country = requestHeaders.get("x-vercel-ip-country")?.toUpperCase();
-  const acceptedLanguage = requestHeaders.get("accept-language")?.toLowerCase() ?? "";
-  const detectedLocale =
-    (country && spanishSpeakingCountries.has(country)) || acceptedLanguage.startsWith("es")
-      ? "es"
-      : "en";
-  const initialLocale = savedLocale === "es" || savedLocale === "en" ? savedLocale : detectedLocale;
+  const initialLocale = detectAppLocale({
+    savedLocale: cookieStore.get("b1nary-locale")?.value,
+    country: requestHeaders.get("x-vercel-ip-country"),
+    acceptedLanguage: requestHeaders.get("accept-language") ?? "",
+  });
 
-  return (
-    <>
-      <script dangerouslySetInnerHTML={{ __html: themeBootstrap }} />
-      <LandingPage initialLocale={initialLocale} />
-    </>
-  );
+  return <LandingPage initialLocale={initialLocale} />;
 }

@@ -88,7 +88,7 @@ function MouseSpotlight({ radius = 280 }: { radius?: number }) {
     const lerp = () => {
       currentX += (mouseX - currentX) * 0.1;
       currentY += (mouseY - currentY) * 0.1;
-      el.style.background = `radial-gradient(circle ${radius}px at ${currentX}px ${currentY}px, transparent 0%, rgba(10,10,10,0.92) 100%)`;
+      el.style.background = `radial-gradient(circle ${radius}px at ${currentX}px ${currentY}px, transparent 0%, color-mix(in srgb, var(--bg) 92%, transparent) 100%)`;
       frame = requestAnimationFrame(lerp);
     };
 
@@ -107,7 +107,7 @@ function MouseSpotlight({ radius = 280 }: { radius?: number }) {
     <div
       ref={overlayRef}
       className="fixed inset-0 z-[2] pointer-events-none"
-      style={{ background: "rgba(10,10,10,0.92)" }}
+      style={{ background: "color-mix(in srgb, var(--bg) 92%, transparent)" }}
     />
   );
 }
@@ -124,7 +124,7 @@ function FloatingOrbs() {
         transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
         className="absolute -top-32 -right-32 w-[500px] h-[500px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(34,211,238,0.06) 0%, transparent 70%)",
+          background: "radial-gradient(circle, color-mix(in srgb, var(--accent) 8%, transparent) 0%, transparent 70%)",
         }}
       />
       <motion.div
@@ -136,7 +136,7 @@ function FloatingOrbs() {
         transition={{ duration: 30, repeat: Infinity, ease: "linear" }}
         className="absolute top-1/3 -left-48 w-[600px] h-[600px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(34,211,238,0.04) 0%, transparent 70%)",
+          background: "radial-gradient(circle, color-mix(in srgb, var(--accent) 6%, transparent) 0%, transparent 70%)",
         }}
       />
       <motion.div
@@ -148,7 +148,7 @@ function FloatingOrbs() {
         transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
         className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] rounded-full"
         style={{
-          background: "radial-gradient(circle, rgba(34,211,238,0.03) 0%, transparent 70%)",
+          background: "radial-gradient(circle, color-mix(in srgb, var(--accent) 5%, transparent) 0%, transparent 70%)",
         }}
       />
     </div>

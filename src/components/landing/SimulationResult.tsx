@@ -2,6 +2,7 @@
 
 import { memo, useState, useCallback, useEffect, type FormEvent } from "react";
 import Link from "next/link";
+import { useAppPreferences } from "@/lib/preferences";
 
 // Module-level promise so every mount reuses the same in-flight request
 let _countPromise: Promise<number> | null = null;
@@ -21,6 +22,7 @@ function fetchWaitlistCount(): Promise<number> {
 }
 
 function EmailCapture({ onSignup }: { onSignup?: () => void }) {
+  const { locale } = useAppPreferences();
   const [email, setEmail] = useState("");
   const [status, setStatus] = useState<"idle" | "submitting" | "done" | "error">("idle");
 
@@ -49,7 +51,7 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
     return (
       <div className="rounded-lg bg-[var(--accent)]/10 border border-[var(--accent)]/20 px-4 py-3 animate-fade-in">
         <p className="text-sm font-medium text-[var(--accent)]">
-          You&apos;re in. We&apos;ll let you know.
+          {locale === "es" ? "Listo. Te avisaremos." : <>You&apos;re in. We&apos;ll let you know.</>}
         </p>
       </div>
     );
@@ -62,7 +64,7 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
           type="email"
           required
           placeholder="you@email.com"
-          aria-label="Email address for waitlist"
+          aria-label={locale === "es" ? "Correo para la lista de espera" : "Email address for waitlist"}
           value={email}
           onChange={(e) => { setEmail(e.target.value); if (status === "error") setStatus("idle"); }}
           className="flex-1 rounded-lg bg-[var(--bg)] border border-[var(--border)] px-3 py-2 text-sm text-[var(--text)] placeholder:text-[var(--text-secondary)]/50 focus:outline-none focus:border-[var(--accent)] transition-colors"
@@ -72,12 +74,12 @@ function EmailCapture({ onSignup }: { onSignup?: () => void }) {
           disabled={status === "submitting"}
           className="rounded-lg bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-50 transition-colors whitespace-nowrap"
         >
-          {status === "submitting" ? "..." : "Count me in"}
+          {status === "submitting" ? "..." : locale === "es" ? "Quiero participar" : "Count me in"}
         </button>
       </form>
       {status === "error" && (
         <p className="text-xs text-[var(--danger)] animate-fade-in">
-          Something went wrong. Try again.
+          {locale === "es" ? "Algo salió mal. Inténtalo de nuevo." : "Something went wrong. Try again."}
         </p>
       )}
     </div>
@@ -102,6 +104,7 @@ export const SimulationResult = memo(function SimulationResult({
   side: "buy" | "sell";
   loading: boolean;
 }) {
+  const { locale } = useAppPreferences();
   const collateralValue = side === "buy" ? strike : spot;
   const apr = Math.round(computeAPR(premium, collateralValue, 7));
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
@@ -128,10 +131,10 @@ export const SimulationResult = memo(function SimulationResult({
       <div className={`transition-opacity duration-200 ${loading ? "opacity-50" : ""}`}>
         <div className="rounded-xl border border-[var(--accent)]/15 bg-[var(--accent)]/5 p-5 space-y-3">
           <p className="text-[clamp(1.3rem,3.5vw,1.8rem)] font-semibold text-[var(--accent)]">
-            You&apos;d earn ${premium.toLocaleString()} this week
+            {locale === "es" ? `Recibirías $${premium.toLocaleString()} esta semana` : <>You&apos;d earn ${premium.toLocaleString()} this week</>}
           </p>
           <p className="text-[var(--text-secondary)]">
-            On {collateral} committed
+            {locale === "es" ? `Con ${collateral} comprometidos` : <>On {collateral} committed</>}
           </p>
           {apr > 0 && (
             <span className="inline-block text-sm font-mono font-semibold text-[var(--accent)] bg-[var(--accent)]/10 rounded-full px-3 py-1">
@@ -143,14 +146,14 @@ export const SimulationResult = memo(function SimulationResult({
 
       {/* Trust line */}
       <p className="text-sm text-[var(--accent)]">
-        Real yield. Not tokens. Not points. Paid upfront, every week.
+        {locale === "es" ? "Ingresos reales. Sin tokens ni puntos. Pago al inicio de cada etapa." : "Real yield. Not tokens. Not points. Paid upfront, every week."}
       </p>
 
       {/* Email capture */}
       <div className="rounded-xl bg-[var(--bg)]/60 border border-[var(--border)] p-4 space-y-2">
         {waitlistCount !== null && waitlistCount > 0 && (
           <p className="text-sm text-[var(--text)]">
-            {waitlistCount} {waitlistCount === 1 ? "person is" : "people are"} waiting to try this for real.
+            {locale === "es" ? `${waitlistCount} ${waitlistCount === 1 ? "persona espera" : "personas esperan"} probarlo.` : <>{waitlistCount} {waitlistCount === 1 ? "person is" : "people are"} waiting to try this for real.</>}
           </p>
         )}
         <EmailCapture onSignup={incrementCount} />
@@ -162,7 +165,7 @@ export const SimulationResult = memo(function SimulationResult({
           href="/"
           className="inline-block rounded-xl px-8 py-3 text-sm font-semibold bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] transition-colors"
         >
-          Learn how it works
+          {locale === "es" ? "Conoce cómo funciona" : "Learn how it works"}
         </Link>
       </div>
     </div>
