@@ -206,11 +206,11 @@ describe("DepositModal Dynerox stage preview", () => {
     expect(screen.getByText("Source wallet")).toBeInTheDocument();
     expect(screen.getByText("MetaMask")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Open Ethereum preview/i }),
+      screen.queryByRole("button", { name: /Open demo/i }),
     ).not.toBeInTheDocument();
   });
 
-  it("presents email and Privy wallet onboarding before opening the exact on-ramp", async () => {
+  it("presents concise MXN onboarding before opening the exact on-ramp", async () => {
     const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
     render(<DepositModal onClose={vi.fn()} />);
 
@@ -222,24 +222,17 @@ describe("DepositModal Dynerox stage preview", () => {
       "aria-pressed",
       "true",
     );
-    expect(screen.getByText("Preview: fund with pesos")).toBeInTheDocument();
-    expect(screen.getByText("You will continue with your email")).toBeInTheDocument();
-    expect(screen.getByText("Privy will create or recover your Base wallet")).toBeInTheDocument();
-    expect(screen.getByText("Your USDC will arrive in that wallet")).toBeInTheDocument();
-    expect(screen.getByText("Planned Base destination")).toBeInTheDocument();
-    expect(screen.getByText("0x1111...1111")).toBeInTheDocument();
-    expect(screen.getByText("Not connected")).toBeInTheDocument();
-    expect(screen.getByText("USDC · Base")).toBeInTheDocument();
-    expect(screen.getByText("Ethereum stage preview")).toBeInTheDocument();
-    expect(
-      screen.getByText(/will not fund the Base wallet shown above/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Fund with pesos")).toBeInTheDocument();
+    expect(screen.getByText("Deposit through SPEI and receive USDC.")).toBeInTheDocument();
+    expect(screen.getByText("Temporary demo on Ethereum.")).toBeInTheDocument();
+    expect(screen.queryByText(/Privy/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/wallet/i)).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Token USDC" })).not.toBeInTheDocument();
     expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
     expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
 
     await userEvent.click(
-      screen.getByRole("button", { name: /Open Ethereum preview/i }),
+      screen.getByRole("button", { name: /Open demo/i }),
     );
 
     expect(openSpy).toHaveBeenCalledWith(
@@ -261,11 +254,11 @@ describe("DepositModal Dynerox stage preview", () => {
     await userEvent.click(
       screen.getByRole("button", { name: /To MXN/i }),
     );
-    expect(
-      screen.getByText(/will not debit the Base wallet shown above/i),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Withdraw to MXN")).toBeInTheDocument();
+    expect(screen.getByText("Send USDC and receive MXN through SPEI.")).toBeInTheDocument();
+    expect(screen.getByText("Temporary demo on Ethereum.")).toBeInTheDocument();
     await userEvent.click(
-      screen.getByRole("button", { name: /Open Ethereum preview/i }),
+      screen.getByRole("button", { name: /Open demo/i }),
     );
 
     expect(openSpy).toHaveBeenCalledWith(
@@ -291,7 +284,7 @@ describe("DepositModal Dynerox stage preview", () => {
 
     expect(screen.getByText("Transfer Crypto")).toBeInTheDocument();
     expect(
-      screen.queryByRole("button", { name: /Open Ethereum preview/i }),
+      screen.queryByRole("button", { name: /Open demo/i }),
     ).not.toBeInTheDocument();
     expect(openSpy).not.toHaveBeenCalled();
   });

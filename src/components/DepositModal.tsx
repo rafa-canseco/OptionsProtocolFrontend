@@ -536,55 +536,14 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             <div>
               <p className="text-base font-semibold text-[var(--text)]">
                 {tab === "deposit"
-                  ? translate("Preview: fund with pesos", "Vista previa: fondea con pesos")
-                  : translate("Preview: withdraw to MXN", "Vista previa: retira a MXN")}
+                  ? translate("Fund with pesos", "Fondea con pesos")
+                  : translate("Withdraw to MXN", "Retira a MXN")}
               </p>
               <p className="mt-1 text-sm text-[var(--text-secondary)]">
                 {tab === "deposit"
-                  ? translate(
-                      "The planned flow will use your email to create or recover a Privy wallet on Base, then send your converted USDC there.",
-                      "El flujo planeado usará tu correo para crear o recuperar una wallet Privy en Base y enviar ahí tus USDC.",
-                    )
-                  : translate(
-                      "The planned flow will convert USDC from your Base wallet and send MXN through SPEI.",
-                      "El flujo planeado convertirá USDC desde tu wallet en Base y enviará MXN por SPEI.",
-                    )}
+                  ? translate("Deposit through SPEI and receive USDC.", "Deposita por SPEI y recibe USDC.")
+                  : translate("Send USDC and receive MXN through SPEI.", "Envía USDC y recibe MXN por SPEI.")}
               </p>
-            </div>
-
-            {tab === "deposit" && (
-              <div className="grid gap-2 text-xs text-[var(--text-secondary)]">
-                {[
-                  translate("You will continue with your email", "Continuarás con tu correo"),
-                  translate("Privy will create or recover your Base wallet", "Privy creará o recuperará tu wallet en Base"),
-                  translate("Your USDC will arrive in that wallet", "Tus USDC llegarán a esa wallet"),
-                ].map((step, index) => (
-                  <div key={step} className="flex items-center gap-2">
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--accent)]/15 text-[10px] font-bold text-[var(--accent)]">
-                      {index + 1}
-                    </span>
-                    <span>{step}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="flex items-center justify-between gap-3 rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-3">
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                  {tab === "deposit"
-                    ? translate("Planned Base destination", "Destino planeado en Base")
-                    : translate("Planned Base source", "Origen planeado en Base")}
-                </p>
-                <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
-                  {address
-                    ? `${address.slice(0, 6)}...${address.slice(-4)}`
-                    : translate("Created after email sign-in", "Se crea al ingresar con tu correo")}
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-[var(--accent)]/15 px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">
-                {translate("Not connected", "Sin conectar")}
-              </span>
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-3 text-sm">
@@ -593,26 +552,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               </span>
               <span aria-hidden="true" className="text-[var(--text-secondary)]">→</span>
               <span className="font-semibold text-[var(--text)]">
-                {tab === "deposit" ? "USDC · Base" : "MXN · SPEI"}
+                {tab === "deposit" ? "USDC" : "MXN · SPEI"}
               </span>
             </div>
 
-            <div className="rounded-lg border border-amber-400/30 bg-amber-400/5 px-3 py-3 text-xs text-[var(--text-secondary)]">
-              <p className="font-semibold text-amber-400">
-                {translate("Ethereum stage preview", "Vista previa de stage en Ethereum")}
-              </p>
-              <p className="mt-1">
-                {tab === "deposit"
-                  ? translate(
-                      "The button below opens Dynerox on Ethereum and will not fund the Base wallet shown above.",
-                      "El botón abre Dynerox en Ethereum y no fondeará la wallet en Base mostrada arriba.",
-                    )
-                  : translate(
-                      "The button below opens an Ethereum USDC withdrawal preview and will not debit the Base wallet shown above.",
-                      "El botón abre una vista previa de retiro con USDC en Ethereum y no retirará fondos de la wallet en Base mostrada arriba.",
-                    )}
-              </p>
-            </div>
+            <p className="text-xs text-amber-400">
+              {translate("Temporary demo on Ethereum.", "Demo temporal en Ethereum.")}
+            </p>
 
             <button
               type="button"
@@ -620,11 +566,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               disabled={isPending}
               className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {translate("Open Ethereum preview ↗", "Abrir vista previa en Ethereum ↗")}
+              {translate("Open demo ↗", "Abrir demo ↗")}
             </button>
-            <p className="text-center text-xs text-[var(--text-secondary)]">
-              {translate("Opens the Dynerox stage Checkout in a new tab.", "Abre el Checkout de stage de Dynerox en una pestaña nueva.")}
-            </p>
           </div>
         ) : (
           <>
