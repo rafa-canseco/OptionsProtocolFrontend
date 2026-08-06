@@ -136,17 +136,18 @@ describe("DepositModal Base-only network", () => {
     walletClientType: "phantom",
   };
 
-  it("renders Base as a fixed network and excludes Solana wallets and copy", () => {
+  it("omits redundant network and multi-wallet selectors while excluding Solana", () => {
     walletOverrides = {
       externalWallets: [baseExternalWallet, solanaWallet],
     };
 
     render(<DepositModal onClose={vi.fn()} />);
 
-    expect(screen.getByLabelText("Network Base")).toHaveTextContent("Base");
+    expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
+    expect(screen.queryByText(/^Network$|^Red$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Solana/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
-    expect(screen.getByText(/MetaMask · Base wallet/)).toBeInTheDocument();
+    expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
   });
 
   it("only lists Base assets", async () => {
@@ -210,9 +211,14 @@ describe("DepositModal Base transfers", () => {
 
     await userEvent.click(screen.getByRole("button", { name: /withdraw/i }));
 
-    expect(
-      screen.getByRole("button", { name: "Connect Base wallet" }),
-    ).toBeInTheDocument();
+    const connectButton = screen.getByRole("button", {
+      name: "Connect Base wallet",
+    });
+    expect(connectButton).toBeInTheDocument();
+
+    await userEvent.click(connectButton);
+
+    expect(defaultWallet.connectFundingWallet).toHaveBeenCalledTimes(1);
     expect(mockSendBatchTx).not.toHaveBeenCalled();
   });
 });

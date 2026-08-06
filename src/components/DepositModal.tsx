@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useMemo } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
 import { useLogin, usePrivy, type WalletListEntry } from "@privy-io/react-auth";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
@@ -36,10 +36,6 @@ interface Props {
   onClose: () => void;
   requiredToken?: string;
   onComplete?: () => void;
-}
-
-function truncate(addr: string): string {
-  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 }
 
 function refetchBalancesSoon() {
@@ -111,8 +107,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     [rawExternalWallets],
   );
   const [tab, setTab] = useState<Tab>("deposit");
-  const [selectedWallet, setSelectedWallet] =
-    useState<ExternalWallet | null>(null);
+  const selectedWallet: ExternalWallet | null = externalWallets[0] ?? null;
   const [token, setToken] = useState<Token>(() =>
     normalizeRequiredToken(requiredToken),
   );
@@ -144,11 +139,6 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
   const [progressMessage, setProgressMessage] = useState("Preparing transfer...");
-
-  useEffect(() => {
-    if (selectedWallet?.chain === "base") return;
-    setSelectedWallet(externalWallets[0] ?? null);
-  }, [externalWallets, selectedWallet]);
 
   const meta = TOKEN_META[token];
   const availableTokens = BASE_TOKENS;
@@ -485,7 +475,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             </div>
             <span className="text-xs text-[var(--text-secondary)]">{translate("No limit", "Sin límite")}</span>
           </div>
-          <div className="mt-4 grid grid-cols-2 gap-3">
+          <div className="mt-4">
             <div className="relative space-y-1.5">
               <span className="text-xs font-semibold text-[var(--text)]">Token</span>
               <button
@@ -523,71 +513,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 </div>
               )}
             </div>
-            <div className="space-y-1.5">
-              <span className="text-xs font-semibold text-[var(--text)]">{translate("Network", "Red")}</span>
-              <div
-                aria-label="Network Base"
-                className="flex h-12 w-full items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 text-sm font-semibold text-[var(--text)]"
-              >
-                <img src="/base.svg" alt="" aria-hidden="true" className="h-6 w-6" />
-                <span className="truncate">Base</span>
-              </div>
-            </div>
           </div>
         </div>
 
-        {/* Contextual external wallet */}
-        <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
-          {selectedWallet ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                    {tab === "deposit" ? translate("From", "Desde") : translate("To", "Hacia")}
-                  </p>
-                  <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
-                    {truncate(selectedWallet.address)}
-                    <span className="ml-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
-                      {selectedWallet.name} · Base wallet
-                    </span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleConnectWallet}
-                  disabled={isPending}
-                  className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
-                >
-                  {translate("Connect", "Conectar")}
-                </button>
-              </div>
-              {externalWallets.length > 1 && (
-                <div className="grid gap-2">
-                  {externalWallets.map((wallet) => {
-                    const selected =
-                      wallet.address.toLowerCase() ===
-                      selectedWallet.address.toLowerCase();
-                    return (
-                      <button
-                        key={`${wallet.chain}-${wallet.address}`}
-                        type="button"
-                        onClick={() => setSelectedWallet(wallet)}
-                        disabled={isPending}
-                        className={`flex items-center justify-between rounded-lg border px-3 py-2 text-left transition-colors disabled:opacity-40 ${
-                          selected
-                            ? "border-[var(--accent)] bg-[var(--accent)]/10 text-[var(--text)]"
-                            : "border-[var(--border)] text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--text)]"
-                        }`}
-                      >
-                        <span className="text-xs font-semibold">{wallet.name}</span>
-                        <span className="font-mono text-xs">{truncate(wallet.address)}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          ) : (
+        {!selectedWallet && (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-[var(--text)]">
@@ -608,8 +538,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 {translate("Connect Base wallet", "Conectar wallet de Base")}
               </button>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Base activation gate — show activate button instead of deposit/withdraw UI */}
         {needsWallet ? (
