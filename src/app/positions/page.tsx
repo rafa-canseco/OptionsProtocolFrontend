@@ -17,8 +17,11 @@ import { resolvePositionAsset } from "@/lib/assets";
 import { groupPositions } from "@/lib/positionGrouping";
 import { NotificationBanner } from "@/components/NotificationBanner";
 import type { YieldMetric } from "@/components/YieldToggle";
+import { useAppPreferences } from "@/lib/preferences";
 
 export default function PositionsPage() {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   const { user } = usePrivy();
   const {
     address,
@@ -65,10 +68,10 @@ export default function PositionsPage() {
   if (!isConnected) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-        <h1 className="sr-only">Your Positions</h1>
+        <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>
         <div className="text-center py-12">
-          <p className="text-lg font-semibold text-[var(--text)]">Connect your wallet</p>
-          <p className="text-sm text-[var(--text-secondary)] mt-1">to see your positions.</p>
+          <p className="text-lg font-semibold text-[var(--text)]">{t("Connect your wallet", "Conecta tu wallet")}</p>
+          <p className="text-sm text-[var(--text-secondary)] mt-1">{t("to see your positions.", "para ver tus posiciones.")}</p>
         </div>
       </main>
     );
@@ -77,11 +80,11 @@ export default function PositionsPage() {
   if (!loading && allPositions.length === 0) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-6">
-        <h1 className="sr-only">Your Positions</h1>
+        <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>
         <div className="text-center py-12">
-          <p className="text-lg font-semibold text-[var(--text)]">No positions yet</p>
+          <p className="text-lg font-semibold text-[var(--text)]">{t("No positions yet", "Aún no tienes posiciones")}</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            Accept a price on the <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn</a> page to get started.
+            {t("Accept a price on the", "Acepta un precio en")} <a href="/earn/eth" className="text-[var(--accent)] hover:underline">{t("Earn", "Operar")}</a> {t("page to get started.", "para comenzar.")}
           </p>
         </div>
       </main>
@@ -91,7 +94,7 @@ export default function PositionsPage() {
   if (loading) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-3">
-        <h1 className="sr-only">Your Positions</h1>
+        <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>
         {[1, 2].map((i) => (
           <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--surface)]" />
         ))}
@@ -101,7 +104,7 @@ export default function PositionsPage() {
 
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
-      <h1 className="sr-only">Your Positions</h1>
+      <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>
 
       <PortfolioSummary
         positions={allPositions}
@@ -116,7 +119,7 @@ export default function PositionsPage() {
 
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-          Active positions
+          {t("Active positions", "Posiciones activas")}
         </h2>
         {activeItems.length > 0 ? (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -161,8 +164,8 @@ export default function PositionsPage() {
         ) : (
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
             <p className="text-sm text-[var(--text-secondary)]">
-              No active positions.{" "}
-              <a href="/earn/eth" className="text-[var(--accent)] hover:underline">Earn premium</a> by setting your price.
+              {t("No active positions.", "No hay posiciones activas.")}{" "}
+              <a href="/earn/eth" className="text-[var(--accent)] hover:underline">{t("Earn premium", "Genera ingresos")}</a> {t("by setting your price.", "definiendo tu precio.")}
             </p>
           </div>
         )}
@@ -173,7 +176,7 @@ export default function PositionsPage() {
       {(historyItems.length > 0 || settledHasMore) && (
         <section id="position-history" className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-            History
+            {t("History", "Historial")}
           </h2>
           {historyItems.length > 0 && <TradeLog items={historyItems} />}
           {settledHasMore && (

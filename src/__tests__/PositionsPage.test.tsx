@@ -18,6 +18,10 @@ const pageState = vi.hoisted(() => ({
   error: null,
 }));
 
+vi.mock("@/lib/preferences", () => ({
+  useAppPreferences: () => ({ locale: "en" }),
+}));
+
 vi.mock("@privy-io/react-auth", () => ({
   usePrivy: () => ({ user: { id: "privy-user" } }),
 }));

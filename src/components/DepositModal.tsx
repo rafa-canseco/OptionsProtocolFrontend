@@ -19,6 +19,7 @@ import {
 import { isSolanaOffInProd } from "@/lib/marketState";
 import { SOLANA_TSLAX_MINT, solanaConnection, solanaTxUrl, toPublicKey } from "@/lib/solana";
 import { api, type BridgeJob, type BridgeJobStatus } from "@/lib/api";
+import { useAppPreferences } from "@/lib/preferences";
 import { invalidateData } from "@/lib/dataInvalidation";
 
 type Tab = "deposit" | "withdraw";
@@ -276,7 +277,47 @@ async function bridgeSolanaUsdcToBase(
   return job;
 }
 
+function translateDepositError(message: string): string {
+  const translations: Array<[string, string]> = [
+    ["Enter an amount", "Ingresa un monto"],
+    ["Invalid amount", "Monto inválido"],
+    ["Amount exceeds available balance", "El monto supera el saldo disponible"],
+    ["Leave at least 0.005 SOL in your wallet for network fees", "Deja al menos 0.005 SOL en tu wallet para las comisiones de red"],
+    ["Wallet not ready. Please reconnect", "La wallet no está lista. Vuelve a conectarla"],
+    ["Wallet not connected", "Wallet no conectada"],
+    ["Smart wallet not ready", "La wallet inteligente no está lista"],
+    ["Transaction failed", "La transacción falló"],
+    ["Insufficient", "Saldo insuficiente de"],
+    ["is not configured", "no está configurado"],
+  ];
+  return translations.reduce((result, [english, spanish]) => result.replace(english, spanish), message);
+}
+
+function translateDepositProgress(message: string): string {
+  const translations: Array<[string, string]> = [
+    ["Preparing transfer", "Preparando transferencia"],
+    ["Preparing withdrawal", "Preparando retiro"],
+    ["Checking bridge fee", "Revisando comisión del puente"],
+    ["Confirming Solana transfer", "Confirmando transferencia en Solana"],
+    ["Consolidating USDC on Base", "Consolidando USDC en Base"],
+    ["Consolidating USDC on Solana", "Consolidando USDC en Solana"],
+    ["Preparing sponsored Solana transfer", "Preparando transferencia patrocinada en Solana"],
+    ["Resolving Solana USDC account", "Buscando cuenta USDC en Solana"],
+    ["Sending USDC from Base to Solana", "Enviando USDC de Base a Solana"],
+    ["Sending USDC to Base", "Enviando USDC a Base"],
+    ["Starting bridge confirmation", "Iniciando confirmación del puente"],
+    ["Waiting for USDC to arrive on Base", "Esperando que USDC llegue a Base"],
+    ["Waiting for USDC to arrive on Solana", "Esperando que USDC llegue a Solana"],
+    ["Withdrawal confirmed", "Retiro confirmado"],
+    ["Withdrawing USDC from Base", "Retirando USDC de Base"],
+    ["Withdrawing USDC from Solana", "Retirando USDC de Solana"],
+  ];
+  return translations.reduce((result, [english, spanish]) => result.replace(english, spanish), message);
+}
+
 export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
+  const { locale } = useAppPreferences();
+  const translate = (en: string, es: string) => locale === "es" ? es : en;
   const { authenticated, user } = usePrivy();
   const { login } = useLogin();
   const {
@@ -878,6 +919,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
 
   const isPending = status === "pending" || status === "activating";
   const isDone = status === "done";
+  const displayError = locale === "es" && error ? translateDepositError(error) : error;
+  const displayProgress = locale === "es" ? translateDepositProgress(progressMessage) : progressMessage;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -892,7 +935,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         {/* Header */}
         <div className="relative text-center">
           <h2 className="text-2xl font-semibold text-[var(--text)]">
-            {tab === "deposit" ? "Deposit" : "Withdraw"}
+            {tab === "deposit" ? translate("Deposit", "Depositar") : translate("Withdraw", "Retirar")}
           </h2>
           <button
             onClick={onClose}
@@ -930,7 +973,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               } disabled:opacity-40`}
             >
-              {t}
+              {locale === "es" ? (t === "deposit" ? "Depositar" : "Retirar") : t}
             </button>
           ))}
         </div>
@@ -939,13 +982,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-base font-semibold text-[var(--text)]">
-                Transfer Crypto
+                {translate("Transfer Crypto", "Transferir cripto")}
               </p>
               <p className="mt-0.5 text-xs text-[var(--text-secondary)]">
-                {tab === "deposit" ? "From your wallet to trading" : "From trading to your wallet"}
+                {tab === "deposit" ? translate("From your wallet to trading", "De tu wallet a operaciones") : translate("From trading to your wallet", "De operaciones a tu wallet")}
               </p>
             </div>
-            <span className="text-xs text-[var(--text-secondary)]">No limit</span>
+            <span className="text-xs text-[var(--text-secondary)]">{translate("No limit", "Sin límite")}</span>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3">
             <div className="relative space-y-1.5">
@@ -989,7 +1032,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               )}
             </div>
             <div className="relative space-y-1.5">
-              <span className="text-xs font-semibold text-[var(--text)]">Network</span>
+              <span className="text-xs font-semibold text-[var(--text)]">{translate("Network", "Red")}</span>
               <button
                 type="button"
                 aria-label={`Network ${chainLabel(activeChain)}`}
@@ -1038,7 +1081,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               <div className="flex items-center justify-between gap-3">
                 <div className="min-w-0">
                   <p className="text-xs font-semibold text-[var(--text-secondary)]">
-                    {tab === "deposit" ? "From" : "To"}
+                    {tab === "deposit" ? translate("From", "Desde") : translate("To", "Hacia")}
                   </p>
                   <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
                     {truncate(selectedWallet.address)}
@@ -1053,7 +1096,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                   disabled={isPending}
                   className="shrink-0 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-semibold text-[var(--text-secondary)] hover:border-[var(--accent)] hover:text-[var(--accent)] disabled:opacity-40"
                 >
-                  Connect
+                  {translate("Connect", "Conectar")}
                 </button>
               </div>
               {chainWallets.length > 1 && (
@@ -1086,12 +1129,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             <div className="space-y-3">
               <div>
                 <p className="text-sm font-semibold text-[var(--text)]">
-                  No {chainLabel(chain)} wallet connected
+                  {locale === "es" ? `No hay una wallet de ${chainLabel(chain)} conectada` : `No ${chainLabel(chain)} wallet connected`}
                 </p>
                 <p className="mt-1 text-xs text-[var(--text-secondary)]">
                   {tab === "deposit"
-                    ? "Connect the wallet you want to deposit from."
-                    : "Connect the wallet you want to withdraw to."}
+                    ? translate("Connect the wallet you want to deposit from.", "Conecta la wallet desde la que quieres depositar.")
+                    : translate("Connect the wallet you want to withdraw to.", "Conecta la wallet a la que quieres retirar.")}
                 </p>
               </div>
               <button
@@ -1100,7 +1143,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 disabled={isPending}
                 className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
               >
-                Connect {chainLabel(chain)} wallet
+                {translate("Connect", "Conectar")} {chainLabel(chain)} wallet
               </button>
             </div>
           )}
@@ -1112,11 +1155,13 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         ) : needsBaseActivation && chain === "base" ? (
           <div className="space-y-3">
             <p className="text-sm text-[var(--text-secondary)]">
-              Activate your Base trading account with a one-time signature.
-              After this you can deposit, withdraw, and trade with zero gas fees.
+              {translate(
+                "Activate your Base trading account with a one-time signature. After this you can deposit, withdraw, and trade with zero gas fees.",
+                "Activa tu cuenta de operaciones en Base con una sola firma. Después podrás depositar, retirar y operar sin pagar gas.",
+              )}
             </p>
-            {error && (
-              <p className="text-sm text-[var(--danger)]">{error}</p>
+            {displayError && (
+              <p className="text-sm text-[var(--danger)]">{displayError}</p>
             )}
             <button
               onClick={handleActivate}
@@ -1124,8 +1169,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
             >
               {status === "activating"
-                ? "Activating..."
-                : "Activate Base Trading Account"}
+                ? translate("Activating...", "Activando...")
+                : translate("Activate Base Trading Account", "Activar cuenta de operaciones en Base")}
             </button>
           </div>
         ) : (
@@ -1153,7 +1198,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                       className="w-full bg-transparent text-[var(--text)] font-semibold text-3xl focus:outline-none"
                     />
                     <p className="mt-1 text-xs text-[var(--text-secondary)]">
-                      {tab === "deposit" ? "Deposit" : "Withdraw"} on {chainLabel(chain)}
+                      {tab === "deposit" ? translate("Deposit", "Depositar") : translate("Withdraw", "Retirar")} {translate("on", "en")} {chainLabel(chain)}
                     </p>
                   </div>
                   <div className="flex shrink-0 items-center gap-2 rounded-xl border border-[var(--border)] bg-[var(--bg)] px-3 py-2 text-sm font-semibold text-[var(--text)]">
@@ -1163,7 +1208,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-3">
                   <p className="text-xs text-[var(--text-secondary)]">
-                    Balance {formatTokenBalance(token)}
+                    {translate("Balance", "Saldo")} {formatTokenBalance(token)}
                   </p>
                   <button
                     onClick={handleMax}
@@ -1172,7 +1217,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     }
                     className="text-xs font-semibold text-[var(--accent)] hover:opacity-80 transition-opacity disabled:opacity-40"
                   >
-                    Max
+                    {translate("Max", "Máx")}
                   </button>
                 </div>
               </div>
@@ -1188,8 +1233,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               )}
             </div>
 
-            {error && (
-              <p className="text-sm text-[var(--danger)]">{error}</p>
+            {displayError && (
+              <p className="text-sm text-[var(--danger)]">{displayError}</p>
             )}
 
             {isPending && status !== "activating" && (
@@ -1199,12 +1244,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-50" />
                     <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[var(--accent)]" />
                   </span>
-                  <span>{progressMessage}</span>
+                  <span>{displayProgress}</span>
                 </div>
                 <p className="mt-1 pl-4 text-xs text-[var(--text-secondary)]">
                   {tab === "withdraw"
-                    ? "Cross-chain withdrawals can take a few minutes."
-                    : "This can take a few moments."}
+                    ? translate("Cross-chain withdrawals can take a few minutes.", "Los retiros entre redes pueden tardar unos minutos.")
+                    : translate("This can take a few moments.", "Esto puede tardar unos momentos.")}
                 </p>
               </div>
             )}
@@ -1213,8 +1258,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               <div className="space-y-3">
                 <p className="text-sm text-center text-[var(--accent)] font-semibold">
                   {tab === "deposit"
-                    ? "Deposit confirmed."
-                    : "Withdrawal confirmed."}
+                    ? translate("Deposit confirmed.", "Depósito confirmado.")
+                    : translate("Withdrawal confirmed.", "Retiro confirmado.")}
                 </p>
                 {txHash && txChain && (
                   <a
@@ -1227,17 +1272,17 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                     rel="noopener noreferrer"
                     className="block text-center text-sm text-[var(--accent)] hover:underline"
                   >
-                    View transaction ↗
+                    {translate("View transaction ↗", "Ver transacción ↗")}
                   </a>
                 )}
                 <p className="text-center text-xs text-[var(--text-secondary)]">
-                  Balance can take a few seconds to refresh.
+                  {translate("Balance can take a few seconds to refresh.", "El saldo puede tardar unos segundos en actualizarse.")}
                 </p>
                 <button
                   onClick={onClose}
                   className="w-full rounded-xl bg-[var(--surface)] py-3 text-sm font-semibold text-[var(--text)] hover:bg-[var(--border)] transition-colors"
                 >
-                  Close
+                  {translate("Close", "Cerrar")}
                 </button>
               </div>
             ) : (
@@ -1250,11 +1295,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               >
                 {isPending
                   ? tab === "deposit"
-                    ? "Depositing..."
-                    : "Withdrawing..."
+                    ? translate("Depositing...", "Depositando...")
+                    : translate("Withdrawing...", "Retirando...")
                   : tab === "deposit"
-                    ? `Deposit ${meta.label}`
-                    : `Withdraw ${meta.label}`}
+                    ? `${translate("Deposit", "Depositar")} ${meta.label}`
+                    : `${translate("Withdraw", "Retirar")} ${meta.label}`}
               </button>
             )}
           </>
@@ -1273,7 +1318,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           disabled={isPending}
           className="w-full text-center text-xs text-[var(--text-secondary)] hover:text-[var(--danger)] transition-colors disabled:opacity-40"
         >
-          Disconnect wallet
+          {translate("Disconnect wallet", "Desconectar wallet")}
         </button>
       </div>
     </div>

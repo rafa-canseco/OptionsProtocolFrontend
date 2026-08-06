@@ -40,6 +40,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { InfoTooltip } from "@/components/ui/InfoTooltip";
+import { useAppPreferences } from "@/lib/preferences";
 import { invalidateData } from "@/lib/dataInvalidation";
 
 type DialogAction = "deposit" | "redeem";
@@ -99,6 +100,7 @@ type ResolvedVaultDialogProps = Omit<
 };
 
 export function VaultDialog(props: VaultDialogProps) {
+  const { locale } = useAppPreferences();
   const resolved: ResolvedVaultDialogProps = {
     ...props,
     vault: props.vault ?? CSP_VAULT_CARD,
@@ -112,16 +114,15 @@ export function VaultDialog(props: VaultDialogProps) {
         className="vault-dialog max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-[1040px] overflow-y-auto rounded-[28px] border border-[var(--vault-border-strong)] bg-[var(--vault-bg)] p-0 sm:max-w-[1040px]"
       >
         <DialogTitle className="sr-only">
-          Manage {resolved.vault.name} Fund
+          {locale === "es" ? `Gestionar ${resolved.vault.name}` : `Manage ${resolved.vault.name} Fund`}
         </DialogTitle>
         <DialogDescription className="sr-only">
-          Deposit {resolved.vault.accountingAssetSymbol} or manage an
-          accounting-asset redemption.
+          {locale === "es" ? `Deposita ${resolved.vault.accountingAssetSymbol} o gestiona un retiro.` : `Deposit ${resolved.vault.accountingAssetSymbol} or manage an accounting-asset redemption.`}
         </DialogDescription>
         <DialogClose asChild>
           <button
             type="button"
-            aria-label="Close fund"
+            aria-label={locale === "es" ? "Cerrar" : "Close fund"}
             className="absolute right-4 top-4 z-20 grid size-11 place-items-center rounded-full border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] text-[var(--vault-text-muted)]"
           >
             <X className="size-5" />
@@ -148,32 +149,34 @@ function StrategyExplanation({
   vault: VaultCardMetadata;
   config: FundConfigResponse | null;
 }) {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   return (
     <details className="group mx-6 mb-6 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] sm:mx-8 sm:mb-8">
       <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-4 px-4 text-sm font-medium text-[var(--vault-text-muted)] [&::-webkit-details-marker]:hidden">
-        How this vault works
+        {t("How this vault works", "Cómo funciona esta estrategia")}
         <ChevronDown className="size-4 transition-transform duration-200 group-open:rotate-180" />
       </summary>
       <div className="border-t border-[var(--vault-border)] px-4 py-5">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-[var(--vault-accent)]">
-              Current Base Sepolia strategy
+              {t("Current Base Sepolia strategy", "Estrategia actual en Base Sepolia")}
             </p>
             <p className="mt-1 text-sm leading-6 text-[var(--vault-text-muted)]">
               {vault.policy.intro}
             </p>
           </div>
           <span className="mt-2 w-fit rounded-full border border-[var(--vault-border)] px-2.5 py-1 font-mono text-[10px] uppercase tracking-[0.12em] text-[var(--vault-text-subtle)] sm:mt-0">
-            Automatic loop
+            {t("Automatic loop", "Ciclo automático")}
           </span>
         </div>
 
         <dl className="mt-5 grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-[var(--vault-border)] bg-[var(--vault-border)] sm:grid-cols-4">
-          <StrategyFact label="Strike" value={vault.policy.strike} />
-          <StrategyFact label="Duration" value={vault.policy.duration} />
-          <StrategyFact label="Allocation" value={vault.policy.allocation} />
-          <StrategyFact label="Positions" value={vault.policy.positionLimit} />
+          <StrategyFact label={t("Strike", "Precio")} value={vault.policy.strike} />
+          <StrategyFact label={t("Duration", "Duración")} value={vault.policy.duration} />
+          <StrategyFact label={t("Allocation", "Asignación")} value={vault.policy.allocation} />
+          <StrategyFact label={t("Positions", "Posiciones")} value={vault.policy.positionLimit} />
         </dl>
 
         {config?.fees ? (
@@ -182,26 +185,27 @@ function StrategyExplanation({
             className="mt-5 rounded-xl border border-[var(--vault-border)] bg-[var(--vault-bg)] p-4"
           >
             <p className="font-mono text-[10px] uppercase tracking-[0.14em] text-[var(--vault-accent)]">
-              Active fees
+              {t("Active fees", "Comisiones activas")}
             </p>
             <dl className="mt-3 grid gap-3 text-sm sm:grid-cols-3">
               <StrategyFact
-                label="Management"
-                value={`${feePercent(config.fees.managementFeeBps)} annually`}
+                label={t("Management", "Gestión")}
+                value={`${feePercent(config.fees.managementFeeBps)} ${t("annually", "anual")}`}
               />
               <StrategyFact
-                label="Performance"
+                label={t("Performance", "Rendimiento")}
                 value={feePercent(config.fees.performanceFeeBps)}
               />
               <StrategyFact
-                label="Option premium"
+                label={t("Option premium", "Pago de estrategia")}
                 value={feePercent(config.fees.premiumFeeBps)}
               />
             </dl>
             <p className="mt-3 text-xs leading-5 text-[var(--vault-text-muted)]">
-              Performance fees apply only to gains in NAV per share above the
-              previous high-water mark. Premium and earnings shown here are net
-              of the fee charged on gross option premium.
+              {t(
+                "Performance fees apply only to gains in NAV per share above the previous high-water mark. Premium and earnings shown here are net of the fee charged on gross option premium.",
+                "Las comisiones de rendimiento se aplican únicamente a ganancias del NAV por participación por encima del máximo anterior. Los ingresos mostrados ya descuentan la comisión correspondiente.",
+              )}
             </p>
           </section>
         ) : null}
@@ -675,6 +679,8 @@ function MetaWheelTranches({
 }
 
 function FundActionPanel(props: ResolvedVaultDialogProps) {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   const [action, setAction] = useState<DialogAction>("deposit");
   const [value, setValue] = useState("");
   const transaction = useFundTransaction(props, action, value, setValue);
@@ -682,6 +688,12 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
     props.position,
     props.vault.accountingAssetSymbol,
   );
+  const planLabel = locale === "es"
+    ? plan.key === "claimRedemption" ? `Retirar ${props.vault.accountingAssetSymbol}` : plan.key === "cancelRedemption" ? "Cancelar solicitud" : "Solicitar retiro"
+    : plan.label;
+  const planDescription = locale === "es"
+    ? plan.key === "claimRedemption" ? `Los ${props.vault.accountingAssetSymbol} procesados están listos para tu wallet.` : plan.key === "cancelRedemption" ? "Cancela las participaciones pendientes mientras el lote actual lo permita." : "Solicita una salida en el activo contable."
+    : plan.description;
   const decimals = props.summary?.fund.accountingAsset.decimals ?? 6;
   const availableRaw = action === "deposit"
     ? props.smartAssetRaw
@@ -717,7 +729,7 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
     <section className="p-6 sm:p-8 lg:p-10">
       <ActionTabs action={action} onChange={(next) => { setAction(next); setValue(""); transaction.reset(); }} />
       <div className="mt-8 flex items-center justify-between text-sm">
-        <span className="text-[var(--vault-text-muted)]">{action === "deposit" ? "Smart wallet" : "Available value"}</span>
+        <span className="text-[var(--vault-text-muted)]">{action === "deposit" ? t("Smart wallet", "Wallet inteligente") : t("Available value", "Valor disponible")}</span>
         <button type="button" onClick={() => setValue(formatInput(availableRaw, decimals))} disabled={!needsAmount} className="min-h-11 font-mono text-[var(--vault-accent)] disabled:opacity-40">
           {amount.format(rawFundAmount(availableRaw, decimals))}{" "}
           {props.vault.accountingAssetSymbol} · MAX
@@ -729,7 +741,7 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
           <span className="font-mono">{props.vault.accountingAssetSymbol}</span>
         </div>
       ) : (
-        <p className="mt-3 rounded-[22px] border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] px-5 py-5 text-sm leading-6 text-[var(--vault-text-muted)]">{plan.description}</p>
+        <p className="mt-3 rounded-[22px] border border-[var(--vault-border-strong)] bg-[var(--vault-surface-soft)] px-5 py-5 text-sm leading-6 text-[var(--vault-text-muted)]">{planDescription}</p>
       )}
       {action === "deposit" && props.summary && expectedShares > BigInt(0) ? (
         <DepositNavPreview
@@ -740,10 +752,10 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
       ) : null}
       <button type="button" disabled={disabled} onClick={() => void transaction.submit(plan.key)} className="mt-6 min-h-14 w-full rounded-2xl border border-[var(--vault-accent)] text-base font-semibold text-[var(--vault-accent)] hover:bg-[var(--vault-accent-dim)] disabled:cursor-not-allowed disabled:border-[var(--vault-border)] disabled:text-[var(--vault-text-subtle)]">
         {transaction.status === "submitting"
-          ? "Confirming..."
+          ? t("Confirming...", "Confirmando...")
           : action === "deposit"
-            ? `Deposit ${props.vault.accountingAssetSymbol}`
-            : plan.label}
+            ? `${t("Deposit", "Depositar")} ${props.vault.accountingAssetSymbol}`
+            : planLabel}
       </button>
       <ActionStatus loadError={props.loadError} availability={availability} transaction={transaction} />
     </section>
@@ -873,10 +885,11 @@ function exitPlan(
 }
 
 function ActionTabs({ action, onChange }: { action: DialogAction; onChange: (action: DialogAction) => void }) {
+  const { locale } = useAppPreferences();
   return (
-    <div role="tablist" aria-label="Fund action" className="inline-grid grid-cols-2 rounded-2xl bg-[var(--vault-surface-soft)] p-1">
+    <div role="tablist" aria-label={locale === "es" ? "Acción" : "Fund action"} className="inline-grid grid-cols-2 rounded-2xl bg-[var(--vault-surface-soft)] p-1">
       {(["deposit", "redeem"] as const).map((item) => (
-        <button key={item} type="button" role="tab" aria-selected={action === item} onClick={() => onChange(item)} className={`min-h-11 rounded-xl px-6 text-sm font-medium capitalize ${action === item ? "bg-[var(--vault-selected)]" : "text-[var(--vault-text-muted)]"}`}>{item === "redeem" ? "Exit" : "Deposit"}</button>
+        <button key={item} type="button" role="tab" aria-selected={action === item} onClick={() => onChange(item)} className={`min-h-11 rounded-xl px-6 text-sm font-medium capitalize ${action === item ? "bg-[var(--vault-selected)]" : "text-[var(--vault-text-muted)]"}`}>{locale === "es" ? (item === "redeem" ? "Retirar" : "Depositar") : (item === "redeem" ? "Exit" : "Deposit")}</button>
       ))}
     </div>
   );
@@ -887,13 +900,14 @@ function ActionStatus({ loadError, availability, transaction }: {
   availability: { available: boolean; reasonCode: string | null };
   transaction: ReturnType<typeof useFundTransaction>;
 }) {
+  const { locale } = useAppPreferences();
   const message = transaction.error ?? loadError ?? (!availability.available ? availability.reasonCode : null);
   if (transaction.status === "confirmed") {
-    return <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">Confirmed: {transaction.hash}</p>;
+    return <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">{locale === "es" ? "Confirmado" : "Confirmed"}: {transaction.hash}</p>;
   }
   return message ? (
     <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
-      {actionMessage(message)}
+      {locale === "es" ? translateVaultMessage(actionMessage(message)) : actionMessage(message)}
     </p>
   ) : null;
 }
@@ -907,27 +921,28 @@ function DepositNavPreview({
   expectedShares: bigint;
   assetSymbol: string;
 }) {
+  const { locale } = useAppPreferences();
   const valuation = fundValuation(summary);
   const assetDecimals = summary.fund.accountingAsset.decimals;
   const shareDecimals = summary.fund.shareToken.decimals;
   return (
     <div
-      aria-label="Deposit share preview"
+      aria-label={locale === "es" ? "Vista previa del depósito" : "Deposit share preview"}
       className="mt-4 rounded-2xl border border-[var(--vault-border)] bg-[var(--vault-surface-soft)] px-4 py-3"
     >
       <div className="flex items-center justify-between gap-4 text-sm">
-        <span className="text-[var(--vault-text-muted)]">Estimated shares</span>
+        <span className="text-[var(--vault-text-muted)]">{locale === "es" ? "Participaciones estimadas" : "Estimated shares"}</span>
         <span className="font-mono text-[var(--vault-text)]">
           {amount.format(rawFundAmount(expectedShares, shareDecimals))}
         </span>
       </div>
       <p className="mt-2 text-xs leading-5 text-[var(--vault-text-subtle)]">
-        Estimated using the current NAV price of{" "}
+        {locale === "es" ? "Estimado usando el precio NAV actual de" : "Estimated using the current NAV price of"}{" "}
         {assetValue(
           valuation.navPriceAssets,
           assetDecimals,
           assetSymbol,
-        )}. Your transaction includes minimum-share protection.
+        )}. {locale === "es" ? "La transacción incluye protección mínima de participaciones." : "Your transaction includes minimum-share protection."}
       </p>
     </div>
   );
@@ -940,10 +955,11 @@ function ValuationDetails({
   vault: VaultCardMetadata;
   summary: FundSummaryResponse | null;
 }) {
+  const { locale } = useAppPreferences();
   if (!summary) {
     return (
       <p className="mt-8 border-t border-[var(--vault-border)] pt-5 text-xs leading-5 text-[var(--vault-text-subtle)]">
-        Share price —
+        {locale === "es" ? "Precio por participación" : "Share price"} —
       </p>
     );
   }
@@ -952,13 +968,13 @@ function ValuationDetails({
   return (
     <div className="mt-8 flex items-end justify-between gap-6 border-t border-[var(--vault-border)] pt-5">
       <ValuationPrice
-        label="NAV price"
+        label={locale === "es" ? "Precio NAV" : "NAV price"}
         value={assetValue(
           valuation.navPriceAssets,
           decimals,
           vault.accountingAssetSymbol,
         )}
-        help="The current value of one fund share, calculated from everything the fund owns minus its option obligation and settlement costs."
+        help={locale === "es" ? "Valor actual de una participación, calculado con los activos menos obligaciones y costos de liquidación." : "The current value of one fund share, calculated from everything the fund owns minus its option obligation and settlement costs."}
       />
       <div className="text-right">
         <div className="flex items-center justify-end">
@@ -971,7 +987,7 @@ function ValuationDetails({
             aria-hidden="true"
           />
           <span className="ml-2 text-xs text-[var(--vault-text-muted)]">
-            {valuation.stale ? "Price updating" : "Price current"}
+            {valuation.stale ? (locale === "es" ? "Actualizando precio" : "Price updating") : (locale === "es" ? "Precio vigente" : "Price current")}
           </span>
           <InfoTooltip
             title="Price status"
@@ -1182,6 +1198,21 @@ function nextPositionLabel(condition: string, nextOpenAfter: number | null): str
     return "When WETH and pricing are ready";
   }
   return "After funding and pricing";
+}
+
+function translateVaultMessage(message: string): string {
+  const translations: Array<[string, string]> = [
+    ["Deposits are paused", "Los depósitos están pausados"],
+    ["Redemptions are paused", "Los retiros están pausados"],
+    ["Price is updating", "El precio se está actualizando"],
+    ["Smart wallet not ready", "La wallet inteligente no está lista"],
+    ["Enter a deposit amount", "Ingresa un monto para depositar"],
+    ["Enter a valid redemption amount", "Ingresa un monto válido para retirar"],
+    ["Fund transaction failed", "La transacción falló"],
+    ["Writes are disabled", "Las operaciones están deshabilitadas"],
+  ];
+  const match = translations.find(([english]) => message.includes(english));
+  return match ? message.replace(match[0], match[1]) : message;
 }
 
 function actionMessage(message: string): string {
