@@ -9,8 +9,13 @@ import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
 import { useAppPreferences } from "@/lib/preferences";
 import { invalidateData } from "@/lib/dataInvalidation";
+import {
+  buildDyneroxCheckoutUrl,
+  getDyneroxCheckoutConfig,
+} from "@/lib/dyneroxCheckout";
 
 type Tab = "deposit" | "withdraw";
+type FundingMethod = "crypto" | "bank";
 type Token = "usdc" | "eth" | "weth" | "btc";
 
 interface TokenConfig {
@@ -107,6 +112,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
     [rawExternalWallets],
   );
   const [tab, setTab] = useState<Tab>("deposit");
+  const [fundingMethod, setFundingMethod] = useState<FundingMethod>("crypto");
+  const dyneroxConfig = getDyneroxCheckoutConfig();
   const selectedWallet: ExternalWallet | null = externalWallets[0] ?? null;
   const [token, setToken] = useState<Token>(() =>
     normalizeRequiredToken(requiredToken),
@@ -414,6 +421,17 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const isDone = status === "done";
   const displayError = locale === "es" && error ? translateDepositError(error) : error;
   const displayProgress = locale === "es" ? translateDepositProgress(progressMessage) : progressMessage;
+  const dyneroxCheckoutUrl = dyneroxConfig
+    ? buildDyneroxCheckoutUrl(
+        dyneroxConfig,
+        tab === "deposit" ? "on-ramp" : "off-ramp",
+      )
+    : null;
+
+  const openDyneroxCheckout = () => {
+    if (isPending || !dyneroxCheckoutUrl) return;
+    window.open(dyneroxCheckoutUrl, "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -463,6 +481,83 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           ))}
         </div>
 
+        {dyneroxConfig && (
+          <div className="grid grid-cols-2 gap-2 rounded-xl bg-[var(--surface)] p-1">
+            {(["crypto", "bank"] as FundingMethod[]).map((method) => (
+              <button
+                key={method}
+                type="button"
+                onClick={() => {
+                  if (isPending) return;
+                  setFundingMethod(method);
+                  setTokenMenuOpen(false);
+                }}
+                disabled={isPending}
+                className={`rounded-lg px-3 py-2 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+                  fundingMethod === method
+                    ? "bg-[var(--bg)] text-[var(--text)] shadow-sm"
+                    : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                }`}
+              >
+                {method === "crypto"
+                  ? translate("Crypto transfer", "Transferencia cripto")
+                  : translate("Bank transfer (MXN)", "Transferencia bancaria (MXN)")}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {fundingMethod === "bank" && dyneroxConfig ? (
+          <div className="space-y-4 rounded-xl border border-amber-400/30 bg-amber-400/5 px-4 py-4">
+            <div>
+              <p className="text-base font-semibold text-[var(--text)]">
+                {tab === "deposit"
+                  ? translate("MXN bank transfer to USDC", "Transferencia bancaria MXN a USDC")
+                  : translate("USDC to an MXN bank account", "USDC a una cuenta bancaria MXN")}
+              </p>
+              <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                {tab === "deposit"
+                  ? translate("Dynerox will guide you through creating a permanent SPEI on-ramp route.", "Dynerox te guiará para crear una ruta permanente de entrada por SPEI.")
+                  : translate("Dynerox will guide you through creating a permanent off-ramp route to SPEI.", "Dynerox te guiará para crear una ruta permanente de salida hacia SPEI.")}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-amber-400/30 bg-[var(--bg)] px-3 py-3 text-xs text-[var(--text-secondary)]">
+              <p className="font-semibold text-amber-400">
+                {translate("Stage preview · Ethereum only", "Vista previa de stage · Solo Ethereum")}
+              </p>
+              <p className="mt-1">
+                {translate(
+                  "Base is not enabled by Dynerox yet. This preview opens Dynerox on Ethereum and does not track completion in b1nary.",
+                  "Dynerox aún no habilita Base. Esta vista previa abre Dynerox en Ethereum y no registra la finalización en b1nary.",
+                )}
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 py-3 text-sm">
+              <span className="font-semibold text-[var(--text)]">
+                {tab === "deposit" ? "MXN · SPEI" : "USDC · Ethereum"}
+              </span>
+              <span aria-hidden="true" className="text-[var(--text-secondary)]">→</span>
+              <span className="font-semibold text-[var(--text)]">
+                {tab === "deposit" ? "USDC · Ethereum" : "MXN · SPEI"}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={openDyneroxCheckout}
+              disabled={isPending}
+              className="w-full rounded-xl bg-[var(--accent)] py-3 text-sm font-semibold text-[var(--bg)] transition-colors hover:bg-[var(--accent-hover)] disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {translate("Continue to Dynerox ↗", "Continuar a Dynerox ↗")}
+            </button>
+            <p className="text-center text-xs text-[var(--text-secondary)]">
+              {translate("Opens the Dynerox stage Checkout in a new tab.", "Abre el Checkout de stage de Dynerox en una pestaña nueva.")}
+            </p>
+          </div>
+        ) : (
+          <>
         <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -701,6 +796,8 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         >
           {translate("Disconnect wallet", "Desconectar wallet")}
         </button>
+          </>
+        )}
       </div>
     </div>
   );

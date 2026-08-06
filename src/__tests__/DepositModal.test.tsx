@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { DepositModal } from "@/components/DepositModal";
@@ -6,6 +6,7 @@ import { DepositModal } from "@/components/DepositModal";
 const SMART_WALLET = "0x1111111111111111111111111111111111111111" as const;
 const FUNDING_WALLET = "0x2222222222222222222222222222222222222222" as const;
 const TX_HASH = `0x${"a".repeat(64)}` as `0x${string}`;
+const ORIGINAL_ENV = { ...process.env };
 
 const {
   USDC_ADDRESS,
@@ -169,6 +170,117 @@ describe("DepositModal Base-only network", () => {
     expect(screen.getByRole("button", { name: "Token USDC" })).toBeInTheDocument();
     expect(screen.getByText("Deposit on Base")).toBeInTheDocument();
     expect(screen.queryByText(/Solana/i)).not.toBeInTheDocument();
+  });
+});
+
+describe("DepositModal Dynerox stage preview", () => {
+  beforeEach(() => {
+    process.env = {
+      ...ORIGINAL_ENV,
+      NEXT_PUBLIC_DEPLOYMENT_ENV: "testnet",
+      NEXT_PUBLIC_DYNEROX_CHECKOUT_BASE_URL: "https://stage-app.dynerox.com",
+      NEXT_PUBLIC_DYNEROX_TENANT_CODE: "tenbin",
+    };
+  });
+
+  afterEach(() => {
+    process.env = { ...ORIGINAL_ENV };
+    vi.restoreAllMocks();
+  });
+
+  it("keeps the simplified Base crypto transfer flow as the default", () => {
+    render(<DepositModal onClose={vi.fn()} />);
+
+    expect(screen.getByText("Transfer Crypto")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Token USDC" })).toBeInTheDocument();
+    expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
+    expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Continue to Dynerox/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("opens the exact on-ramp Checkout in a protected new tab", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<DepositModal onClose={vi.fn()} />);
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Bank transfer \(MXN\)/i }),
+    );
+
+    expect(screen.queryByRole("button", { name: "Token USDC" })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
+    expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: /Continue to Dynerox/i }),
+    );
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://stage-app.dynerox.com/c/tenbin?from_currency=MXN&from_network=SPEI&to_currency=USDC&to_network=ethereum",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("opens the exact off-ramp Checkout from Withdraw", async () => {
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<DepositModal onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /Withdraw/i }));
+    await userEvent.click(
+      screen.getByRole("button", { name: /Bank transfer \(MXN\)/i }),
+    );
+    await userEvent.click(
+      screen.getByRole("button", { name: /Continue to Dynerox/i }),
+    );
+
+    expect(openSpy).toHaveBeenCalledWith(
+      "https://stage-app.dynerox.com/c/tenbin?from_currency=USDC&from_network=ethereum&to_currency=MXN&to_network=SPEI",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
+  it("does not allow method changes or Checkout launch during a crypto transfer", async () => {
+    mockSendFundingTx.mockImplementationOnce(() => new Promise(() => {}));
+    const openSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    render(<DepositModal onClose={vi.fn()} />);
+
+    await userEvent.type(screen.getByRole("textbox"), "1");
+    await userEvent.click(screen.getByRole("button", { name: "Deposit USDC" }));
+
+    const bankMethod = screen.getByRole("button", {
+      name: /Bank transfer \(MXN\)/i,
+    });
+    await waitFor(() => expect(bankMethod).toBeDisabled());
+    await userEvent.click(bankMethod);
+
+    expect(screen.getByText("Transfer Crypto")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Continue to Dynerox/i }),
+    ).not.toBeInTheDocument();
+    expect(openSpy).not.toHaveBeenCalled();
+  });
+
+  it("hides the bank method when preview configuration is incomplete", () => {
+    delete process.env.NEXT_PUBLIC_DYNEROX_TENANT_CODE;
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Bank transfer \(MXN\)/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("hides the bank method in mainnet even when public config is present", () => {
+    process.env.NEXT_PUBLIC_DEPLOYMENT_ENV = "mainnet";
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    expect(
+      screen.queryByRole("button", { name: /Bank transfer \(MXN\)/i }),
+    ).not.toBeInTheDocument();
   });
 });
 
