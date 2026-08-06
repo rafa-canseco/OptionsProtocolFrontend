@@ -34,7 +34,14 @@ export default function PositionsPage() {
     ),
     [portfolioAddresses.solana],
   );
-  const { positions, loading, refresh } = usePositions(
+  const {
+    positions,
+    loading,
+    refresh,
+    loadMoreSettled,
+    settledHasMore,
+    settledLoading,
+  } = usePositions(
     address,
     undefined,
     solanaPositionAddresses,
@@ -166,12 +173,26 @@ export default function PositionsPage() {
 
       <EarningsChart positions={allPositions} />
 
-      {historyItems.length > 0 && (
-        <section className="space-y-4">
+      {(historyItems.length > 0 || settledHasMore) && (
+        <section id="position-history" className="space-y-4">
           <h2 className="text-sm font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
             {t("History", "Historial")}
           </h2>
-          <TradeLog items={historyItems} />
+          {historyItems.length > 0 && <TradeLog items={historyItems} />}
+          {settledHasMore && (
+            <div className="flex justify-center pt-2">
+              <button
+                type="button"
+                onClick={() => void loadMoreSettled()}
+                disabled={settledLoading}
+                aria-busy={settledLoading}
+                aria-controls="position-history"
+                className="min-h-11 rounded-xl border border-[var(--border)] px-5 py-2.5 text-sm font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {settledLoading ? "Loading older positions…" : "Load older positions"}
+              </button>
+            </div>
+          )}
         </section>
       )}
     </main>
