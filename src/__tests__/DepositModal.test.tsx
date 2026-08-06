@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { decodeFunctionData } from "viem";
 import { DepositModal } from "@/components/DepositModal";
 
 const SMART_WALLET = "0x1111111111111111111111111111111111111111" as const;
@@ -12,6 +13,7 @@ const {
   USDC_ADDRESS,
   WETH_ADDRESS,
   WBTC_ADDRESS,
+  TRANSFER_ABI,
   mockSendBatchTx,
   mockSendFundingTx,
   mockWaitForTransactionReceipt,
@@ -19,6 +21,17 @@ const {
   USDC_ADDRESS: "0x3333333333333333333333333333333333333333" as const,
   WETH_ADDRESS: "0x4444444444444444444444444444444444444444" as const,
   WBTC_ADDRESS: "0x5555555555555555555555555555555555555555" as const,
+  TRANSFER_ABI: [
+    {
+      name: "transfer",
+      type: "function",
+      inputs: [
+        { name: "to", type: "address" },
+        { name: "amount", type: "uint256" },
+      ],
+      outputs: [{ type: "bool" }],
+    },
+  ] as const,
   mockSendBatchTx: vi.fn(),
   mockSendFundingTx: vi.fn(),
   mockWaitForTransactionReceipt: vi.fn(),
@@ -104,17 +117,7 @@ vi.mock("@/lib/contracts", () => ({
     id: 8453,
     blockExplorers: { default: { url: "https://basescan.org" } },
   },
-  ERC20_ABI: [
-    {
-      name: "transfer",
-      type: "function",
-      inputs: [
-        { name: "to", type: "address" },
-        { name: "amount", type: "uint256" },
-      ],
-      outputs: [{ type: "bool" }],
-    },
-  ],
+  ERC20_ABI: TRANSFER_ABI,
 }));
 
 vi.mock("@/lib/dataInvalidation", () => ({
@@ -148,7 +151,9 @@ describe("DepositModal Base-only network", () => {
     expect(screen.queryByText(/^Network$|^Red$/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Solana/i)).not.toBeInTheDocument();
     expect(screen.queryByText("Phantom")).not.toBeInTheDocument();
-    expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
+    expect(screen.getByText("Source wallet")).toBeInTheDocument();
+    expect(screen.getByText("MetaMask")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("only lists Base assets", async () => {
@@ -198,7 +203,8 @@ describe("DepositModal Dynerox stage preview", () => {
     expect(screen.getByText("Transfer Crypto")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Token USDC" })).toBeInTheDocument();
     expect(screen.queryByLabelText("Network Base")).not.toBeInTheDocument();
-    expect(screen.queryByText("MetaMask")).not.toBeInTheDocument();
+    expect(screen.getByText("Source wallet")).toBeInTheDocument();
+    expect(screen.getByText("MetaMask")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: /Open Ethereum preview/i }),
     ).not.toBeInTheDocument();
@@ -248,8 +254,12 @@ describe("DepositModal Dynerox stage preview", () => {
     render(<DepositModal onClose={vi.fn()} />);
 
     await userEvent.click(screen.getByRole("button", { name: /Withdraw/i }));
+    expect(screen.getByRole("button", { name: "To wallet" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
     await userEvent.click(
-      screen.getByRole("button", { name: /Withdraw to MXN/i }),
+      screen.getByRole("button", { name: /To MXN/i }),
     );
     expect(
       screen.getByText(/will not debit the Base wallet shown above/i),
@@ -320,6 +330,69 @@ describe("DepositModal Base transfers", () => {
       FUNDING_WALLET,
     );
     expect(mockWaitForTransactionReceipt).toHaveBeenCalledWith({ hash: TX_HASH });
+  });
+
+  it("lets the user choose a linked destination wallet without restoring the heavy selector", async () => {
+    const secondWallet = {
+      address: "0x6666666666666666666666666666666666666666",
+      chain: "base" as const,
+      name: "Coinbase",
+      walletClientType: "coinbase_wallet",
+    };
+    walletOverrides = {
+      externalWallets: [baseExternalWallet, secondWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /withdraw/i }));
+
+    expect(screen.getByText("Destination wallet")).toBeInTheDocument();
+    const destination = screen.getByRole("combobox", {
+      name: "Select withdrawal wallet",
+    });
+    expect(destination).toHaveValue(FUNDING_WALLET);
+
+    await userEvent.selectOptions(destination, secondWallet.address);
+
+    expect(destination).toHaveValue(secondWallet.address);
+    expect(screen.getByText("Coinbase")).toBeInTheDocument();
+    expect(screen.getByText("0x6666...6666")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByRole("textbox"), "1");
+    await userEvent.click(screen.getByRole("button", { name: "Withdraw USDC" }));
+
+    await waitFor(() => expect(mockSendBatchTx).toHaveBeenCalledTimes(1));
+    const [calls] = mockSendBatchTx.mock.calls[0];
+    expect(
+      decodeFunctionData({ abi: TRANSFER_ABI, data: calls[0].data }).args,
+    ).toEqual([secondWallet.address, BigInt(1_000_000)]);
+  });
+
+  it("keeps the canonical deposit source isolated from withdrawal selection", async () => {
+    const secondWallet = {
+      address: "0x6666666666666666666666666666666666666666",
+      chain: "base" as const,
+      name: "Coinbase",
+      walletClientType: "coinbase_wallet",
+    };
+    walletOverrides = {
+      externalWallets: [baseExternalWallet, secondWallet],
+    };
+
+    render(<DepositModal onClose={vi.fn()} />);
+
+    await userEvent.click(screen.getByRole("button", { name: /withdraw/i }));
+    await userEvent.selectOptions(
+      screen.getByRole("combobox", { name: "Select withdrawal wallet" }),
+      secondWallet.address,
+    );
+    await userEvent.click(screen.getByRole("button", { name: /deposit/i }));
+
+    expect(screen.getByText("Source wallet")).toBeInTheDocument();
+    expect(screen.getByText("MetaMask")).toBeInTheDocument();
+    expect(screen.getByText("0x2222...2222")).toBeInTheDocument();
+    expect(screen.queryByRole("combobox")).not.toBeInTheDocument();
   });
 
   it("submits a Base USDC withdrawal to the selected external wallet", async () => {

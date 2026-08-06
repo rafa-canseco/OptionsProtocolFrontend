@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { encodeFunctionData, formatUnits, parseUnits, type Address } from "viem";
 import { useLogin, usePrivy, type WalletListEntry } from "@privy-io/react-auth";
 import { useWallet, type ExternalWallet } from "@/hooks/useWallet";
@@ -113,8 +113,17 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   );
   const [tab, setTab] = useState<Tab>("deposit");
   const [fundingMethod, setFundingMethod] = useState<FundingMethod>("crypto");
+  const [selectedWalletAddress, setSelectedWalletAddress] = useState<string | null>(null);
   const dyneroxConfig = getDyneroxCheckoutConfig();
-  const selectedWallet: ExternalWallet | null = externalWallets[0] ?? null;
+  const depositWallet: ExternalWallet | null =
+    externalWallets.find(
+      (wallet) => wallet.address.toLowerCase() === fundingAddress?.toLowerCase(),
+    ) ?? externalWallets[0] ?? null;
+  const withdrawalWallet: ExternalWallet | null =
+    externalWallets.find(
+      (wallet) => wallet.address.toLowerCase() === selectedWalletAddress?.toLowerCase(),
+    ) ?? externalWallets[0] ?? null;
+  const selectedWallet = tab === "deposit" ? depositWallet : withdrawalWallet;
   const [token, setToken] = useState<Token>(() =>
     normalizeRequiredToken(requiredToken),
   );
@@ -136,8 +145,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
       ? b1naryBaseTradingAddresses
       : address,
   );
-  const selectedBaseAddress = selectedWallet?.address as Address | undefined;
-  const eoaBalances = useBalances(selectedBaseAddress ?? fundingAddress);
+  const eoaBalances = useBalances(fundingAddress);
   const [amountStr, setAmountStr] = useState("");
   const [status, setStatus] = useState<
     "idle" | "pending" | "done" | "activating"
@@ -146,6 +154,17 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   const [txHash, setTxHash] = useState<string | null>(null);
   const [tokenMenuOpen, setTokenMenuOpen] = useState(false);
   const [progressMessage, setProgressMessage] = useState("Preparing transfer...");
+
+  useEffect(() => {
+    if (
+      selectedWalletAddress &&
+      !externalWallets.some(
+        (wallet) => wallet.address.toLowerCase() === selectedWalletAddress.toLowerCase(),
+      )
+    ) {
+      setSelectedWalletAddress(null);
+    }
+  }, [externalWallets, selectedWalletAddress]);
 
   const meta = TOKEN_META[token];
   const availableTokens = BASE_TOKENS;
@@ -501,10 +520,12 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
                 }`}
               >
                 {method === "crypto"
-                  ? translate("Crypto", "Cripto")
+                  ? tab === "deposit"
+                    ? translate("Crypto", "Cripto")
+                    : translate("To wallet", "A wallet")
                   : tab === "deposit"
                     ? translate("Onboard with MXN", "Onboard con MXN")
-                    : translate("Withdraw to MXN", "Retirar a MXN")}
+                    : translate("To MXN", "A MXN")}
               </button>
             ))}
           </div>
@@ -660,7 +681,58 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
           </div>
         </div>
 
-        {!selectedWallet && (
+        {selectedWallet ? (
+          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold text-[var(--text-secondary)]">
+                  {tab === "deposit"
+                    ? translate("Source wallet", "Wallet de origen")
+                    : translate("Destination wallet", "Wallet de destino")}
+                </p>
+                <p className="mt-0.5 truncate font-mono text-sm font-semibold text-[var(--text)]">
+                  {selectedWallet.address.slice(0, 6)}...{selectedWallet.address.slice(-4)}
+                  <span className="ml-2 font-sans text-xs font-medium text-[var(--text-secondary)]">
+                    {selectedWallet.name}
+                  </span>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleConnectWallet}
+                disabled={isPending}
+                className="shrink-0 text-xs font-semibold text-[var(--accent)] hover:opacity-80 disabled:opacity-40"
+              >
+                {translate("Connect another", "Conectar otra")}
+              </button>
+            </div>
+
+            {tab === "withdraw" && externalWallets.length > 1 && (
+              <label className="mt-3 block">
+                <span className="sr-only">{translate("Select withdrawal wallet", "Seleccionar wallet de retiro")}</span>
+                <select
+                  aria-label={translate("Select withdrawal wallet", "Seleccionar wallet de retiro")}
+                  value={selectedWallet.address}
+                  onChange={(event) => setSelectedWalletAddress(event.target.value)}
+                  disabled={isPending}
+                  className="h-10 w-full rounded-lg border border-[var(--border)] bg-[var(--bg)] px-3 text-xs font-semibold text-[var(--text)] focus:border-[var(--accent)] focus:outline-none disabled:opacity-40"
+                >
+                  {externalWallets.map((wallet) => (
+                    <option key={wallet.address} value={wallet.address}>
+                      {wallet.name} · {wallet.address.slice(0, 6)}...{wallet.address.slice(-4)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+
+            <p className="mt-2 text-xs text-[var(--text-secondary)]">
+              {tab === "deposit"
+                ? translate("Crypto moves from this wallet into your Base smart wallet.", "Los fondos salen de esta wallet hacia tu smart wallet en Base.")
+                : translate("Funds leave your Base smart wallet and arrive at this connected wallet.", "Los fondos salen de tu smart wallet en Base y llegan a esta wallet conectada.")}
+            </p>
+          </div>
+        ) : (
           <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
             <div className="space-y-3">
               <div>
