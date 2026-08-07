@@ -231,10 +231,22 @@ describe("VaultsPage", () => {
     expect(strategyDetails).not.toHaveAttribute("open");
     await user.click(screen.getByText("How this vault works"));
     expect(strategyDetails).toHaveAttribute("open");
-    expect(screen.getByText("≈15% below spot")).toBeInTheDocument();
+    expect(screen.getByText("Target put delta 0.09")).toBeInTheDocument();
+    expect(screen.queryByText(/15% below spot/i)).not.toBeInTheDocument();
     expect(screen.getByText("≈48 hours")).toBeInTheDocument();
     expect(screen.getByText("Up to 80%")).toBeInTheDocument();
     expect(screen.getByText("One at a time")).toBeInTheDocument();
+    expect(
+      screen.getByText(/exact strike distance below spot varies with volatility/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /net premium floor of 20 bps against collateral after protocol fees/i,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/neither a position nor yield is guaranteed/i),
+    ).toBeInTheDocument();
     expect(
       screen.getByText(/Assignment alone does not stop the loop/i),
     ).toBeInTheDocument();
