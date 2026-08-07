@@ -100,15 +100,17 @@ export const META_WHEEL_VAULT_CARD: VaultCardMetadata = {
 
 function cspPolicy(asset: AssetConfig): VaultCardMetadata["policy"] {
   return {
-    strike: "≈15% below spot",
+    strike: "Target put delta 0.09",
     duration: "≈48 hours",
     allocation: "Up to 80%",
     positionLimit: "One at a time",
     intro: `The vault continuously sells one ${asset.symbol} cash-secured put at a time.`,
     steps: [
       `Deposits receive transferable fund shares immediately. New ${asset.stableSymbol} stays idle until the next position opens.`,
+      "The allocator targets put delta 0.09, so the exact strike distance below spot varies with volatility.",
       `Each new position uses up to 80% of the liquid ${asset.stableSymbol} available then and keeps the remaining 20% as a reserve.`,
-      "After each put settles, the vault attempts to open the next eligible position for about another 48 hours.",
+      "Each eligible position targets about 48 hours to expiry and must clear a net premium floor of 20 bps against collateral after protocol fees; neither a position nor yield is guaranteed.",
+      "After each put settles, the vault attempts to open the next eligible position.",
       `If assigned, ${asset.wrappedSymbol} stays in the fund and the next put uses the remaining liquid ${asset.stableSymbol}. Assignment alone does not stop the loop.`,
       `The vault waits only when there is not enough ${asset.stableSymbol}, pricing or NAV is not current, no eligible quote is available, or the strategy is explicitly paused.`,
     ],
