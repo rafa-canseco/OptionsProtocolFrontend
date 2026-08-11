@@ -118,12 +118,104 @@ function isNonZeroAddress(value: string | null | undefined): value is Address {
 }
 
 /**
- * Deliberately unset until B1N-419 supplies receipt-confirmed Base Sepolia
- * values. Environment variables cannot turn a placeholder into a trust anchor.
+ * B1N-419 receipt-confirmed Base Sepolia trust anchor. These values are copied
+ * from the canonical deployment handoff; environment variables may only match
+ * them, never replace them.
  */
-export const BASE_SEPOLIA_META_WHEEL_FUND: TrustedFundDeployment | null = null;
-export const BASE_SEPOLIA_META_WHEEL_HANDOFF: MetaWheelDeploymentHandoff | null =
-  null;
+export const BASE_SEPOLIA_META_WHEEL_FUND = {
+  chainId: 84532,
+  fundKey: "base-sepolia:meta-wheel",
+  fundAddress: "0xD6E6e6e16F2Ef0915eaEBfbDe8B2f8125B9194e9",
+  shareAddress: "0xD19B95d67E1f0C73fa26cC63D4949Cb8C2e5F529",
+  accountingAssetAddress: "0xAB51a471493832C1D70cef8ff937A850cf37c860",
+  wethAddress: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+  deploymentFirstBlock: 45_005_987,
+  strategyKind: "meta_wheel",
+  environmentPrefix: "META_WHEEL_FUND",
+  contracts: {
+    fund_vault: {
+      address: "0xD6E6e6e16F2Ef0915eaEBfbDe8B2f8125B9194e9",
+      implementation: "0x9a22646085252fa09E4662Ff8f72b299550edD99",
+    },
+    fund_share: {
+      address: "0xD19B95d67E1f0C73fa26cC63D4949Cb8C2e5F529",
+      implementation: "0x4e8d7eF6168DdFC0292032C77270aE4D52c9987b",
+    },
+    fund_accounting: {
+      address: "0xe51F4b40c416F29207088a766728AdF8e8D210FB",
+      implementation: "0x01441d38A4Feee389596F37F9CA2E3d6eE6C52f7",
+    },
+    fund_flow_manager: {
+      address: "0x160efcA91615Ac89d0059b4302C6c86066d5A03e",
+      implementation: "0x97AA3C3D0e431305E465d1D3fDda6C956C4d997b",
+    },
+    strategy_manager: {
+      address: "0x099139C606EE096fa66B7F01C2098f7623625496",
+      implementation: "0xD00b852E208E9ED19FB4366B2bC4429FB645aD75",
+    },
+    wheel_coordinator: {
+      address: "0xaDEAb3563E6D38Ea6415b374DD8f81232BfdF866",
+      implementation: "0xc0aD319D1aF8525CDbeB1f376dC7D7Ff1CD46AFb",
+    },
+    controller: {
+      address: "0xD52EFbBaA1b02BA65A7f0A1604A5dFb4C4dB1572",
+      implementation: "0x5cfB9ca0437D4a5b3735bba0d9E2490a05F532bc",
+    },
+    batch_settler: {
+      address: "0xb94D6270B336dca566C2077d50c2C50F06398cB8",
+      implementation: "0x040219e594de2862D1480a6A3c1d45c5c032aCE6",
+    },
+    claim_escrow: {
+      address: "0x9c0AfA4957b58472b988c227328184293374C7CC",
+      implementation: null,
+    },
+    access_manager: {
+      address: "0x4F5cE9Cc46888ea4393D3e8aB7d18f9E4697708d",
+      implementation: null,
+    },
+    address_book: {
+      address: "0x033d9d37Baf83dBc71935239b6fA22a6905dbaa0",
+      implementation: null,
+    },
+    meta_wheel_valuator: {
+      address: "0xC14B3321a0495509137b569fd891923E1350830B",
+      implementation: null,
+    },
+    margin_pool: {
+      address: "0xeEab53b8022C32349A80C8d905492EBa6b2deaE9",
+      implementation: null,
+    },
+    nav_verifier: {
+      address: "0xDCcd048988BeB1ACE40E24ddd4D3f0Ad544873A8",
+      implementation: null,
+    },
+    oracle: {
+      address: "0xF95CC4aED4a0bD68e0F1BE7c779BC281189F8187",
+      implementation: null,
+    },
+    otoken_factory: {
+      address: "0x193ED89eB64d0179b4dB08E87E541b7b3c30002A",
+      implementation: null,
+    },
+    swap_router: {
+      address: "0x0Cd738d1F80FaDBbF6171280eD01Cfa33F8E17b3",
+      implementation: null,
+    },
+    whitelist: {
+      address: "0xe0Ca66a93341eB0af0C136651c8B57C187aa60Ab",
+      implementation: null,
+    },
+  } satisfies Record<string, TrustedFundBinding>,
+} as const satisfies TrustedFundDeployment;
+
+export const BASE_SEPOLIA_META_WHEEL_HANDOFF = {
+  schemaVersion: "1.0.0",
+  issue: "B1N-419",
+  status: "CONFIRMED_CANONICAL_RECEIPTS",
+  deploymentStatus: "DEPLOYED",
+  handoffReady: true,
+  network: { name: "base-sepolia", chainId: 84532 },
+} as const satisfies MetaWheelDeploymentHandoff;
 
 /**
  * B1N-352 v2 trust anchor for the only fund supported in Hito 1.
