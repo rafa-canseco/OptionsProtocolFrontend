@@ -127,8 +127,8 @@ describe("VaultsPage", () => {
       within(wheelCard!).getByText(/protecting every assignment price/i),
     ).toBeInTheDocument();
     expect(
-      within(wheelCard!).getByRole("button", { name: "Coming soon" }),
-    ).toBeDisabled();
+      within(wheelCard!).getByRole("button", { name: "Deposit USDC" }),
+    ).toBeEnabled();
     expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
     expect(
@@ -215,17 +215,24 @@ describe("VaultsPage", () => {
     expect(screen.getByText("0.01234")).toBeInTheDocument();
     expect(screen.getByText("WETH")).toBeInTheDocument();
     expect(screen.getByText("0.75")).toBeInTheDocument();
-    expect(screen.getAllByText("Fund shares")).toHaveLength(2);
+    expect(screen.getAllByText("Fund shares")).toHaveLength(3);
     expect(screen.getByText("b1CSP-V2")).toBeInTheDocument();
     expect(screen.getByText("b1CALL-V2")).toBeInTheDocument();
-    expect(screen.getByText("≈ 0.00 USDC")).toBeInTheDocument();
+    expect(screen.getByText("b1WHEEL-V2")).toBeInTheDocument();
+    expect(screen.getAllByText("≈ 0.00 USDC")).toHaveLength(2);
     expect(screen.getByText("≈ 0.00 WETH")).toBeInTheDocument();
   });
 
   it("opens accounting-asset entry and exit controls", async () => {
     const user = userEvent.setup();
     render(<VaultsPage />);
-    await user.click(screen.getByRole("button", { name: "Deposit USDC" }));
+    const cspCard = screen
+      .getByRole("heading", { name: "ETH Cash-Secured Put" })
+      .closest("article");
+    expect(cspCard).not.toBeNull();
+    await user.click(
+      within(cspCard!).getByRole("button", { name: "Deposit USDC" }),
+    );
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     const strategyDetails = screen.getByText("How this vault works").closest("details");
     expect(strategyDetails).not.toHaveAttribute("open");

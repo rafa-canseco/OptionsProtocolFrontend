@@ -12,6 +12,9 @@ import { ASSETS } from "@/lib/assets";
 import {
   BASE_SEPOLIA_COVERED_CALL_FUND,
   BASE_SEPOLIA_CSP_FUND,
+  BASE_SEPOLIA_META_WHEEL_FUND,
+  BASE_SEPOLIA_META_WHEEL_HANDOFF,
+  isMetaWheelFrontendReady,
 } from "@/lib/fundDeployment";
 import {
   COVERED_CALL_VAULT_CARD,
@@ -38,9 +41,9 @@ const ConnectButton = dynamic(
 
 export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
   const { locale } = useAppPreferences();
-  const [dialogVault, setDialogVault] = useState<"csp" | "covered-call" | null>(
-    null,
-  );
+  const [dialogVault, setDialogVault] = useState<
+    "csp" | "covered-call" | "meta-wheel" | null
+  >(null);
   const [catalogAssetSlug, setCatalogAssetSlug] = useState("eth");
   const { address } = useWallet();
   const balances = useBalances(address);
@@ -49,11 +52,23 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
     address,
     BASE_SEPOLIA_COVERED_CALL_FUND,
   );
+  const metaWheelFund = useFundVault(address, BASE_SEPOLIA_META_WHEEL_FUND);
   const cspPosition = mapFundPosition(cspFund.position, cspFund.summary);
   const coveredCallPosition = mapFundPosition(
     coveredCallFund.position,
     coveredCallFund.summary,
   );
+  const metaWheelPosition = mapFundPosition(
+    metaWheelFund.position,
+    metaWheelFund.summary,
+  );
+  const metaWheelFrontendReady = isMetaWheelFrontendReady(
+    BASE_SEPOLIA_META_WHEEL_FUND,
+    BASE_SEPOLIA_META_WHEEL_HANDOFF,
+  );
+  const metaWheelCard = metaWheelFrontendReady
+    ? { ...META_WHEEL_VAULT_CARD, availability: "live" as const }
+    : META_WHEEL_VAULT_CARD;
   const isMyView = view === "my";
   const catalogAsset = ASSETS[catalogAssetSlug] ?? ASSETS.eth;
   const catalogCsp = vaultCardMetadata("csp", catalogAsset);
@@ -87,6 +102,14 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
               shareValue: coveredCallPosition.accountingValue,
               assetSymbol: "WETH",
               loading: coveredCallFund.loading && !coveredCallFund.position,
+            },
+            {
+              symbol:
+                metaWheelFund.summary?.fund.shareToken.symbol ?? "b1WHEEL-V2",
+              shares: metaWheelPosition.shares,
+              shareValue: metaWheelPosition.accountingValue,
+              assetSymbol: "USDC",
+              loading: metaWheelFund.loading && !metaWheelFund.position,
             },
           ],
         }}
@@ -168,9 +191,14 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
           ) : null}
           {!isMyView && catalogAsset.slug === "eth" ? (
             <VaultCard
-              vault={META_WHEEL_VAULT_CARD}
-              summary={null}
-              position={null}
+              vault={metaWheelCard}
+              summary={metaWheelFund.summary}
+              position={metaWheelPosition}
+              onOpen={
+                metaWheelFrontendReady
+                  ? () => setDialogVault("meta-wheel")
+                  : undefined
+              }
             />
           ) : null}
           {isMyView ? (
@@ -215,6 +243,18 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
         onRefetch={coveredCallFund.refetch}
         open={dialogVault === "covered-call"}
         onOpenChange={(open) => setDialogVault(open ? "covered-call" : null)}
+      />
+      <VaultDialog
+        vault={metaWheelCard}
+        deployment={BASE_SEPOLIA_META_WHEEL_FUND}
+        summary={metaWheelFund.summary}
+        position={metaWheelFund.position}
+        config={metaWheelFund.config}
+        loadError={metaWheelFund.error ?? metaWheelFund.trustError}
+        smartAssetRaw={balances.usdRaw}
+        onRefetch={metaWheelFund.refetch}
+        open={dialogVault === "meta-wheel"}
+        onOpenChange={(open) => setDialogVault(open ? "meta-wheel" : null)}
       />
     </div>
   );

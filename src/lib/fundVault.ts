@@ -439,17 +439,9 @@ function deploymentEnv(
   suffix: "KEY" | "ADDRESS" | "SHARE_ADDRESS" | "ASSET_ADDRESS" | "CONTRACT_ALLOWLIST",
 ): string | undefined {
   if (deployment.environmentPrefix === "META_WHEEL_FUND") {
-    if (suffix === "KEY") return process.env.NEXT_PUBLIC_META_WHEEL_FUND_KEY;
-    if (suffix === "ADDRESS") {
-      return process.env.NEXT_PUBLIC_META_WHEEL_FUND_ADDRESS;
-    }
-    if (suffix === "SHARE_ADDRESS") {
-      return process.env.NEXT_PUBLIC_META_WHEEL_FUND_SHARE_ADDRESS;
-    }
-    if (suffix === "ASSET_ADDRESS") {
-      return process.env.NEXT_PUBLIC_META_WHEEL_FUND_ASSET_ADDRESS;
-    }
-    return process.env.NEXT_PUBLIC_META_WHEEL_FUND_CONTRACT_ALLOWLIST;
+    // B1N-419 is receipt-confirmed and committed as a static trust anchor.
+    // Public build variables must never replace its fund or contract allowlist.
+    return undefined;
   }
   if (deployment.environmentPrefix === "COVERED_CALL_FUND") {
     if (suffix === "KEY") return process.env.NEXT_PUBLIC_COVERED_CALL_FUND_KEY;

@@ -11,6 +11,8 @@ import {
   assertFundWriteAllowed,
   buildFundActionCall,
   buildFundDepositCalls,
+  configuredFundAddress,
+  configuredFundKey,
   fundTrustError,
   minSharesOutForDeposit,
   sharesForDeposit,
@@ -338,18 +340,24 @@ describe("tokenized CSP fund", () => {
     ).toBe("Trusted fund_vault implementation mismatch.");
   });
 
-  it("keeps Meta Wheel fail-closed until canonical handoff and trust anchors exist", () => {
+  it("enables Meta Wheel only for the canonical handoff and trust anchors", () => {
     vi.stubEnv("NEXT_PUBLIC_META_WHEEL_FUND_ADDRESS", FUND);
     vi.stubEnv("NEXT_PUBLIC_META_WHEEL_FUND_SHARE_ADDRESS", SHARE);
     vi.stubEnv("NEXT_PUBLIC_META_WHEEL_FUND_ASSET_ADDRESS", USDC);
-    expect(BASE_SEPOLIA_META_WHEEL_FUND).toBeNull();
-    expect(BASE_SEPOLIA_META_WHEEL_HANDOFF).toBeNull();
     expect(
       isMetaWheelFrontendReady(
         BASE_SEPOLIA_META_WHEEL_FUND,
         BASE_SEPOLIA_META_WHEEL_HANDOFF,
       ),
-    ).toBe(false);
+    ).toBe(true);
+    expect(BASE_SEPOLIA_META_WHEEL_FUND.fundAddress).not.toBe(FUND);
+    expect(BASE_SEPOLIA_META_WHEEL_FUND.shareAddress).not.toBe(SHARE);
+    expect(configuredFundKey(BASE_SEPOLIA_META_WHEEL_FUND)).toBe(
+      "base-sepolia:meta-wheel",
+    );
+    expect(configuredFundAddress(BASE_SEPOLIA_META_WHEEL_FUND)).toBe(
+      BASE_SEPOLIA_META_WHEEL_FUND.fundAddress,
+    );
 
     const roles = [
       "access_manager", "address_book", "batch_settler", "claim_escrow",
