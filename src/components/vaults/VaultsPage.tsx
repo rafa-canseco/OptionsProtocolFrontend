@@ -9,6 +9,7 @@ import { useBalances } from "@/hooks/useBalances";
 import { useFundVault } from "@/hooks/useFundVault";
 import { useWallet } from "@/hooks/useWallet";
 import { ASSETS } from "@/lib/assets";
+import { CHAIN } from "@/lib/contracts";
 import {
   BASE_SEPOLIA_COVERED_CALL_FUND,
   BASE_SEPOLIA_CSP_FUND,
@@ -62,10 +63,12 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
     metaWheelFund.position,
     metaWheelFund.summary,
   );
-  const metaWheelFrontendReady = isMetaWheelFrontendReady(
-    BASE_SEPOLIA_META_WHEEL_FUND,
-    BASE_SEPOLIA_META_WHEEL_HANDOFF,
-  );
+  const metaWheelFrontendReady =
+    CHAIN.id === 84532 &&
+    isMetaWheelFrontendReady(
+      BASE_SEPOLIA_META_WHEEL_FUND,
+      BASE_SEPOLIA_META_WHEEL_HANDOFF,
+    );
   const metaWheelCard = metaWheelFrontendReady
     ? { ...META_WHEEL_VAULT_CARD, availability: "live" as const }
     : META_WHEEL_VAULT_CARD;
@@ -73,7 +76,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
   const catalogAsset = ASSETS[catalogAssetSlug] ?? ASSETS.eth;
   const catalogCsp = vaultCardMetadata("csp", catalogAsset);
   const catalogCoveredCall = vaultCardMetadata("covered-call", catalogAsset);
-  const catalogHasLiveFund = catalogAsset.slug === "eth";
+  const catalogHasLiveFund = catalogAsset.slug === "eth" && CHAIN.id === 84532;
   const manualTradingAsset = isMyView ? "eth" : catalogAsset.slug;
   const hasCoveredCallPosition = coveredCallPosition.state !== "empty";
 
@@ -192,8 +195,8 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
           {!isMyView && catalogAsset.slug === "eth" ? (
             <VaultCard
               vault={metaWheelCard}
-              summary={metaWheelFund.summary}
-              position={metaWheelPosition}
+              summary={metaWheelFrontendReady ? metaWheelFund.summary : null}
+              position={metaWheelFrontendReady ? metaWheelPosition : null}
               onOpen={
                 metaWheelFrontendReady
                   ? () => setDialogVault("meta-wheel")

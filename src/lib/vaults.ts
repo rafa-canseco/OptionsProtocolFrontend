@@ -6,6 +6,7 @@ import {
 } from "@/lib/assets";
 import type { FundStrategyKind } from "@/lib/fundDeployment";
 import { rawFundAmount } from "@/lib/fundVault";
+import { CHAIN } from "@/lib/contracts";
 
 export type VaultCardAvailability = "live" | "coming-soon";
 export type VaultStrategy = "csp" | "covered-call";
@@ -42,7 +43,7 @@ export function vaultCardMetadata(
   const accountingAssetSymbol = isCsp
     ? asset.stableSymbol
     : asset.wrappedSymbol;
-  const isLive = asset.slug === "eth";
+  const isLive = asset.slug === "eth" && CHAIN.id === 84532;
 
   return {
     id: `${asset.slug}-${strategy}`,
