@@ -40,6 +40,7 @@ describe("marketState helpers", () => {
     process.env = { ...ORIGINAL_ENV };
     delete process.env.NEXT_PUBLIC_DEPLOYMENT_ENV;
     delete process.env.NEXT_PUBLIC_SOLANA_ENABLED;
+    delete process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED;
   });
 
   afterEach(() => {
@@ -98,5 +99,48 @@ describe("marketState helpers", () => {
         buildQuote({ otoken_address: null, signature: null, quote_id: null }),
       ),
     ).toBe(false);
+  });
+
+  it("keeps eager rollout safe by default", async () => {
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isLazyOTokenEnabled()).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "ready" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: undefined }))).toBe(true);
+  });
+
+  it("allows virtual and creating firm quotes only when lazy rollout is enabled", async () => {
+    process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "true";
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isLazyOTokenEnabled()).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(true);
+    expect(mod.isExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
+  });
+
+  it("keeps lazy series out of the two-leg range flow", async () => {
+    const mod = await loadMarketStateModule();
+
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "ready" }))).toBe(true);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: undefined }))).toBe(true);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(false);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(false);
+    expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
+  });
+
+  it("replaces a selected quote when signed fields refresh at the same strike", async () => {
+    const mod = await loadMarketStateModule();
+    const selected = buildQuote({ quote_id: "41", signature: "old" });
+    const refreshed = buildQuote({
+      quote_id: "42",
+      signature: "new",
+      deadline: "1900000040",
+    });
+
+    expect(mod.reconcileSelectedQuote(selected, [refreshed])).toBe(refreshed);
   });
 });

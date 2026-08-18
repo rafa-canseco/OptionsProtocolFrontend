@@ -30,6 +30,7 @@ import { getAssetConfig } from "@/lib/assets";
 import { isProductionReadOnlyAsset } from "@/lib/marketState";
 import { DepositModal } from "@/components/DepositModal";
 import { solanaTxUrl } from "@/lib/solana";
+import { invalidateData } from "@/lib/dataInvalidation";
 
 const DEADLINE_BUFFER_S = 60;
 
@@ -70,7 +71,7 @@ function quoteIsValid(q: PriceQuote): boolean {
 }
 
 function deadlineOk(q: PriceQuote): boolean {
-  return (q.deadline ?? 0) > Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_S;
+  return Number(q.deadline ?? 0) > Math.floor(Date.now() / 1000) + DEADLINE_BUFFER_S;
 }
 
 export function RangeAcceptModal({
@@ -384,7 +385,7 @@ export function RangeAcceptModal({
       // Done
       updateStep("confirmed");
       onAccepted({ putTxHash: putHash, callTxHash: callHash });
-      window.dispatchEvent(new Event("balance:refetch"));
+      invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
     } catch (err: unknown) {
       console.error("[RangeAcceptModal] Transaction failed:", err);

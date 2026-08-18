@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { usePrivy } from "@privy-io/react-auth";
 import {
   maxUint256,
   encodeFunctionData,
@@ -36,8 +37,16 @@ import {
   buildOptimisticPosition,
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
-import { isProductionReadOnlyAsset } from "@/lib/marketState";
+import {
+  isLazyOTokenEnabled,
+  isProductionReadOnlyAsset,
+} from "@/lib/marketState";
+import {
+  prepareSeries,
+  SeriesPreparationError,
+} from "@/lib/seriesPreparation";
 import { clearPendingBridge, savePendingBridge } from "@/lib/pendingBridge";
+import { invalidateData } from "@/lib/dataInvalidation";
 import type { YieldMetric } from "./YieldToggle";
 import { DepositModal } from "@/components/DepositModal";
 
@@ -57,7 +66,7 @@ interface Props {
   yieldMetric?: YieldMetric;
 }
 
-type TxStep = "idle" | "executing" | "confirmed";
+type TxStep = "idle" | "preparing" | "executing" | "confirmed";
 
 const PERCENTAGES = [25, 50, 75, 100] as const;
 // Solana's packet limit is 1232 raw bytes. This guard receives base64 length,
@@ -82,6 +91,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
+  const { getAccessToken } = usePrivy();
   const {
     address,
     solanaAddress,
@@ -111,9 +121,20 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositToken, setDepositToken] = useState<DepositToken>("usdc");
   const [progressMessage, setProgressMessage] = useState("Preparing order...");
+  const [preparationFailure, setPreparationFailure] =
+    useState<SeriesPreparationError | null>(null);
+  const inFlightRef = useRef(false);
+  const preparationAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      preparationAbortRef.current?.abort();
+    };
+  }, []);
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
+  const lazyOTokenEnabled = isLazyOTokenEnabled();
   const assetConfig = getAssetConfig(assetSlug);
   const isSol = assetSlug === "sol";
   const marketReadOnly = isProductionReadOnlyAsset(
@@ -187,10 +208,18 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
   const loading = step !== "idle";
   const buttonLabel =
-    step === "executing"
+    step === "preparing"
+      ? "Preparing trade..."
+      : step === "executing"
       ? "Working..."
       : step === "confirmed"
         ? "Done"
+        : preparationFailure?.kind === "stale"
+          ? "Refresh quote"
+          : preparationFailure && !preparationFailure.retryable
+            ? "Close"
+            : preparationFailure
+              ? "Retry preparation"
         : !isConnected
           ? "Connect wallet"
           : "Accept";
@@ -200,6 +229,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     : (assetConfig?.minSellAmount ?? 0.005);
 
   async function handleAccept() {
+    if (preparationFailure?.kind === "stale") {
+      if (onQuoteInvalid) onQuoteInvalid();
+      else onClose();
+      return;
+    }
+    if (preparationFailure && !preparationFailure.retryable) {
+      onClose();
+      return;
+    }
     if (marketReadOnly) {
       setError(`${assetSymbol} is visible in production, but trading is still coming soon.`);
       return;
@@ -221,10 +259,19 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       return;
     }
 
-    if (!quote.otoken_address || !quote.signature || !quote.bid_price_raw
+    if (!quote.otoken_address || !quote.signature || !quote.mm_address || !quote.bid_price_raw
         || !quote.deadline || !quote.quote_id || quote.max_amount_raw == null
         || quote.maker_nonce == null) {
       setError("This option is not available on-chain yet.");
+      return;
+    }
+    if (
+      quote.chain === "base" &&
+      !lazyOTokenEnabled &&
+      quote.deployment_status != null &&
+      quote.deployment_status !== "ready"
+    ) {
+      setError("This option series is still being prepared. Refresh and try again shortly.");
       return;
     }
 
@@ -241,7 +288,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       return;
     }
 
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     setError(null);
+    setPreparationFailure(null);
     setProgressMessage("Checking balances...");
     let currentStep: TxStep = "idle";
     const updateStep = (s: TxStep) => {
@@ -309,7 +359,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             setChainExecuted(result.chainExecuted ?? null);
             updateStep("confirmed");
             onAccepted({ amount: acceptedAmount, txHash: result.txHash ?? null });
-            window.dispatchEvent(new Event("balance:refetch"));
+            invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
             const pos = buildOptimisticPosition(
               quote, acceptedAmount, isBuy, address!, assetSlug,
@@ -409,7 +459,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
               user: solanaPk.toBase58(),
               transaction: Buffer.from(signedSetup).toString("base64"),
             });
-            window.dispatchEvent(new Event("balance:refetch"));
+            invalidateData(["balances"], "transaction-confirmed");
           } else {
             setProgressMessage("Preparing Solana accounts...");
             const setupTx = await buildSolanaTradeSetupTransaction(
@@ -424,7 +474,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             if (setupTx) {
               setProgressMessage("Confirming Solana setup...");
               await sendSolanaTransaction(setupTx);
-              window.dispatchEvent(new Event("balance:refetch"));
+              invalidateData(["balances"], "transaction-confirmed");
             }
           }
 
@@ -450,7 +500,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
         setChainExecuted("solana");
         updateStep("confirmed");
         onAccepted({ amount, txHash: signature });
-        window.dispatchEvent(new Event("balance:refetch"));
+        invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
         const pos = buildOptimisticPosition(
           quote, amount, isBuy,
@@ -489,6 +539,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       // (6 decimals) against WETH/cbBTC balances (18/8 decimals), which
       // redirects a sufficiently funded buyer to the deposit modal.
       let wrapAmount = BigInt(0);
+      let nativeBalanceBefore: bigint | null = null;
       if (!isBuy) {
         setProgressMessage("Checking collateral...");
         if (isBtc) {
@@ -505,6 +556,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             readTokenBalance(ADDRESSES.weth, address),
             publicClient.getBalance({ address }),
           ]);
+          nativeBalanceBefore = nativeBal;
           if (wethBal + nativeBal < collateral) {
             setDepositToken("eth");
             setShowDeposit(true);
@@ -516,7 +568,39 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
         }
       }
 
-      const executeData = encodeExecuteOrder(quote, oTokenAmount, collateral);
+      let executionQuote = quote;
+      if (lazyOTokenEnabled) {
+        updateStep("preparing");
+        setProgressMessage("Preparing trade...");
+        const preparationAbort = new AbortController();
+        preparationAbortRef.current = preparationAbort;
+        const accessToken = await getAccessToken();
+        if (preparationAbort.signal.aborted) return;
+        if (!accessToken) {
+          throw new SeriesPreparationError(
+            "auth",
+            "Your session expired. Reconnect your wallet and try again.",
+            { code: "AUTH_REQUIRED", retryable: true },
+          );
+        }
+
+        executionQuote = await prepareSeries({
+          quote,
+          walletAddress: address,
+          amountRaw: oTokenAmount.toString(),
+          accessToken,
+          signal: preparationAbort.signal,
+          onCreating: () => setProgressMessage("Creating option series..."),
+        });
+        preparationAbortRef.current = null;
+      }
+
+      setProgressMessage("Trade ready. Confirming in wallet...");
+      const executeData = encodeExecuteOrder(
+        executionQuote,
+        oTokenAmount,
+        collateral,
+      );
       const currentAllowance = await publicClient.readContract({
         address: collateralAsset, abi: ERC20_ABI,
         functionName: "allowance", args: [address, ADDRESSES.marginPool],
@@ -524,33 +608,37 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
       updateStep("executing");
 
-      // If wrapping is needed: wrap ETH → WETH first, wait for receipt,
-      // then send approve + execute. This ensures WETH is available before
-      // the collateral transfer is attempted.
-      if (wrapAmount > BigInt(0)) {
-        setProgressMessage("Wrapping ETH...");
-        const wrapHash = await sendBatchTx([{
-          to: ADDRESSES.weth,
-          data: encodeFunctionData({ abi: WETH_ABI, functionName: "deposit", args: [] }),
-          value: wrapAmount,
-        }]) as `0x${string}`;
-        await publicClient.waitForTransactionReceipt({ hash: wrapHash });
-        console.log("[AcceptModal] ETH wrapped to WETH confirmed");
-      }
-
-      // After wrapping (if needed), WETH balance is sufficient. Now approve + execute.
       setProgressMessage(
-        currentAllowance < collateral
+        wrapAmount > BigInt(0) && currentAllowance < collateral
+          ? "Wrapping ETH, approving collateral, and executing order..."
+          : wrapAmount > BigInt(0)
+            ? "Wrapping ETH and executing order..."
+            : currentAllowance < collateral
           ? "Approving collateral and executing order..."
           : "Executing order on Base...",
       );
       const balanceBefore = await readTokenBalance(collateralAsset, address);
       const balanceDecreased = async () => {
+        if (wrapAmount > BigInt(0) && nativeBalanceBefore != null) {
+          const nativeBalance = await publicClient.getBalance({ address });
+          return nativeBalance < nativeBalanceBefore;
+        }
         const bal = await readTokenBalance(collateralAsset, address);
         return bal < balanceBefore;
       };
 
       const approveAndExecuteCalls: BatchCall[] = [];
+      if (wrapAmount > BigInt(0)) {
+        approveAndExecuteCalls.push({
+          to: ADDRESSES.weth,
+          data: encodeFunctionData({
+            abi: WETH_ABI,
+            functionName: "deposit",
+            args: [],
+          }),
+          value: wrapAmount,
+        });
+      }
       if (currentAllowance < collateral) {
         approveAndExecuteCalls.push({
           to: collateralAsset,
@@ -563,7 +651,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       }
       approveAndExecuteCalls.push({ to: ADDRESSES.batchSettler, data: executeData });
 
-      const label = currentAllowance < collateral ? "batch-approve-execute" : "executeOrder";
+      const label = wrapAmount > BigInt(0)
+        ? currentAllowance < collateral
+          ? "batch-wrap-approve-execute"
+          : "batch-wrap-execute"
+        : currentAllowance < collateral
+          ? "batch-approve-execute"
+          : "executeOrder";
       const resultHash = await fireAndPoll(
         () => sendBatchTx(approveAndExecuteCalls),
         balanceDecreased,
@@ -571,18 +665,35 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       );
       if (resultHash) setTxHash(resultHash);
 
-      setChainExecuted(quote.chain ?? "base");
+      setChainExecuted(executionQuote.chain ?? "base");
       updateStep("confirmed");
       onAccepted({ amount, txHash: resultHash });
-      window.dispatchEvent(new Event("balance:refetch"));
+      invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
-      const pos = buildOptimisticPosition(quote, amount, isBuy, address, assetSlug);
+      const pos = buildOptimisticPosition(
+        executionQuote,
+        amount,
+        isBuy,
+        address,
+        assetSlug,
+      );
       pos.tx_hash = resultHash ?? "";
       try { saveOptimistic(pos); } catch (err) {
         console.warn("[AcceptModal] Could not save optimistic position:", err);
       }
     } catch (err: unknown) {
       console.error("[AcceptModal] Transaction failed:", err);
+      if (err instanceof SeriesPreparationError) {
+        clearPendingBridge();
+        setPreparationFailure(err);
+        setError(err.message);
+        setStep("idle");
+        setProgressMessage("Preparing order...");
+        return;
+      }
+      if (err instanceof Error && err.name === "AbortError") {
+        return;
+      }
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("Solana flows are disabled")) {
         clearPendingBridge();
@@ -608,6 +719,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       }
       setStep("idle");
       setProgressMessage("Preparing order...");
+    } finally {
+      preparationAbortRef.current = null;
+      inFlightRef.current = false;
     }
   }
 
@@ -774,7 +888,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
         {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
 
-        {step === "executing" && (
+        {(step === "preparing" || step === "executing") && (
           <div className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2 shadow-[0_0_24px_rgba(0,0,0,0.10)]">
             <div className="flex items-center gap-2 text-sm font-medium text-[var(--text)]">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
@@ -784,7 +898,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
               <span>{progressMessage}</span>
             </div>
             <p className="mt-1 pl-4 text-xs text-[var(--text-secondary)]">
-              This can take a few minutes. Keep this window open.
+              {step === "preparing"
+                ? "This normally takes a few seconds. No wallet confirmation is needed yet."
+                : "This can take a few minutes. Keep this window open."}
             </p>
           </div>
         )}

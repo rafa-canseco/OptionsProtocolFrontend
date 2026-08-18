@@ -6,6 +6,7 @@ import { YieldToggle, type YieldMetric } from "./YieldToggle";
 import { resolvePositionAsset } from "@/lib/assets";
 import { getPositionPremiumUsd, getPositionStrike } from "@/lib/positionMath";
 import { getPositionTermDays } from "@/lib/positionDates";
+import { useAppPreferences } from "@/lib/preferences";
 
 interface Props {
   positions: Position[];
@@ -35,6 +36,8 @@ export function PortfolioSummary({
   yieldMetric,
   onYieldMetricChange,
 }: Props) {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   const premiumEarned = positions.reduce(
     (sum, p) => sum + getPositionPremiumUsd(p),
     0,
@@ -69,11 +72,11 @@ export function PortfolioSummary({
       <div className="flex items-center justify-between">
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] text-xs font-semibold tracking-wide uppercase">
           <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent)]" />
-          OG Supporter
+          {t("OG Supporter", "Primeros usuarios")}
         </span>
         {activity && activity.daysSinceFirst > 0 && (
           <span className="text-xs text-[var(--text-secondary)] font-mono">
-            Member for {activity.daysSinceFirst}d
+            {t("Member for", "Miembro desde hace")} {activity.daysSinceFirst}d
           </span>
         )}
       </div>
@@ -82,7 +85,7 @@ export function PortfolioSummary({
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
-            Total Earned
+            {t("Total Earned", "Ingresos totales")}
           </p>
           <p className="text-xl font-bold text-[var(--accent)] font-mono">
             ${fmtUsd(premiumEarned)}
@@ -90,7 +93,7 @@ export function PortfolioSummary({
         </div>
         <div>
           <p className="text-xs text-[var(--text-secondary)]">
-            Active Capital
+            {t("Active Capital", "Capital activo")}
           </p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
             {formatUSD(activeCapital)}
@@ -98,7 +101,7 @@ export function PortfolioSummary({
         </div>
         <div>
           <div className="flex items-center gap-1.5 mb-0.5">
-            <p className="text-xs text-[var(--text-secondary)]">Avg</p>
+            <p className="text-xs text-[var(--text-secondary)]">{t("Avg", "Promedio")}</p>
             <YieldToggle
               value={yieldMetric}
               onChange={onYieldMetricChange}
@@ -112,13 +115,13 @@ export function PortfolioSummary({
           </p>
         </div>
         <div>
-          <p className="text-xs text-[var(--text-secondary)]">Positions</p>
+          <p className="text-xs text-[var(--text-secondary)]">{t("Positions", "Posiciones")}</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
             {activity?.positionCount ?? positions.length}
           </p>
         </div>
         <div>
-          <p className="text-xs text-[var(--text-secondary)]">Total Traded</p>
+          <p className="text-xs text-[var(--text-secondary)]">{t("Total Traded", "Total operado")}</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
             {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
           </p>

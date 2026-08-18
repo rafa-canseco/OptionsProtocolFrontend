@@ -34,7 +34,12 @@ will share only error messages when tests fail.
 - Commit often. One logical change per commit.
 - Conventional commit prefixes: feat:, fix:, chore:, refactor:, docs:
 - Never push to main or dev directly. Feature branches only.
-- All PRs target `dev`. Branch naming includes Linear issue ID:
+- For the vaults project, do NOT target the historical `dev` branch.
+- The historical `dev` branch contains unrelated hackathon and experimental work and is not the integration base for the vaults initiative.
+- For the vaults project, start feature branches from `main`.
+- For the vaults project, open feature PRs into the active vaults integration branch, not `dev`.
+- If the active vaults integration branch has not yet been created, stop after implementation and ask which integration branch should receive the PR instead of defaulting to `dev`.
+- Outside the vaults project, if no override is given, branch naming includes Linear issue ID:
   `feat/b1n-5-description`
 - PR titles include the Linear issue ID: "B1N-5: Description"
 
@@ -42,7 +47,7 @@ will share only error messages when tests fail.
 
 - When you receive a task: read the issue, post your plan as a comment
 - When plan is approved: move issue to "In Progress"
-- When code is done: commit, push, create PR to dev, post completion
+- When code is done: commit, push, create PR to the active integration branch for that initiative, post completion
   summary on the issue, move to "Review"
 - When user says "merge it": post final summary (what delivered,
   security audit, testing results), move to "Done"

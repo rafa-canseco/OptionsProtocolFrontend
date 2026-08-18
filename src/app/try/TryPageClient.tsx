@@ -6,10 +6,13 @@ import { motion } from "framer-motion";
 import { TickingPrice } from "@/components/landing/TickingPrice";
 import { PriceSlider } from "@/components/landing/PriceSlider";
 import { BackgroundEffects } from "@/components/landing/BackgroundEffects";
+import { AppPreferenceControls } from "@/components/AppPreferenceControls";
+import { useAppPreferences } from "@/lib/preferences";
 
 const SPOT_BASE = 2621;
 
 export default function TryPageClient() {
+  const { locale } = useAppPreferences();
   const [spot, setSpot] = useState(SPOT_BASE);
   const handleSpotChange = useCallback((p: number) => setSpot(p), []);
 
@@ -25,12 +28,15 @@ export default function TryPageClient() {
           <span className="text-[var(--accent)]">1</span>
           <span className="text-[var(--bone)]">nary</span>
         </Link>
-        <Link
-          href="/earn"
-          className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
-        >
-          Open app
-        </Link>
+        <div className="flex items-center gap-2">
+          <AppPreferenceControls />
+          <Link
+            href="/earn"
+            className="rounded-lg px-4 py-2 text-sm font-medium border text-[var(--accent)] border-[var(--accent)]/30 hover:border-[var(--accent)]/60 transition-all"
+          >
+            {locale === "es" ? "Abrir app" : "Open app"}
+          </Link>
+        </div>
       </header>
 
       {/* Main content */}
@@ -42,16 +48,16 @@ export default function TryPageClient() {
           className="space-y-3"
         >
           <h1 className="text-[clamp(1.8rem,5vw,3rem)] font-light text-[var(--bone)] tracking-tight">
-            Pick a price. See what you&apos;d earn.
+            {locale === "es" ? "Elige un precio. Descubre cuánto podrías recibir." : <>Pick a price. See what you&apos;d earn.</>}
           </h1>
           <p className="text-[var(--text-secondary)] text-lg">
-            ETH is{" "}
+            {locale === "es" ? "ETH está en" : "ETH is"}{" "}
             <TickingPrice
               base={SPOT_BASE}
               className="text-[var(--text)] font-bold font-mono"
               onPriceChange={handleSpotChange}
             />
-            {" "}right now. What price would you buy it at?
+            {" "}{locale === "es" ? "ahora. ¿A qué precio lo comprarías?" : "right now. What price would you buy it at?"}
           </p>
         </motion.div>
 

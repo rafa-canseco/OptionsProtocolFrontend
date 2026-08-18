@@ -13,6 +13,10 @@ vi.mock("@/hooks/useWalletSummary", () => ({
   useWalletSummary: () => mockWallet,
 }));
 
+vi.mock("@/lib/preferences", () => ({
+  useAppPreferences: () => ({ locale: "en" }),
+}));
+
 vi.mock("@privy-io/react-auth", () => ({
   useConnectWallet: () => ({ connectWallet: mockConnectWallet }),
 }));
