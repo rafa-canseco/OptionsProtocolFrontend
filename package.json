@@ -10,7 +10,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check:fast": "bun run lint && bun run typecheck && bun run test",
+    "test:graphify": "node --test .pi/packages/graphify-balanced/test/index.check.ts",
+    "check:fast": "bun run test:graphify && bun run lint && bun run typecheck && bun run test",
     "check:full": "bun run check:fast && bun run build"
   },
   "dependencies": {
