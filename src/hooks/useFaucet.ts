@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Address } from "viem";
+import { invalidateData } from "@/lib/dataInvalidation";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -79,7 +80,7 @@ export function useFaucet({ address, solanaAddress, onComplete }: FaucetOpts) {
     if (results.length > 0) {
       setNotification(`You received ${results.join("; ")}.`);
       setTimeout(() => setNotification(null), 5000);
-      window.dispatchEvent(new Event("balance:refetch"));
+      invalidateData(["balances"], "faucet-complete");
       await onComplete?.();
     } else {
       setError(errors[0] || "Failed to get test tokens.");

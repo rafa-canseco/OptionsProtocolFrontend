@@ -8,6 +8,7 @@ import { RangeAcceptModal } from "./RangeAcceptModal";
 import { fmtUsd, floorTo } from "@/lib/utils";
 import { computeAPR, computeROI } from "@/lib/execution";
 import { useWallet } from "@/hooks/useWallet";
+import { isRangeExecutableQuote } from "@/lib/marketState";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
 import type { YieldMetric } from "../YieldToggle";
@@ -62,6 +63,7 @@ export function RangeEarn({
       .filter(
         (p) =>
           p.option_type === "put" &&
+          isRangeExecutableQuote(p) &&
           p.expiry_date === activeExpiry &&
           p.strike < (spot ?? Infinity) &&
           computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR
@@ -74,6 +76,7 @@ export function RangeEarn({
       .filter(
         (p) =>
           p.option_type === "call" &&
+          isRangeExecutableQuote(p) &&
           p.expiry_date === activeExpiry &&
           p.strike > (spot ?? -Infinity) &&
           computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR

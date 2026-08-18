@@ -1,6 +1,8 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 export type OptionType = "call" | "put";
+export type QuoteSeriesStatus = "virtual" | "creating" | "ready" | "failed";
+export type QuoteRawUint = string | number;
 
 export interface PriceQuote {
   option_type: OptionType;
@@ -15,15 +17,64 @@ export interface PriceQuote {
   expires_at: number;
   available_amount: number;
   otoken_address: string | null;
+  deployment_status?: QuoteSeriesStatus;
   signature: string | null;
   mm_address: string | null;
-  bid_price_raw: number | null;
-  deadline: number | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  bid_price_raw: QuoteRawUint | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  deadline: QuoteRawUint | null;
   quote_id: string | null;
-  max_amount_raw: number | null;
-  maker_nonce: number | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  max_amount_raw: QuoteRawUint | null;
+  /** Decimal string in current API responses; number remains accepted during rollout. */
+  maker_nonce: QuoteRawUint | null;
   position_count: number;
   chain: "base" | "solana";
+}
+
+export interface ExecutionQuoteSnapshot {
+  otoken_address: string;
+  bid_price_raw: string;
+  deadline: string;
+  quote_id: string;
+  max_amount_raw: string;
+  maker_nonce: string;
+  signature: string;
+  mm_address: string;
+}
+
+export interface EnsureSeriesRequest {
+  wallet_address: string;
+  expected_otoken_address: string;
+  amount_raw: string;
+  quote: ExecutionQuoteSnapshot;
+}
+
+export interface EnsureSeriesResponse {
+  status: "ready" | "creating";
+  otoken_address: string;
+  retry_after_ms?: number;
+  deployment_tx_hash?: string | null;
+  execution_quote: ExecutionQuoteSnapshot;
+}
+
+export interface ApiErrorDetail {
+  code?: string;
+  message?: string;
+  retryable?: boolean;
+}
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: ApiErrorDetail;
+
+  constructor(status: number, detail: ApiErrorDetail) {
+    super(`API ${status}: ${detail.message || "Request failed"}`);
+    this.name = "ApiError";
+    this.status = status;
+    this.detail = detail;
+  }
 }
 
 export interface Position {
@@ -51,6 +102,8 @@ export interface Position {
   settlement_tx_hash: string | null;
   settlement_tx_url?: string | null;
   indexed_at: string;
+  /** Revision clock used by bounded portfolio streams. */
+  updated_at?: string | null;
   settlement_type: string | null;
   delivered_asset: string | null;
   delivered_amount: number | null;
@@ -237,6 +290,54 @@ export interface B1naryPositionsResponse {
   errors: string[];
 }
 
+export type PositionPortfolioStream = "active" | "settled" | "changes";
+
+export interface PositionPortfolioTraversal {
+  limit: number;
+  has_more: boolean;
+  next_cursor: string | null;
+}
+
+export interface PositionPortfolioPagination {
+  bounded: true;
+  watermark: string;
+  active: PositionPortfolioTraversal;
+  settled: PositionPortfolioTraversal;
+}
+
+export interface PositionPortfolioSnapshotResponse {
+  positions: Position[];
+  errors?: string[];
+  pagination?: PositionPortfolioPagination;
+}
+
+export interface PositionPortfolioPageResponse {
+  positions: Position[];
+  errors?: string[];
+  stream: PositionPortfolioStream;
+  limit: number;
+  has_more: boolean;
+  next_cursor: string | null;
+  watermark: string;
+}
+
+export interface PositionPortfolioWallet {
+  chain: B1naryWalletChain;
+  address: string;
+}
+
+export interface PositionPortfolioPageRequest {
+  stream: PositionPortfolioStream;
+  cursor?: string | null;
+  limit?: number;
+  changedAfter?: string | null;
+}
+
+export interface PositionPortfolioHttpResponse<T> {
+  data: T;
+  headers: Headers;
+}
+
 export interface TrustedWalletRequest {
   privyUserId: string;
   chain: B1naryWalletChain;
@@ -370,26 +471,376 @@ export interface SolanaCompleteSponsoredSetupResponse {
   signature: string;
 }
 
+// ---------------------------------------------------------------------------
+// v2 tokenized CSP fund types (B1N-353)
+// ---------------------------------------------------------------------------
 
+export interface FundTokenMetadata {
+  symbol: string;
+  address: string;
+  decimals: number;
+}
 
-async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
+export type FundApiStrategyKind = "csp" | "covered_call" | "meta_wheel";
+
+export interface FundRegistryItem {
+  fundKey: string;
+  chainId: number;
+  fundAddress: string;
+  shareToken: FundTokenMetadata;
+  accountingAsset: FundTokenMetadata;
+  strategyKind?: FundApiStrategyKind;
+  /** Premium/settlement token when it differs from the accounting asset. */
+  quoteAsset?: FundTokenMetadata | null;
+  deploymentStatus: string;
+}
+
+export interface FundComposition {
+  idleAssets: string;
+  strategyAccountingAssets: string;
+  assignedWeth: string;
+  reservedClaimAssets: string;
+  /** Accounting asset held by the strategy adapter but not committed to a position. */
+  adapterFreeAccountingAssets?: string;
+  /** Transient USDC premium/called-away proceeds, in USDC base units. */
+  transientUsdc?: string;
+  /** WETH accounting-asset value of transient USDC inventory. */
+  transientUsdcValueAssets?: string;
+  /** Total assets before option and settlement liabilities. */
+  grossAssets?: string;
+  /** USDC pledged to the open CSP. This remains a fund asset. */
+  lockedCollateralAssets?: string;
+  /** Fair value of the European put obligation, not its collateral notional. */
+  fairOptionLiabilityAssets?: string;
+  /** Accounting-asset value of WETH held by, or receivable by, the fund. */
+  assignedWethValueAssets?: string;
+  /** Expected settlement costs included in transactional NAV. */
+  settlementCostAssets?: string;
+  /** Settlement proceeds receivable but not yet delivered to the fund. */
+  settlementReceivableAssets?: string;
+  /** Expected USDC-to-WETH normalization costs, in accounting-asset units. */
+  normalizationCostAssets?: string;
+  /** Expected option lifecycle exit costs, in accounting-asset units. */
+  optionExitCostAssets?: string;
+}
+
+export interface FundStressSnapshot {
+  netAssets?: string;
+  sharePriceAssets?: string;
+  liabilities?: string;
+  methodology?: string | null;
+}
+
+export interface FundOptionPositionSummary {
+  positionId: number;
+  lifecycle: string;
+  strikePriceUsd8: string | null;
+  expiryTimestamp: number | null;
+  optionAmount8: string;
+  collateralAssets: string;
+  premiumEarnedAssets: string;
+  calledAwayUsdc?: string;
+  fallbackWethRecoveredAssets?: string;
+  mmWethPayoutAssets?: string;
+}
+
+/** @deprecated Use FundOptionPositionSummary. */
+export type CspPositionSummary = FundOptionPositionSummary;
+
+export interface FundStrategyOperationSummary {
+  operationType: string;
+  positionId: number | null;
+  blockNumber: number | null;
+}
+
+export interface FundStrategySnapshot {
+  strategyKind?: FundApiStrategyKind;
+  latestPosition: FundOptionPositionSummary | null;
+  latestOperation?: FundStrategyOperationSummary | null;
+  totalPremiumCollectedAssets: string;
+  nextOpenAfter: number | null;
+  nextOpenCondition: string;
+}
+
+export type MetaWheelTrancheState =
+  | "pending_csp"
+  | "csp_open"
+  | "csp_settling"
+  | "weth_transition"
+  | "call_open"
+  | "call_settling"
+  | "closed";
+
+export type MetaWheelSettlementKind =
+  | "pending_delivery"
+  | "csp_otm"
+  | "csp_assigned"
+  | "call_otm"
+  | "call_away"
+  | "weth_fallback";
+
+export interface MetaWheelTrancheSummary {
+  trancheId: string;
+  childVault: string | null;
+  state: MetaWheelTrancheState;
+  /** Original user-capital basis carried across CSP/CC handoffs. */
+  principalAssets: string;
+  /** Liquid USDC currently available in this tranche for its next CSP leg. */
+  pendingAssets: string;
+  childShares: string;
+  childPositionId: string | null;
+  /** Stable lifecycle commitment used by managed execution checks. */
+  childExecutionStateHash: string | null;
+  /** `pending_delivery` keeps the tranche settling until physical delivery completes. */
+  settlementKind: MetaWheelSettlementKind | null;
+  assignmentLotIds: string[];
+  literalAssignmentFloorUsd8: string;
+  protectedAssignmentFloorUsd8: string;
+  callStrikeUsd8: string | null;
+  transitionNonce: number;
+  nextAction: string;
+}
+
+export interface MetaWheelRedemptionSummary {
+  /** USDC removed from CSP allocation and reserved for asynchronous claims. */
+  reservedAssets: string;
+  /** Principal basis attached to the exact reserved USDC. */
+  reservedPrincipalAssets: string;
+}
+
+/** Parent-fund allocation view. All `Assets` values use the USDC accounting decimals. */
+export interface MetaWheelSnapshot {
+  pendingCspAssets: string;
+  cspValueAssets: string;
+  transitionWeth: string;
+  transitionWethValueAssets: string;
+  coveredCallValueAssets: string;
+  returnedUsdcAssets: string;
+  reservedRedemptionAssets: string;
+  redemption: MetaWheelRedemptionSummary;
+  activeTrancheCount: number;
+  protectedAssignmentFloorUsd8: string;
+  currentPhase: string;
+  nextAction: string;
+  cumulativeGrossPremiumAssets: string;
+  cumulativeProtocolFeeAssets: string;
+  cumulativeNetPremiumAssets: string;
+  policyVersion: number;
+  policyHash: string | null;
+  /** NAV reconciliation commitment; distinct from per-child execution hashes. */
+  navCoherent: boolean;
+  navSnapshotBlock: number | null;
+  navSnapshotBlockHash: string | null;
+  paused: boolean;
+  tranches: MetaWheelTrancheSummary[];
+}
+
+export interface FundNavWindow {
+  reportNonce: number;
+  validAfterBlock: number | null;
+  validUntilBlock: number | null;
+  stale: boolean;
+  methodology?: string | null;
+  modelVersion?: string | number | null;
+  observedAt?: string | null;
+  sourceQuality?: string | null;
+  stress?: FundStressSnapshot | null;
+}
+
+export interface FundStatus {
+  reconciled: boolean;
+  depositsPaused: boolean;
+  redemptionsPaused: boolean;
+  executionLocked: boolean;
+  flowProcessing: boolean;
+}
+
+export interface FundActionAvailability {
+  available: boolean;
+  reasonCode: string | null;
+}
+
+export interface FundActions {
+  deposit: FundActionAvailability;
+  requestRedemption: FundActionAvailability;
+  cancelRedemption: FundActionAvailability;
+  claimRedemption: FundActionAvailability;
+}
+
+export interface FundSummaryResponse {
+  fund: FundRegistryItem;
+  netAssets: string;
+  shareSupply: string;
+  virtualShares: string;
+  /** Fair transactional NAV per share used for synchronous mint/redemption. */
+  sharePriceAssets: string;
+  /** Optional secondary-market quote; never used to mint fund shares. */
+  marketPriceAssets?: string | null;
+  /** Optional risk-only stress price; never used to mint fund shares. */
+  stressPriceAssets?: string | null;
+  composition: FundComposition;
+  nav: FundNavWindow;
+  /** Current strategy cycle. Optional while older backend versions roll out. */
+  strategy?: FundStrategySnapshot;
+  /** Meta Wheel allocation and tranche state. Omitted for standalone CSP/CC funds. */
+  wheel?: MetaWheelSnapshot | null;
+  status: FundStatus;
+  actions: FundActions;
+  asOfBlock: number | null;
+  asOfBlockHash: string | null;
+  indexedAt: string | null;
+  stale: boolean;
+}
+
+export interface FundRedemptionView {
+  pendingShares: string;
+  claimableShares: string;
+  claimableAssets: string;
+  status: string;
+  nextAction: string;
+  latestBatchId: number;
+  latestBatchProcessing: boolean;
+  latestBatchUnwindCommitted: boolean;
+}
+
+export interface FundPositionResponse {
+  fundKey: string;
+  address: string;
+  shares: string;
+  accountingValue: string;
+  redemption: FundRedemptionView;
+  actions: FundActions;
+  asOfBlock: number | null;
+  indexedAt: string | null;
+  stale: boolean;
+}
+
+export interface FundTrustedContract {
+  role: string;
+  address: string;
+  implementationAddress: string | null;
+  interfaceVersion: number;
+}
+
+export interface FundFeePolicy {
+  managementFeeWad: string;
+  managementFeeBps: number;
+  performanceFeeBps: number;
+  premiumFeeBps: number;
+  highWaterMarkSharePriceAssets: string;
+  feeRecipient: string | null;
+  performanceFeeBasis: "high_water_mark";
+  premiumFeeBasis: "gross_premium";
+  reportedPremiumBasis: "net_of_premium_fee";
+}
+
+export interface FundConfigResponse {
+  fundKey: string;
+  deploymentStatus: string;
+  contracts: FundTrustedContract[];
+  fees: FundFeePolicy;
+  capabilities: FundActions;
+  writesEnabled: boolean;
+  blockedReasonCode: string | null;
+}
+
+async function fetchAPIResponse<T>(
+  path: string,
+  init?: RequestInit,
+): Promise<PositionPortfolioHttpResponse<T>> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
-    throw new Error(`API ${res.status}: ${body}`);
+    let detail: ApiErrorDetail = {};
+    if (body) {
+      try {
+        const parsed = JSON.parse(body) as {
+          detail?: ApiErrorDetail | string;
+          code?: string;
+          message?: string;
+          retryable?: boolean;
+        };
+        detail =
+          typeof parsed.detail === "object" && parsed.detail !== null
+            ? parsed.detail
+            : {
+                code: parsed.code,
+                message:
+                  typeof parsed.detail === "string"
+                    ? parsed.detail
+                    : parsed.message,
+                retryable: parsed.retryable,
+              };
+      } catch {
+        detail = { message: body };
+      }
+    }
+    throw new ApiError(res.status, detail);
   }
-  return res.json();
+  return { data: await res.json(), headers: res.headers };
+}
+
+async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await fetchAPIResponse<T>(path, init)).data;
+}
+
+function positionPortfolioQuery(
+  request?: PositionPortfolioPageRequest,
+  prefix: "&" | "?" = "&",
+): string {
+  if (!request) return "";
+  const params = new URLSearchParams({ stream: request.stream });
+  if (request.cursor) params.set("cursor", request.cursor);
+  if (request.limit !== undefined) params.set("limit", String(request.limit));
+  if (request.changedAfter) params.set("changed_after", request.changedAfter);
+  return `${prefix}${params.toString()}`;
 }
 
 export const api = {
   getPrices: (asset?: string) =>
     fetchAPI<PriceQuote[]>(asset ? `/prices?asset=${asset}` : "/prices"),
 
+  ensureSeries: (
+    request: EnsureSeriesRequest,
+    accessToken: string,
+    options?: { signal?: AbortSignal; idempotencyKey?: string },
+  ) =>
+    fetchAPI<EnsureSeriesResponse>("/series/ensure", {
+      method: "POST",
+      body: JSON.stringify(request),
+      signal: options?.signal,
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        ...(options?.idempotencyKey
+          ? { "Idempotency-Key": options.idempotencyKey }
+          : {}),
+      },
+    }),
+
   getPositions: (address: string) =>
     fetchAPI<Position[]>(`/positions/${address}`),
+
+  getPositionPortfolioDirect: (
+    address: string,
+    request?: PositionPortfolioPageRequest,
+  ) =>
+    fetchAPIResponse<Position[] | PositionPortfolioPageResponse>(
+      `/positions/${encodeURIComponent(address)}${positionPortfolioQuery(request, "?")}`,
+    ),
+
+  getFund: (fundKey: string) =>
+    fetchAPI<FundSummaryResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}`),
+
+  getFundPosition: (fundKey: string, address: string) =>
+    fetchAPI<FundPositionResponse>(
+      `/v2/vaults/${encodeURIComponent(fundKey)}/positions/${encodeURIComponent(address)}`,
+    ),
+
+  getFundConfig: (fundKey: string) =>
+    fetchAPI<FundConfigResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}/config`),
 
   getB1naryAccount: (privyUserId: string) =>
     fetchAPI<B1naryAccountResponse>(
@@ -443,6 +894,36 @@ export const api = {
   getB1naryPositionsByPrivyUserId: (privyUserId: string) =>
     fetchAPI<B1naryPositionsResponse>(
       `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}`,
+    ),
+
+  getB1naryPositionPortfolio: (
+    privyUserId: string,
+    request?: PositionPortfolioPageRequest,
+  ) =>
+    fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
+      `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}${positionPortfolioQuery(request)}`,
+    ),
+
+  getPositionPortfolioBatch: (
+    wallets: PositionPortfolioWallet[],
+    request?: PositionPortfolioPageRequest,
+  ) =>
+    fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
+      "/positions/batch",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          wallets,
+          ...(request
+            ? {
+                stream: request.stream,
+                cursor: request.cursor ?? null,
+                limit: request.limit,
+                changed_after: request.changedAfter ?? null,
+              }
+            : {}),
+        }),
+      },
     ),
 
   joinWaitlist: (email: string) =>

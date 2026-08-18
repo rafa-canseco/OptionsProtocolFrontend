@@ -12,12 +12,15 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
+import { useAppPreferences } from "@/lib/preferences";
 
 function sanitizeUsername(value: string): string {
   return value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 32);
 }
 
 export function B1naryAccountOnboarding() {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   const {
     account,
     createAccount,
@@ -47,7 +50,7 @@ export function B1naryAccountOnboarding() {
     event.preventDefault();
     const cleanUsername = sanitizeUsername(username.trim());
     if (cleanUsername.length < 3) {
-      setLocalError("Use at least 3 letters or numbers.");
+      setLocalError(t("Use at least 3 letters or numbers.", "Usa al menos 3 letras o números."));
       return;
     }
 
@@ -59,7 +62,7 @@ export function B1naryAccountOnboarding() {
       setOpen(false);
     } catch (err) {
       setLocalError(
-        err instanceof Error ? err.message : "Could not create b1nary account",
+        err instanceof Error ? err.message : t("Could not create b1nary account", "No se pudo crear la cuenta de b1nary"),
       );
     } finally {
       setSubmitting(false);
@@ -67,15 +70,16 @@ export function B1naryAccountOnboarding() {
   }
 
   if (account || (!needsOnboarding && !open)) return null;
+  const displayedError = localError ?? (error ? t(error, "No se pudo completar la configuración. Inténtalo de nuevo.") : null);
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent showCloseButton={false} className="sm:max-w-md">
         <form onSubmit={handleSubmit} className="space-y-5">
           <DialogHeader>
-            <DialogTitle>Create your b1nary account</DialogTitle>
+            <DialogTitle>{t("Create your b1nary account", "Crea tu cuenta de b1nary")}</DialogTitle>
             <DialogDescription>
-              Choose a username. Your Base and Solana trading accounts will be grouped under it.
+              {t("Choose a username. Your Base and Solana trading accounts will be grouped under it.", "Elige un nombre de usuario. Tus cuentas de Base y Solana quedarán agrupadas en él.")}
             </DialogDescription>
           </DialogHeader>
 
@@ -84,7 +88,7 @@ export function B1naryAccountOnboarding() {
               htmlFor="b1nary-username"
               className="text-sm font-medium text-[var(--text)]"
             >
-              Username
+              {t("Username", "Nombre de usuario")}
             </label>
             <Input
               id="b1nary-username"
@@ -99,20 +103,20 @@ export function B1naryAccountOnboarding() {
             />
             <p className="text-xs text-[var(--text-secondary)]">
               {walletCount > 0
-                ? `${walletCount} trading account${walletCount === 1 ? "" : "s"} ready to attach.`
-                : "Trading accounts will attach as Privy creates them."}
+                ? locale === "es" ? `${walletCount} cuenta${walletCount === 1 ? "" : "s"} lista${walletCount === 1 ? "" : "s"} para vincular.` : `${walletCount} trading account${walletCount === 1 ? "" : "s"} ready to attach.`
+                : t("Trading accounts will attach as Privy creates them.", "Las cuentas se vincularán cuando Privy las cree.")}
             </p>
           </div>
 
-          {(localError || error) && (
+          {displayedError && (
             <p className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
-              {localError || error}
+              {displayedError}
             </p>
           )}
 
           <DialogFooter>
             <Button type="submit" disabled={!canSubmit || syncing}>
-              {submitting || syncing ? "Creating..." : "Continue"}
+              {submitting || syncing ? t("Creating...", "Creando...") : t("Continue", "Continuar")}
             </Button>
           </DialogFooter>
         </form>

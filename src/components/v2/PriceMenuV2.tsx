@@ -17,7 +17,11 @@ import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
-import { isExecutableQuote, isProductionReadOnlyAsset } from "@/lib/marketState";
+import {
+  isExecutableQuote,
+  isProductionReadOnlyAsset,
+  reconcileSelectedQuote,
+} from "@/lib/marketState";
 import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
@@ -28,6 +32,7 @@ import { RangeEarn } from "./RangeEarn";
 import { YieldToggle, type YieldMetric } from "../YieldToggle";
 import { computeAPR, computeROI } from "@/lib/execution";
 import { startBuyTour, startSellTour, startRangeTour } from "./EarnTutorial";
+import { useAppPreferences } from "@/lib/preferences";
 
 function XIcon() {
   return (
@@ -260,6 +265,8 @@ function StrikeCard({
 }
 
 export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
+  const { locale } = useAppPreferences();
+  const t = (en: string, es: string) => locale === "es" ? es : en;
   const { prices, loading, error, refresh } = usePrices(asset.slug);
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
   const spot = spotFromEndpoint ?? prices[0]?.spot ?? asset.fallbackSpot;
@@ -378,13 +385,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   // When filters change, try to keep the same strike selected
   useEffect(() => {
-    setSelectedQuote((prev) => {
-      if (!prev) return prev;
-      const match = filteredPrices.find((q) => q.strike === prev.strike);
-      if (!match) return null;
-      if (match.premium !== prev.premium || match.expiry_days !== prev.expiry_days) return match;
-      return prev;
-    });
+    setSelectedQuote((prev) => reconcileSelectedQuote(prev, filteredPrices));
   }, [filteredPrices]);
 
   const selectedEarnings =
@@ -466,7 +467,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   if (error && displayPrices.length === 0) {
     return (
       <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
-        Could not load prices. Is the backend running?
+        {t("Could not load prices. Is the backend running?", "No se pudieron cargar los precios.")}
       </div>
     );
   }
@@ -488,15 +489,15 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p className="text-4xl font-bold text-[var(--accent)] font-mono">
             ${fmtUsd(premium)}
           </p>
-          <p className="text-base text-[var(--text-secondary)] mt-2">earned. Yours to keep.</p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">{t("earned. Yours to keep.", "recibidos. Son tuyos.")}</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">
           {fmtYield(apr, roi, yieldMetric)}
         </p>
         <div className="h-px bg-[var(--border)]" />
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-          <p>{commitLabel} committed for {aq.expiry_days} days</p>
-          <p>{abuy ? "Buy" : "Sell"} {asset.symbol} at ${aq.strike.toLocaleString()}/{asset.symbol}</p>
+          <p>{commitLabel} {t("committed for", "comprometidos por")} {aq.expiry_days} {t("days", "días")}</p>
+          <p>{abuy ? t("Buy", "Comprar") : t("Sell", "Vender")} {asset.symbol} {t("at", "a")} ${aq.strike.toLocaleString()}/{asset.symbol}</p>
         </div>
         {aTxHash && (
           <a
@@ -509,7 +510,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             rel="noopener noreferrer"
             className="inline-block text-sm text-[var(--accent)] hover:underline"
           >
-            View transaction ↗
+            {t("View transaction ↗", "Ver transacción ↗")}
           </a>
         )}
         {/* Share on X — primary shareability CTA */}
@@ -536,7 +537,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           onClick={() => { setAccepted(null); setSelectedQuote(null); setAmountStr(""); refresh(); }}
           className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
         >
-          Accept another price
+          {t("Accept another price", "Aceptar otro precio")}
         </button>
       </div>
     );
@@ -552,7 +553,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p className="text-4xl font-bold text-[var(--accent)] font-mono">
             ${fmtUsd(rangeAccepted.totalPremium)}
           </p>
-          <p className="text-base text-[var(--text-secondary)] mt-2">earned from both sides. Yours to keep.</p>
+          <p className="text-base text-[var(--text-secondary)] mt-2">{t("earned from both sides. Yours to keep.", "recibidos de ambos lados. Son tuyos.")}</p>
         </div>
         <p className="text-sm text-[var(--text-secondary)]">
           {fmtYield(
@@ -563,8 +564,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </p>
         <div className="h-px bg-[var(--border)]" />
         <div className="space-y-2 text-sm text-[var(--text-secondary)]">
-          <p>Range: ${rangeAccepted.putStrike.toLocaleString()} – ${rangeAccepted.callStrike.toLocaleString()}</p>
-          <p>${rangeAccepted.amount.toLocaleString()} committed for {rangeAccepted.expiryDays} days</p>
+          <p>{t("Range", "Rango")}: ${rangeAccepted.putStrike.toLocaleString()} – ${rangeAccepted.callStrike.toLocaleString()}</p>
+          <p>${rangeAccepted.amount.toLocaleString()} {t("committed for", "comprometidos por")} {rangeAccepted.expiryDays} {t("days", "días")}</p>
         </div>
         {(rangeAccepted.putTxHash || rangeAccepted.callTxHash) && (
           <div className="flex justify-center gap-3 text-sm">
@@ -579,7 +580,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 rel="noopener noreferrer"
                 className="text-[var(--accent)] hover:underline"
               >
-                Lower tx ↗
+                {t("Lower tx ↗", "Transacción inferior ↗")}
               </a>
             )}
             {rangeAccepted.callTxHash && (
@@ -593,7 +594,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                 rel="noopener noreferrer"
                 className="text-[var(--accent)] hover:underline"
               >
-                Upper tx ↗
+                {t("Upper tx ↗", "Transacción superior ↗")}
               </a>
             )}
           </div>
@@ -622,11 +623,25 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           onClick={() => { setRangeAccepted(null); setSide("range"); refresh(); }}
           className="text-sm font-medium text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
         >
-          Set another range
+          {t("Set another range", "Definir otro rango")}
         </button>
       </div>
     );
   }
+
+  const acceptButtonLabel = marketReadOnly
+    ? t("Coming soon", "Próximamente")
+    : marketClosed
+      ? t("Market at capacity", "Mercado sin capacidad")
+      : selectedQuoteIsPreview
+        ? t("Preview only", "Solo vista previa")
+        : !isConnected
+          ? t("Connect wallet", "Conectar wallet")
+          : !amount
+            ? t("Enter an amount", "Ingresa un monto")
+            : !selectedQuote
+              ? t("Select a price", "Selecciona un precio")
+              : t(`Accept: Earn $${fmtUsd(selectedEarnings)}`, `Aceptar: Recibe $${fmtUsd(selectedEarnings)}`);
 
   return (
     <div className="space-y-6">
@@ -636,13 +651,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           disabled={loading || displayPrices.length === 0 || (side !== "range" && filteredPrices.length === 0)}
           className="cursor-pointer rounded-lg bg-[var(--accent)] text-[var(--bg)] px-4 py-1.5 hover:bg-[var(--accent-hover)] transition-all animate-shimmer-pulse focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:animate-none"
         >
-          Guide me through it
+          {t("Guide me through it", "Guíame paso a paso")}
         </button>
         <button
           onClick={() => setDrawerOpen(true)}
           className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
         >
-          How does this work?
+          {t("How does this work?", "¿Cómo funciona?")}
         </button>
         <Tooltip>
           <TooltipTrigger asChild>
@@ -659,7 +674,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
               className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none inline-flex items-center gap-1.5"
             >
               {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-              {copied ? "AI context copied" : "Copy AI context"}
+              {copied ? t("AI context copied", "Contexto de IA copiado") : t("Copy AI context", "Copiar contexto para IA")}
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
@@ -706,7 +721,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
-              I have USD
+              {t("I have USD", "Tengo USD")}
             </button>
             <button
               data-tour="tab-sell"
@@ -717,7 +732,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
-              I have {asset.symbol}
+              {t("I have", "Tengo")} {asset.symbol}
             </button>
             <button
               onClick={() => { setSide("range"); setSelectedQuote(null); }}
@@ -727,7 +742,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
               }`}
             >
-              Range
+              {t("Range", "Rango")}
             </button>
           </div>
 
@@ -736,33 +751,39 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             {side === "buy" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">
-                  Buy {asset.symbol} cheaper.
+                  {t(`Buy ${asset.symbol} cheaper.`, `Compra ${asset.symbol} más barato.`)}
                 </p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Set a price you&apos;d buy {asset.symbol} at. A market maker pays you for that commitment.
-                  Price hits? You buy. Doesn&apos;t? Your dollars come back. You keep the payment either way.
+                  {t(
+                    `Set a price you'd buy ${asset.symbol} at. A market participant pays you for that commitment. If the stage results in a purchase, you buy. Otherwise, your dollars come back. You keep the payment either way.`,
+                    `Define un precio para comprar ${asset.symbol}. Un participante del mercado te paga por ese compromiso. Si la etapa termina en compra, compras. Si no, recuperas tus dólares. En cualquier caso, conservas el pago.`,
+                  )}
                 </p>
               </>
             )}
             {side === "sell" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">
-                  Sell {asset.symbol} higher.
+                  {t(`Sell ${asset.symbol} higher.`, `Vende ${asset.symbol} más alto.`)}
                 </p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Set a price you&apos;d sell {asset.symbol} at. A market maker pays you for that commitment.
-                  Price hits? You sell at your price. Doesn&apos;t? Your {asset.symbol} comes back. You keep the payment either way.
+                  {t(
+                    `Set a price you'd sell ${asset.symbol} at. A market participant pays you for that commitment. If the stage results in a sale, you sell at your price. Otherwise, your ${asset.symbol} comes back. You keep the payment either way.`,
+                    `Define un precio para vender ${asset.symbol}. Un participante del mercado te paga por ese compromiso. Si la etapa termina en venta, vendes a tu precio. Si no, recuperas tu ${asset.symbol}. En cualquier caso, conservas el pago.`,
+                  )}
                 </p>
               </>
             )}
             {side === "range" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">
-                  Earn from both sides.
+                  {t("Earn from both sides.", "Genera ingresos en ambos lados.")}
                 </p>
                 <p className="text-sm text-[var(--text-secondary)]">
-                  Set a buy price and a sell price. You earn from both commitments.
-                  If {asset.symbol} stays in your range, everything comes back. You keep both payments.
+                  {t(
+                    `Set a buy price and a sell price. You earn from both commitments. If ${asset.symbol} stays in your range, everything comes back. You keep both payments.`,
+                    `Define un precio de compra y otro de venta. Generas ingresos por ambos compromisos. Si ${asset.symbol} permanece en tu rango, recuperas todo y conservas ambos pagos.`,
+                  )}
                 </p>
               </>
             )}
@@ -771,7 +792,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           {/* 2. Duration — button group */}
           {expiries.length > 0 && (
             <div className="animate-fade-in-up" data-tour="duration">
-              <p className="text-sm text-[var(--text-secondary)] mb-2">Duration</p>
+              <p className="text-sm text-[var(--text-secondary)] mb-2">{t("Duration", "Duración")}</p>
               <div className="flex flex-wrap gap-2">
                 {expiries.map((d) => (
                   <button
@@ -815,7 +836,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           {/* 3. Amount input + % shortcuts */}
           <div className="animate-fade-in-up" data-tour="amount">
             <p className="text-sm text-[var(--text-secondary)] mb-2">
-              How much do you want to commit?
+              {t("How much do you want to commit?", "¿Cuánto quieres comprometer?")}
             </p>
             <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--accent)] transition-colors duration-200">
               <div className="flex items-center gap-1.5 shrink-0">
@@ -891,7 +912,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="animate-fade-in-up" data-tour="strikes">
             <div className="text-sm text-[var(--text-secondary)] flex items-center justify-between mb-2">
               <span className="flex items-center">
-                {amount > 0 ? "Choose your strike price" : "Enter an amount to see earnings per strike"}
+                {amount > 0 ? t("Choose your price", "Elige tu precio") : t("Enter an amount to see earnings for each price", "Ingresa un monto para ver los ingresos por precio")}
                 <InfoTooltip title="Strike price" text={`The price at which you commit to buy (or sell) ${asset.symbol}. Lower = safer, higher = more premium.`} />
               </span>
               {totalPositionsForExpiry > 0 && (
@@ -947,19 +968,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
             >
-              {marketReadOnly
-                ? "Coming soon"
-                : marketClosed
-                ? "MM at capacity"
-                : selectedQuoteIsPreview
-                  ? "Preview only"
-                : !isConnected
-                  ? "Connect wallet"
-                  : !amount
-                    ? "Enter an amount"
-                    : !selectedQuote
-                      ? "Select a strike price"
-                      : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+              {acceptButtonLabel}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
@@ -1016,19 +1025,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
             >
-              {marketReadOnly
-                ? "Coming soon"
-                : marketClosed
-                ? "MM at capacity"
-                : selectedQuoteIsPreview
-                  ? "Preview only"
-                : !isConnected
-                  ? "Connect wallet"
-                  : !amount
-                    ? "Enter an amount"
-                    : !selectedQuote
-                      ? "Select a strike price"
-                      : `Accept: Earn $${fmtUsd(selectedEarnings)}`}
+              {acceptButtonLabel}
             </button>
             {marketClosed && (
               <p className="text-xs text-center text-[var(--text-secondary)]">

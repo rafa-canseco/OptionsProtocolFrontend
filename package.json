@@ -7,10 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:graphify": "node --test .pi/packages/graphify-balanced/test/index.check.ts",
+    "check:fast": "bun run test:graphify && bun run lint && bun run typecheck && bun run test",
+    "check:full": "bun run check:fast && bun run build"
   },
   "dependencies": {
+    "@blossom-carousel/react": "^1.5.2",
     "@privy-io/react-auth": "^3.18.0",
     "@solana-program/memo": "^0.11.0",
     "@solana/spl-token": "^0.4.14",
