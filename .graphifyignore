@@ -1,0 +1,16 @@
+# Inactive/legacy paths
+docs/superpowers/plans/2026-04-20-b1n-295-solana-devnet-landing-tslax.md
+docs/superpowers/specs/2026-04-20-b1n-295-solana-devnet-landing-tslax-design.md
+src/__tests__/useSolanaBalance.test.tsx
+src/hooks/useSolanaBalance.ts
+src/lib/solana.ts
+
+# Generated, build, and vendor output
+graphify-out/
+.next/
+out/
+dist/
+build/
+coverage/
+node_modules/
+vendor/
