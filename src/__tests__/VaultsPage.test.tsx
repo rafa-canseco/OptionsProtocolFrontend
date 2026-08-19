@@ -136,7 +136,7 @@ describe("VaultsPage", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
     expect(screen.queryByText("How this vault works")).not.toBeInTheDocument();
-    const classicLink = screen.getByRole("link", { name: /manual trading/i });
+    const classicLink = screen.getByRole("link", { name: "v1 manual" });
     expect(classicLink).toHaveAttribute("href", "/earn/eth");
     expect(classicLink.closest("nav")).toHaveAttribute("aria-label", "Vault navigation");
     expect(screen.getByRole("link", { name: "My Vaults" })).toHaveAttribute("href", "/vaults/my");
@@ -187,7 +187,7 @@ describe("VaultsPage", () => {
     expect(
       screen.queryByRole("heading", { name: "ETH Meta Wheel" }),
     ).not.toBeInTheDocument();
-    const classicLink = screen.getByRole("link", { name: /manual trading/i });
+    const classicLink = screen.getByRole("link", { name: "v1 manual" });
     expect(classicLink).toHaveAttribute("href", "/earn/btc");
     expect(classicLink.closest("nav")).toHaveAttribute("aria-label", "Vault navigation");
   });

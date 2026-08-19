@@ -295,10 +295,7 @@ function VaultHeader({ view, address, balances, manualTradingAsset }: VaultHeade
           <nav aria-label={locale === "es" ? "Navegación de bóvedas" : "Vault navigation"} className="order-3 flex w-full gap-4 pt-1 text-xs sm:text-sm lg:order-none lg:w-auto lg:gap-6 lg:pt-0">
             <Link href="/vaults" aria-current={view === "catalog" ? "page" : undefined}>{locale === "es" ? "Bóvedas" : "Vaults"}</Link>
             <Link href="/vaults/my" aria-current={view === "my" ? "page" : undefined}>{locale === "es" ? "Mis bóvedas" : "My Vaults"}</Link>
-            <Link href={`/earn/${manualTradingAsset}`} className="hover:text-[var(--vault-text)]">
-              {locale === "es" ? "Operación manual" : "Manual trading"}{" "}
-              <span className="text-[var(--vault-text-muted)]">{locale === "es" ? "Abrir clásico →" : "Open classic →"}</span>
-            </Link>
+            <Link href={`/earn/${manualTradingAsset}`}>v1 manual</Link>
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-1 sm:gap-3">
