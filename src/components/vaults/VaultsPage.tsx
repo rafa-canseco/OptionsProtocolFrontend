@@ -85,6 +85,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
       <VaultHeader
         view={view}
         address={address}
+        manualTradingAsset={manualTradingAsset}
         balances={{
           usdc: balances.usd,
           eth: balances.eth,
@@ -215,11 +216,8 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
           ) : null}
         </section>
 
-        <footer className="mt-10 flex flex-wrap items-center justify-between gap-4 border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
+        <footer className="mt-10 border-t border-[var(--vault-border)] pt-6 text-xs text-[var(--vault-text-subtle)]">
           <span>v2 · Base Sepolia</span>
-          <Link href={`/earn/${manualTradingAsset}`} className="min-h-11 py-3 hover:text-[var(--vault-text)]">
-            {locale === "es" ? "Operación manual" : "Manual trading"} <span className="text-[var(--vault-text-muted)]">{locale === "es" ? "Abrir clásico →" : "Open classic →"}</span>
-          </Link>
         </footer>
       </main>
 
@@ -266,6 +264,7 @@ export function VaultsPage({ view = "catalog" }: { view?: "catalog" | "my" }) {
 type VaultHeaderProps = {
   view: "catalog" | "my";
   address?: string;
+  manualTradingAsset: string;
   balances: {
     usdc: number;
     eth: number;
@@ -283,7 +282,7 @@ type ShareBalance = {
   loading: boolean;
 };
 
-function VaultHeader({ view, address, balances }: VaultHeaderProps) {
+function VaultHeader({ view, address, balances, manualTradingAsset }: VaultHeaderProps) {
   const { locale } = useAppPreferences();
   return (
     <header className="border-b border-[var(--vault-border)]">
@@ -296,6 +295,7 @@ function VaultHeader({ view, address, balances }: VaultHeaderProps) {
           <nav aria-label={locale === "es" ? "Navegación de bóvedas" : "Vault navigation"} className="order-3 flex w-full gap-4 pt-1 text-xs sm:text-sm lg:order-none lg:w-auto lg:gap-6 lg:pt-0">
             <Link href="/vaults" aria-current={view === "catalog" ? "page" : undefined}>{locale === "es" ? "Bóvedas" : "Vaults"}</Link>
             <Link href="/vaults/my" aria-current={view === "my" ? "page" : undefined}>{locale === "es" ? "Mis bóvedas" : "My Vaults"}</Link>
+            <Link href={`/earn/${manualTradingAsset}`}>v1 manual</Link>
           </nav>
         </div>
         <div className="flex shrink-0 items-center gap-1 sm:gap-3">

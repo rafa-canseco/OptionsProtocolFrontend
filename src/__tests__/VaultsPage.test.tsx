@@ -136,7 +136,9 @@ describe("VaultsPage", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
     expect(screen.queryByText("How this vault works")).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute("href", "/earn/eth");
+    const classicLink = screen.getByRole("link", { name: "v1 manual" });
+    expect(classicLink).toHaveAttribute("href", "/earn/eth");
+    expect(classicLink.closest("nav")).toHaveAttribute("aria-label", "Vault navigation");
     expect(screen.getByRole("link", { name: "My Vaults" })).toHaveAttribute("href", "/vaults/my");
     expect(screen.getByRole("button", { name: "Smart wallet balances" })).toHaveTextContent("125.00 USDC");
   });
@@ -185,10 +187,9 @@ describe("VaultsPage", () => {
     expect(
       screen.queryByRole("heading", { name: "ETH Meta Wheel" }),
     ).not.toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /manual trading/i })).toHaveAttribute(
-      "href",
-      "/earn/btc",
-    );
+    const classicLink = screen.getByRole("link", { name: "v1 manual" });
+    expect(classicLink).toHaveAttribute("href", "/earn/btc");
+    expect(classicLink.closest("nav")).toHaveAttribute("aria-label", "Vault navigation");
   });
 
   it("does not invent a covered-call position in My Vaults", () => {
