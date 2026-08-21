@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { formatUnits, type Address } from "viem";
-import { publicClient, ADDRESSES, ERC20_ABI } from "@/lib/contracts";
+import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
 
 interface Balances {
   usdRaw: bigint;
@@ -48,6 +48,14 @@ type BalanceCacheEntry = {
 const balanceCache = new Map<string, BalanceCacheEntry>();
 const balanceRequests = new Map<string, Promise<Balances>>();
 
+const MULTICALL3_ABI = [{
+  type: "function",
+  name: "getEthBalance",
+  inputs: [{ name: "addr", type: "address" }],
+  outputs: [{ name: "balance", type: "uint256" }],
+  stateMutability: "view",
+}] as const;
+
 function normalizeAddresses(
   address: Address | Address[] | undefined,
 ): Address[] {
@@ -63,28 +71,19 @@ function balanceKey(addresses: Address[]): string {
 }
 
 async function fetchBalancesForAddresses(addresses: Address[]): Promise<Balances> {
+  const multicall3 = CHAIN.contracts?.multicall3?.address;
+  if (!multicall3) throw new Error("Base multicall3 address is unavailable");
+
   const balancesByAddress = await Promise.all(addresses.map(async (addr) => {
-    const [usdRaw, wethRaw, wbtcRaw, ethRaw] = await Promise.all([
-      publicClient.readContract({
-        address: ADDRESSES.usdc,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [addr],
-      }),
-      publicClient.readContract({
-        address: ADDRESSES.weth,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [addr],
-      }),
-      publicClient.readContract({
-        address: ADDRESSES.wbtc,
-        abi: ERC20_ABI,
-        functionName: "balanceOf",
-        args: [addr],
-      }),
-      publicClient.getBalance({ address: addr }),
-    ]);
+    const [usdRaw, wethRaw, wbtcRaw, ethRaw] = await publicClient.multicall({
+      contracts: [
+        { address: ADDRESSES.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [addr] },
+        { address: ADDRESSES.weth, abi: ERC20_ABI, functionName: "balanceOf", args: [addr] },
+        { address: ADDRESSES.wbtc, abi: ERC20_ABI, functionName: "balanceOf", args: [addr] },
+        { address: multicall3, abi: MULTICALL3_ABI, functionName: "getEthBalance", args: [addr] },
+      ],
+      allowFailure: false,
+    });
     return { usdRaw, wethRaw, wbtcRaw, ethRaw };
   }));
 
