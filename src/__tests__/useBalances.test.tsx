@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, renderHook } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const contractsMock = vi.hoisted(() => ({
@@ -16,36 +16,60 @@ const contractsMock = vi.hoisted(() => ({
 
 vi.mock("@/lib/contracts", () => contractsMock);
 
-describe("useBalances", () => {
-  afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.useRealTimers();
+  vi.restoreAllMocks();
+  vi.clearAllMocks();
+});
 
-  it("uses one multicall per address and retains cache, deduplication, and forced refresh", async () => {
+describe("useBalances", () => {
+  it("normalizes address sets, single-flights multicalls, never polls, and enforces cooldown", async () => {
+    vi.useFakeTimers({ now: new Date("2026-08-22T00:00:00Z") });
+    let hidden = false;
+    vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
     contractsMock.publicClient.multicall.mockResolvedValue([
-      BigInt(1_000_000), BigInt("2000000000000000000"), BigInt(3_000_000), BigInt("4000000000000000000"),
+      BigInt(1_000_000),
+      BigInt("2000000000000000000"),
+      BigInt(3_000_000),
+      BigInt("4000000000000000000"),
     ]);
     const { useBalances } = await import("@/hooks/useBalances");
-    const address = "0x0000000000000000000000000000000000000005" as const;
-    const first = renderHook(() => useBalances(address));
-    const second = renderHook(() => useBalances(address));
+    const a = "0x000000000000000000000000000000000000000A" as const;
+    const b = "0x000000000000000000000000000000000000000b" as const;
+    const first = renderHook(() => useBalances([b, a, b]));
+    const second = renderHook(() => useBalances([a.toLowerCase() as typeof a, b]));
 
-    await waitFor(() => {
-      expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(1);
-      expect(first.result.current.ethRaw).toBe(BigInt("4000000000000000000"));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
     });
-    expect(contractsMock.publicClient.multicall).toHaveBeenLastCalledWith({
-      allowFailure: false,
-      contracts: expect.arrayContaining([
-        expect.objectContaining({ address: contractsMock.ADDRESSES.usdc, functionName: "balanceOf", args: [address] }),
-        expect.objectContaining({ address: contractsMock.ADDRESSES.weth, functionName: "balanceOf", args: [address] }),
-        expect.objectContaining({ address: contractsMock.ADDRESSES.wbtc, functionName: "balanceOf", args: [address] }),
-        expect.objectContaining({ address: contractsMock.CHAIN.contracts.multicall3.address, functionName: "getEthBalance", args: [address] }),
-      ]),
-    });
-
-    await act(async () => { await first.result.current.refetch(); });
-    expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(1);
-    await act(async () => { await first.result.current.refetch(true); });
     expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(2);
+    expect(first.result.current.ethRaw).toBe(BigInt("8000000000000000000"));
+
+    await act(async () => vi.advanceTimersByTimeAsync(5 * 60_000));
+    expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(2);
+
+    act(() => window.dispatchEvent(new Event("focus")));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(4);
+
+    act(() => window.dispatchEvent(new Event("balance:refetch")));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    hidden = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => vi.advanceTimersByTimeAsync(5_000));
+    expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(4);
+    hidden = false;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(contractsMock.publicClient.multicall).toHaveBeenCalledTimes(6);
+
     first.unmount();
     second.unmount();
   });

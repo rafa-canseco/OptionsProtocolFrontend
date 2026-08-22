@@ -12,6 +12,7 @@ import type {
   FundApiStrategyKind,
   FundActions,
   FundConfigResponse,
+  FundFreshnessBounds,
   FundPositionResponse,
   FundSummaryResponse,
 } from "@/lib/api";
@@ -28,6 +29,7 @@ export const FUND_ADDRESS =
   process.env.NEXT_PUBLIC_CSP_FUND_ADDRESS || BASE_SEPOLIA_CSP_FUND.fundAddress;
 export const FUND_CHAIN_ID = BASE_SEPOLIA_CSP_FUND.chainId;
 export const FUND_MIN_SHARES_BPS = 9_950;
+export const FUND_WRITE_METADATA_MAX_AGE_MS = 45_000;
 
 const PROXY_ROLES = new Set<string>([
   "fund_vault",
@@ -199,6 +201,35 @@ export function sharesForAccountingAssets(
   return (rawAssets * shares) / accountingValue;
 }
 
+export function currentFundFreshness(
+  snapshot: Pick<FundSummaryResponse, "generation" | "asOfBlock" | "asOfBlockHash" | "publishedAt">,
+): FundFreshnessBounds {
+  assertFundSnapshotMetadata(snapshot, "Fund");
+  return {
+    minGeneration: snapshot.generation,
+    minBlock: snapshot.asOfBlock!,
+    minBlockHash: snapshot.asOfBlockHash!,
+  };
+}
+
+export function postTransactionFundFreshness(
+  preSendGeneration: number,
+  receipt: { blockNumber: bigint; blockHash: string },
+): FundFreshnessBounds {
+  const minBlock = Number(receipt.blockNumber);
+  if (
+    !Number.isSafeInteger(preSendGeneration) || preSendGeneration < 0 ||
+    !Number.isSafeInteger(minBlock) || minBlock < 0
+  ) {
+    throw new Error("Confirmed transaction freshness metadata is invalid.");
+  }
+  return {
+    minGeneration: preSendGeneration + 1,
+    minBlock,
+    minBlockHash: receipt.blockHash,
+  };
+}
+
 export function transactionHashFromResult(result: unknown): `0x${string}` {
   if (typeof result !== "string" || !/^0x[0-9a-fA-F]{64}$/.test(result)) {
     throw new Error("Smart wallet did not return a valid transaction hash.");
@@ -276,6 +307,32 @@ function trustedStrategyKind(
   return strategyKind === "csp" ? "cash_secured_put" : strategyKind;
 }
 
+function assertFundSnapshotMetadata(
+  snapshot: Pick<FundSummaryResponse, "generation" | "asOfBlock" | "asOfBlockHash" | "publishedAt">,
+  label: string,
+): void {
+  if (!Number.isSafeInteger(snapshot.generation) || snapshot.generation < 0) {
+    throw new Error(`${label} generation metadata is invalid.`);
+  }
+  if (!Number.isSafeInteger(snapshot.asOfBlock) || snapshot.asOfBlock! < 0) {
+    throw new Error(`${label} block metadata is invalid.`);
+  }
+  if (
+    typeof snapshot.asOfBlockHash !== "string" ||
+    !/^0x[0-9a-fA-F]{64}$/.test(snapshot.asOfBlockHash)
+  ) {
+    throw new Error(`${label} block hash metadata is invalid.`);
+  }
+  const publishedAt = Date.parse(snapshot.publishedAt);
+  const age = Date.now() - publishedAt;
+  if (!Number.isFinite(publishedAt) || age < 0) {
+    throw new Error(`${label} published_at metadata is invalid.`);
+  }
+  if (age > FUND_WRITE_METADATA_MAX_AGE_MS) {
+    throw new Error(`${label} metadata is locally expired.`);
+  }
+}
+
 export function assertFundWriteAllowed(
   summary: FundSummaryResponse | null,
   config: FundConfigResponse | null,
@@ -285,6 +342,8 @@ export function assertFundWriteAllowed(
   deployment: TrustedFundDeployment = BASE_SEPOLIA_CSP_FUND,
 ): FundActionAvailability {
   if (!summary || !config) throw new Error("Fund data is still loading.");
+  assertFundSnapshotMetadata(summary, "Fund");
+  if (position) assertFundSnapshotMetadata(position, "Fund position");
   const trustError = fundTrustError(
     summary,
     config,

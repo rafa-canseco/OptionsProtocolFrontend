@@ -4,8 +4,10 @@ import { useEffect, useState } from "react";
 import { ChevronDown, X } from "lucide-react";
 import type { Address } from "viem";
 import { useWallet } from "@/hooks/useWallet";
+import type { FundVaultSnapshot } from "@/hooks/useFundVault";
 import type {
   FundConfigResponse,
+  FundFreshnessBounds,
   FundPositionResponse,
   FundSummaryResponse,
   MetaWheelTrancheSummary,
@@ -15,8 +17,10 @@ import {
   assertFundWriteAllowed,
   buildFundActionCall,
   buildFundDepositCalls,
+  currentFundFreshness,
   fundAction,
   parseFundAmount,
+  postTransactionFundFreshness,
   rawFundAmount,
   sharesForAccountingAssets,
   sharesForDeposit,
@@ -44,7 +48,7 @@ import { useAppPreferences } from "@/lib/preferences";
 import { invalidateData } from "@/lib/dataInvalidation";
 
 type DialogAction = "deposit" | "redeem";
-type TxStatus = "idle" | "submitting" | "confirmed";
+type TxStatus = "idle" | "submitting" | "syncing" | "stale" | "confirmed";
 
 const amount = new Intl.NumberFormat("en-US", { maximumFractionDigits: 6 });
 const currency = new Intl.NumberFormat("en-US", {
@@ -85,7 +89,7 @@ type VaultDialogProps = {
   smartAssetRaw?: bigint;
   /** @deprecated Use smartAssetRaw. */
   smartUsdcRaw?: bigint;
-  onRefetch: () => Promise<void>;
+  onRefetch: (freshness?: FundFreshnessBounds) => Promise<FundVaultSnapshot | void>;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 };
@@ -107,6 +111,19 @@ export function VaultDialog(props: VaultDialogProps) {
     deployment: props.deployment ?? BASE_SEPOLIA_CSP_FUND,
     smartAssetRaw: props.smartAssetRaw ?? props.smartUsdcRaw ?? BigInt(0),
   };
+  const [action, setAction] = useState<DialogAction>("deposit");
+  const [value, setValue] = useState("");
+  const transaction = useFundTransaction(resolved, action, value, setValue);
+  const transactionLocked = isTransactionLocked(transaction.status);
+
+  useEffect(() => {
+    if (!props.open && !transactionLocked) {
+      setAction("deposit");
+      setValue("");
+      transaction.reset();
+    }
+  }, [props.open, transactionLocked]); // eslint-disable-line react-hooks/exhaustive-deps
+
   return (
     <Dialog open={props.open} onOpenChange={props.onOpenChange}>
       <DialogContent
@@ -134,7 +151,14 @@ export function VaultDialog(props: VaultDialogProps) {
             summary={props.summary}
             position={props.position}
           />
-          <FundActionPanel {...resolved} />
+          <FundActionPanel
+            {...resolved}
+            action={action}
+            setAction={setAction}
+            value={value}
+            setValue={setValue}
+            transaction={transaction}
+          />
         </div>
         <StrategyExplanation vault={resolved.vault} config={props.config} />
       </DialogContent>
@@ -678,12 +702,24 @@ function MetaWheelTranches({
   );
 }
 
-function FundActionPanel(props: ResolvedVaultDialogProps) {
+type FundActionPanelProps = ResolvedVaultDialogProps & {
+  action: DialogAction;
+  setAction: (action: DialogAction) => void;
+  value: string;
+  setValue: (value: string) => void;
+  transaction: ReturnType<typeof useFundTransaction>;
+};
+
+function FundActionPanel({
+  action,
+  setAction,
+  value,
+  setValue,
+  transaction,
+  ...props
+}: FundActionPanelProps) {
   const { locale } = useAppPreferences();
   const t = (en: string, es: string) => locale === "es" ? es : en;
-  const [action, setAction] = useState<DialogAction>("deposit");
-  const [value, setValue] = useState("");
-  const transaction = useFundTransaction(props, action, value, setValue);
   const plan = exitPlan(
     props.position,
     props.vault.accountingAssetSymbol,
@@ -707,27 +743,20 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
     action === "deposit" && props.summary && rawInput > BigInt(0)
       ? sharesForDeposit(rawInput, props.summary)
       : BigInt(0);
+  const transactionLocked = isTransactionLocked(transaction.status);
   const disabled = Boolean(
     props.loadError ||
     props.summary?.stale ||
     props.position?.stale ||
     !props.config?.writesEnabled ||
     !availability.available ||
-    transaction.status === "submitting" ||
+    transactionLocked ||
     (needsAmount && (rawInput <= BigInt(0) || rawInput > availableRaw)),
   );
 
-  useEffect(() => {
-    if (!props.open) {
-      setAction("deposit");
-      setValue("");
-      transaction.reset();
-    }
-  }, [props.open]); // eslint-disable-line react-hooks/exhaustive-deps
-
   return (
     <section className="p-6 sm:p-8 lg:p-10">
-      <ActionTabs action={action} onChange={(next) => { setAction(next); setValue(""); transaction.reset(); }} />
+      <ActionTabs action={action} disabled={transactionLocked} onChange={(next) => { setAction(next); setValue(""); transaction.reset(); }} />
       <div className="mt-8 flex items-center justify-between text-sm">
         <span className="text-[var(--vault-text-muted)]">{action === "deposit" ? t("Smart wallet", "Wallet inteligente") : t("Available value", "Valor disponible")}</span>
         <button type="button" onClick={() => setValue(formatInput(availableRaw, decimals))} disabled={!needsAmount} className="min-h-11 font-mono text-[var(--vault-accent)] disabled:opacity-40">
@@ -753,6 +782,8 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
       <button type="button" disabled={disabled} onClick={() => void transaction.submit(plan.key)} className="mt-6 min-h-14 w-full rounded-2xl border border-[var(--vault-accent)] text-base font-semibold text-[var(--vault-accent)] hover:bg-[var(--vault-accent-dim)] disabled:cursor-not-allowed disabled:border-[var(--vault-border)] disabled:text-[var(--vault-text-subtle)]">
         {transaction.status === "submitting"
           ? t("Confirming...", "Confirmando...")
+          : transaction.status === "syncing"
+            ? t("Updating fund...", "Actualizando fondo...")
           : action === "deposit"
             ? `${t("Deposit", "Depositar")} ${props.vault.accountingAssetSymbol}`
             : planLabel}
@@ -763,7 +794,7 @@ function FundActionPanel(props: ResolvedVaultDialogProps) {
 }
 
 function useFundTransaction(
-  props: Parameters<typeof FundActionPanel>[0],
+  props: ResolvedVaultDialogProps,
   action: DialogAction,
   value: string,
   clearValue: (value: string) => void,
@@ -772,40 +803,79 @@ function useFundTransaction(
   const [status, setStatus] = useState<TxStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [hash, setHash] = useState<string | null>(null);
+  const [reconciliation, setReconciliation] = useState<FundFreshnessBounds | null>(null);
 
   async function submit(exitAction: Exclude<FundActionKey, "deposit">) {
     if (!address) return setError("Smart wallet not ready.");
     setStatus("submitting");
     setError(null);
+    let transactionConfirmed = false;
     try {
-      const summary = props.summary;
-      const position = props.position;
       const key = action === "deposit" ? "deposit" : exitAction;
       assertFundWriteAllowed(
-        summary,
+        props.summary,
         props.config,
+        props.position,
+        key,
+        address as Address,
+        props.deployment,
+      );
+      const refreshed = await props.onRefetch(currentFundFreshness(props.summary!));
+      if (!refreshed) throw new Error("Backend write snapshot refresh failed.");
+      const { summary, position, config } = refreshed;
+      assertFundWriteAllowed(
+        summary,
+        config,
         position,
         key,
         address as Address,
         props.deployment,
       );
+      const preSendGeneration = summary.generation;
       const calls = action === "deposit"
         ? await depositCalls(
-            summary!,
+            summary,
             address as Address,
             value,
             props.smartAssetRaw,
           )
-        : [exitCall(summary!, position!, exitAction, address as Address, value)];
-      const confirmedHash = await sendAndWait(sendBatchTx(calls));
-      setHash(confirmedHash);
-      setStatus("confirmed");
+        : [exitCall(summary, position!, exitAction, address as Address, value)];
+      assertFundWriteAllowed(
+        summary,
+        config,
+        position,
+        key,
+        address as Address,
+        props.deployment,
+      );
+      const receipt = await sendAndWait(sendBatchTx(calls));
+      transactionConfirmed = true;
+      const freshness = postTransactionFundFreshness(preSendGeneration, receipt);
+      setHash(receipt.hash);
+      setReconciliation(freshness);
+      setStatus("syncing");
       clearValue("");
-      invalidateData(["balances", "vault"], "vault-transaction-confirmed");
-      await props.onRefetch();
+      invalidateData(["balances"], "vault-transaction-confirmed");
+      const reconciled = await props.onRefetch(freshness);
+      if (!reconciled) throw new Error("Transaction confirmed. Fund update is still pending.");
+      setStatus("confirmed");
     } catch (cause) {
-      setStatus("idle");
+      setStatus(transactionConfirmed ? "stale" : "idle");
       setError(cause instanceof Error ? cause.message : "Fund transaction failed.");
+    }
+  }
+
+  async function retryReconciliation() {
+    if (status !== "stale" || !reconciliation) return;
+    setStatus("syncing");
+    setError(null);
+    try {
+      const reconciled = await props.onRefetch(reconciliation);
+      if (!reconciled) throw new Error("Transaction confirmed. Fund update is still pending.");
+      setStatus("confirmed");
+    } catch (cause) {
+      setStatus("stale");
+      setError(cause instanceof Error ? cause.message : "Fund update is still pending.");
     }
   }
 
@@ -813,8 +883,9 @@ function useFundTransaction(
     setStatus("idle");
     setError(null);
     setHash(null);
+    setReconciliation(null);
   }
-  return { status, error, hash, submit, reset };
+  return { status, error, hash, submit, retryReconciliation, reset };
 }
 
 async function depositCalls(
@@ -856,11 +927,11 @@ function exitCall(
   return buildFundActionCall({ summary, position, actionKey: action, controller, shares });
 }
 
-async function sendAndWait(result: Promise<unknown>): Promise<string> {
+async function sendAndWait(result: Promise<unknown>) {
   const hash = transactionHashFromResult(await result);
   const receipt = await publicClient.waitForTransactionReceipt({ hash });
   if (receipt.status !== "success") throw new Error("Fund transaction reverted.");
-  return hash;
+  return { hash, blockNumber: receipt.blockNumber, blockHash: receipt.blockHash };
 }
 
 function exitPlan(
@@ -884,12 +955,16 @@ function exitPlan(
   return { key: "requestRedemption", label: "Request redemption", description: "Request an accounting-asset exit." };
 }
 
-function ActionTabs({ action, onChange }: { action: DialogAction; onChange: (action: DialogAction) => void }) {
+function isTransactionLocked(status: TxStatus): boolean {
+  return (["submitting", "syncing", "stale"] as TxStatus[]).includes(status);
+}
+
+function ActionTabs({ action, disabled, onChange }: { action: DialogAction; disabled: boolean; onChange: (action: DialogAction) => void }) {
   const { locale } = useAppPreferences();
   return (
     <div role="tablist" aria-label={locale === "es" ? "Acción" : "Fund action"} className="inline-grid grid-cols-2 rounded-2xl bg-[var(--vault-surface-soft)] p-1">
       {(["deposit", "redeem"] as const).map((item) => (
-        <button key={item} type="button" role="tab" aria-selected={action === item} onClick={() => onChange(item)} className={`min-h-11 rounded-xl px-6 text-sm font-medium capitalize ${action === item ? "bg-[var(--vault-selected)]" : "text-[var(--vault-text-muted)]"}`}>{locale === "es" ? (item === "redeem" ? "Retirar" : "Depositar") : (item === "redeem" ? "Exit" : "Deposit")}</button>
+        <button key={item} type="button" role="tab" aria-selected={action === item} disabled={disabled} onClick={() => onChange(item)} className={`min-h-11 rounded-xl px-6 text-sm font-medium capitalize disabled:cursor-not-allowed disabled:opacity-50 ${action === item ? "bg-[var(--vault-selected)]" : "text-[var(--vault-text-muted)]"}`}>{locale === "es" ? (item === "redeem" ? "Retirar" : "Depositar") : (item === "redeem" ? "Exit" : "Deposit")}</button>
       ))}
     </div>
   );
@@ -904,6 +979,19 @@ function ActionStatus({ loadError, availability, transaction }: {
   const message = transaction.error ?? loadError ?? (!availability.available ? availability.reasonCode : null);
   if (transaction.status === "confirmed") {
     return <p className="mt-3 break-all font-mono text-xs text-[var(--vault-accent)]">{locale === "es" ? "Confirmado" : "Confirmed"}: {transaction.hash}</p>;
+  }
+  if (transaction.status === "syncing") {
+    return <p className="mt-3 text-xs text-[var(--vault-text-subtle)]">{locale === "es" ? "Transacción confirmada. Esperando al Backend…" : "Transaction confirmed. Waiting for Backend…"}</p>;
+  }
+  if (transaction.status === "stale") {
+    return (
+      <div className="mt-3 text-xs text-[var(--vault-text-subtle)]">
+        {message ? <p className="leading-5">{locale === "es" ? translateVaultMessage(actionMessage(message)) : actionMessage(message)}</p> : null}
+        <button type="button" onClick={() => void transaction.retryReconciliation()} className="mt-3 min-h-11 rounded-xl border border-[var(--vault-border-strong)] px-4 font-medium text-[var(--vault-accent)]">
+          {locale === "es" ? "Comprobar estado de nuevo" : "Check status again"}
+        </button>
+      </div>
+    );
   }
   return message ? (
     <p className="mt-3 text-xs leading-5 text-[var(--vault-text-subtle)]">
