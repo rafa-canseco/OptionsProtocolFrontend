@@ -667,7 +667,27 @@ export interface FundActions {
   claimRedemption: FundActionAvailability;
 }
 
-export interface FundSummaryResponse {
+export interface FundSnapshotMetadata {
+  generation: number;
+  asOfBlock: number | null;
+  asOfBlockHash: string | null;
+  publishedAt: string;
+  stale: boolean;
+  /** Backend wire names retained alongside normalized frontend names. */
+  as_of_block?: number | null;
+  as_of_block_hash?: string | null;
+  published_at?: string;
+}
+
+function normalizeFundMetadata<T extends object>(value: T): T & FundSnapshotMetadata {
+  const metadata = value as T & Partial<FundSnapshotMetadata>;
+  const asOfBlock = metadata.asOfBlock ?? metadata.as_of_block ?? null;
+  const asOfBlockHash = metadata.asOfBlockHash ?? metadata.as_of_block_hash ?? null;
+  const publishedAt = metadata.publishedAt ?? metadata.published_at ?? "";
+  return Object.assign(value, { asOfBlock, asOfBlockHash, publishedAt }) as T & FundSnapshotMetadata;
+}
+
+export interface FundSummaryResponse extends FundSnapshotMetadata {
   fund: FundRegistryItem;
   netAssets: string;
   shareSupply: string;
@@ -686,10 +706,7 @@ export interface FundSummaryResponse {
   wheel?: MetaWheelSnapshot | null;
   status: FundStatus;
   actions: FundActions;
-  asOfBlock: number | null;
-  asOfBlockHash: string | null;
   indexedAt: string | null;
-  stale: boolean;
 }
 
 export interface FundRedemptionView {
@@ -703,16 +720,14 @@ export interface FundRedemptionView {
   latestBatchUnwindCommitted: boolean;
 }
 
-export interface FundPositionResponse {
+export interface FundPositionResponse extends FundSnapshotMetadata {
   fundKey: string;
   address: string;
   shares: string;
   accountingValue: string;
   redemption: FundRedemptionView;
   actions: FundActions;
-  asOfBlock: number | null;
   indexedAt: string | null;
-  stale: boolean;
 }
 
 export interface FundTrustedContract {
@@ -734,7 +749,23 @@ export interface FundFeePolicy {
   reportedPremiumBasis: "net_of_premium_fee";
 }
 
-export interface FundConfigResponse {
+export type FundFreshnessBounds = {
+  minGeneration: number;
+  minBlock: number;
+  minBlockHash: string;
+};
+
+function fundFreshnessQuery(freshness?: FundFreshnessBounds): string {
+  if (!freshness) return "";
+  const params = new URLSearchParams({
+    min_generation: String(freshness.minGeneration),
+    min_block: String(freshness.minBlock),
+    min_block_hash: freshness.minBlockHash,
+  });
+  return `?${params}`;
+}
+
+export interface FundConfigResponse extends Partial<FundSnapshotMetadata> {
   fundKey: string;
   deploymentStatus: string;
   contracts: FundTrustedContract[];
@@ -831,13 +862,26 @@ export const api = {
       `/positions/${encodeURIComponent(address)}${positionPortfolioQuery(request, "?")}`,
     ),
 
-  getFund: (fundKey: string) =>
-    fetchAPI<FundSummaryResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}`),
+  getFund: (
+    fundKey: string,
+    freshness?: FundFreshnessBounds,
+    signal?: AbortSignal,
+  ) =>
+    fetchAPI<FundSummaryResponse>(
+      `/v2/vaults/${encodeURIComponent(fundKey)}${fundFreshnessQuery(freshness)}`,
+      freshness ? { cache: "no-store", signal } : undefined,
+    ).then(normalizeFundMetadata),
 
-  getFundPosition: (fundKey: string, address: string) =>
+  getFundPosition: (
+    fundKey: string,
+    address: string,
+    freshness?: FundFreshnessBounds,
+    signal?: AbortSignal,
+  ) =>
     fetchAPI<FundPositionResponse>(
-      `/v2/vaults/${encodeURIComponent(fundKey)}/positions/${encodeURIComponent(address)}`,
-    ),
+      `/v2/vaults/${encodeURIComponent(fundKey)}/positions/${encodeURIComponent(address)}${fundFreshnessQuery(freshness)}`,
+      freshness ? { cache: "no-store", signal } : undefined,
+    ).then(normalizeFundMetadata),
 
   getFundConfig: (fundKey: string) =>
     fetchAPI<FundConfigResponse>(`/v2/vaults/${encodeURIComponent(fundKey)}/config`),

@@ -38,7 +38,6 @@ const ZERO: Balances = {
 };
 
 const BALANCE_CACHE_TTL_MS = 10_000;
-const BALANCE_REFETCH_DELAY_MS = 4_000;
 
 type BalanceCacheEntry = {
   value: Balances;
@@ -47,6 +46,7 @@ type BalanceCacheEntry = {
 
 const balanceCache = new Map<string, BalanceCacheEntry>();
 const balanceRequests = new Map<string, Promise<Balances>>();
+const balanceAttemptedAt = new Map<string, number>();
 
 const MULTICALL3_ABI = [{
   type: "function",
@@ -132,20 +132,17 @@ async function fetchBalancesForAddresses(addresses: Address[]): Promise<Balances
 async function getCachedBalances(
   key: string,
   addresses: Address[],
-  force = false,
 ): Promise<Balances> {
   const cached = balanceCache.get(key);
-  if (
-    !force &&
-    cached &&
-    Date.now() - cached.updatedAt < BALANCE_CACHE_TTL_MS
-  ) {
-    return cached.value;
-  }
-
   const existing = balanceRequests.get(key);
   if (existing) return existing;
+  const lastAttempt = balanceAttemptedAt.get(key) ?? 0;
+  if (Date.now() - lastAttempt < BALANCE_CACHE_TTL_MS) {
+    if (cached) return cached.value;
+    throw new Error("Balance refresh is cooling down.");
+  }
 
+  balanceAttemptedAt.set(key, Date.now());
   const request = fetchBalancesForAddresses(addresses)
     .then((value) => {
       balanceCache.set(key, { value, updatedAt: Date.now() });
@@ -160,7 +157,6 @@ async function getCachedBalances(
 
 export function useBalances(
   address: Address | Address[] | undefined,
-  pollInterval = 60_000,
 ) {
   const key = useMemo(() => balanceKey(normalizeAddresses(address)), [address]);
   const addresses = useMemo(
@@ -171,8 +167,9 @@ export function useBalances(
   const [loading, setLoading] = useState(true);
   const requestIdRef = useRef(0);
   const refetchTimerRef = useRef<number | null>(null);
+  const pendingRefreshRef = useRef(false);
 
-  const refetch = useCallback(async (force = false) => {
+  const refetch = useCallback(async () => {
     const requestId = requestIdRef.current + 1;
     requestIdRef.current = requestId;
 
@@ -182,7 +179,7 @@ export function useBalances(
       return;
     }
     try {
-      const nextBalances = await getCachedBalances(key, addresses, force);
+      const nextBalances = await getCachedBalances(key, addresses);
       if (requestId !== requestIdRef.current) return;
       setBalances(nextBalances);
     } catch (err) {
@@ -194,40 +191,45 @@ export function useBalances(
   }, [addresses, key]);
 
   useEffect(() => {
-    refetch();
-    if (addresses.length === 0) return;
-    const id = setInterval(() => {
-      if (document.hidden) return;
-      void refetch();
-    }, pollInterval);
-    return () => clearInterval(id);
-  }, [addresses.length, refetch, pollInterval]);
+    void refetch();
+  }, [refetch]);
 
-  // Listen for balance:refetch events from other components
   useEffect(() => {
-    const handler = () => {
-      if (document.hidden) return;
-      void refetch(true);
-      if (refetchTimerRef.current) {
-        window.clearTimeout(refetchTimerRef.current);
+    const refreshWhenAllowed = () => {
+      pendingRefreshRef.current = true;
+      if (document.hidden || !key) return;
+      const remaining = BALANCE_CACHE_TTL_MS -
+        (Date.now() - (balanceAttemptedAt.get(key) ?? 0));
+      if (remaining <= 0) {
+        pendingRefreshRef.current = false;
+        void refetch();
+        return;
       }
+      if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current);
       refetchTimerRef.current = window.setTimeout(() => {
-        void refetch(true);
-      }, BALANCE_REFETCH_DELAY_MS);
+        if (document.hidden) return;
+        pendingRefreshRef.current = false;
+        void refetch();
+      }, remaining);
     };
-    window.addEventListener("balance:refetch", handler);
-    const visibilityHandler = () => {
+    const focusHandler = () => {
       if (!document.hidden) void refetch();
     };
+    const visibilityHandler = () => {
+      if (document.hidden) return;
+      if (pendingRefreshRef.current) refreshWhenAllowed();
+      else void refetch();
+    };
+    window.addEventListener("balance:refetch", refreshWhenAllowed);
+    window.addEventListener("focus", focusHandler);
     document.addEventListener("visibilitychange", visibilityHandler);
     return () => {
-      window.removeEventListener("balance:refetch", handler);
+      window.removeEventListener("balance:refetch", refreshWhenAllowed);
+      window.removeEventListener("focus", focusHandler);
       document.removeEventListener("visibilitychange", visibilityHandler);
-      if (refetchTimerRef.current) {
-        window.clearTimeout(refetchTimerRef.current);
-      }
+      if (refetchTimerRef.current) window.clearTimeout(refetchTimerRef.current);
     };
-  }, [refetch]);
+  }, [key, refetch]);
 
   return { ...balances, loading, refetch };
 }

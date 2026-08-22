@@ -1,6 +1,6 @@
-import { render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { VaultsPage } from "@/components/vaults/VaultsPage";
 import { VaultDialog } from "@/components/vaults/VaultDialog";
 import { VaultCard } from "@/components/vaults/VaultCard";
@@ -9,12 +9,15 @@ import type {
   FundPositionResponse,
   FundSummaryResponse,
 } from "@/lib/api";
+import { BASE_SEPOLIA_CSP_FUND } from "@/lib/fundDeployment";
 import {
   COVERED_CALL_VAULT_CARD,
   EMPTY_VAULT_POSITION,
   META_WHEEL_VAULT_CARD,
   VAULT_STATE_COPY,
 } from "@/lib/vaults";
+
+afterEach(() => vi.useRealTimers());
 
 vi.mock("@/components/ConnectButton", () => ({
   ConnectButton: () => <button type="button">Connect</button>,
@@ -28,16 +31,29 @@ vi.mock("@/lib/preferences", () => ({
   useAppPreferences: () => ({ locale: "en", theme: "light" }),
 }));
 
+const transactionMocks = vi.hoisted(() => ({
+  readContract: vi.fn(),
+  waitForTransactionReceipt: vi.fn(),
+  sendBatchTx: vi.fn(),
+}));
+
 vi.mock("@/lib/contracts", () => ({
   CHAIN: { id: 84532 },
+  ADDRESSES: {
+    usdc: "0xAB51a471493832C1D70cef8ff937A850cf37c860",
+    weth: "0x8A6Aa2304797898d46eC1d342Fedc817D3a973B6",
+  },
   ERC20_ABI: [],
-  publicClient: { readContract: vi.fn(), waitForTransactionReceipt: vi.fn() },
+  publicClient: {
+    readContract: transactionMocks.readContract,
+    waitForTransactionReceipt: transactionMocks.waitForTransactionReceipt,
+  },
 }));
 
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: () => ({
     address: "0x4000000000000000000000000000000000000004",
-    sendBatchTx: vi.fn(),
+    sendBatchTx: transactionMocks.sendBatchTx,
   }),
 }));
 
@@ -88,6 +104,20 @@ const FEE_CONFIG = {
   writesEnabled: true,
   blockedReasonCode: null,
 } satisfies FundConfigResponse;
+
+function trustedFeeConfig(): FundConfigResponse {
+  return {
+    ...FEE_CONFIG,
+    contracts: Object.entries(BASE_SEPOLIA_CSP_FUND.contracts).map(
+      ([role, binding]) => ({
+        role,
+        address: binding.address,
+        implementationAddress: binding.implementation,
+        interfaceVersion: 1,
+      }),
+    ),
+  };
+}
 
 describe("VaultsPage", () => {
   it("renders a minimal vault-first catalog and preserves manual trading", () => {
@@ -349,6 +379,302 @@ describe("VaultsPage", () => {
     expect(preview).toHaveTextContent("current NAV price of $0.97");
     expect(preview).not.toHaveTextContent("$0.20");
     expect(preview).not.toHaveTextContent(/stress/i);
+  });
+
+  it("preserves the submitting lock across close and reopen", async () => {
+    const user = userEvent.setup();
+    let rejectRefresh!: (reason: Error) => void;
+    const preSubmitRefresh = new Promise<void>((_resolve, reject) => {
+      rejectRefresh = reject;
+    });
+    transactionMocks.readContract.mockReset();
+    transactionMocks.sendBatchTx.mockReset();
+    transactionMocks.waitForTransactionReceipt.mockReset();
+    const summary = fairSummary();
+    summary.fund.fundAddress = BASE_SEPOLIA_CSP_FUND.fundAddress;
+    summary.fund.shareToken.address = BASE_SEPOLIA_CSP_FUND.shareAddress;
+    summary.publishedAt = new Date().toISOString();
+    const position = emptyPosition({ publishedAt: summary.publishedAt });
+    const dialog = (open: boolean) => (
+      <VaultDialog
+        summary={summary}
+        position={position}
+        config={trustedFeeConfig()}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={vi.fn(() => preSubmitRefresh)}
+        open={open}
+        onOpenChange={vi.fn()}
+      />
+    );
+    const { rerender } = render(dialog(true));
+
+    await user.type(screen.getByRole("textbox", { name: "USDC amount" }), "1");
+    await user.click(screen.getByRole("button", { name: "Deposit USDC" }));
+    await screen.findByRole("button", { name: "Confirming..." });
+    rerender(dialog(false));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    rerender(dialog(true));
+    expect(await screen.findByRole("button", { name: "Confirming..." })).toBeDisabled();
+    expect(screen.getByRole("tab", { name: "Deposit" })).toBeDisabled();
+    expect(transactionMocks.sendBatchTx).not.toHaveBeenCalled();
+
+    await act(async () => rejectRefresh(new Error("Backend unavailable")));
+    await screen.findByText(/backend unavailable/i);
+  });
+
+  it("uses a bounded refreshed generation and keeps tabs locked while syncing or stale", async () => {
+    const user = userEvent.setup();
+    const hash = `0x${"a".repeat(64)}`;
+    const blockHash = `0x${"b".repeat(64)}`;
+    let rejectRefetch!: (reason: Error) => void;
+    const postRefetch = new Promise<void>((_resolve, reject) => {
+      rejectRefetch = reject;
+    });
+    transactionMocks.readContract.mockReset().mockResolvedValue(BigInt(500_000000));
+    transactionMocks.sendBatchTx.mockReset().mockResolvedValue(hash);
+    transactionMocks.waitForTransactionReceipt.mockReset().mockResolvedValue({
+      status: "success",
+      blockNumber: BigInt(111),
+      blockHash,
+    });
+    const summary = fairSummary();
+    summary.fund.fundAddress = BASE_SEPOLIA_CSP_FUND.fundAddress;
+    summary.fund.shareToken.address = BASE_SEPOLIA_CSP_FUND.shareAddress;
+    summary.publishedAt = new Date().toISOString();
+    const position = emptyPosition({ publishedAt: summary.publishedAt });
+    const config = trustedFeeConfig();
+    const onRefetch = vi.fn()
+      .mockResolvedValueOnce({
+        summary: { ...summary, generation: 5 },
+        position: { ...position, generation: 5 },
+        config,
+      })
+      .mockImplementationOnce(() => postRefetch)
+      .mockResolvedValueOnce({
+        summary: {
+          ...summary,
+          generation: 6,
+          asOfBlock: 111,
+          asOfBlockHash: blockHash,
+        },
+        position: {
+          ...position,
+          generation: 6,
+          asOfBlock: 111,
+          asOfBlockHash: blockHash,
+        },
+        config,
+      });
+
+    const dialog = (open: boolean) => (
+      <VaultDialog
+        summary={summary}
+        position={position}
+        config={config}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={onRefetch}
+        open={open}
+        onOpenChange={vi.fn()}
+      />
+    );
+    const { rerender } = render(dialog(true));
+
+    await user.type(screen.getByRole("textbox", { name: "USDC amount" }), "1");
+    await user.click(screen.getByRole("button", { name: "Deposit USDC" }));
+    await waitFor(() => expect(transactionMocks.sendBatchTx).toHaveBeenCalledTimes(1));
+    expect(onRefetch).toHaveBeenNthCalledWith(1, {
+      minGeneration: 4,
+      minBlock: 110,
+      minBlockHash: `0x${"1".repeat(64)}`,
+    });
+    expect(onRefetch).toHaveBeenNthCalledWith(2, {
+      minGeneration: 6,
+      minBlock: 111,
+      minBlockHash: blockHash,
+    });
+    await screen.findByRole("button", { name: "Updating fund..." });
+    rerender(dialog(false));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    rerender(dialog(true));
+    await screen.findByRole("button", { name: "Updating fund..." });
+    let depositTab = screen.getByRole("tab", { name: "Deposit" });
+    let exitTab = screen.getByRole("tab", { name: "Exit" });
+    expect(depositTab).toBeDisabled();
+    expect(exitTab).toBeDisabled();
+    await user.click(exitTab);
+    expect(depositTab).toHaveAttribute("aria-selected", "true");
+
+    await act(async () => rejectRefetch(new Error("Transaction confirmed. Fund update is still pending.")));
+    await waitFor(() => expect(screen.getByText(/still pending/i)).toBeInTheDocument());
+    rerender(dialog(false));
+    rerender(dialog(true));
+    await screen.findByText(/still pending/i);
+    depositTab = screen.getByRole("tab", { name: "Deposit" });
+    exitTab = screen.getByRole("tab", { name: "Exit" });
+    expect(depositTab).toBeDisabled();
+    expect(exitTab).toBeDisabled();
+    expect(depositTab).toHaveAttribute("aria-selected", "true");
+    expect(transactionMocks.sendBatchTx).toHaveBeenCalledTimes(1);
+
+    await user.click(screen.getByRole("button", { name: "Check status again" }));
+    await screen.findByText(new RegExp(`Confirmed: ${hash}`, "i"));
+    expect(onRefetch).toHaveBeenNthCalledWith(3, {
+      minGeneration: 6,
+      minBlock: 111,
+      minBlockHash: blockHash,
+    });
+    expect(transactionMocks.sendBatchTx).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("tab", { name: "Deposit" })).toBeEnabled();
+    expect(screen.getByRole("tab", { name: "Exit" })).toBeEnabled();
+  });
+
+  it("keeps stale state after a repeated manual reconciliation timeout", async () => {
+    const user = userEvent.setup();
+    const hash = `0x${"c".repeat(64)}`;
+    const blockHash = `0x${"d".repeat(64)}`;
+    transactionMocks.readContract.mockReset().mockResolvedValue(BigInt(500_000000));
+    transactionMocks.sendBatchTx.mockReset().mockResolvedValue(hash);
+    transactionMocks.waitForTransactionReceipt.mockReset().mockResolvedValue({
+      status: "success",
+      blockNumber: BigInt(112),
+      blockHash,
+    });
+    const summary = fairSummary();
+    summary.fund.fundAddress = BASE_SEPOLIA_CSP_FUND.fundAddress;
+    summary.fund.shareToken.address = BASE_SEPOLIA_CSP_FUND.shareAddress;
+    summary.publishedAt = new Date().toISOString();
+    const position = emptyPosition({ publishedAt: summary.publishedAt });
+    const config = trustedFeeConfig();
+    const timeout = new Error("Transaction confirmed. Fund update is still pending.");
+    const onRefetch = vi.fn()
+      .mockResolvedValueOnce({
+        summary: { ...summary, generation: 5 },
+        position: { ...position, generation: 5 },
+        config,
+      })
+      .mockRejectedValueOnce(timeout)
+      .mockRejectedValueOnce(timeout);
+
+    render(
+      <VaultDialog
+        summary={summary}
+        position={position}
+        config={config}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={onRefetch}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    await user.type(screen.getByRole("textbox", { name: "USDC amount" }), "1");
+    await user.click(screen.getByRole("button", { name: "Deposit USDC" }));
+    await screen.findByRole("button", { name: "Check status again" });
+    await user.click(screen.getByRole("button", { name: "Check status again" }));
+    await screen.findByRole("button", { name: "Check status again" });
+    expect(onRefetch).toHaveBeenNthCalledWith(2, {
+      minGeneration: 6,
+      minBlock: 112,
+      minBlockHash: blockHash,
+    });
+    expect(onRefetch).toHaveBeenNthCalledWith(3, {
+      minGeneration: 6,
+      minBlock: 112,
+      minBlockHash: blockHash,
+    });
+    expect(transactionMocks.sendBatchTx).toHaveBeenCalledTimes(1);
+    await act(async () => { await Promise.resolve(); });
+    expect(onRefetch).toHaveBeenCalledTimes(3);
+    expect(transactionMocks.sendBatchTx).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("tab", { name: "Deposit" })).toBeDisabled();
+  });
+
+  it("fails closed when the bounded pre-submit Backend refresh fails", async () => {
+    const user = userEvent.setup();
+    transactionMocks.readContract.mockReset();
+    transactionMocks.sendBatchTx.mockReset();
+    transactionMocks.waitForTransactionReceipt.mockReset();
+    const summary = fairSummary();
+    summary.fund.fundAddress = BASE_SEPOLIA_CSP_FUND.fundAddress;
+    summary.fund.shareToken.address = BASE_SEPOLIA_CSP_FUND.shareAddress;
+    summary.publishedAt = new Date().toISOString();
+    const position = emptyPosition({ publishedAt: summary.publishedAt });
+    const onRefetch = vi.fn().mockRejectedValue(new Error("Backend unavailable"));
+
+    render(
+      <VaultDialog
+        summary={summary}
+        position={position}
+        config={trustedFeeConfig()}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={onRefetch}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+
+    await user.type(screen.getByRole("textbox", { name: "USDC amount" }), "1");
+    await user.click(screen.getByRole("button", { name: "Deposit USDC" }));
+    await screen.findByText(/backend unavailable/i);
+    expect(onRefetch).toHaveBeenCalledWith({
+      minGeneration: 4,
+      minBlock: 110,
+      minBlockHash: `0x${"1".repeat(64)}`,
+    });
+    expect(transactionMocks.readContract).not.toHaveBeenCalled();
+    expect(transactionMocks.sendBatchTx).not.toHaveBeenCalled();
+  });
+
+  it("rechecks the 45-second gate after asynchronous allowance preparation", async () => {
+    const now = new Date("2026-08-22T00:00:00Z");
+    vi.useFakeTimers({ now });
+    const hash = `0x${"a".repeat(64)}`;
+    transactionMocks.sendBatchTx.mockReset().mockResolvedValue(hash);
+    transactionMocks.waitForTransactionReceipt.mockReset();
+    transactionMocks.readContract.mockReset().mockImplementation(async () => {
+      vi.setSystemTime(now.getTime() + 45_001);
+      return BigInt(500_000000);
+    });
+    const summary = fairSummary();
+    summary.fund.fundAddress = BASE_SEPOLIA_CSP_FUND.fundAddress;
+    summary.fund.shareToken.address = BASE_SEPOLIA_CSP_FUND.shareAddress;
+    summary.publishedAt = now.toISOString();
+    const position = emptyPosition({ publishedAt: summary.publishedAt });
+    const config = trustedFeeConfig();
+    const onRefetch = vi.fn().mockResolvedValue({
+      summary: { ...summary, generation: 5 },
+      position: { ...position, generation: 5 },
+      config,
+    });
+
+    render(
+      <VaultDialog
+        summary={summary}
+        position={position}
+        config={config}
+        loadError={null}
+        smartUsdcRaw={BigInt(500_000000)}
+        onRefetch={onRefetch}
+        open
+        onOpenChange={vi.fn()}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "USDC amount" }), {
+      target: { value: "1" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Deposit USDC" }));
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(transactionMocks.readContract).toHaveBeenCalledTimes(1);
+    expect(transactionMocks.sendBatchTx).not.toHaveBeenCalled();
+    expect(screen.getByText(/locally expired/i)).toBeInTheDocument();
   });
 
   it("uses plain language while a NAV price is updating", () => {
@@ -745,8 +1071,10 @@ function fairSummary(): FundSummaryResponse {
         reasonCode: "NO_CLAIMABLE_REDEMPTION",
       },
     },
+    generation: 4,
     asOfBlock: 110,
     asOfBlockHash: `0x${"1".repeat(64)}`,
+    publishedAt: "2026-07-26T15:00:00Z",
     indexedAt: "2026-07-26T15:00:00Z",
     stale: false,
   };
@@ -826,7 +1154,10 @@ function emptyPosition(
       latestBatchUnwindCommitted: false,
     },
     actions: fairSummary().actions,
+    generation: 4,
     asOfBlock: 110,
+    asOfBlockHash: `0x${"1".repeat(64)}`,
+    publishedAt: "2026-07-26T15:00:00Z",
     indexedAt: "2026-07-26T15:00:00Z",
     stale: false,
     ...overrides,
