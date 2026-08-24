@@ -13,8 +13,10 @@ import {
   buildFundDepositCalls,
   configuredFundAddress,
   configuredFundKey,
+  currentFundFreshness,
   fundTrustError,
   minSharesOutForDeposit,
+  postTransactionFundFreshness,
   sharesForDeposit,
   transactionHashFromResult,
 } from "@/lib/fundVault";
@@ -103,8 +105,10 @@ function summary(overrides: Partial<FundSummaryResponse> = {}): FundSummaryRespo
       flowProcessing: false,
     },
     actions: actions(),
+    generation: 4,
     asOfBlock: 100,
     asOfBlockHash: `0x${"1".repeat(64)}`,
+    publishedAt: new Date(Date.now()).toISOString(),
     indexedAt: "2026-07-23T00:00:00Z",
     stale: false,
     ...overrides,
@@ -128,7 +132,10 @@ function position(overrides: Partial<FundPositionResponse> = {}): FundPositionRe
       latestBatchUnwindCommitted: false,
     },
     actions: actions(),
+    generation: 4,
     asOfBlock: 100,
+    asOfBlockHash: `0x${"1".repeat(64)}`,
+    publishedAt: new Date(Date.now()).toISOString(),
     indexedAt: "2026-07-23T00:00:00Z",
     stale: false,
     ...overrides,
@@ -439,6 +446,36 @@ describe("tokenized CSP fund", () => {
     );
   });
 
+  it("rejects missing legacy and locally expired write metadata", () => {
+    const invalid = [
+      { generation: null },
+      { asOfBlock: null },
+      { asOfBlockHash: null },
+      { publishedAt: null },
+    ];
+    for (const metadata of invalid) {
+      expect(() => assertFundWriteAllowed(
+        summary(metadata as Partial<FundSummaryResponse>),
+        config(),
+        position(),
+        "deposit",
+        USER,
+      )).toThrow(/metadata|generation|published_at/i);
+    }
+    expect(() => assertFundWriteAllowed(
+      summary({ publishedAt: new Date(Date.now() - 45_001).toISOString() }),
+      config(),
+      position(),
+      "deposit",
+      USER,
+    )).toThrow(/locally expired/i);
+    expect(currentFundFreshness(summary())).toEqual({
+      minGeneration: 4,
+      minBlock: 100,
+      minBlockHash: `0x${"1".repeat(64)}`,
+    });
+  });
+
   it("fails closed on stale data, backend write gates, and config mismatch", () => {
     expect(() => assertFundWriteAllowed(summary({ stale: true }), config(), position(), "deposit", USER)).toThrow(/stale/i);
     expect(() => assertFundWriteAllowed(summary(), config({ writesEnabled: false, blockedReasonCode: "NAV_NOT_ACTIVE" }), position(), "deposit", USER)).toThrow(/NAV_NOT_ACTIVE/);
@@ -556,6 +593,14 @@ describe("tokenized CSP fund", () => {
     const assigned = summary({ composition: { ...summary().composition, assignedWeth: "1000000000000000000" } });
     expect(fundStrategyState(assigned)).toBe("Assigned inventory");
     expect(JSON.stringify(position()).toLowerCase()).not.toContain("weth");
+  });
+
+  it("derives Backend freshness bounds from the pre-send generation and receipt", () => {
+    const blockHash = `0x${"b".repeat(64)}`;
+    expect(postTransactionFundFreshness(7, {
+      blockNumber: BigInt(123),
+      blockHash,
+    })).toEqual({ minGeneration: 8, minBlock: 123, minBlockHash: blockHash });
   });
 
   it("accepts only complete EVM transaction hashes", () => {
