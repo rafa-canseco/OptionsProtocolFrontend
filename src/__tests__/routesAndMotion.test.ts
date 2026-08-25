@@ -1,22 +1,29 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
+import { LandingPage } from "@/components/landing/LandingPage";
 
 const { redirect } = vi.hoisted(() => ({ redirect: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect }));
+vi.mock("next/headers", () => ({
+  cookies: vi.fn(async () => ({ get: vi.fn(() => undefined) })),
+  headers: vi.fn(async () => ({ get: vi.fn(() => null) })),
+}));
 
-describe("primary route redirects", () => {
-  it("routes root, Earn index, and My Vaults to their approved destinations", async () => {
+describe("primary routes", () => {
+  it("renders the landing at root and redirects app indexes", async () => {
     const [{ default: Home }, { default: Earn }, { default: MyVaults }] = await Promise.all([
       import("@/app/page"),
       import("@/app/earn/page"),
       import("@/app/vaults/my/page"),
     ]);
 
-    Home();
+    const home = await Home();
     Earn();
     MyVaults();
+
+    expect(home.type).toBe(LandingPage);
+    expect(home.props.initialLocale).toBe("en");
     expect(redirect.mock.calls).toEqual([
-      ["/earn/eth"],
       ["/earn/eth"],
       ["/vaults"],
     ]);

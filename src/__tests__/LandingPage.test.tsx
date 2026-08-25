@@ -107,8 +107,8 @@ describe("LandingPage", () => {
 
     const openAppLinks = screen.getAllByRole("link", { name: /open app/i });
     expect(openAppLinks.length).toBeGreaterThan(0);
-    for (const link of openAppLinks) expect(link).toHaveAttribute("href", "/vaults");
-    expect(screen.getByRole("link", { name: /view strategies/i })).toHaveAttribute("href", "/vaults");
+    for (const link of openAppLinks) expect(link).toHaveAttribute("href", "/earn/eth");
+    expect(screen.getByRole("link", { name: /view strategies/i })).toHaveAttribute("href", "/earn/eth");
   });
 
   it("uses accessible expandable FAQ controls", () => {
