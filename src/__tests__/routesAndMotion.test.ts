@@ -24,16 +24,26 @@ describe("primary route redirects", () => {
 });
 
 describe("reduced motion contract", () => {
-  it("removes movement, continuous loading motion, and dialog/popover animation", () => {
+  it("removes movement from active overlays while retaining non-motion feedback elsewhere", () => {
     const css = readFileSync("src/app/globals.css", "utf8");
     const reducedMotion = css.slice(css.indexOf("@media (prefers-reduced-motion: reduce)"));
 
     expect(reducedMotion).toContain(".animate-shimmer-pulse");
     expect(reducedMotion).toContain(".animate-ping");
     expect(reducedMotion).toContain(".animate-pulse");
-    expect(reducedMotion).toContain('[data-slot="dialog-content"]');
-    expect(reducedMotion).toContain('[data-slot="popover-content"]');
+    for (const slot of [
+      "dialog-content",
+      "popover-content",
+      "sheet-overlay",
+      "sheet-content",
+      "tooltip-content",
+    ]) {
+      expect(reducedMotion).toContain(`[data-slot="${slot}"]`);
+    }
     expect(reducedMotion).toContain("animation: none !important");
-    expect(reducedMotion).toContain("transform: none !important");
+    expect(reducedMotion).toContain("transition: none !important");
+    expect(reducedMotion).toMatch(
+      /\[data-slot="sheet-content"\],[\s\S]*?\[data-slot="tooltip-content"\][\s\S]*?transform: none !important/,
+    );
   });
 });

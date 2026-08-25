@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
   groupPositions: vi.fn(),
   readTokenBalance: vi.fn(),
   fireAndPoll: vi.fn(),
+  getBalance: vi.fn(),
 }));
 
 vi.mock("@/hooks/useWallet", () => ({
@@ -20,7 +21,7 @@ vi.mock("@/hooks/useWallet", () => ({
 }));
 vi.mock("@/lib/contracts", () => ({
   publicClient: {
-    getBalance: vi.fn().mockResolvedValue(BigInt(10) ** BigInt(20)),
+    getBalance: state.getBalance,
     readContract: vi.fn().mockResolvedValue(BigInt(2) ** BigInt(255)),
     waitForTransactionReceipt: vi.fn().mockResolvedValue({ status: "success" }),
   },
@@ -30,7 +31,7 @@ vi.mock("@/lib/contracts", () => ({
     wbtc: "0x0000000000000000000000000000000000000004",
     marginPool: "0x0000000000000000000000000000000000000005",
     batchSettler: "0x0000000000000000000000000000000000000006",
-    swapRouter: null,
+    swapRouter: "0x0000000000000000000000000000000000000007",
   },
   CHAIN: { blockExplorers: { default: { url: "https://basescan.org" } } },
   ERC20_ABI: [],
@@ -97,6 +98,7 @@ function renderRange(overrides: Partial<React.ComponentProps<typeof RangeAcceptM
     assetSymbol: "ETH",
     assetSlug: "eth",
     onClose: vi.fn(),
+    onPartial: vi.fn(),
     onAccepted: vi.fn(),
     ...overrides,
   };
@@ -116,6 +118,7 @@ describe("RangeAcceptModal confirmation", () => {
       .mockResolvedValueOnce("0xput")
       .mockResolvedValueOnce("0xcall");
     state.readTokenBalance.mockResolvedValue(BigInt(10) ** BigInt(20));
+    state.getBalance.mockResolvedValue(BigInt(10) ** BigInt(20));
     state.fireAndPoll.mockImplementation(runAndReturnHash);
     state.groupPositions.mockResolvedValue(undefined);
   });
@@ -179,6 +182,61 @@ describe("RangeAcceptModal confirmation", () => {
     expect(screen.getByRole("link", { name: "Lower tx" })).toHaveAttribute("href", "https://basescan.org/tx/0xput");
     expect(await screen.findByRole("link", { name: "Upper tx" })).toHaveAttribute("href", "https://basescan.org/tx/0xcall-retry");
     expect(screen.getByRole("button", { name: "Continue" })).toBeInTheDocument();
+  });
+
+  it.each(["close", "escape"] as const)(
+    "reports partial completion without full success on %s",
+    async (action) => {
+      state.sendBatchTx.mockReset()
+        .mockResolvedValueOnce("0xput")
+        .mockResolvedValueOnce("0xfailed-call");
+      state.fireAndPoll.mockReset()
+        .mockImplementationOnce(runAndReturnHash)
+        .mockImplementationOnce(async (run: () => Promise<unknown>) => {
+          await run();
+          throw new Error("upper failed");
+        });
+      const onPartial = vi.fn();
+      const onAccepted = vi.fn();
+      renderRange({ onPartial, onAccepted });
+
+      await userEvent.click(screen.getByRole("button", { name: "Accept range" }));
+      expect(await screen.findByRole("button", { name: "Retry upper side" })).toBeInTheDocument();
+
+      if (action === "close") {
+        await userEvent.click(screen.getByRole("button", { name: "Close partial range" }));
+      } else {
+        await userEvent.keyboard("{Escape}");
+      }
+
+      expect(onPartial).toHaveBeenCalledWith({ putTxHash: "0xput" });
+      expect(onAccepted).not.toHaveBeenCalled();
+      expect(state.sendBatchTx).toHaveBeenCalledTimes(2);
+    },
+  );
+
+  it("remembers a completed swap when lower execution then fails", async () => {
+    state.getBalance.mockResolvedValue(BigInt(0));
+    state.readTokenBalance.mockReset()
+      .mockResolvedValueOnce(BigInt(10) ** BigInt(20))
+      .mockResolvedValueOnce(BigInt(0))
+      .mockResolvedValueOnce(BigInt(1))
+      .mockResolvedValueOnce(BigInt(10) ** BigInt(20));
+    state.sendBatchTx.mockReset()
+      .mockResolvedValueOnce("0xswap")
+      .mockResolvedValueOnce("0xfailed-put");
+    state.fireAndPoll.mockReset().mockImplementationOnce(async (run: () => Promise<unknown>) => {
+      await run();
+      throw new Error("lower failed");
+    });
+
+    renderRange();
+    await userEvent.click(screen.getByRole("button", { name: "Accept range" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("swap already completed");
+    expect(screen.getByRole("alert")).toHaveTextContent("Your ETH is in your wallet");
+    expect(screen.getByRole("alert")).not.toHaveTextContent("No funds were moved");
+    expect(state.sendBatchTx).toHaveBeenCalledTimes(2);
   });
 
   it("rejects non-Base active quotes before balance reads or transactions", async () => {

@@ -415,6 +415,11 @@ export function RangeEarn({
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
           onClose={() => setConfirming(false)}
+          onPartial={() => {
+            setConfirming(false);
+            setPutQuote(null);
+            setCallQuote(null);
+          }}
           onAccepted={({ putTxHash, callTxHash }) => {
             setConfirming(false);
             onAccepted({

@@ -45,6 +45,7 @@ interface Props {
   assetSymbol?: string;
   assetSlug?: string;
   onClose: () => void;
+  onPartial: (info: { putTxHash: string | null }) => void;
   onAccepted: (info: {
     putTxHash: string | null;
     callTxHash: string | null;
@@ -85,6 +86,7 @@ export function RangeAcceptModal({
   assetSymbol = "ETH",
   assetSlug = "eth",
   onClose,
+  onPartial,
   onAccepted,
 }: Props) {
   const { address, sendBatchTx, isConnected } = useWallet();
@@ -118,7 +120,8 @@ export function RangeAcceptModal({
   };
 
   function handleClose() {
-    if (done || step === "partial-put-only") onAccepted({ putTxHash, callTxHash });
+    if (done) onAccepted({ putTxHash, callTxHash });
+    else if (step === "partial-put-only") onPartial({ putTxHash });
     else onClose();
   }
 
@@ -244,6 +247,7 @@ export function RangeAcceptModal({
 
     setError(null);
     let lastStep = "idle";
+    let swappedThisAttempt = false;
     const updateStep = (s: RangeStep) => { lastStep = s; setStep(s); };
 
     try {
@@ -317,6 +321,7 @@ export function RangeAcceptModal({
 
         const swapHash = await sendBatchTx(swapCalls) as `0x${string}`;
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
+        swappedThisAttempt = true;
         setDidSwap(true);
       } else if (callAvailable < callNeeded) {
         setDepositToken(isBtc ? "btc" : assetSlug === "sol" ? "sol" : "eth");
@@ -393,6 +398,7 @@ export function RangeAcceptModal({
       try { saveOptimistic(putPos); } catch (err) {
         console.warn("[RangeAcceptModal] Could not save optimistic position (put):", err);
       }
+      invalidateData(["balances", "positions", "activity"], "range-lower-confirmed");
 
       // === Check call quote deadline before proceeding ===
       if (!deadlineOk(callQuote)) {
@@ -498,7 +504,7 @@ export function RangeAcceptModal({
       } else if (lastStep === "swapping") {
         setError("Swap failed. No funds were moved. Please try again.");
         setStep("idle");
-      } else if (lastStep === "executing-put" && didSwap) {
+      } else if (lastStep === "executing-put" && swappedThisAttempt) {
         setError(`Lower side failed, but the swap already completed. Your ${assetSymbol} is in your wallet. Please try again.`);
         setStep("idle");
       } else if (lastStep === "executing-put") {
