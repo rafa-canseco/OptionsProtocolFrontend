@@ -1,29 +1,15 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ConnectButton } from "@/components/ConnectButton";
 
-const mockWallet = {
-  isConnected: true,
-  isReady: true,
-};
-const mockConnectWallet = vi.fn();
+const mockWallet = { isConnected: true, isReady: true };
+const mockLogin = vi.fn();
 
-vi.mock("@/hooks/useWalletSummary", () => ({
-  useWalletSummary: () => mockWallet,
-}));
-
-vi.mock("@/lib/preferences", () => ({
-  useAppPreferences: () => ({ locale: "en" }),
-}));
-
-vi.mock("@privy-io/react-auth", () => ({
-  useConnectWallet: () => ({ connectWallet: mockConnectWallet }),
-}));
-
-vi.mock("@/components/DepositModal", () => ({
-  DepositModal: () => <div data-testid="deposit-modal" />,
-}));
+vi.mock("@/hooks/useWalletSummary", () => ({ useWalletSummary: () => mockWallet }));
+vi.mock("@/lib/preferences", () => ({ useAppPreferences: () => ({ locale: "en" }) }));
+vi.mock("@privy-io/react-auth", () => ({ useLogin: () => ({ login: mockLogin }) }));
+vi.mock("@/components/DepositModal", () => ({ DepositModal: () => <div data-testid="deposit-modal" /> }));
 
 describe("ConnectButton", () => {
   beforeEach(() => {
@@ -32,34 +18,24 @@ describe("ConnectButton", () => {
     mockWallet.isReady = true;
   });
 
-  it("shows Connect when not connected", () => {
+  it("starts authentication without opening Deposit when disconnected", async () => {
     mockWallet.isConnected = false;
     render(<ConnectButton />);
-    expect(screen.getByText("Connect")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Connect" }));
+    expect(mockLogin).toHaveBeenCalledOnce();
+    expect(screen.queryByTestId("deposit-modal")).not.toBeInTheDocument();
   });
 
-  it("shows loading skeleton when not ready", () => {
+  it("opens Deposit only when the connected user requests it", async () => {
+    render(<ConnectButton />);
+    await userEvent.click(screen.getByRole("button", { name: "Deposit" }));
+    expect(screen.getByTestId("deposit-modal")).toBeInTheDocument();
+    expect(mockLogin).not.toHaveBeenCalled();
+  });
+
+  it("shows a loading skeleton before wallet state is ready", () => {
     mockWallet.isReady = false;
     render(<ConnectButton />);
-    expect(screen.queryByText("Connect")).not.toBeInTheDocument();
-    expect(screen.queryByText("Deposit")).not.toBeInTheDocument();
-  });
-
-  it("shows Deposit button when connected", () => {
-    render(<ConnectButton />);
-    expect(screen.getByText("Deposit")).toBeInTheDocument();
-  });
-
-  it("opens deposit modal when Deposit is clicked", async () => {
-    render(<ConnectButton />);
-    await userEvent.click(screen.getByText("Deposit"));
-    expect(screen.getByTestId("deposit-modal")).toBeInTheDocument();
-  });
-
-  it("opens deposit modal when Connect is clicked", async () => {
-    mockWallet.isConnected = false;
-    render(<ConnectButton />);
-    await userEvent.click(screen.getByText("Connect"));
-    expect(screen.getByTestId("deposit-modal")).toBeInTheDocument();
+    expect(screen.queryByRole("button")).not.toBeInTheDocument();
   });
 });

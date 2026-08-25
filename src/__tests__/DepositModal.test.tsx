@@ -140,6 +140,20 @@ describe("DepositModal Base-only network", () => {
     walletClientType: "phantom",
   };
 
+  it("provides a named focus-managed dialog, labelled amount, and Escape dismissal", async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(<DepositModal onClose={onClose} />);
+
+    expect(screen.getByRole("dialog", { name: "Deposit funds" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Deposit amount in USDC" })).toBeInTheDocument();
+    const close = screen.getByRole("button", { name: "Close funds dialog" });
+    await waitFor(() => expect(close).toHaveFocus());
+
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
   it("omits redundant network and multi-wallet selectors while excluding Solana", () => {
     walletOverrides = {
       externalWallets: [baseExternalWallet, solanaWallet],

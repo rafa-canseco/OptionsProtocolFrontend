@@ -12,6 +12,8 @@ const ORIGINAL_LAZY_OTOKEN_ENABLED =
 const { state } = vi.hoisted(() => ({
   state: {
     baseUsdcRaw: BigInt(7_613_000_000),
+    solanaUsdcRaw: BigInt(0),
+    solanaUsdc: 0,
     sendBatchTx: vi.fn(),
     readAllowance: vi.fn(),
     balanceOf: vi.fn(),
@@ -70,8 +72,8 @@ vi.mock("@/hooks/useBalances", () => ({
 
 vi.mock("@/hooks/useSolanaBalance", () => ({
   useSolanaBalance: () => ({
-    solanaUsdcRaw: BigInt(0),
-    solanaUsdc: 0,
+    solanaUsdcRaw: state.solanaUsdcRaw,
+    solanaUsdc: state.solanaUsdc,
     solanaWsolRaw: BigInt(0),
     solanaSolRaw: BigInt(0),
     solanaTslaxRaw: BigInt(0),
@@ -217,6 +219,8 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "true";
     state.baseUsdcRaw = BigInt(7_613_000_000);
+    state.solanaUsdcRaw = BigInt(9_000_000_000);
+    state.solanaUsdc = 9_000;
     state.checkDeficit.mockReturnValue({
       needsBridge: false,
       needsDeposit: false,
@@ -252,13 +256,36 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     }
   });
 
-  it("executes the trade instead of opening the deposit modal", async () => {
+  it("provides a named focus-managed confirmation with a labelled amount and Escape dismissal", async () => {
+    const onClose = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <AcceptModal
+        quote={buildBaseQuote()}
+        side="buy"
+        onClose={onClose}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    expect(screen.getByRole("dialog", { name: "Confirm buy commitment" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Amount in USDC" })).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByRole("button", { name: "← Back" })).toHaveFocus());
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("keeps Base confirmation visible and ignores Solana balance and bridge logic", async () => {
+    const onAccepted = vi.fn();
     render(
       <AcceptModal
         quote={buildBaseQuote()}
         side="buy"
         onClose={vi.fn()}
-        onAccepted={vi.fn()}
+        onAccepted={onAccepted}
         initialAmount="11"
         assetSymbol="ETH"
         assetSlug="eth"
@@ -273,6 +300,11 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     });
 
     expect(state.getAccessToken).toHaveBeenCalledTimes(1);
+    expect(state.checkDeficit).not.toHaveBeenCalled();
+    expect(state.executeBridgeAndTrade).not.toHaveBeenCalled();
+    expect(onAccepted).not.toHaveBeenCalled();
+    expect(await screen.findByRole("status")).toHaveTextContent("Trade confirmed");
+    expect(screen.getByRole("link", { name: "View transaction ↗" })).toHaveAttribute("href", "https://basescan.org/tx/0xsuccess");
     expect(state.ensureSeries).toHaveBeenCalledTimes(1);
     expect(state.encodeExecuteOrder).toHaveBeenCalledTimes(1);
     expect(
@@ -304,9 +336,53 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     );
 
     // Deposit modal must NOT have been rendered (regression for B1N-309).
-    expect(
-      screen.queryByText(/Manage funds/i),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Manage funds/i)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(onAccepted).toHaveBeenCalledWith({ amount: 11, txHash: "0xsuccess" });
+  });
+
+  it("rejects a non-Base quote for an active B1 asset without entering bridge logic", async () => {
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ chain: "solana" })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Accept" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("not available on Base");
+    expect(state.checkDeficit).not.toHaveBeenCalled();
+    expect(state.executeBridgeAndTrade).not.toHaveBeenCalled();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
+  });
+
+  it("requests a Base deposit instead of bridging when Base USDC is insufficient", async () => {
+    state.baseUsdcRaw = BigInt(0);
+    state.solanaUsdcRaw = BigInt(50_000_000_000);
+    state.solanaUsdc = 50_000;
+    render(
+      <AcceptModal
+        quote={buildBaseQuote()}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: "Accept" }));
+    expect(await screen.findByTestId("deposit-modal")).toBeInTheDocument();
+    expect(state.checkDeficit).not.toHaveBeenCalled();
+    expect(state.executeBridgeAndTrade).not.toHaveBeenCalled();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
   });
 
   it("preserves eager ready execution without Privy ensure when the gate is off", async () => {
@@ -362,37 +438,6 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     expect(state.ensureSeries).not.toHaveBeenCalled();
     expect(state.encodeExecuteOrder).not.toHaveBeenCalled();
     expect(state.sendBatchTx).not.toHaveBeenCalled();
-  });
-
-  it("still routes to deposit modal when USDC is actually insufficient", async () => {
-    state.checkDeficit.mockReturnValue({
-      needsBridge: false,
-      needsDeposit: true,
-      sourceChain: null,
-      deficit: BigInt(10_000_000),
-    });
-
-    render(
-      <AcceptModal
-        quote={buildBaseQuote()}
-        side="buy"
-        onClose={vi.fn()}
-        onAccepted={vi.fn()}
-        initialAmount="11"
-        assetSymbol="ETH"
-        assetSlug="eth"
-      />,
-    );
-
-    const acceptBtn = await screen.findByRole("button", { name: /Accept/i });
-    await userEvent.click(acceptBtn);
-
-    await waitFor(() => {
-      expect(screen.getByText(/Manage funds/i)).toBeInTheDocument();
-    });
-
-    expect(state.sendBatchTx).not.toHaveBeenCalled();
-    expect(state.ensureSeries).not.toHaveBeenCalled();
   });
 
   it("waits through creating before encoding or prompting the wallet", async () => {

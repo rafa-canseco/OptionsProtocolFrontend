@@ -9,6 +9,7 @@ import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI } from "@/lib/contracts";
 import { useAppPreferences } from "@/lib/preferences";
 import { invalidateData } from "@/lib/dataInvalidation";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import {
   buildDyneroxCheckoutUrl,
   getDyneroxCheckoutConfig,
@@ -453,21 +454,24 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div
-        className="fixed inset-0 bg-black/50"
-        onClick={isPending ? undefined : onClose}
-      />
-      <div
-        className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5"
-        onWheel={(e) => e.stopPropagation()}
+    <Dialog open onOpenChange={(open) => { if (!open && !isPending) onClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[90dvh] max-w-sm overflow-y-auto rounded-2xl border-[var(--border)] bg-[var(--bg)] p-6 text-[var(--text)]"
+        onEscapeKeyDown={(event) => { if (isPending) event.preventDefault(); }}
+        onPointerDownOutside={(event) => { if (isPending) event.preventDefault(); }}
       >
         {/* Header */}
         <div className="relative text-center">
-          <h2 className="text-2xl font-semibold text-[var(--text)]">
-            {tab === "deposit" ? translate("Deposit", "Depositar") : translate("Withdraw", "Retirar")}
-          </h2>
+          <DialogTitle className="text-2xl font-semibold text-[var(--text)]">
+            {tab === "deposit" ? translate("Deposit funds", "Depositar fondos") : translate("Withdraw funds", "Retirar fondos")}
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            {translate("Choose the transfer details, then review its status.", "Elige los datos de la transferencia y revisa su estado.")}
+          </DialogDescription>
           <button
+            type="button"
+            aria-label={translate("Close funds dialog", "Cerrar diálogo de fondos")}
             onClick={onClose}
             disabled={isPending}
             className="absolute right-0 top-0 text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40 text-2xl leading-none"
@@ -712,8 +716,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               )}
             </p>
             {displayError && (
-              <p className="text-sm text-[var(--danger)]">{displayError}</p>
+              <p role="alert" aria-live="assertive" className="text-sm text-[var(--danger)]">{displayError}</p>
             )}
+            {status === "activating" ? (
+              <span role="status" aria-live="polite" className="sr-only">{translate("Activating Base trading account", "Activando cuenta de operaciones en Base")}</span>
+            ) : null}
             <button
               onClick={handleActivate}
               disabled={isPending}
@@ -731,7 +738,9 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
               <div className="relative rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3">
                 <div className="flex items-start gap-3">
                   <div className="min-w-0 flex-1">
+                    <label htmlFor="funds-amount" className="sr-only">{translate(`${tab === "deposit" ? "Deposit" : "Withdraw"} amount in ${meta.label}`, `Monto en ${meta.label}`)}</label>
                     <input
+                      id="funds-amount"
                       type="text"
                       inputMode="decimal"
                       placeholder="0"
@@ -780,11 +789,11 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             </div>
 
             {displayError && (
-              <p className="text-sm text-[var(--danger)]">{displayError}</p>
+              <p role="alert" aria-live="assertive" className="text-sm text-[var(--danger)]">{displayError}</p>
             )}
 
             {isPending && status !== "activating" && (
-              <div className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2">
+              <div role="status" aria-live="polite" aria-atomic="true" className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2">
                 <div className="flex items-center gap-2 text-sm font-medium text-[var(--text)]">
                   <span className="relative flex h-2.5 w-2.5 shrink-0">
                     <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-50" />
@@ -799,7 +808,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
             )}
 
             {isDone ? (
-              <div className="space-y-3">
+              <div role="status" aria-live="polite" aria-atomic="true" className="space-y-3">
                 <p className="text-sm text-center text-[var(--accent)] font-semibold">
                   {tab === "deposit"
                     ? translate("Deposit confirmed.", "Depósito confirmado.")
@@ -862,7 +871,7 @@ export function DepositModal({ onClose, requiredToken, onComplete }: Props) {
         </button>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

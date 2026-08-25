@@ -80,8 +80,9 @@ export function TradeLog({ items }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] overflow-hidden">
-      <table className="w-full text-sm">
+    <div className="overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--bg)]">
+      <div role="region" className="overflow-x-auto" tabIndex={0} aria-label={t("Position history table. Scroll horizontally for more columns.", "Historial de posiciones. Desplázate horizontalmente para ver más columnas.")}>
+      <table className="min-w-[760px] w-full text-sm">
         <thead>
           <tr className="border-b border-[var(--border)] text-[var(--text-secondary)] text-xs">
             <th className="text-left py-3 px-4 font-medium w-6"></th>
@@ -120,6 +121,7 @@ export function TradeLog({ items }: Props) {
           })}
         </tbody>
       </table>
+      </div>
 
       {hasMore && !showAll && (
         <button
@@ -135,6 +137,7 @@ export function TradeLog({ items }: Props) {
 
 function RangeTradeRow({
   positions,
+  groupId,
   isExpanded,
   onToggle,
 }: {
@@ -178,14 +181,18 @@ function RangeTradeRow({
 
   return (
     <>
-      <tr
-        onClick={onToggle}
-        className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface)] cursor-pointer transition-colors"
-      >
-        <td className="py-3 px-2 text-center text-[var(--text-secondary)]">
-          <span className={`inline-block transition-transform duration-200 text-xs ${isExpanded ? "rotate-90" : ""}`}>
-            &#9654;
-          </span>
+      <tr className="border-b border-[var(--border)] transition-colors hover:bg-[var(--surface)] last:border-b-0">
+        <td className="px-2 py-3 text-center text-[var(--text-secondary)]">
+          <button
+            type="button"
+            aria-label={isExpanded ? "Collapse range position details" : "Expand range position details"}
+            aria-expanded={isExpanded}
+            aria-controls={`history-details-${groupId}`}
+            onClick={onToggle}
+            className="grid min-h-11 min-w-11 place-items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            <span aria-hidden="true" className={`inline-block text-xs transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>&#9654;</span>
+          </button>
         </td>
         <td className="py-3 px-4 font-mono text-[var(--text)]">
           {openedStr}
@@ -226,7 +233,7 @@ function RangeTradeRow({
       </tr>
 
       {isExpanded && (
-        <tr className="bg-[var(--surface)]">
+        <tr id={`history-details-${groupId}`} className="bg-[var(--surface)]">
           <td colSpan={totalCols} className="px-4 py-4">
             <div className="space-y-2 text-xs text-[var(--text-secondary)]">
               {/* Lower leg (put) */}
@@ -332,15 +339,19 @@ function TradeRow({
 
   return (
     <>
-      <tr
-        onClick={onToggle}
-        className="border-b border-[var(--border)] last:border-b-0 hover:bg-[var(--surface)] cursor-pointer transition-colors"
-      >
+      <tr className="border-b border-[var(--border)] transition-colors hover:bg-[var(--surface)] last:border-b-0">
         {/* Chevron */}
-        <td className="py-3 px-2 text-center text-[var(--text-secondary)]">
-          <span className={`inline-block transition-transform duration-200 text-xs ${isExpanded ? "rotate-90" : ""}`}>
-            &#9654;
-          </span>
+        <td className="px-2 py-3 text-center text-[var(--text-secondary)]">
+          <button
+            type="button"
+            aria-label={isExpanded ? "Collapse position details" : "Expand position details"}
+            aria-expanded={isExpanded}
+            aria-controls={`history-details-${p.id}`}
+            onClick={onToggle}
+            className="grid min-h-11 min-w-11 place-items-center rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+          >
+            <span aria-hidden="true" className={`inline-block text-xs transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>&#9654;</span>
+          </button>
         </td>
 
         {/* Date */}
@@ -398,7 +409,7 @@ function TradeRow({
 
       {/* Expanded detail */}
       {isExpanded && (
-        <tr className="bg-[var(--surface)]">
+        <tr id={`history-details-${p.id}`} className="bg-[var(--surface)]">
           <td colSpan={totalCols} className="px-4 py-4">
             <div className="space-y-2 text-xs text-[var(--text-secondary)]">
               {isItm ? (

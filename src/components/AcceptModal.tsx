@@ -49,6 +49,7 @@ import { clearPendingBridge, savePendingBridge } from "@/lib/pendingBridge";
 import { invalidateData } from "@/lib/dataInvalidation";
 import type { YieldMetric } from "./YieldToggle";
 import { DepositModal } from "@/components/DepositModal";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 interface Props {
   quote: PriceQuote;
@@ -91,6 +92,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
+  const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc";
   const { getAccessToken } = usePrivy();
   const {
     address,
@@ -110,12 +112,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     solanaTslaxRaw,
     solanaTslax,
     loading: solBalLoading,
-  } = useSolanaBalance(solanaAddress);
-  const balancesLoading = baseBalLoading || solBalLoading;
+  } = useSolanaBalance(activeBaseAsset ? undefined : solanaAddress);
+  const balancesLoading = activeBaseAsset ? baseBalLoading : baseBalLoading || solBalLoading;
   const { checkDeficit, executeBridgeAndTrade } = useBridgeAndTrade();
   const [step, setStep] = useState<TxStep>("idle");
   const [txHash, setTxHash] = useState<string | null>(null);
   const [chainExecuted, setChainExecuted] = useState<"base" | "solana" | null>(null);
+  const [completedInfo, setCompletedInfo] = useState<{ amount: number; txHash: string | null } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activePercent, setActivePercent] = useState<number | null>(null);
   const [showDeposit, setShowDeposit] = useState(false);
@@ -141,15 +144,16 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     assetConfig ?? { slug: assetSlug, chain: quote.chain },
   );
   const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
-  // For covered calls: ETH uses native + WETH, BTC uses WBTC, SOL uses wSOL + native SOL
-  // For buys: show combined USDC (Base + Solana) since bridge handles cross-chain
-  const walletBalance = isBuy
-    ? usd + solanaUsdc
-    : assetSlug === "tslax"
-      ? solanaTslax
-    : isSol
-      ? solTotalBalance
-      : isBtc ? wbtc : eth + weth;
+  // Active B1 markets are Base-only. Legacy assets retain their historical balance path.
+  const walletBalance = activeBaseAsset
+    ? isBuy ? usd : isBtc ? wbtc : eth + weth
+    : isBuy
+      ? usd + solanaUsdc
+      : assetSlug === "tslax"
+        ? solanaTslax
+        : isSol
+          ? solTotalBalance
+          : isBtc ? wbtc : eth + weth;
 
   const capEth = maxPositionEth ?? quote.available_amount;
   const maxAmount = isBuy
@@ -168,7 +172,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
   function handlePercent(pct: number) {
     setActivePercent(pct);
-    if (!isBuy && isSol) {
+    if (!activeBaseAsset && !isBuy && isSol) {
       const solTotalRaw = solanaWsolRaw + solanaSolRaw;
       const quoteMaxRaw = BigInt(Math.floor(maxAmount * 1e9));
       const rawAvailable = solTotalRaw < quoteMaxRaw ? solTotalRaw : quoteMaxRaw;
@@ -206,7 +210,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     ? `$${amount.toLocaleString()}`
     : `${amount} ${assetSymbol}`;
 
-  const loading = step !== "idle";
+  const loading = step === "preparing" || step === "executing";
   const buttonLabel =
     step === "preparing"
       ? "Preparing trade..."
@@ -228,6 +232,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     ? (assetConfig?.minBuyAmountUsd ?? 10)
     : (assetConfig?.minSellAmount ?? 0.005);
 
+  function handleClose() {
+    if (completedInfo) onAccepted(completedInfo);
+    else onClose();
+  }
+
   async function handleAccept() {
     if (preparationFailure?.kind === "stale") {
       if (onQuoteInvalid) onQuoteInvalid();
@@ -240,6 +249,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     }
     if (marketReadOnly) {
       setError(`${assetSymbol} is visible in production, but trading is still coming soon.`);
+      return;
+    }
+    if (activeBaseAsset && quote.chain !== "base") {
+      setError("This quote is not available on Base. Refresh prices and try again.");
       return;
     }
 
@@ -288,6 +301,15 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       return;
     }
 
+    if (activeBaseAsset && isBuy) {
+      const { collateral } = computeCollateral(true, amount, quote.strike, assetSlug);
+      if (baseUsdcRaw < collateral) {
+        setDepositToken("usdc");
+        setShowDeposit(true);
+        return;
+      }
+    }
+
     if (inFlightRef.current) return;
     inFlightRef.current = true;
     setError(null);
@@ -302,7 +324,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
     try {
       // --- Cross-chain bridge detection for buys (USDC bridgeable via CCTP) ---
-      if (isBuy && quote.chain) {
+      if (!activeBaseAsset && isBuy && quote.chain) {
         const deficit = checkDeficit(
           quote, amount, isBuy, assetSlug, baseUsdcRaw, solanaUsdcRaw,
           solanaWsolRaw, solanaSolRaw, solanaTslaxRaw,
@@ -358,7 +380,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             setTxHash(result.txHash ?? null);
             setChainExecuted(result.chainExecuted ?? null);
             updateStep("confirmed");
-            onAccepted({ amount: acceptedAmount, txHash: result.txHash ?? null });
+            setCompletedInfo({ amount: acceptedAmount, txHash: result.txHash ?? null });
             invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
             const pos = buildOptimisticPosition(
@@ -499,7 +521,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
         setTxHash(signature);
         setChainExecuted("solana");
         updateStep("confirmed");
-        onAccepted({ amount, txHash: signature });
+        setCompletedInfo({ amount, txHash: signature });
         invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
         const pos = buildOptimisticPosition(
@@ -533,9 +555,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       const { oTokenAmount, collateral, collateralAsset } =
         computeCollateral(isBuy, amount, quote.strike, assetSlug);
 
-      // On-chain collateral check for sells only. Buys use USDC collateral
-      // which was already validated in checkDeficit above; running the
-      // WETH/cbBTC branch on a buy compares USDC-denominated collateral
+      // On-chain collateral check for sells only. Active Base buys validate
+      // Base USDC before execution; running the WETH/cbBTC branch on a buy compares
+      // USDC-denominated collateral
       // (6 decimals) against WETH/cbBTC balances (18/8 decimals), which
       // redirects a sufficiently funded buyer to the deposit modal.
       let wrapAmount = BigInt(0);
@@ -667,7 +689,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
       setChainExecuted(executionQuote.chain ?? "base");
       updateStep("confirmed");
-      onAccepted({ amount, txHash: resultHash });
+      setCompletedInfo({ amount, txHash: resultHash });
       invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
       const pos = buildOptimisticPosition(
@@ -725,22 +747,44 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     }
   }
 
+  if (showDeposit) {
+    return (
+      <DepositModal
+        requiredToken={depositToken}
+        onClose={() => setShowDeposit(false)}
+        onComplete={() => setShowDeposit(false)}
+      />
+    );
+  }
+
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="fixed inset-0 bg-black/30" onClick={loading ? undefined : onClose} />
-      <div className="relative w-full max-w-md bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(open) => { if (!open && !loading) handleClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[90dvh] max-w-md overflow-y-auto rounded-2xl border-[var(--border)] bg-[var(--bg)] p-6 text-[var(--text)]"
+        onEscapeKeyDown={(event) => { if (loading) event.preventDefault(); }}
+        onPointerDownOutside={(event) => { if (loading) event.preventDefault(); }}
+      >
         {/* Back button */}
         <button
-          onClick={onClose}
+          type="button"
+          aria-label={step === "confirmed" ? "Close confirmation" : undefined}
+          onClick={handleClose}
           disabled={loading}
           className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40"
         >
-          ← Back
+          {step === "confirmed" ? "Close" : "← Back"}
         </button>
 
         {/* Title + earnings hero */}
         <div>
-          <p className="text-lg font-semibold text-[var(--bone)]">
+          <DialogTitle className="text-lg font-semibold text-[var(--bone)]">
+            Confirm {isBuy ? "buy" : "sell"} commitment
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Review the amount, price, outcomes, and transaction status before closing.
+          </DialogDescription>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
             {isBuy ? "Buy" : "Sell"} {assetSymbol} at ${quote.strike.toLocaleString()}/{assetSymbol}
           </p>
           {marketReadOnly && (
@@ -771,7 +815,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
                     key={pct}
                     onClick={() => handlePercent(pct)}
                     disabled={loading || walletBalance <= 0}
-                    className={`py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                    className={`min-h-11 rounded-xl py-2.5 text-sm font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] ${
                       activePercent === pct
                         ? "bg-[var(--accent)] text-[var(--bg)]"
                         : "bg-[var(--surface)] text-[var(--text)] hover:bg-[var(--border)]"
@@ -806,7 +850,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
                     {isBuy ? "USDC" : assetSymbol}
                   </span>
                 </div>
+                <label htmlFor="accept-amount" className="sr-only">Amount in {isBuy ? "USDC" : assetSymbol}</label>
                 <input
+                  id="accept-amount"
                   type="text"
                   inputMode="decimal"
                   value={amountStr}
@@ -886,10 +932,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
           </p>
         )}
 
-        {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+        {error && <p role="alert" aria-live="assertive" className="text-sm text-[var(--danger)]">{error}</p>}
 
         {(step === "preparing" || step === "executing") && (
-          <div className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2 shadow-[0_0_24px_rgba(0,0,0,0.10)]">
+          <div role="status" aria-live="polite" aria-atomic="true" className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-2 shadow-[0_0_24px_rgba(0,0,0,0.10)]">
             <div className="flex items-center gap-2 text-sm font-medium text-[var(--text)]">
               <span className="relative flex h-2.5 w-2.5 shrink-0">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[var(--accent)] opacity-50" />
@@ -905,12 +951,18 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
           </div>
         )}
 
+        {step === "confirmed" ? (
+          <div role="status" aria-live="polite" aria-atomic="true" className="rounded-xl border border-[var(--accent)]/25 bg-[var(--accent)]/5 px-3 py-3 text-sm text-[var(--text)]">
+            Trade confirmed. Your position is ready to review below.
+          </div>
+        ) : null}
+
         <button
-          onClick={handleAccept}
+          onClick={step === "confirmed" ? handleClose : handleAccept}
           disabled={marketReadOnly || loading || amount < minAmount || amount > maxAmount}
           className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
         >
-          {marketReadOnly ? "Coming soon" : buttonLabel}
+          {marketReadOnly ? "Coming soon" : step === "confirmed" ? "Continue" : buttonLabel}
         </button>
 
         {step === "confirmed" && chainExecuted && (
@@ -933,15 +985,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
             View transaction ↗
           </a>
         )}
-      </div>
-
-        {showDeposit && (
-          <DepositModal
-            requiredToken={depositToken}
-            onClose={() => setShowDeposit(false)}
-            onComplete={() => setShowDeposit(false)}
-          />
-        )}
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

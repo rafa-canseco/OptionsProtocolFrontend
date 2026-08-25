@@ -120,196 +120,28 @@ function trustedFeeConfig(): FundConfigResponse {
 }
 
 describe("VaultsPage", () => {
-  it("renders a minimal vault-first catalog and preserves manual trading", () => {
-    render(<VaultsPage />);
-    expect(
-      screen.getByRole("heading", { name: "ETH Cash-Secured Put" }),
-    ).toBeInTheDocument();
-    const coveredCallCard = screen
-      .getByRole("heading", { name: "ETH Covered Call" })
-      .closest("article");
-    expect(coveredCallCard).not.toBeNull();
-    expect(screen.getAllByText("NAV price")).toHaveLength(3);
-    expect(screen.getByText("ETH puts")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("ETH Covered Call")).toBeInTheDocument();
-    expect(within(coveredCallCard!).queryByText("WETH vault")).not.toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("ETH calls")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("No position")).toBeInTheDocument();
-    expect(
-      within(coveredCallCard!).getByRole("button", { name: "Deposit WETH" }),
-    ).toBeEnabled();
-    expect(
-      within(coveredCallCard!).getByText(
-        "Earn income on ETH you already own.",
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        "Earn income while waiting to buy ETH at a lower price.",
-      ),
-    ).toBeInTheDocument();
-    const wheelCard = screen
-      .getByRole("heading", { name: "ETH Meta Wheel" })
-      .closest("article");
-    expect(wheelCard).not.toBeNull();
-    expect(within(wheelCard!).getByText("ETH wheel")).toBeInTheDocument();
-    expect(
-      within(wheelCard!).getByText(/protecting every assignment price/i),
-    ).toBeInTheDocument();
-    expect(
-      within(wheelCard!).getByRole("button", { name: "Deposit USDC" }),
-    ).toBeEnabled();
-    expect(screen.queryByText(/apy/i)).not.toBeInTheDocument();
-    expect(screen.queryByText(/earnings/i)).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Refresh fund data" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Fund snapshot is stale/i)).not.toBeInTheDocument();
-    expect(screen.queryByText("How this vault works")).not.toBeInTheDocument();
-    const classicLink = screen.getByRole("link", { name: "v1 manual" });
-    expect(classicLink).toHaveAttribute("href", "/earn/eth");
-    expect(classicLink.closest("nav")).toHaveAttribute("aria-label", "Vault navigation");
-    expect(screen.getByRole("link", { name: "My Vaults" })).toHaveAttribute("href", "/vaults/my");
-    expect(screen.getByRole("button", { name: "Smart wallet balances" })).toHaveTextContent("125.00 USDC");
-  });
-
-  it("switches the catalog to another Base asset without inventing live funds", async () => {
-    const user = userEvent.setup();
+  it("renders a static ETH and cbBTC Coming Soon preview", () => {
     render(<VaultsPage />);
 
-    await user.click(
-      screen.getByRole("button", {
-        name: "Select vault asset. Current asset ETH",
-      }),
-    );
-    expect(
-      screen.queryByRole("button", { name: "Select SOL" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Select TSLAx" }),
-    ).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Select cbBTC" }));
-
-    const cspCard = screen
-      .getByRole("heading", { name: "cbBTC Cash-Secured Put" })
-      .closest("article");
-    const coveredCallCard = screen
-      .getByRole("heading", { name: "cbBTC Covered Call" })
-      .closest("article");
-    expect(cspCard).not.toBeNull();
-    expect(coveredCallCard).not.toBeNull();
-    expect(within(cspCard!).getByText(
-      "Earn income while waiting to buy cbBTC at a lower price.",
-    )).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText(
-      "Earn income on cbBTC you already own.",
-    )).toBeInTheDocument();
-    expect(within(cspCard!).getByText("cbBTC puts")).toBeInTheDocument();
-    expect(within(cspCard!).getByText("cbBTC Cash-Secured Put")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("cbBTC calls")).toBeInTheDocument();
-    expect(within(coveredCallCard!).getByText("cbBTC Covered Call")).toBeInTheDocument();
-    expect(
-      within(cspCard!).getByRole("button", { name: "Coming soon" }),
-    ).toBeDisabled();
-    expect(
-      within(coveredCallCard!).getByRole("button", { name: "Coming soon" }),
-    ).toBeDisabled();
-    expect(
-      screen.queryByRole("heading", { name: "ETH Meta Wheel" }),
-    ).not.toBeInTheDocument();
-    const classicLink = screen.getByRole("link", { name: "v1 manual" });
-    expect(classicLink).toHaveAttribute("href", "/earn/btc");
-    expect(classicLink.closest("nav")).toHaveAttribute("aria-label", "Vault navigation");
+    expect(screen.getByRole("heading", { name: "Vaults are being prepared." })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ETH Cash-Secured Put" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "ETH Covered Call" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "cbBTC Cash-Secured Put" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "cbBTC Covered Call" })).toBeInTheDocument();
+    expect(screen.getAllByRole("button", { name: /Coming soon$/ })).toHaveLength(4);
+    screen.getAllByRole("button", { name: /Coming soon$/ }).forEach((button) => {
+      expect(button).toBeDisabled();
+    });
   });
 
-  it("does not invent a covered-call position in My Vaults", () => {
-    render(<VaultsPage view="my" />);
-
-    expect(
-      screen.getByRole("heading", { name: "ETH Cash-Secured Put" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByText("ETH Covered Call"),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /select vault asset/i }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows the vault wallet USDC and gas balances from the configured Base contracts", async () => {
-    const user = userEvent.setup();
-    render(<VaultsPage />);
-    await user.click(screen.getByRole("button", { name: "Smart wallet balances" }));
-    expect(screen.getByText("Vault wallet")).toBeInTheDocument();
-    expect(screen.getByText("0x4000…0004")).toBeInTheDocument();
-    expect(screen.getByText("ETH gas")).toBeInTheDocument();
-    expect(screen.getByText("0.01234")).toBeInTheDocument();
-    expect(screen.getByText("WETH")).toBeInTheDocument();
-    expect(screen.getByText("0.75")).toBeInTheDocument();
-    expect(screen.getAllByText("Fund shares")).toHaveLength(3);
-    expect(screen.getByText("b1CSP-V2")).toBeInTheDocument();
-    expect(screen.getByText("b1CALL-V2")).toBeInTheDocument();
-    expect(screen.getByText("b1WHEEL-V2")).toBeInTheDocument();
-    expect(screen.getAllByText("≈ 0.00 USDC")).toHaveLength(2);
-    expect(screen.getByText("≈ 0.00 WETH")).toBeInTheDocument();
-  });
-
-  it("opens accounting-asset entry and exit controls", async () => {
-    const user = userEvent.setup();
-    render(<VaultsPage />);
-    const cspCard = screen
-      .getByRole("heading", { name: "ETH Cash-Secured Put" })
-      .closest("article");
-    expect(cspCard).not.toBeNull();
-    await user.click(
-      within(cspCard!).getByRole("button", { name: "Deposit USDC" }),
-    );
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    const strategyDetails = screen.getByText("How this vault works").closest("details");
-    expect(strategyDetails).not.toHaveAttribute("open");
-    await user.click(screen.getByText("How this vault works"));
-    expect(strategyDetails).toHaveAttribute("open");
-    expect(screen.getByText("Target put delta 0.09")).toBeInTheDocument();
-    expect(screen.queryByText(/15% below spot/i)).not.toBeInTheDocument();
-    expect(screen.getByText("≈48 hours")).toBeInTheDocument();
-    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
-    expect(screen.getByText("One at a time")).toBeInTheDocument();
-    expect(
-      screen.getByText(/exact strike distance below spot varies with volatility/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /net premium floor of 20 bps against collateral after protocol fees/i,
-      ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/neither a position nor yield is guaranteed/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/Assignment alone does not stop the loop/i),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(/no eligible quote is available/i),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "Deposit" })).toHaveAttribute("aria-selected", "true");
-    await user.click(screen.getByRole("tab", { name: "Exit" }));
-    expect(screen.getByRole("button", { name: "Request redemption" })).toBeDisabled();
-  });
-
-  it("opens the live covered-call WETH flow and policy", async () => {
-    const user = userEvent.setup();
+  it("has no wallet, user position, testnet, or vault-management affordances", () => {
     render(<VaultsPage />);
 
-    await user.click(screen.getByRole("button", { name: "Deposit WETH" }));
-
-    expect(screen.getByRole("dialog")).toBeInTheDocument();
-    expect(screen.getByRole("textbox", { name: "WETH amount" })).toBeInTheDocument();
-    await user.click(screen.getByText("How this vault works"));
-    expect(screen.getByText("Far above spot · Δ 0.05 ±0.015")).toBeInTheDocument();
-    expect(screen.getByText("Up to 80%")).toBeInTheDocument();
-    expect(
-      screen.getByText(/keeps opening calls while enough WETH/i),
-    ).toBeInTheDocument();
+    expect(screen.queryByText(/Base Sepolia/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/My Vaults/i)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /deposit|withdraw|redeem|manage/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /smart wallet balances/i })).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Earn manually now" })).toHaveAttribute("href", "/earn/eth");
   });
 
   it("defines one action for each supported position state", () => {
