@@ -1,11 +1,5 @@
-import type { Metadata } from "next";
-import { VaultsPageLoader } from "@/components/vaults/VaultsPageLoader";
-
-export const metadata: Metadata = {
-  title: "My Vaults",
-  description: "Your tokenized fund position on Base.",
-};
+import { redirect } from "next/navigation";
 
 export default function MyVaultsRoute() {
-  return <VaultsPageLoader view="my" />;
+  redirect("/vaults");
 }

@@ -101,26 +101,20 @@ export const ASSETS: Record<string, AssetConfig> = {
   },
 };
 
+export const ACTIVE_ASSET_SLUGS = ["eth", "btc"] as const;
 export const ASSET_SLUGS = Object.keys(ASSETS);
 const DEFAULT_ASSET_FALLBACK = "eth";
 
-function getHostnameDefaultAsset(hostname?: string): string | null {
-  if (!hostname) return null;
-  const normalized = hostname.toLowerCase().split(":")[0];
-  if (normalized === "solana.b1nary.app" || normalized.startsWith("solana.")) {
-    return "sol";
-  }
-  return null;
+export function isActiveAssetSlug(slug: string): slug is (typeof ACTIVE_ASSET_SLUGS)[number] {
+  return ACTIVE_ASSET_SLUGS.includes(slug.toLowerCase() as (typeof ACTIVE_ASSET_SLUGS)[number]);
 }
 
 export function getDefaultAssetSlug(hostname?: string): string {
+  void hostname;
   const override = process.env.NEXT_PUBLIC_FEATURED_ASSET;
-  if (override && override in ASSETS) return override;
-  const hostDefault = getHostnameDefaultAsset(hostname);
-  if (hostDefault) return hostDefault;
-  const chain = process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
-  if (chain === "solana") return "sol";
-  return DEFAULT_ASSET_FALLBACK;
+  return override && isActiveAssetSlug(override)
+    ? override.toLowerCase()
+    : DEFAULT_ASSET_FALLBACK;
 }
 
 /** @deprecated Use getDefaultAssetSlug() for deployment-aware routing. */
@@ -134,6 +128,10 @@ if (!(DEFAULT_ASSET in ASSETS)) {
 
 export function getAssetConfig(slug: string): AssetConfig | undefined {
   return ASSETS[slug.toLowerCase()];
+}
+
+export function isActivePositionAsset(asset?: string, strikePrice?: number): boolean {
+  return isActiveAssetSlug(resolvePositionAsset(asset, strikePrice).slug);
 }
 
 /**

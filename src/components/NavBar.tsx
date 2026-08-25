@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useWalletSummary } from "@/hooks/useWalletSummary";
 import { useBalances } from "@/hooks/useBalances";
-import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useSpot } from "@/hooks/useSpot";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { ConnectButton } from "./ConnectButton";
@@ -126,9 +125,7 @@ export function NavBar() {
   const {
     address,
     fundingAddress,
-    solanaAddress,
     baseAddresses,
-    solanaAddresses,
     isConnected,
   } = useWalletSummary();
 
@@ -138,7 +135,8 @@ export function NavBar() {
     .filter((wallet) =>
       wallet.role === "trading" &&
       wallet.verified_at &&
-      (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+      wallet.chain === "base" &&
+      wallet.wallet_type === "smart",
     )
     .sort((a, b) => {
       if (a.chain !== b.chain) return a.chain === "base" ? -1 : 1;
@@ -148,9 +146,6 @@ export function NavBar() {
   const accountBaseAddresses = tradingAccounts
     .filter((wallet) => wallet.chain === "base")
     .map((wallet) => wallet.address as Address);
-  const accountSolanaAddresses = tradingAccounts
-    .filter((wallet) => wallet.chain === "solana")
-    .map((wallet) => wallet.address);
   const balanceAddresses = accountBaseAddresses.length > 0
     ? accountBaseAddresses
     : baseAddresses.length > 0
@@ -158,40 +153,20 @@ export function NavBar() {
       : address;
   const { usd, eth, weth, wbtc, loading: balLoading, refetch } =
     useBalances(balanceAddresses);
-  const {
-    solanaUsdc,
-    solanaSol,
-    solanaWsol,
-    solanaTslax,
-    loading: solanaBalLoading,
-  } = useSolanaBalance(
-    accountSolanaAddresses.length > 0
-      ? accountSolanaAddresses
-      : solanaAddresses.length > 0
-        ? solanaAddresses
-        : solanaAddress,
-  );
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
-  const { spot: solSpot } = useSpot("sol");
-  const { spot: tslaxSpot } = useSpot("tslax");
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
-  const totalUsdc = usd + solanaUsdc;
+  const totalUsdc = usd;
   const totalUsd =
     totalUsdc +
     (eth + weth) * (ethSpot ?? ASSETS.eth.fallbackSpot) +
-    wbtc * (btcSpot ?? ASSETS.btc.fallbackSpot) +
-    (solanaSol + solanaWsol) * (solSpot ?? ASSETS.sol.fallbackSpot) +
-    solanaTslax * (tslaxSpot ?? ASSETS.tslax.fallbackSpot);
-  const balancesLoading = balLoading || solanaBalLoading;
+    wbtc * (btcSpot ?? ASSETS.btc.fallbackSpot);
+  const balancesLoading = balLoading;
   const balanceItems: BalanceItem[] = [
     { icon: "/usdc.svg", label: "USDC", value: fmtUsd(totalUsdc), amount: totalUsdc },
     { icon: "/eth.png", label: "ETH", value: fmtAmount(eth, 4), amount: eth },
     { icon: "/weth.png", label: "WETH", value: fmtAmount(weth, 4), amount: weth },
     { icon: "/cbbtc.webp", label: "cbBTC", value: fmtAmount(wbtc, 6), amount: wbtc },
-    { icon: "/sol.png", label: "SOL", value: fmtAmount(solanaSol, 4), amount: solanaSol },
-    { icon: "/sol.png", label: "wSOL", value: fmtAmount(solanaWsol, 4), amount: solanaWsol },
-    { icon: "/tslax.svg", label: "TSLAx", value: fmtAmount(solanaTslax, 4), amount: solanaTslax },
   ].sort((a, b) => {
     if (a.amount > 0 && b.amount <= 0) return -1;
     if (a.amount <= 0 && b.amount > 0) return 1;
@@ -224,18 +199,21 @@ export function NavBar() {
           <Link href="/" className="text-lg font-bold tracking-tight text-[var(--bone)] font-mono">
             b<span className="text-[var(--accent)]">1</span>nary
           </Link>
-          <nav className="order-3 flex w-full gap-3 overflow-x-auto whitespace-nowrap pt-1 text-xs sm:text-sm lg:order-none lg:w-auto lg:gap-4 lg:pt-0">
-            {TRADING_NAV_LINKS.map(({ href, label }) => {
+          <nav aria-label={locale === "es" ? "Navegación principal" : "Primary navigation"} className="order-3 flex w-full gap-1 overflow-x-auto whitespace-nowrap pt-1 text-sm lg:order-none lg:w-auto lg:pt-0">
+            {TRADING_NAV_LINKS.map(({ href, match, label, primary }) => {
               const localizedLabel = locale === "es"
-                ? href === "/vaults" ? "Bóvedas v2" : href === "/earn" ? "Operar" : "Mis ingresos"
+                ? match === "/vaults" ? "Bóvedas · Pronto" : match === "/earn" ? "Ingresos" : "Posiciones"
                 : label;
               return <Link
                 key={href}
                 href={href}
-                className={`transition-colors ${
-                  pathname.startsWith(href)
-                    ? "text-[var(--text)] font-medium"
-                    : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                aria-current={pathname.startsWith(match) ? "page" : undefined}
+                className={`flex min-h-11 items-center rounded-lg px-3 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                  pathname.startsWith(match)
+                    ? "bg-[var(--surface)] font-semibold text-[var(--text)]"
+                    : primary
+                      ? "font-medium text-[var(--text-secondary)] hover:text-[var(--text)]"
+                      : "text-xs text-[var(--text-secondary)] hover:text-[var(--text)]"
                 }`}
               >
                 {localizedLabel}
@@ -315,8 +293,8 @@ export function NavBar() {
               </PopoverContent>
             </Popover>
           )}
-          {SHOW_FAUCET && isConnected && !balLoading && (fundingAddress || solanaAddress) && (
-            <FaucetButton address={fundingAddress} solanaAddress={solanaAddress} refetch={refetch} />
+          {SHOW_FAUCET && isConnected && !balLoading && fundingAddress && (
+            <FaucetButton address={fundingAddress} solanaAddress={undefined} refetch={refetch} />
           )}
           <AppPreferenceControls />
           <ConnectButton />

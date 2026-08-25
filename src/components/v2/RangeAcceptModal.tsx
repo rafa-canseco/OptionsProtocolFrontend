@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   maxUint256,
   encodeFunctionData,
@@ -31,6 +31,7 @@ import { isProductionReadOnlyAsset } from "@/lib/marketState";
 import { DepositModal } from "@/components/DepositModal";
 import { solanaTxUrl } from "@/lib/solana";
 import { invalidateData } from "@/lib/dataInvalidation";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 const DEADLINE_BUFFER_S = 60;
 
@@ -44,6 +45,7 @@ interface Props {
   assetSymbol?: string;
   assetSlug?: string;
   onClose: () => void;
+  onPartial: (info: { putTxHash: string | null }) => void;
   onAccepted: (info: {
     putTxHash: string | null;
     callTxHash: string | null;
@@ -84,6 +86,7 @@ export function RangeAcceptModal({
   assetSymbol = "ETH",
   assetSlug = "eth",
   onClose,
+  onPartial,
   onAccepted,
 }: Props) {
   const { address, sendBatchTx, isConnected } = useWallet();
@@ -94,6 +97,9 @@ export function RangeAcceptModal({
   const [didSwap, setDidSwap] = useState(false);
   const [showDeposit, setShowDeposit] = useState(false);
   const [depositToken, setDepositToken] = useState<"usdc" | "eth" | "btc" | "sol">("usdc");
+  const submissionInFlight = useRef(false);
+  const groupIdRef = useRef<string | null>(null);
+  const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc";
   const marketReadOnly = isProductionReadOnlyAsset(
     getAssetConfig(assetSlug) ?? { slug: assetSlug, chain: putQuote.chain },
   );
@@ -106,22 +112,119 @@ export function RangeAcceptModal({
 
   const stepLabels: Record<RangeStep, string> = {
     "idle": "Accept range",
-    "swapping": "Swapping USDC to ETH...",
+    "swapping": `Swapping USDC to ${assetSymbol}...`,
     "executing-put": "Executing lower side...",
     "executing-call": "Executing upper side...",
     "confirmed": "Done",
     "partial-put-only": "Upper side failed",
   };
 
+  function handleClose() {
+    if (done) onAccepted({ putTxHash, callTxHash });
+    else if (step === "partial-put-only") onPartial({ putTxHash });
+    else onClose();
+  }
+
+  async function handleRetryUpper() {
+    if (submissionInFlight.current) return;
+    submissionInFlight.current = true;
+
+    try {
+      if (activeBaseAsset && callQuote.chain !== "base") {
+        setError("The upper quote is not available on Base. Refresh prices or close this partial range.");
+        return;
+      }
+      if (!isConnected || !address) {
+        setError("Connect your wallet before retrying the upper side.");
+        return;
+      }
+      if (!quoteIsValid(callQuote) || !deadlineOk(callQuote)) {
+        setError("The upper quote is no longer valid. Refresh prices or close this partial range.");
+        return;
+      }
+
+      setError(null);
+      setStep("executing-call");
+      const callCol = computeCollateral(false, callAmountEth, callQuote.strike, assetSlug);
+      const callBalance = await readTokenBalance(callCol.collateralAsset, address);
+      if (callBalance < callCol.collateral) {
+        setDepositToken(assetSlug === "btc" ? "btc" : "eth");
+        setShowDeposit(true);
+        setStep("partial-put-only");
+        return;
+      }
+
+      const callAllowance = await publicClient.readContract({
+        address: callCol.collateralAsset,
+        abi: ERC20_ABI,
+        functionName: "allowance",
+        args: [address, ADDRESSES.marginPool],
+      });
+      const callBalBefore = callBalance;
+      const callCalls: BatchCall[] = [];
+      if (callAllowance < callCol.collateral) {
+        callCalls.push({
+          to: callCol.collateralAsset,
+          data: encodeFunctionData({
+            abi: ERC20_ABI,
+            functionName: "approve",
+            args: [ADDRESSES.marginPool, maxUint256],
+          }),
+        });
+      }
+      callCalls.push({
+        to: ADDRESSES.batchSettler,
+        data: encodeExecuteOrder(callQuote, callCol.oTokenAmount, callCol.collateral),
+      });
+
+      const callHash = await fireAndPoll(
+        () => sendBatchTx(callCalls),
+        async () => (await readTokenBalance(callCol.collateralAsset, address)) < callBalBefore,
+        "range-call-retry",
+      );
+      if (callHash) setCallTxHash(callHash);
+
+      const groupId = groupIdRef.current ?? crypto.randomUUID();
+      groupIdRef.current = groupId;
+      const callPos = buildOptimisticPosition(callQuote, callAmountEth, false, address, assetSlug, groupId);
+      callPos.tx_hash = callHash ?? "";
+      try { saveOptimistic(callPos); } catch (err) {
+        console.warn("[RangeAcceptModal] Could not save optimistic position (call retry):", err);
+      }
+
+      if (putTxHash && callHash) {
+        void api.groupPositions(groupId, [putTxHash, callHash], address).catch((err) => {
+          console.error("[RangeAcceptModal] Could not group retried range:", err);
+        });
+      }
+      setStep("confirmed");
+      invalidateData(["balances", "positions", "activity"], "trade-confirmed");
+    } catch (err) {
+      console.error("[RangeAcceptModal] Upper retry failed:", err);
+      setStep("partial-put-only");
+      setError("Upper side failed again. Lower side remains complete. Retry the upper side or close.");
+    } finally {
+      submissionInFlight.current = false;
+    }
+  }
+
   async function handleAccept() {
+    if (submissionInFlight.current) return;
+    submissionInFlight.current = true;
+
+    try {
     if (marketReadOnly) {
       setError(`${assetSymbol} is visible in production, but trading is still coming soon.`);
       return;
     }
 
+    if (activeBaseAsset && (putQuote.chain !== "base" || callQuote.chain !== "base")) {
+      setError("Both range quotes must be available on Base. Refresh prices and try again.");
+      return;
+    }
+
     if (!isConnected) {
-      setDepositToken("usdc");
-      setShowDeposit(true);
+      setError("Connect your wallet before accepting this range.");
       return;
     }
     if (!address) {
@@ -144,6 +247,7 @@ export function RangeAcceptModal({
 
     setError(null);
     let lastStep = "idle";
+    let swappedThisAttempt = false;
     const updateStep = (s: RangeStep) => { lastStep = s; setStep(s); };
 
     try {
@@ -217,6 +321,7 @@ export function RangeAcceptModal({
 
         const swapHash = await sendBatchTx(swapCalls) as `0x${string}`;
         await publicClient.waitForTransactionReceipt({ hash: swapHash });
+        swappedThisAttempt = true;
         setDidSwap(true);
       } else if (callAvailable < callNeeded) {
         setDepositToken(isBtc ? "btc" : assetSlug === "sol" ? "sol" : "eth");
@@ -285,6 +390,7 @@ export function RangeAcceptModal({
 
       // Generate group_id for this range pair
       const groupId = crypto.randomUUID();
+      groupIdRef.current = groupId;
 
       // Save put optimistic position
       const putPos = buildOptimisticPosition(putQuote, putAmountUsd, true, address, assetSlug, groupId);
@@ -292,11 +398,12 @@ export function RangeAcceptModal({
       try { saveOptimistic(putPos); } catch (err) {
         console.warn("[RangeAcceptModal] Could not save optimistic position (put):", err);
       }
+      invalidateData(["balances", "positions", "activity"], "range-lower-confirmed");
 
       // === Check call quote deadline before proceeding ===
       if (!deadlineOk(callQuote)) {
         updateStep("partial-put-only");
-        setError("Lower side completed but upper quote expired. You can retry the upper side from the Earn page.");
+        setError("Lower side completed but the upper quote expired. Refresh prices or close this partial range.");
         return;
       }
 
@@ -384,7 +491,6 @@ export function RangeAcceptModal({
 
       // Done
       updateStep("confirmed");
-      onAccepted({ putTxHash: putHash, callTxHash: callHash });
       invalidateData(["balances", "positions", "activity"], "trade-confirmed");
 
     } catch (err: unknown) {
@@ -398,38 +504,63 @@ export function RangeAcceptModal({
       } else if (lastStep === "swapping") {
         setError("Swap failed. No funds were moved. Please try again.");
         setStep("idle");
-      } else if (lastStep === "executing-put" && didSwap) {
-        setError("Lower side failed, but the swap already completed. Your ETH is in your wallet. Please try again.");
+      } else if (lastStep === "executing-put" && swappedThisAttempt) {
+        setError(`Lower side failed, but the swap already completed. Your ${assetSymbol} is in your wallet. Please try again.`);
         setStep("idle");
       } else if (lastStep === "executing-put") {
         setError("Lower side failed. No funds were moved. Please try again.");
         setStep("idle");
       } else if (lastStep === "executing-call") {
         setStep("partial-put-only");
-        setError("Lower side completed but upper side failed. You can retry the upper side from the Earn page.");
+        setError("Lower side completed but upper side failed. Retry only the upper side or close.");
       } else {
         setError("Transaction failed. Please try again.");
         setStep("idle");
       }
     }
+    } finally {
+      submissionInFlight.current = false;
+    }
+  }
+
+  if (showDeposit) {
+    return (
+      <DepositModal
+        requiredToken={depositToken}
+        onClose={() => setShowDeposit(false)}
+        onComplete={() => setShowDeposit(false)}
+      />
+    );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
-      <div className="fixed inset-0 bg-black/30" onClick={loading ? undefined : onClose} />
-      <div className="relative w-full max-w-md bg-[var(--bg)] rounded-t-2xl sm:rounded-2xl border border-[var(--border)] p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+    <Dialog open onOpenChange={(open) => { if (!open && !loading) handleClose(); }}>
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[90dvh] max-w-md overflow-y-auto rounded-2xl border-[var(--border)] bg-[var(--bg)] p-6 text-[var(--text)]"
+        onEscapeKeyDown={(event) => { if (loading) event.preventDefault(); }}
+        onPointerDownOutside={(event) => { if (loading) event.preventDefault(); }}
+      >
         {/* Back */}
         <button
-          onClick={onClose}
+          type="button"
+          aria-label={done ? "Close range confirmation" : step === "partial-put-only" ? "Close partial range" : undefined}
+          onClick={handleClose}
           disabled={loading}
           className="text-sm text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors disabled:opacity-40"
         >
-          &larr; Back
+          {done ? "Close" : "← Back"}
         </button>
 
         {/* Title */}
         <div>
-          <p className="text-lg font-semibold text-[var(--bone)]">
+          <DialogTitle className="text-lg font-semibold text-[var(--bone)]">
+            Confirm range commitment
+          </DialogTitle>
+          <DialogDescription className="sr-only">
+            Review both range commitments and their transaction status before closing.
+          </DialogDescription>
+          <p className="mt-1 text-sm text-[var(--text-secondary)]">
             Range: ${putQuote.strike.toLocaleString()} – ${callQuote.strike.toLocaleString()}
           </p>
           {marketReadOnly && (
@@ -461,7 +592,10 @@ export function RangeAcceptModal({
 
         {/* Progress stepper */}
         {step !== "idle" && (
-          <div className="space-y-2">
+          <div role="status" aria-live="polite" aria-atomic="true" className="space-y-2">
+            {step === "confirmed" && (
+              <p className="text-sm font-medium text-[var(--accent)]">{assetSymbol} range confirmed.</p>
+            )}
             {/* Swap step — only shown when swapping or after swap completed */}
             {(step === "swapping" || didSwap) && (
               <div className="flex items-center gap-2">
@@ -508,7 +642,7 @@ export function RangeAcceptModal({
         )}
 
         {/* Error */}
-        {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
+        {error && <p role="alert" aria-live="assertive" className="text-sm text-[var(--danger)]">{error}</p>}
 
         {/* Tx links */}
         {(putTxHash || callTxHash) && (assetSlug === "sol" || explorerUrl) && (
@@ -528,21 +662,14 @@ export function RangeAcceptModal({
 
         {/* Action button */}
         <button
-          onClick={handleAccept}
-          disabled={marketReadOnly || loading || done}
+          onClick={done ? handleClose : step === "partial-put-only" ? handleRetryUpper : handleAccept}
+          disabled={marketReadOnly || loading}
           className="w-full rounded-xl bg-[var(--accent)] py-3.5 text-sm font-semibold text-[var(--bg)] hover:bg-[var(--accent-hover)] disabled:opacity-40 transition-colors"
         >
-          {marketReadOnly ? "Coming soon" : stepLabels[step]}
+          {marketReadOnly ? "Coming soon" : done ? "Continue" : step === "partial-put-only" ? "Retry upper side" : stepLabels[step]}
         </button>
 
-        {showDeposit && (
-          <DepositModal
-            requiredToken={depositToken}
-            onClose={() => setShowDeposit(false)}
-            onComplete={() => setShowDeposit(false)}
-          />
-        )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
