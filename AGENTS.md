@@ -29,6 +29,14 @@ will share only error messages when tests fail.
 3. Post your implementation plan as a comment on the Linear issue.
    Do NOT start coding until the plan is approved.
 
+## Verification And Review
+
+- During editing, run only affected Vitest files (`bun run test -- <test-files>`) and `bun run typecheck` when TypeScript changes.
+- Before handoff, run `bun run check:fast` once. If executable frontend behavior changed, also run `bun run check:full` before delivery.
+- Risk routing is: low = targeted checks + fast gate, no fresh reviewer; standard = targeted checks + fast gate + independent reviewer; high = targeted checks + full gate + defensive independent reviewer.
+- Treat unspecified legacy work as high risk. Only a user- or Linear-approved ticket may assign a lower risk.
+- Wallet, authentication, and fund-flow changes always retain independent review; use defensive independent review when high risk.
+
 ## Git Workflow
 
 - Commit often. One logical change per commit.
