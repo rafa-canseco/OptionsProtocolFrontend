@@ -22,7 +22,7 @@ export default function EarnAssetPage({
   return (
     <main className="mx-auto max-w-6xl px-6 py-10 space-y-8">
       <h1 className="sr-only">{locale === "es" ? `Genera ingresos con ${config.symbol}` : `Earn Premium on ${config.symbol}`}</h1>
-      <PriceMenuV2 asset={config} />
+      <PriceMenuV2 asset={config} key={config.slug} />
     </main>
   );
 }

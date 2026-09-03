@@ -30,6 +30,14 @@ export interface AssetConfig {
   collateralDecimals: number;
   /** Spot price used when live feed is unavailable */
   fallbackSpot: number;
+  /** Canonical token address when ticker-only identity is unsafe. */
+  address?: `0x${string}`;
+  disclosure?: {
+    instrument: string;
+    jurisdiction: string;
+    eligibility: string;
+    policyPause: string;
+  };
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -66,6 +74,29 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 8,
     fallbackSpot: 95_000,
+  },
+  nvdac: {
+    slug: "nvdac",
+    symbol: "NVDAc",
+    name: "NVIDIA Tokenized Stock (B20)",
+    wrappedSymbol: "NVDAc",
+    stableSymbol: "USDC",
+    maxAmount: Number.POSITIVE_INFINITY,
+    maxAmountUsd: Number.POSITIVE_INFINITY,
+    amountPlaceholder: "1",
+    displayDecimals: 4,
+    minSellAmount: 0.01,
+    minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 8,
+    fallbackSpot: 0,
+    address: "0xb20000000000000000000078ee7ce2fE4908108C",
+    disclosure: {
+      instrument: "NVDAc is a tokenized-stock/B20 economic-exposure and redemption instrument. It is not NVIDIA-issued registered equity and does not provide direct ownership of NVIDIA shares.",
+      jurisdiction: process.env.NEXT_PUBLIC_NVDAC_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
+      eligibility: process.env.NEXT_PUBLIC_NVDAC_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
+      policyPause: process.env.NEXT_PUBLIC_NVDAC_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
+    },
   },
   sol: {
     slug: "sol",
@@ -105,8 +136,8 @@ export const ACTIVE_ASSET_SLUGS = ["eth", "btc"] as const;
 export const ASSET_SLUGS = Object.keys(ASSETS);
 const DEFAULT_ASSET_FALLBACK = "eth";
 
-export function isActiveAssetSlug(slug: string): slug is (typeof ACTIVE_ASSET_SLUGS)[number] {
-  return ACTIVE_ASSET_SLUGS.includes(slug.toLowerCase() as (typeof ACTIVE_ASSET_SLUGS)[number]);
+export function isActiveAssetSlug(slug: string): boolean {
+  return slug.toLowerCase() === "nvdac" || ACTIVE_ASSET_SLUGS.includes(slug.toLowerCase() as (typeof ACTIVE_ASSET_SLUGS)[number]);
 }
 
 export function getDefaultAssetSlug(hostname?: string): string {

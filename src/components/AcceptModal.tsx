@@ -38,6 +38,7 @@ import {
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
 import {
+  isCanonicalQuoteForAsset,
   isLazyOTokenEnabled,
   isProductionReadOnlyAsset,
 } from "@/lib/marketState";
@@ -92,7 +93,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc";
+  const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc" || assetSlug === "nvdac";
   const { getAccessToken } = usePrivy();
   const {
     address,
@@ -253,6 +254,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     }
     if (activeBaseAsset && quote.chain !== "base") {
       setError("This quote is not available on Base. Refresh prices and try again.");
+      return;
+    }
+    if (activeBaseAsset && (!assetConfig || !isCanonicalQuoteForAsset(quote, assetConfig))) {
+      setError("This quote does not match the canonical Base asset. Refresh prices and try again.");
       return;
     }
 

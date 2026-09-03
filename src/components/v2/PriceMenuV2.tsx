@@ -17,6 +17,8 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import {
+  getAssetActionBlockReason,
+  isCanonicalQuoteForAsset,
   isExecutableQuote,
   isProductionReadOnlyAsset,
   reconcileSelectedQuote,
@@ -256,14 +258,22 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { locale } = useAppPreferences();
   const t = (en: string, es: string) => locale === "es" ? es : en;
   const { prices, loading, error, refresh } = usePrices(asset.slug);
+  const { capacity } = useCapacity(asset.slug);
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
-  const spot = spotFromEndpoint ?? prices[0]?.spot ?? asset.fallbackSpot;
+  const canonicalPrices = useMemo(
+    () => prices.filter((quote) => isCanonicalQuoteForAsset(quote, asset)),
+    [asset, prices],
+  );
+  const spot = spotFromEndpoint ?? canonicalPrices[0]?.spot ?? asset.fallbackSpot;
   const displayPrices = useMemo(
-    () => prices.length > 0 ? prices : buildPreviewQuotes(asset, spot),
-    [asset, prices, spot],
+    () => canonicalPrices.length > 0
+      ? canonicalPrices
+      : asset.address
+        ? []
+        : buildPreviewQuotes(asset, spot),
+    [asset, canonicalPrices, spot],
   );
   const indicativeQuotesActive = displayPrices.some((quote) => !isExecutableQuote(quote));
-  const { capacity } = useCapacity(asset.slug);
   const { address, isConnected } = useWallet();
   const { login } = useLogin();
   const { wallets: b1naryWallets } = useB1naryAccount({
@@ -284,7 +294,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
-  const initialSide = sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
+  const initialSide = asset.slug === "nvdac"
+    ? "buy"
+    : sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
   const [side, setSide] = useState<"buy" | "sell" | "range">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -303,7 +315,8 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
-  const marketReadOnly = isProductionReadOnlyAsset(asset);
+  const readinessBlockReason = getAssetActionBlockReason(asset, capacity);
+  const marketReadOnly = isProductionReadOnlyAsset(asset) || !!readinessBlockReason;
   const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
@@ -411,7 +424,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     const raw = walletBalance * (pct / 100);
     if (isBuy) {
       const truncated = floorTo(raw, 2);
-      setAmountStr(Math.min(truncated, capUsd).toString());
+      setAmountStr((Number.isFinite(capUsd) ? Math.min(truncated, capUsd) : truncated).toString());
     } else {
       const truncated = floorTo(raw, asset.displayDecimals);
       setAmountStr(Math.min(truncated, capEth).toString());
@@ -429,7 +442,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
-  if (error && displayPrices.length === 0) {
+  if (error && displayPrices.length === 0 && !asset.disclosure) {
     return (
       <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
         {t("Could not load prices. Is the backend running?", "No se pudieron cargar los precios.")}
@@ -578,8 +591,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
-  const acceptButtonLabel = marketReadOnly
-    ? t("Coming soon", "Próximamente")
+  const acceptButtonLabel = readinessBlockReason
+    ? t("Action unavailable", "Acción no disponible")
+    : marketReadOnly
+      ? t("Coming soon", "Próximamente")
     : marketClosed
       ? t("Market at capacity", "Mercado sin capacidad")
       : selectedQuoteIsPreview
@@ -619,6 +634,17 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </div>
       </div>
 
+      {asset.disclosure && (
+        <section className="space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs text-[var(--text-secondary)]" aria-label={`${asset.symbol} disclosures`}>
+          <p className="font-semibold text-[var(--bone)]">Tokenized-stock/B20 disclosure</p>
+          <p>{asset.disclosure.instrument}</p>
+          <p>{asset.disclosure.jurisdiction} {asset.disclosure.eligibility}</p>
+          <p>{asset.disclosure.policyPause}</p>
+          <p className="break-all font-mono">Base · {asset.address}</p>
+          {readinessBlockReason && <p className="font-medium text-amber-300">{readinessBlockReason}</p>}
+        </section>
+      )}
+
       {/* Buy/Sell/Range toggle + content */}
       <div className="space-y-5">
         {/* 1. Buy / Sell / Range toggle */}
@@ -634,27 +660,31 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {t("I have USD", "Tengo USD")}
             </button>
-            <button
-              data-tour="tab-sell"
-              onClick={() => { setSide("sell"); setSelectedQuote(null); }}
-              className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
-                side === "sell"
-                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              }`}
-            >
-              {t("I have", "Tengo")} {asset.symbol}
-            </button>
-            <button
-              onClick={() => { setSide("range"); setSelectedQuote(null); }}
-              className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
-                side === "range"
-                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              }`}
-            >
-              {t("Range", "Rango")}
-            </button>
+            {asset.slug !== "nvdac" && (
+              <>
+                <button
+                  data-tour="tab-sell"
+                  onClick={() => { setSide("sell"); setSelectedQuote(null); }}
+                  className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                    side === "sell"
+                      ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {t("I have", "Tengo")} {asset.symbol}
+                </button>
+                <button
+                  onClick={() => { setSide("range"); setSelectedQuote(null); }}
+                  className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                    side === "range"
+                      ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {t("Range", "Rango")}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Context line — explains the benefit and why you get paid */}
@@ -858,9 +888,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {acceptButtonLabel}
             </button>
-            {marketClosed && (
+            {(readinessBlockReason || marketClosed) && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                Quotes are visible for planning; trading is disabled while capacity is full.
+                {readinessBlockReason || "Quotes are visible for planning; trading is disabled while capacity is full."}
               </p>
             )}
           </div>
@@ -912,9 +942,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {acceptButtonLabel}
             </button>
-            {marketClosed && (
+            {(readinessBlockReason || marketClosed) && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                Quotes are visible for planning; trading is disabled while capacity is full.
+                {readinessBlockReason || "Quotes are visible for planning; trading is disabled while capacity is full."}
               </p>
             )}
           </div>

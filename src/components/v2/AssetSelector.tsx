@@ -7,6 +7,8 @@ import { useRouter } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ACTIVE_ASSET_SLUGS, ASSETS, type AssetConfig } from "@/lib/assets";
+import { useCapacity } from "@/hooks/useCapacity";
+import { getAssetActionBlockReason } from "@/lib/marketState";
 
 const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
@@ -14,21 +16,34 @@ const ASSET_LOGOS: Record<string, string> = {
 };
 
 function AssetIcon({ slug, size = 20 }: { slug: string; size?: number }) {
-  return (
+  const logo = ASSET_LOGOS[slug];
+  return logo ? (
     <Image
-      src={ASSET_LOGOS[slug]}
+      src={logo}
       alt=""
       aria-hidden="true"
       width={size}
       height={size}
       className="shrink-0 rounded-full"
     />
+  ) : (
+    <span
+      aria-hidden="true"
+      style={{ width: size, height: size }}
+      className="grid shrink-0 place-items-center rounded-full bg-emerald-400/15 text-[9px] font-bold text-emerald-300"
+    >
+      N
+    </span>
   );
 }
 
 export function AssetSelector({ current }: { current: AssetConfig }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
+  const { capacity: nvdacCapacity } = useCapacity("nvdac");
+  const visibleSlugs = getAssetActionBlockReason(ASSETS.nvdac, nvdacCapacity)
+    ? ACTIVE_ASSET_SLUGS
+    : [...ACTIVE_ASSET_SLUGS, "nvdac"];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -53,7 +68,7 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
           <CommandList>
             <CommandEmpty className="text-[var(--text-secondary)]">No asset found.</CommandEmpty>
             <CommandGroup heading="Available on Base">
-              {ACTIVE_ASSET_SLUGS.map((slug) => {
+              {visibleSlugs.map((slug) => {
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
                 return (
