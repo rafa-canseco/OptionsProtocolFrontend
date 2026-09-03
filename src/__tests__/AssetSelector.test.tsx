@@ -5,11 +5,18 @@ import { AssetSelector } from "@/components/v2/AssetSelector";
 import { ASSETS } from "@/lib/assets";
 
 const push = vi.fn();
+let nvdacCapacity: import("@/lib/api").Capacity | null = null;
 beforeAll(() => { Element.prototype.scrollIntoView = vi.fn(); });
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
+vi.mock("@/hooks/useCapacity", () => ({
+  useCapacity: () => ({ capacity: nvdacCapacity, loading: false }),
+}));
 
 describe("AssetSelector", () => {
-  beforeEach(() => push.mockClear());
+  beforeEach(() => {
+    push.mockClear();
+    nvdacCapacity = null;
+  });
   it("shows scalable Base asset details and routes only to an active asset", async () => {
     const user = userEvent.setup();
     render(<AssetSelector current={ASSETS.eth} />);
@@ -30,6 +37,29 @@ describe("AssetSelector", () => {
 
     await user.keyboard("{ArrowDown}{Enter}");
     expect(push).toHaveBeenCalledWith("/earn/btc");
+  });
+
+  it("exposes canonical Base NVDAc only after affirmative backend and route readiness", async () => {
+    nvdacCapacity = {
+      capacity: 1,
+      capacity_usd: 1,
+      market_open: true,
+      market_status: "active",
+      max_position: 1,
+      mm_count: 1,
+      updated_at: "2026-09-03T00:00:00Z",
+      asset_chain: "base",
+      asset_address: ASSETS.nvdac.address,
+      backend_ready: true,
+      route_active: true,
+      route_qualified: true,
+      readiness_status: "ready",
+    };
+    const user = userEvent.setup();
+    render(<AssetSelector current={ASSETS.eth} />);
+
+    await user.click(screen.getByRole("button", { name: "Select asset. Current asset ETH" }));
+    expect(screen.getByRole("option", { name: /NVDAc/ })).toHaveTextContent("Base · Trading open");
   });
 
   it("opens and closes from the keyboard and restores focus to the trigger", async () => {
