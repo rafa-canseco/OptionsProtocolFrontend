@@ -175,7 +175,7 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
               {locale === "en" ? "ES" : "EN"}
             </Button>
             <Button asChild size="lg" className={styles.headerCta}>
-              <Link href="/vaults">
+              <Link href="/earn/eth">
                 {copy.openApp} <ArrowRight aria-hidden="true" />
               </Link>
             </Button>
@@ -209,7 +209,7 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
                 <div className={styles.mobileSheetFooter}>
                   <SheetClose asChild>
                     <Button asChild size="lg" className={styles.mobileSheetCta}>
-                      <Link href="/vaults">{copy.openApp} <ArrowRight aria-hidden="true" /></Link>
+                      <Link href="/earn/eth">{copy.openApp} <ArrowRight aria-hidden="true" /></Link>
                     </Button>
                   </SheetClose>
                 </div>
@@ -362,7 +362,7 @@ export function LandingPage({ initialLocale = "en" }: { initialLocale?: LandingL
             <p>{copy.final[2]}</p>
           </div>
           <Button asChild size="lg" className={styles.primaryButton}>
-            <Link href="/vaults">{copy.viewStrategies} <ArrowRight aria-hidden="true" /></Link>
+            <Link href="/earn/eth">{copy.viewStrategies} <ArrowRight aria-hidden="true" /></Link>
           </Button>
         </section>
       </main>

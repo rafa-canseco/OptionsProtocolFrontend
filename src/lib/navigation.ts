@@ -1,5 +1,5 @@
 export const TRADING_NAV_LINKS = [
-  { href: "/vaults", label: "Vaults v2" },
-  { href: "/earn", label: "Trade" },
-  { href: "/positions", label: "My earnings" },
+  { href: "/earn/eth", match: "/earn", label: "Earn", primary: true },
+  { href: "/positions", match: "/positions", label: "Positions", primary: true },
+  { href: "/vaults", match: "/vaults", label: "Vaults · Soon", primary: false },
 ] as const;

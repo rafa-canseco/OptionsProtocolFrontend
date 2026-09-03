@@ -30,6 +30,14 @@ export interface AssetConfig {
   collateralDecimals: number;
   /** Spot price used when live feed is unavailable */
   fallbackSpot: number;
+  /** Canonical token address when ticker-only identity is unsafe. */
+  address?: `0x${string}`;
+  disclosure?: {
+    instrument: string;
+    jurisdiction: string;
+    eligibility: string;
+    policyPause: string;
+  };
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -67,6 +75,29 @@ export const ASSETS: Record<string, AssetConfig> = {
     collateralDecimals: 8,
     fallbackSpot: 95_000,
   },
+  nvdac: {
+    slug: "nvdac",
+    symbol: "NVDAc",
+    name: "NVIDIA Tokenized Stock (B20)",
+    wrappedSymbol: "NVDAc",
+    stableSymbol: "USDC",
+    maxAmount: Number.POSITIVE_INFINITY,
+    maxAmountUsd: Number.POSITIVE_INFINITY,
+    amountPlaceholder: "1",
+    displayDecimals: 4,
+    minSellAmount: 0.01,
+    minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 8,
+    fallbackSpot: 0,
+    address: "0xb20000000000000000000078ee7ce2fE4908108C",
+    disclosure: {
+      instrument: "NVDAc is a tokenized-stock/B20 economic-exposure and redemption instrument. It is not NVIDIA-issued registered equity and does not provide direct ownership of NVIDIA shares.",
+      jurisdiction: process.env.NEXT_PUBLIC_NVDAC_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
+      eligibility: process.env.NEXT_PUBLIC_NVDAC_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
+      policyPause: process.env.NEXT_PUBLIC_NVDAC_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
+    },
+  },
   sol: {
     slug: "sol",
     symbol: "SOL",
@@ -101,26 +132,20 @@ export const ASSETS: Record<string, AssetConfig> = {
   },
 };
 
+export const ACTIVE_ASSET_SLUGS = ["eth", "btc"] as const;
 export const ASSET_SLUGS = Object.keys(ASSETS);
 const DEFAULT_ASSET_FALLBACK = "eth";
 
-function getHostnameDefaultAsset(hostname?: string): string | null {
-  if (!hostname) return null;
-  const normalized = hostname.toLowerCase().split(":")[0];
-  if (normalized === "solana.b1nary.app" || normalized.startsWith("solana.")) {
-    return "sol";
-  }
-  return null;
+export function isActiveAssetSlug(slug: string): boolean {
+  return slug.toLowerCase() === "nvdac" || ACTIVE_ASSET_SLUGS.includes(slug.toLowerCase() as (typeof ACTIVE_ASSET_SLUGS)[number]);
 }
 
 export function getDefaultAssetSlug(hostname?: string): string {
+  void hostname;
   const override = process.env.NEXT_PUBLIC_FEATURED_ASSET;
-  if (override && override in ASSETS) return override;
-  const hostDefault = getHostnameDefaultAsset(hostname);
-  if (hostDefault) return hostDefault;
-  const chain = process.env.NEXT_PUBLIC_DEPLOYMENT_CHAIN;
-  if (chain === "solana") return "sol";
-  return DEFAULT_ASSET_FALLBACK;
+  return override && isActiveAssetSlug(override)
+    ? override.toLowerCase()
+    : DEFAULT_ASSET_FALLBACK;
 }
 
 /** @deprecated Use getDefaultAssetSlug() for deployment-aware routing. */
@@ -134,6 +159,10 @@ if (!(DEFAULT_ASSET in ASSETS)) {
 
 export function getAssetConfig(slug: string): AssetConfig | undefined {
   return ASSETS[slug.toLowerCase()];
+}
+
+export function isActivePositionAsset(asset?: string, strikePrice?: number): boolean {
+  return isActiveAssetSlug(resolvePositionAsset(asset, strikePrice).slug);
 }
 
 /**

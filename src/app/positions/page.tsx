@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useMemo } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { PositionCard } from "@/components/PositionCard";
@@ -11,9 +12,8 @@ import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
 import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
-import { useActivity } from "@/hooks/useActivity";
 import { useNotificationStatus } from "@/hooks/useNotificationStatus";
-import { resolvePositionAsset } from "@/lib/assets";
+import { isActivePositionAsset, resolvePositionAsset } from "@/lib/assets";
 import { groupPositions } from "@/lib/positionGrouping";
 import { NotificationBanner } from "@/components/NotificationBanner";
 import type { YieldMetric } from "@/components/YieldToggle";
@@ -28,12 +28,6 @@ export default function PositionsPage() {
     portfolioAddresses,
     isConnected,
   } = useWallet();
-  const solanaPositionAddresses = useMemo(
-    () => portfolioAddresses.solana.filter((value, index, arr): value is string =>
-      Boolean(value) && arr.indexOf(value) === index,
-    ),
-    [portfolioAddresses.solana],
-  );
   const {
     positions,
     loading,
@@ -44,16 +38,16 @@ export default function PositionsPage() {
   } = usePositions(
     address,
     undefined,
-    solanaPositionAddresses,
+    [],
     15_000,
     portfolioAddresses.base,
     user?.id,
   );
-  const { activity } = useActivity(address, undefined);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
-  const { spot: solSpot } = useSpot("sol");
-  const allPositions = useOptimisticPositions(positions);
+  const allPositions = useOptimisticPositions(positions).filter((position) =>
+    isActivePositionAsset(position.asset, position.strike_price),
+  );
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
   const notifStatus = useNotificationStatus(address);
   const active = useMemo(
@@ -77,14 +71,14 @@ export default function PositionsPage() {
     );
   }
 
-  if (!loading && allPositions.length === 0) {
+  if (!loading && allPositions.length === 0 && !settledHasMore) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-6">
         <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>
         <div className="text-center py-12">
           <p className="text-lg font-semibold text-[var(--text)]">{t("No positions yet", "Aún no tienes posiciones")}</p>
           <p className="text-sm text-[var(--text-secondary)] mt-1">
-            {t("Accept a price on the", "Acepta un precio en")} <a href="/earn/eth" className="text-[var(--accent)] hover:underline">{t("Earn", "Operar")}</a> {t("page to get started.", "para comenzar.")}
+            {t("Accept a price on the", "Acepta un precio en")} <Link href="/earn/eth" className="text-[var(--accent)] hover:underline">{t("Earn", "Operar")}</Link> {t("page to get started.", "para comenzar.")}
           </p>
         </div>
       </main>
@@ -108,7 +102,7 @@ export default function PositionsPage() {
 
       <PortfolioSummary
         positions={allPositions}
-        activity={activity}
+        activity={null}
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
       />
@@ -129,7 +123,7 @@ export default function PositionsPage() {
                   item.positions[0].asset,
                   item.positions[0].strike_price,
                 );
-                const posSpot = posAsset.slug === "btc" ? btcSpot : posAsset.slug === "sol" ? solSpot : ethSpot;
+                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
                 return (
                   <RangePositionCard
                     key={item.groupId}
@@ -145,7 +139,7 @@ export default function PositionsPage() {
               }
               const pos = item.position;
               const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
-              const posSpot = posAsset.slug === "btc" ? btcSpot : posAsset.slug === "sol" ? solSpot : ethSpot;
+              const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
               return (
                 <PositionCard
                   key={pos.id}
@@ -165,7 +159,7 @@ export default function PositionsPage() {
           <div className="rounded-2xl border border-dashed border-[var(--border)] p-6 text-center">
             <p className="text-sm text-[var(--text-secondary)]">
               {t("No active positions.", "No hay posiciones activas.")}{" "}
-              <a href="/earn/eth" className="text-[var(--accent)] hover:underline">{t("Earn premium", "Genera ingresos")}</a> {t("by setting your price.", "definiendo tu precio.")}
+              <Link href="/earn/eth" className="text-[var(--accent)] hover:underline">{t("Earn premium", "Genera ingresos")}</Link> {t("by setting your price.", "definiendo tu precio.")}
             </p>
           </div>
         )}

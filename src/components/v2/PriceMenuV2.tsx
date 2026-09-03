@@ -2,13 +2,12 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { Check, Copy } from "lucide-react";
+import { useLogin } from "@privy-io/react-auth";
 import { usePrices } from "@/hooks/usePrices";
 import { useSpot } from "@/hooks/useSpot";
 import { useCapacity } from "@/hooks/useCapacity";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
-import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useB1naryAccount } from "@/hooks/useB1naryAccount";
 import { AcceptModal } from "../AcceptModal";
 import { LivePrice } from "../LivePrice";
@@ -18,11 +17,12 @@ import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip
 import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import {
+  getAssetActionBlockReason,
+  isCanonicalQuoteForAsset,
   isExecutableQuote,
   isProductionReadOnlyAsset,
   reconcileSelectedQuote,
 } from "@/lib/marketState";
-import { solanaTxUrl } from "@/lib/solana";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
 import type { AssetConfig } from "@/lib/assets";
@@ -74,7 +74,7 @@ function isoDateAfter(days: number): string {
 }
 
 function strikeStepForAsset(asset: AssetConfig): number {
-  return asset.slug === "btc" ? 500 : asset.slug === "sol" ? 5 : asset.slug === "tslax" ? 5 : 25;
+  return asset.slug === "btc" ? 500 : 25;
 }
 
 function roundStrikeForAsset(value: number, asset: AssetConfig): number {
@@ -147,16 +147,6 @@ function buildPreviewQuotes(asset: AssetConfig, spot: number): PriceQuote[] {
   });
 }
 
-function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
-  const divisor = BigInt(10) ** BigInt(9 - decimals);
-  const displayUnits = rawLamports / divisor;
-  const scale = BigInt(10) ** BigInt(decimals);
-  const whole = displayUnits / scale;
-  const fraction = (displayUnits % scale).toString().padStart(decimals, "0");
-  const trimmed = fraction.replace(/0+$/, "");
-  return trimmed ? `${whole}.${trimmed}` : whole.toString();
-}
-
 function fmtYield(apr: number, roi: number, metric: YieldMetric): string {
   return metric === "apr"
     ? `${Math.round(apr)}% APR`
@@ -203,17 +193,17 @@ function StrikeCard({
     <button
       onClick={onSelect}
       disabled={disabled}
-      className={`w-full grid grid-cols-[1fr_auto_1fr] items-center py-4 px-5 transition-all duration-200 text-left group focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+      className={`group grid min-h-14 w-full grid-cols-[1fr_auto_1fr] items-center px-5 py-4 text-left transition-[background-color,border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
         disabled
           ? "opacity-40 cursor-not-allowed"
           : isSelected
             ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)] cursor-pointer"
-            : "hover:bg-[var(--surface)] hover:pl-6 cursor-pointer active:bg-[var(--surface)]"
+            : "cursor-pointer hover:bg-[var(--surface)] active:bg-[var(--surface)]"
       }`}
     >
       {/* Left: strike + distance */}
       <div>
-        <span className={`text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"} transition-all duration-200 inline-block`}>
+        <span className={`inline-block text-base font-semibold font-mono ${isSelected ? "text-[var(--accent)]" : "text-[var(--bone)]"}`}>
           ${quote.strike.toLocaleString()}/{symbol}
         </span>
         {distancePct != null && (
@@ -268,46 +258,45 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const { locale } = useAppPreferences();
   const t = (en: string, es: string) => locale === "es" ? es : en;
   const { prices, loading, error, refresh } = usePrices(asset.slug);
+  const { capacity } = useCapacity(asset.slug);
   const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
-  const spot = spotFromEndpoint ?? prices[0]?.spot ?? asset.fallbackSpot;
+  const canonicalPrices = useMemo(
+    () => prices.filter((quote) => isCanonicalQuoteForAsset(quote, asset)),
+    [asset, prices],
+  );
+  const spot = spotFromEndpoint ?? canonicalPrices[0]?.spot ?? asset.fallbackSpot;
   const displayPrices = useMemo(
-    () => prices.length > 0 ? prices : buildPreviewQuotes(asset, spot),
-    [asset, prices, spot],
+    () => canonicalPrices.length > 0
+      ? canonicalPrices
+      : asset.address
+        ? []
+        : buildPreviewQuotes(asset, spot),
+    [asset, canonicalPrices, spot],
   );
   const indicativeQuotesActive = displayPrices.some((quote) => !isExecutableQuote(quote));
-  const { capacity } = useCapacity(asset.slug);
-  const { address, solanaAddress, isConnected } = useWallet();
+  const { address, isConnected } = useWallet();
+  const { login } = useLogin();
   const { wallets: b1naryWallets } = useB1naryAccount({
     autoSyncTrustedWallets: false,
   });
   const b1naryTradingWallets = b1naryWallets.filter((wallet) =>
     wallet.role === "trading" &&
     wallet.verified_at &&
-    (wallet.chain !== "base" || wallet.wallet_type === "smart"),
+    wallet.chain === "base" &&
+    wallet.wallet_type === "smart",
   );
   const b1naryBaseAddresses = b1naryTradingWallets
     .filter((wallet) => wallet.chain === "base")
     .map((wallet) => wallet.address as Address);
-  const b1narySolanaAddresses = b1naryTradingWallets
-    .filter((wallet) => wallet.chain === "solana")
-    .map((wallet) => wallet.address);
   const { usd, eth, weth, wbtc } = useBalances(
     b1naryBaseAddresses.length > 0 ? b1naryBaseAddresses : address,
-  );
-  const {
-    solanaUsdc,
-    solanaWsolRaw,
-    solanaSolRaw,
-    solanaTslax,
-  } = useSolanaBalance(
-    b1narySolanaAddresses.length > 0
-      ? b1narySolanaAddresses
-      : solanaAddress,
   );
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
-  const initialSide = sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
+  const initialSide = asset.slug === "nvdac"
+    ? "buy"
+    : sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
   const [side, setSide] = useState<"buy" | "sell" | "range">(initialSide);
   const [selectedQuote, setSelectedQuote] = useState<PriceQuote | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -322,23 +311,13 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [amountStr, setAmountStr] = useState(amountParam ?? "");
   const amount = Number(amountStr) || 0;
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
 
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
-  const isSol = asset.slug === "sol";
-  const marketReadOnly = isProductionReadOnlyAsset(asset);
-  const solTotalBalance = Number(solanaWsolRaw + solanaSolRaw) / 1e9;
-  const walletBalance = isBuy
-    ? usd + solanaUsdc
-    : asset.slug === "tslax"
-      ? solanaTslax
-      : isSol
-        ? solTotalBalance
-        : isBtc
-          ? wbtc
-          : eth + weth;
+  const readinessBlockReason = getAssetActionBlockReason(asset, capacity);
+  const marketReadOnly = isProductionReadOnlyAsset(asset) || !!readinessBlockReason;
+  const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
     const seen = new Set<string>();
@@ -433,20 +412,19 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     }, 200);
   }
 
-  function handlePercentShortcut(pct: number) {
-    if (!isBuy && isSol) {
-      const capRaw = BigInt(Math.floor(capEth * 1e9));
-      const solTotalRaw = solanaWsolRaw + solanaSolRaw;
-      const rawAvailable = solTotalRaw < capRaw ? solTotalRaw : capRaw;
-      const raw = (rawAvailable * BigInt(pct)) / BigInt(100);
-      setAmountStr(formatSolRawAmount(raw, asset.displayDecimals));
+  function handlePrimaryAction() {
+    if (!isConnected) {
+      login();
       return;
     }
+    if (!executionBlocked) setConfirming(true);
+  }
 
+  function handlePercentShortcut(pct: number) {
     const raw = walletBalance * (pct / 100);
     if (isBuy) {
       const truncated = floorTo(raw, 2);
-      setAmountStr(Math.min(truncated, capUsd).toString());
+      setAmountStr((Number.isFinite(capUsd) ? Math.min(truncated, capUsd) : truncated).toString());
     } else {
       const truncated = floorTo(raw, asset.displayDecimals);
       setAmountStr(Math.min(truncated, capEth).toString());
@@ -464,7 +442,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
-  if (error && displayPrices.length === 0) {
+  if (error && displayPrices.length === 0 && !asset.disclosure) {
     return (
       <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
         {t("Could not load prices. Is the backend running?", "No se pudieron cargar los precios.")}
@@ -479,9 +457,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     const commitLabel = abuy ? `$${aa.toLocaleString()}` : `${aa} ${asset.symbol}`;
     const apr = computeAPR(aq.premium, aq.strike, aq.expiry_days);
     const roi = computeROI(aq.premium, aq.strike);
-    const explorerUrl = asset.chain === "solana"
-      ? null
-      : CHAIN.blockExplorers?.default.url;
+    const explorerUrl = CHAIN.blockExplorers?.default.url;
 
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
@@ -501,11 +477,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </div>
         {aTxHash && (
           <a
-            href={
-              asset.chain === "solana"
-                ? solanaTxUrl(aTxHash)
-                : `${explorerUrl}/tx/${aTxHash}`
-            }
+            href={`${explorerUrl}/tx/${aTxHash}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-block text-sm text-[var(--accent)] hover:underline"
@@ -544,9 +516,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   }
 
   if (rangeAccepted) {
-    const explorerUrl = asset.chain === "solana"
-      ? null
-      : CHAIN.blockExplorers?.default.url;
+    const explorerUrl = CHAIN.blockExplorers?.default.url;
     return (
       <div className="text-center space-y-5 py-10 animate-fade-in-up">
         <div>
@@ -571,11 +541,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <div className="flex justify-center gap-3 text-sm">
             {rangeAccepted.putTxHash && (
               <a
-                href={
-                  asset.chain === "solana"
-                    ? solanaTxUrl(rangeAccepted.putTxHash)
-                    : `${explorerUrl}/tx/${rangeAccepted.putTxHash}`
-                }
+                href={`${explorerUrl}/tx/${rangeAccepted.putTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[var(--accent)] hover:underline"
@@ -585,11 +551,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             )}
             {rangeAccepted.callTxHash && (
               <a
-                href={
-                  asset.chain === "solana"
-                    ? solanaTxUrl(rangeAccepted.callTxHash)
-                    : `${explorerUrl}/tx/${rangeAccepted.callTxHash}`
-                }
+                href={`${explorerUrl}/tx/${rangeAccepted.callTxHash}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[var(--accent)] hover:underline"
@@ -629,8 +591,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
-  const acceptButtonLabel = marketReadOnly
-    ? t("Coming soon", "Próximamente")
+  const acceptButtonLabel = readinessBlockReason
+    ? t("Action unavailable", "Acción no disponible")
+    : marketReadOnly
+      ? t("Coming soon", "Próximamente")
     : marketClosed
       ? t("Market at capacity", "Mercado sin capacidad")
       : selectedQuoteIsPreview
@@ -645,45 +609,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 text-sm font-semibold text-[var(--accent)] animate-fade-in-up">
-        <button
-          onClick={handleStartTutorial}
-          disabled={loading || displayPrices.length === 0 || (side !== "range" && filteredPrices.length === 0)}
-          className="cursor-pointer rounded-lg bg-[var(--accent)] text-[var(--bg)] px-4 py-1.5 hover:bg-[var(--accent-hover)] transition-all animate-shimmer-pulse focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none disabled:opacity-40 disabled:cursor-not-allowed disabled:animate-none"
-        >
-          {t("Guide me through it", "Guíame paso a paso")}
-        </button>
-        <button
-          onClick={() => setDrawerOpen(true)}
-          className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none"
-        >
-          {t("How does this work?", "¿Cómo funciona?")}
-        </button>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={() => {
-                const url = `${window.location.origin}/llms.txt`;
-                navigator.clipboard.writeText(url).then(() => {
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 2000);
-                }).catch((err) => {
-                  console.warn("[PriceMenuV2] Clipboard write failed:", err);
-                });
-              }}
-              className="cursor-pointer rounded-lg border border-[var(--accent)]/30 px-3 py-1.5 hover:bg-[var(--accent)]/10 transition-colors focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none inline-flex items-center gap-1.5"
-            >
-              {copied ? <Check className="h-3.5 w-3.5" aria-hidden="true" /> : <Copy className="h-3.5 w-3.5" aria-hidden="true" />}
-              {copied ? t("AI context copied", "Contexto de IA copiado") : t("Copy AI context", "Copiar contexto para IA")}
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>Copies our llms.txt link so you can paste it into ChatGPT, Claude, or another AI for context on how B1NARY works.</p>
-          </TooltipContent>
-        </Tooltip>
-      </div>
-
-      <div className="flex flex-wrap items-center justify-between gap-y-3 animate-fade-in-up">
+      <div className="flex flex-wrap items-center justify-between gap-y-3">
         <div className="flex items-center gap-4">
           <AssetSelector current={asset} />
           <LivePrice spot={spot} />
@@ -708,14 +634,25 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </div>
       </div>
 
+      {asset.disclosure && (
+        <section className="space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs text-[var(--text-secondary)]" aria-label={`${asset.symbol} disclosures`}>
+          <p className="font-semibold text-[var(--bone)]">Tokenized-stock/B20 disclosure</p>
+          <p>{asset.disclosure.instrument}</p>
+          <p>{asset.disclosure.jurisdiction} {asset.disclosure.eligibility}</p>
+          <p>{asset.disclosure.policyPause}</p>
+          <p className="break-all font-mono">Base · {asset.address}</p>
+          {readinessBlockReason && <p className="font-medium text-amber-300">{readinessBlockReason}</p>}
+        </section>
+      )}
+
       {/* Buy/Sell/Range toggle + content */}
       <div className="space-y-5">
         {/* 1. Buy / Sell / Range toggle */}
-          <div className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1 flex animate-fade-in-up">
+          <div className="flex rounded-xl border border-[var(--border)] bg-[var(--surface)] p-1">
             <button
               data-tour="tab-buy"
               onClick={() => { setSide("buy"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+              className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                 side === "buy"
                   ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
                   : "text-[var(--text-secondary)] hover:text-[var(--text)]"
@@ -723,31 +660,35 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {t("I have USD", "Tengo USD")}
             </button>
-            <button
-              data-tour="tab-sell"
-              onClick={() => { setSide("sell"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
-                side === "sell"
-                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              }`}
-            >
-              {t("I have", "Tengo")} {asset.symbol}
-            </button>
-            <button
-              onClick={() => { setSide("range"); setSelectedQuote(null); }}
-              className={`flex-1 py-2.5 text-base font-semibold rounded-lg transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
-                side === "range"
-                  ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
-                  : "text-[var(--text-secondary)] hover:text-[var(--text)]"
-              }`}
-            >
-              {t("Range", "Rango")}
-            </button>
+            {asset.slug !== "nvdac" && (
+              <>
+                <button
+                  data-tour="tab-sell"
+                  onClick={() => { setSide("sell"); setSelectedQuote(null); }}
+                  className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                    side === "sell"
+                      ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {t("I have", "Tengo")} {asset.symbol}
+                </button>
+                <button
+                  onClick={() => { setSide("range"); setSelectedQuote(null); }}
+                  className={`min-h-11 flex-1 cursor-pointer rounded-lg py-2.5 text-base font-semibold transition-[background-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
+                    side === "range"
+                      ? "bg-[var(--bg)] text-[var(--accent)] shadow-sm"
+                      : "text-[var(--text-secondary)] hover:text-[var(--text)]"
+                  }`}
+                >
+                  {t("Range", "Rango")}
+                </button>
+              </>
+            )}
           </div>
 
           {/* Context line — explains the benefit and why you get paid */}
-          <div className="animate-fade-in-up space-y-1" data-tour="context-line">
+          <div className="space-y-1" data-tour="context-line">
             {side === "buy" && (
               <>
                 <p className="text-sm font-semibold text-[var(--bone)]">
@@ -791,14 +732,14 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
           {/* 2. Duration — button group */}
           {expiries.length > 0 && (
-            <div className="animate-fade-in-up" data-tour="duration">
+            <div data-tour="duration">
               <p className="text-sm text-[var(--text-secondary)] mb-2">{t("Duration", "Duración")}</p>
               <div className="flex flex-wrap gap-2">
                 {expiries.map((d) => (
                   <button
                     key={d}
                     onClick={() => { setSelectedExpiry(d); }}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                    className={`min-h-11 cursor-pointer rounded-xl px-4 py-2 text-sm font-medium transition-[background-color,border-color,color,transform] duration-150 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                       activeExpiry === d
                         ? "bg-[var(--accent)] text-[var(--bg)] shadow-sm"
                         : "bg-[var(--surface)] border border-[var(--border)] text-[var(--text)] hover:border-[var(--accent)] hover:shadow-sm"
@@ -821,7 +762,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           activeExpiry={activeExpiry}
           spot={spot}
           marketReadOnly={marketReadOnly || indicativeQuotesActive || marketClosed}
-          walletBalance={usd + solanaUsdc}
+          walletBalance={usd}
           amountStr={amountStr}
           onAmountChange={setAmountStr}
           onAccepted={setRangeAccepted}
@@ -834,24 +775,14 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
       <div className="grid grid-cols-1 lg:grid-cols-[minmax(340px,1fr)_minmax(0,1fr)] gap-8">
         <div className="space-y-5">
           {/* 3. Amount input + % shortcuts */}
-          <div className="animate-fade-in-up" data-tour="amount">
+          <div data-tour="amount">
             <p className="text-sm text-[var(--text-secondary)] mb-2">
               {t("How much do you want to commit?", "¿Cuánto quieres comprometer?")}
             </p>
             <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--accent)] transition-colors duration-200">
               <div className="flex items-center gap-1.5 shrink-0">
                 <img
-                  src={
-                    isBuy
-                      ? "/usdc.svg"
-                      : asset.slug === "sol"
-                        ? "/sol.png"
-                        : asset.slug === "btc"
-                          ? "/cbbtc.webp"
-                          : asset.slug === "tslax"
-                            ? "/tslax.svg"
-                            : "/eth.png"
-                  }
+                  src={isBuy ? "/usdc.svg" : isBtc ? "/cbbtc.webp" : "/eth.png"}
                   alt={isBuy ? "USDC" : asset.symbol}
                   className="w-5 h-5 rounded-full"
                 />
@@ -875,19 +806,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </div>
             <div className="flex items-center justify-between mt-1.5">
               <p className="text-xs text-[var(--text-secondary)]">
-                {isSol && !isBuy ? (
-                  <>
-                    Balance: <span className="font-mono">
-                      {floorTo(solTotalBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} {asset.symbol}
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    Balance: <span className="font-mono">{isBuy
-                      ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-                      : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
-                  </>
-                )}
+                Balance: <span className="font-mono">{isBuy
+                  ? `$${floorTo(walletBalance, 2).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                  : `${floorTo(walletBalance, asset.displayDecimals).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: asset.displayDecimals })} ${asset.symbol}`}</span>
               </p>
               <div className="flex gap-1.5">
                 {PERCENT_SHORTCUTS.map((pct) => (
@@ -909,7 +830,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           </div>
 
           {/* 4. Strike price cards */}
-          <div className="animate-fade-in-up" data-tour="strikes">
+          <div data-tour="strikes">
             <div className="text-sm text-[var(--text-secondary)] flex items-center justify-between mb-2">
               <span className="flex items-center">
                 {amount > 0 ? t("Choose your price", "Elige tu precio") : t("Enter an amount to see earnings for each price", "Ingresa un monto para ver los ingresos por precio")}
@@ -955,24 +876,21 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           </div>
 
           {/* 5. Accept button — desktop only (mobile renders after outcome cards) */}
-          <div className="hidden lg:block space-y-2 animate-fade-in-up" data-tour="accept">
+          <div className="hidden space-y-2 lg:block" data-tour="accept">
             <button
-              onClick={() => {
-                if (executionBlocked) return;
-                setConfirming(true);
-              }}
+              onClick={handlePrimaryAction}
               disabled={marketReadOnly || marketClosed || selectedQuoteIsPreview || (!canAccept && isConnected)}
-              className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
+              className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-[background-color,transform] duration-150 active:scale-[0.97] ${
                 canAccept
-                  ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
+                  ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
             >
               {acceptButtonLabel}
             </button>
-            {marketClosed && (
+            {(readinessBlockReason || marketClosed) && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                Quotes are visible for planning; trading is disabled while capacity is full.
+                {readinessBlockReason || "Quotes are visible for planning; trading is disabled while capacity is full."}
               </p>
             )}
           </div>
@@ -981,7 +899,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         {/* RIGHT: Live preview — outcome cards */}
         <div className="lg:sticky lg:top-24 lg:self-start space-y-4">
           {selectedQuote && amount > 0 && (
-            <div className="text-center py-2 animate-fade-in-up">
+            <div className="py-2 text-center">
               <div className="flex items-center justify-center gap-1">
                 <p className="text-3xl font-bold text-[var(--accent)] font-mono">
                   ${fmtUsd(selectedEarnings)}
@@ -994,7 +912,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             </div>
           )}
           {activeExpiry && (
-            <div className="text-center animate-fade-in-up">
+            <div className="text-center">
               <p className="text-xs font-medium text-[var(--text-secondary)]">
                 Settlement: <span className="font-mono text-[var(--bone)]">{parseLocalDate(activeExpiry).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} · 8:00 AM UTC</span>
               </p>
@@ -1012,24 +930,21 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           />
 
           {/* Accept button — mobile only, after outcome cards */}
-          <div className="lg:hidden space-y-2 animate-fade-in-up">
+          <div className="space-y-2 lg:hidden">
             <button
-              onClick={() => {
-                if (executionBlocked) return;
-                setConfirming(true);
-              }}
+              onClick={handlePrimaryAction}
               disabled={marketReadOnly || marketClosed || selectedQuoteIsPreview || (!canAccept && isConnected)}
-              className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
+              className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-[background-color,transform] duration-150 active:scale-[0.97] ${
                 canAccept
-                  ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
+                  ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)]"
                   : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
               }`}
             >
               {acceptButtonLabel}
             </button>
-            {marketClosed && (
+            {(readinessBlockReason || marketClosed) && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                Quotes are visible for planning; trading is disabled while capacity is full.
+                {readinessBlockReason || "Quotes are visible for planning; trading is disabled while capacity is full."}
               </p>
             )}
           </div>
@@ -1060,6 +975,25 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           }}
         />
       )}
+
+      <section aria-label={t("Trading help", "Ayuda para operar")} className="flex flex-wrap items-center gap-2 border-t border-[var(--border)] pt-5 text-sm">
+        <span className="mr-1 text-[var(--text-secondary)]">{t("Need help?", "¿Necesitas ayuda?")}</span>
+        <button
+          type="button"
+          onClick={handleStartTutorial}
+          disabled={loading || displayPrices.length === 0 || (side !== "range" && filteredPrices.length === 0)}
+          className="min-h-11 rounded-lg border border-[var(--border)] px-3 font-semibold text-[var(--text)] transition-colors hover:border-[var(--accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          {t("Guide me", "Guíame")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setDrawerOpen(true)}
+          className="min-h-11 rounded-lg px-3 font-semibold text-[var(--text-secondary)] transition-colors hover:text-[var(--text)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+        >
+          {t("How does this work?", "¿Cómo funciona?")}
+        </button>
+      </section>
 
       <HowItWorksDrawer open={drawerOpen} onOpenChange={setDrawerOpen} />
     </div>

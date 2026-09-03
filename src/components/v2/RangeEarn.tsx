@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { useLogin } from "@privy-io/react-auth";
 import { InfoTooltip } from "../ui/InfoTooltip";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { RangeOutcomeCards } from "./RangeOutcomeCards";
@@ -53,6 +54,7 @@ export function RangeEarn({
   yieldMetric,
 }: RangeEarnProps) {
   const { isConnected } = useWallet();
+  const { login } = useLogin();
   const [putQuote, setPutQuote] = useState<PriceQuote | null>(null);
   const [callQuote, setCallQuote] = useState<PriceQuote | null>(null);
   const amount = Number(amountStr) || 0;
@@ -237,7 +239,7 @@ export function RangeEarn({
                       key={q.strike}
                       onClick={() => setPutQuote(q)}
                       disabled={disabled}
-                      className={`w-full py-3 px-3 text-left text-sm transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                      className={`min-h-11 w-full cursor-pointer px-3 py-3 text-left text-sm transition-[background-color,border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                         disabled ? "opacity-40 cursor-not-allowed"
                         : selected ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)]"
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
@@ -302,7 +304,7 @@ export function RangeEarn({
                       key={q.strike}
                       onClick={() => setCallQuote(q)}
                       disabled={disabled}
-                      className={`w-full py-3 px-3 text-left text-sm transition-all duration-200 cursor-pointer focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:outline-none ${
+                      className={`min-h-11 w-full cursor-pointer px-3 py-3 text-left text-sm transition-[background-color,border-color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] ${
                         disabled ? "opacity-40 cursor-not-allowed"
                         : selected ? "bg-[var(--accent)]/8 border-l-2 border-l-[var(--accent)]"
                         : "hover:bg-[var(--surface)] active:bg-[var(--surface)]"
@@ -373,12 +375,16 @@ export function RangeEarn({
           <button
             onClick={() => {
               if (marketReadOnly) return;
+              if (!isConnected) {
+                login();
+                return;
+              }
               setConfirming(true);
             }}
             disabled={marketReadOnly || (!canAccept && isConnected)}
-            className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-all duration-300 ${
+            className={`w-full rounded-xl py-3.5 text-sm font-semibold transition-[background-color,transform] duration-150 active:scale-[0.97] ${
               !marketReadOnly && canAccept
-                ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)] animate-glow scale-[1.02]"
+                ? "bg-[var(--accent)] text-[var(--bg)] hover:bg-[var(--accent-hover)]"
                 : "bg-[var(--accent)] text-[var(--bg)] disabled:opacity-40"
             }`}
           >
@@ -409,6 +415,11 @@ export function RangeEarn({
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
           onClose={() => setConfirming(false)}
+          onPartial={() => {
+            setConfirming(false);
+            setPutQuote(null);
+            setCallQuote(null);
+          }}
           onAccepted={({ putTxHash, callTxHash }) => {
             setConfirming(false);
             onAccepted({

@@ -31,6 +31,8 @@ export interface PriceQuote {
   maker_nonce: QuoteRawUint | null;
   position_count: number;
   chain: "base" | "solana";
+  /** Canonical underlying identity returned by address-aware backends. */
+  underlying_address?: string;
 }
 
 export interface ExecutionQuoteSnapshot {
@@ -220,11 +222,26 @@ export interface Activity {
   daysSinceFirst: number;
 }
 
+export type AssetReadinessStatus =
+  | "ready"
+  | "disabled"
+  | "paused"
+  | "policy_paused"
+  | "stale_oracle"
+  | "excessive_impact"
+  | "unqualified";
+
 export interface Capacity {
   capacity: number;
   capacity_usd: number;
   market_open: boolean;
   market_status: "active" | "degraded" | "full";
+  asset_chain?: "base" | "solana";
+  asset_address?: string;
+  backend_ready?: boolean;
+  route_active?: boolean;
+  route_qualified?: boolean;
+  readiness_status?: AssetReadinessStatus;
   max_position: number;
   mm_count: number;
   updated_at: string;

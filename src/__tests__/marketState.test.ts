@@ -1,11 +1,31 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { PriceQuote } from "@/lib/api";
+import type { Capacity, PriceQuote } from "@/lib/api";
+import { ASSETS } from "@/lib/assets";
 
 const ORIGINAL_ENV = { ...process.env };
 
 async function loadMarketStateModule() {
   vi.resetModules();
   return import("@/lib/marketState");
+}
+
+function capacity(overrides: Partial<Capacity> = {}): Capacity {
+  return {
+    capacity: 1,
+    capacity_usd: 1,
+    market_open: true,
+    market_status: "active",
+    max_position: 1,
+    mm_count: 1,
+    updated_at: "2026-09-03T00:00:00Z",
+    asset_chain: "base",
+    asset_address: ASSETS.nvdac.address,
+    backend_ready: true,
+    route_active: true,
+    route_qualified: true,
+    readiness_status: "ready",
+    ...overrides,
+  };
 }
 
 function buildQuote(overrides: Partial<PriceQuote> = {}): PriceQuote {
@@ -130,6 +150,49 @@ describe("marketState helpers", () => {
     expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "virtual" }))).toBe(false);
     expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "creating" }))).toBe(false);
     expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
+  });
+
+  it("requires canonical Base address identity for NVDAc quotes", async () => {
+    const mod = await loadMarketStateModule();
+    const canonical = buildQuote({
+      chain: "base",
+      underlying_address: ASSETS.nvdac.address,
+    });
+
+    expect(mod.isCanonicalQuoteForAsset(canonical, ASSETS.nvdac)).toBe(true);
+    expect(mod.isCanonicalQuoteForAsset({ ...canonical, underlying_address: "0x0000000000000000000000000000000000000001" }, ASSETS.nvdac)).toBe(false);
+    expect(mod.isCanonicalQuoteForAsset({ ...canonical, chain: "solana" }, ASSETS.nvdac)).toBe(false);
+  });
+
+  it.each([
+    [{ readiness_status: "disabled" }, "disabled by the backend"],
+    [{ readiness_status: "paused" }, "paused by route or policy controls"],
+    [{ readiness_status: "policy_paused" }, "paused by policy controls"],
+    [{ readiness_status: "stale_oracle" }, "price oracle is stale"],
+    [{ readiness_status: "excessive_impact" }, "price impact exceeds"],
+    [{ readiness_status: "unqualified" }, "route is not qualified"],
+    [{ route_active: false }, "route is not active"],
+    [{ route_qualified: false }, "route is not qualified"],
+  ] as const)("fails closed with a specific NVDAc readiness reason", async (overrides, reason) => {
+    const mod = await loadMarketStateModule();
+    expect(mod.getAssetActionBlockReason(ASSETS.nvdac, capacity(overrides))).toContain(reason);
+  });
+
+  it("allows NVDAc only for an affirmative canonical, active, qualified response", async () => {
+    const mod = await loadMarketStateModule();
+
+    expect(mod.getAssetActionBlockReason(ASSETS.nvdac, null)).toContain("unavailable");
+    expect(mod.getAssetActionBlockReason(ASSETS.nvdac, capacity())).toBeNull();
+    expect(mod.getAssetActionBlockReason(ASSETS.eth, null)).toBeNull();
+  });
+
+  it("uses the required tokenized-stock disclosure without an equity ownership claim", () => {
+    expect(ASSETS.nvdac.disclosure?.instrument).toContain("economic-exposure and redemption instrument");
+    expect(ASSETS.nvdac.disclosure?.instrument).toContain("not NVIDIA-issued registered equity");
+    expect(ASSETS.nvdac.disclosure?.instrument).toContain("does not provide direct ownership");
+    expect(ASSETS.nvdac.disclosure?.jurisdiction).toBeTruthy();
+    expect(ASSETS.nvdac.disclosure?.eligibility).toBeTruthy();
+    expect(ASSETS.nvdac.disclosure?.policyPause).toBeTruthy();
   });
 
   it("replaces a selected quote when signed fields refresh at the same strike", async () => {
