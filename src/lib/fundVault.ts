@@ -23,11 +23,9 @@ import {
   type TrustedFundBinding,
 } from "@/lib/fundDeployment";
 
-export const FUND_KEY =
-  process.env.NEXT_PUBLIC_CSP_FUND_KEY || BASE_SEPOLIA_CSP_FUND.fundKey;
-export const FUND_ADDRESS =
-  process.env.NEXT_PUBLIC_CSP_FUND_ADDRESS || BASE_SEPOLIA_CSP_FUND.fundAddress;
-export const FUND_CHAIN_ID = BASE_SEPOLIA_CSP_FUND.chainId;
+export const FUND_KEY = configuredFundKey(BASE_SEPOLIA_CSP_FUND);
+export const FUND_ADDRESS = configuredFundAddress(BASE_SEPOLIA_CSP_FUND);
+export const FUND_CHAIN_ID = FUND_KEY ? BASE_SEPOLIA_CSP_FUND.chainId : null;
 export const FUND_MIN_SHARES_BPS = 9_950;
 export const FUND_WRITE_METADATA_MAX_AGE_MS = 45_000;
 
@@ -54,12 +52,14 @@ export type FundActionKey =
 export function configuredFundKey(
   deployment: TrustedFundDeployment,
 ): string {
+  if (CHAIN.id !== deployment.chainId) return "";
   return deploymentEnv(deployment, "KEY") || deployment.fundKey;
 }
 
 export function configuredFundAddress(
   deployment: TrustedFundDeployment,
 ): string {
+  if (CHAIN.id !== deployment.chainId) return "";
   return deploymentEnv(deployment, "ADDRESS") || deployment.fundAddress;
 }
 

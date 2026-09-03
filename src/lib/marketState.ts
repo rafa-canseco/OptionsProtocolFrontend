@@ -1,5 +1,5 @@
 import type { Capacity, PriceQuote } from "@/lib/api";
-import type { AssetConfig } from "@/lib/assets";
+import { isBackendGatedAssetSlug, type AssetConfig } from "@/lib/assets";
 import { getDeploymentEnv } from "@/lib/deployment";
 
 const PRODUCTION_READ_ONLY_ASSETS = new Set(["sol", "tslax"]);
@@ -27,14 +27,18 @@ export function isSolanaOffInProd(): boolean {
   return !isSolanaEnabled() && getDeploymentEnv() === "mainnet";
 }
 
-const NVDAC_READINESS_REASONS = {
-  disabled: "NVDAc is disabled by the backend.",
-  paused: "NVDAc actions are paused by route or policy controls.",
-  policy_paused: "NVDAc transfers are paused by policy controls.",
-  stale_oracle: "NVDAc actions are blocked because the price oracle is stale.",
-  excessive_impact: "NVDAc actions are blocked because current price impact exceeds the qualified route limit.",
-  unqualified: "NVDAc actions are blocked because the settlement route is not qualified.",
-} as const;
+function readinessReason(asset: AssetConfig, status: Capacity["readiness_status"] | string): string {
+  const symbol = asset.symbol;
+  switch (status) {
+    case "disabled": return `${symbol} is disabled by the backend.`;
+    case "paused": return `${symbol} actions are paused by route or policy controls.`;
+    case "policy_paused": return `${symbol} transfers are paused by policy controls.`;
+    case "stale_oracle": return `${symbol} actions are blocked because the price oracle is stale.`;
+    case "excessive_impact": return `${symbol} actions are blocked because current price impact exceeds the qualified route limit.`;
+    case "unqualified": return `${symbol} actions are blocked because the settlement route is not qualified.`;
+    default: return `${symbol} backend risk checks are incomplete.`;
+  }
+}
 
 export function isCanonicalQuoteForAsset(quote: PriceQuote, asset: AssetConfig): boolean {
   if (quote.chain !== asset.chain) return false;
@@ -42,21 +46,20 @@ export function isCanonicalQuoteForAsset(quote: PriceQuote, asset: AssetConfig):
 }
 
 export function getAssetActionBlockReason(asset: AssetConfig, capacity: Capacity | null): string | null {
-  if (asset.slug !== "nvdac") return null;
-  if (!capacity) return "NVDAc backend readiness is unavailable.";
-  if (capacity.readiness_status && capacity.readiness_status !== "ready") {
-    return NVDAC_READINESS_REASONS[capacity.readiness_status] || "NVDAc backend risk checks are incomplete.";
+  if (!isBackendGatedAssetSlug(asset.slug)) return null;
+  if (!capacity) return `${asset.symbol} backend readiness is unavailable.`;
+  if (capacity.readiness_status !== "ready") {
+    return readinessReason(asset, capacity.readiness_status);
   }
-  if (!capacity.backend_ready) return NVDAC_READINESS_REASONS.disabled;
+  if (capacity.backend_ready !== true) return readinessReason(asset, "disabled");
   if (
     capacity.asset_chain !== asset.chain ||
     capacity.asset_address?.toLowerCase() !== asset.address?.toLowerCase()
   ) {
-    return "NVDAc backend identity does not match the canonical Base token address.";
+    return `${asset.symbol} backend identity does not match the canonical Base token address.`;
   }
-  if (!capacity.route_active) return "NVDAc actions are paused because its settlement route is not active.";
-  if (!capacity.route_qualified) return NVDAC_READINESS_REASONS.unqualified;
-  if (capacity.readiness_status !== "ready") return "NVDAc backend risk checks are incomplete.";
+  if (capacity.route_active !== true) return `${asset.symbol} actions are paused because its settlement route is not active.`;
+  if (capacity.route_qualified !== true) return readinessReason(asset, "unqualified");
   return null;
 }
 
