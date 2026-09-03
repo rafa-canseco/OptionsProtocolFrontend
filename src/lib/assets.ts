@@ -89,13 +89,82 @@ export const ASSETS: Record<string, AssetConfig> = {
     minBuyAmountUsd: 10,
     chain: "base",
     collateralDecimals: 8,
-    fallbackSpot: 0,
+    fallbackSpot: 180,
     address: "0xb20000000000000000000078ee7ce2fE4908108C",
     disclosure: {
       instrument: "NVDAc is a tokenized-stock/B20 economic-exposure and redemption instrument. It is not NVIDIA-issued registered equity and does not provide direct ownership of NVIDIA shares.",
       jurisdiction: process.env.NEXT_PUBLIC_NVDAC_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
       eligibility: process.env.NEXT_PUBLIC_NVDAC_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
       policyPause: process.env.NEXT_PUBLIC_NVDAC_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
+    },
+  },
+  cbzec: {
+    slug: "cbzec",
+    symbol: "cbZEC",
+    name: "Coinbase Wrapped Zcash",
+    wrappedSymbol: "cbZEC",
+    stableSymbol: "USDC",
+    maxAmount: Number.POSITIVE_INFINITY,
+    maxAmountUsd: Number.POSITIVE_INFINITY,
+    amountPlaceholder: "1",
+    displayDecimals: 4,
+    minSellAmount: 0.01,
+    minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 8,
+    fallbackSpot: 50,
+    address: "0xB2000000000000000000008501b13360000cb2EC",
+    disclosure: {
+      instrument: "cbZEC is a wrapped-token/B20 representation of ZEC. It is not native ZEC; custody, redemption, and transfer-policy risks apply.",
+      jurisdiction: process.env.NEXT_PUBLIC_CBZEC_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
+      eligibility: process.env.NEXT_PUBLIC_CBZEC_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
+      policyPause: process.env.NEXT_PUBLIC_CBZEC_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
+    },
+  },
+  cbhype: {
+    slug: "cbhype",
+    symbol: "cbHYPE",
+    name: "Coinbase Wrapped HYPE",
+    wrappedSymbol: "cbHYPE",
+    stableSymbol: "USDC",
+    maxAmount: Number.POSITIVE_INFINITY,
+    maxAmountUsd: Number.POSITIVE_INFINITY,
+    amountPlaceholder: "1",
+    displayDecimals: 4,
+    minSellAmount: 0.01,
+    minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 18,
+    fallbackSpot: 40,
+    address: "0xB200000000000000000000451d033a5000cb479e",
+    disclosure: {
+      instrument: "cbHYPE is a wrapped-token/B20 representation of HYPE. It is not native HYPE; custody, redemption, and transfer-policy risks apply.",
+      jurisdiction: process.env.NEXT_PUBLIC_CBHYPE_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
+      eligibility: process.env.NEXT_PUBLIC_CBHYPE_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
+      policyPause: process.env.NEXT_PUBLIC_CBHYPE_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
+    },
+  },
+  vvv: {
+    slug: "vvv",
+    symbol: "VVV",
+    name: "Venice Token",
+    wrappedSymbol: "VVV",
+    stableSymbol: "USDC",
+    maxAmount: Number.POSITIVE_INFINITY,
+    maxAmountUsd: Number.POSITIVE_INFINITY,
+    amountPlaceholder: "10",
+    displayDecimals: 4,
+    minSellAmount: 0.1,
+    minBuyAmountUsd: 10,
+    chain: "base",
+    collateralDecimals: 18,
+    fallbackSpot: 1,
+    address: "0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf",
+    disclosure: {
+      instrument: "VVV is a token settlement asset on Base. Smart-contract, custody, and liquidity risks apply; holding it does not guarantee redemption value.",
+      jurisdiction: process.env.NEXT_PUBLIC_VVV_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
+      eligibility: process.env.NEXT_PUBLIC_VVV_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
+      policyPause: process.env.NEXT_PUBLIC_VVV_POLICY_PAUSE_NOTICE || "Transfers or settlement may pause under applicable token or route controls.",
     },
   },
   sol: {
@@ -133,11 +202,17 @@ export const ASSETS: Record<string, AssetConfig> = {
 };
 
 export const ACTIVE_ASSET_SLUGS = ["eth", "btc"] as const;
+export const GATED_BASE_ASSET_SLUGS = ["nvdac", "cbzec", "cbhype", "vvv"] as const;
 export const ASSET_SLUGS = Object.keys(ASSETS);
 const DEFAULT_ASSET_FALLBACK = "eth";
 
+export function isBackendGatedAssetSlug(slug: string): boolean {
+  return GATED_BASE_ASSET_SLUGS.includes(slug.toLowerCase() as (typeof GATED_BASE_ASSET_SLUGS)[number]);
+}
+
 export function isActiveAssetSlug(slug: string): boolean {
-  return slug.toLowerCase() === "nvdac" || ACTIVE_ASSET_SLUGS.includes(slug.toLowerCase() as (typeof ACTIVE_ASSET_SLUGS)[number]);
+  const normalized = slug.toLowerCase();
+  return isBackendGatedAssetSlug(normalized) || ACTIVE_ASSET_SLUGS.includes(normalized as (typeof ACTIVE_ASSET_SLUGS)[number]);
 }
 
 export function getDefaultAssetSlug(hostname?: string): string {

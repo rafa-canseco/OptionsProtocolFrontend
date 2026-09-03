@@ -25,7 +25,7 @@ import {
 } from "@/lib/marketState";
 import { fmtUsd, floorTo, buildTweetUrl } from "@/lib/utils";
 import type { PriceQuote } from "@/lib/api";
-import type { AssetConfig } from "@/lib/assets";
+import { isBackendGatedAssetSlug, type AssetConfig } from "@/lib/assets";
 import type { Address } from "viem";
 import { AssetSelector } from "./AssetSelector";
 import { RangeEarn } from "./RangeEarn";
@@ -294,7 +294,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const searchParams = useSearchParams();
   const sideParam = searchParams.get("side");
   const amountParam = searchParams.get("amount");
-  const initialSide = asset.slug === "nvdac"
+  const initialSide = isBackendGatedAssetSlug(asset.slug)
     ? "buy"
     : sideParam === "sell" ? "sell" : sideParam === "range" ? "range" : "buy";
   const [side, setSide] = useState<"buy" | "sell" | "range">(initialSide);
@@ -636,7 +636,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
       {asset.disclosure && (
         <section className="space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs text-[var(--text-secondary)]" aria-label={`${asset.symbol} disclosures`}>
-          <p className="font-semibold text-[var(--bone)]">Tokenized-stock/B20 disclosure</p>
+          <p className="font-semibold text-[var(--bone)]">{asset.symbol} risk disclosure</p>
           <p>{asset.disclosure.instrument}</p>
           <p>{asset.disclosure.jurisdiction} {asset.disclosure.eligibility}</p>
           <p>{asset.disclosure.policyPause}</p>
@@ -660,7 +660,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {t("I have USD", "Tengo USD")}
             </button>
-            {asset.slug !== "nvdac" && (
+            {!isBackendGatedAssetSlug(asset.slug) && (
               <>
                 <button
                   data-tour="tab-sell"

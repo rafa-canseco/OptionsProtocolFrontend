@@ -6,7 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ACTIVE_ASSET_SLUGS, ASSETS, type AssetConfig } from "@/lib/assets";
+import { ACTIVE_ASSET_SLUGS, ASSETS, GATED_BASE_ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 import { useCapacity } from "@/hooks/useCapacity";
 import { getAssetActionBlockReason } from "@/lib/marketState";
 
@@ -32,7 +32,7 @@ function AssetIcon({ slug, size = 20 }: { slug: string; size?: number }) {
       style={{ width: size, height: size }}
       className="grid shrink-0 place-items-center rounded-full bg-emerald-400/15 text-[9px] font-bold text-emerald-300"
     >
-      N
+      {ASSETS[slug]?.symbol.charAt(0) ?? "?"}
     </span>
   );
 }
@@ -41,9 +41,21 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
   const { capacity: nvdacCapacity } = useCapacity("nvdac");
-  const visibleSlugs = getAssetActionBlockReason(ASSETS.nvdac, nvdacCapacity)
-    ? ACTIVE_ASSET_SLUGS
-    : [...ACTIVE_ASSET_SLUGS, "nvdac"];
+  const { capacity: cbzecCapacity } = useCapacity("cbzec");
+  const { capacity: cbhypeCapacity } = useCapacity("cbhype");
+  const { capacity: vvvCapacity } = useCapacity("vvv");
+  const capacities = {
+    nvdac: nvdacCapacity,
+    cbzec: cbzecCapacity,
+    cbhype: cbhypeCapacity,
+    vvv: vvvCapacity,
+  };
+  const visibleSlugs = [
+    ...ACTIVE_ASSET_SLUGS,
+    ...GATED_BASE_ASSET_SLUGS.filter(
+      (slug) => !getAssetActionBlockReason(ASSETS[slug], capacities[slug]),
+    ),
+  ];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
