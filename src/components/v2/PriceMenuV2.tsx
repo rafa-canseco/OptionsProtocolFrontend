@@ -782,7 +782,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             <div className="flex items-center gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 focus-within:border-[var(--accent)] transition-colors duration-200">
               <div className="flex items-center gap-1.5 shrink-0">
                 <img
-                  src={isBuy ? "/usdc.svg" : isBtc ? "/cbbtc.webp" : "/eth.png"}
+                  src={isBuy ? "/usdc.svg" : asset.icon}
                   alt={isBuy ? "USDC" : asset.symbol}
                   className="w-5 h-5 rounded-full"
                 />
