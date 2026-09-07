@@ -5,6 +5,7 @@ import { api, type Capacity } from "@/lib/api";
 import { sharedRequest } from "@/lib/sharedRequest";
 import { useVisibilityPolling } from "@/hooks/useVisibilityPolling";
 import { useRequestGeneration } from "@/hooks/useRequestGeneration";
+import { isBackendGatedAssetSlug } from "@/lib/assets";
 
 const CAPACITY_CACHE_TTL_MS = 10_000;
 
@@ -28,13 +29,12 @@ export function useCapacity(asset?: string, pollInterval = 30_000) {
       if (!requestGeneration.isCurrent(generation)) return;
       setSnapshot({ requestKey, capacity: data });
     } catch {
-      // Keep last known value on error — don't flip market to "closed"
-      // on a transient network failure.
       if (!requestGeneration.isCurrent(generation)) return;
+      // Route-gated assets fail closed when readiness cannot be refreshed.
       setSnapshot((previous) =>
-        previous.requestKey === requestKey
-          ? previous
-          : { requestKey, capacity: null },
+        isBackendGatedAssetSlug(requestKey) || previous.requestKey !== requestKey
+          ? { requestKey, capacity: null }
+          : previous,
       );
     } finally {
       if (requestGeneration.isCurrent(generation)) setLoading(false);

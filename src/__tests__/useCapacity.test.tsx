@@ -48,6 +48,21 @@ describe("useCapacity refresh policy", () => {
     unmount();
   });
 
+  it("clears a gated asset's ready snapshot when readiness refresh fails", async () => {
+    const ready = { asset: "nvdac", backend_ready: true } as unknown as Capacity;
+    apiMock.getCapacity.mockResolvedValueOnce(ready).mockRejectedValueOnce(new Error("offline"));
+
+    const { useCapacity } = await import("@/hooks/useCapacity");
+    const { result, unmount } = renderHook(() => useCapacity("nvdac", 30_000));
+    await flushRequests();
+    expect(result.current.capacity).toBe(ready);
+
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    await flushRequests();
+    expect(result.current.capacity).toBeNull();
+    unmount();
+  });
+
   it("ignores a stale capacity response after the asset changes", async () => {
     const ethCapacity = { asset: "eth", availableUsd: 2_000 } as unknown as Capacity;
     const btcCapacity = { asset: "btc", availableUsd: 1_000 } as unknown as Capacity;

@@ -14,7 +14,6 @@ export default function EarnAssetPage({
   const { locale } = useAppPreferences();
   const { asset } = use(params);
   const config = getAssetConfig(asset);
-
   if (!config || !isActiveAssetSlug(asset)) {
     redirect("/earn/eth");
   }

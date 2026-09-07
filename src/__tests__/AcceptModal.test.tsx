@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AcceptModal } from "@/components/AcceptModal";
-import { ApiError, type PriceQuote } from "@/lib/api";
+import { ApiError, type Capacity, type PriceQuote } from "@/lib/api";
+import { ASSETS } from "@/lib/assets";
 
 const ORIGINAL_LAZY_OTOKEN_ENABLED =
   process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED;
@@ -24,6 +25,7 @@ const { state } = vi.hoisted(() => ({
     ensureSeries: vi.fn(),
     getAccessToken: vi.fn(),
     encodeExecuteOrder: vi.fn(),
+    capacity: null as import("@/lib/api").Capacity | null,
   },
 }));
 
@@ -55,6 +57,10 @@ vi.mock("@/lib/api", async () => {
     },
   };
 });
+
+vi.mock("@/hooks/useCapacity", () => ({
+  useCapacity: () => ({ capacity: state.capacity, loading: false }),
+}));
 
 vi.mock("@/hooks/useBalances", () => ({
   useBalances: () => ({
@@ -219,6 +225,7 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     vi.clearAllMocks();
     process.env.NEXT_PUBLIC_LAZY_OTOKEN_ENABLED = "true";
     state.baseUsdcRaw = BigInt(7_613_000_000);
+    state.capacity = null;
     state.solanaUsdcRaw = BigInt(9_000_000_000);
     state.solanaUsdc = 9_000;
     state.checkDeficit.mockReturnValue({
@@ -276,6 +283,76 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "← Back" })).toHaveFocus());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it.each(["nvdac", "cbzec", "cbhype", "vvv"] as const)("rechecks backend route readiness before confirming %s", async (slug) => {
+    const asset = ASSETS[slug];
+    state.capacity = {
+      capacity: 1,
+      capacity_usd: 180,
+      market_open: true,
+      market_status: "active",
+      max_position: 1,
+      mm_count: 1,
+      updated_at: "2026-09-03T00:00:00Z",
+      asset_chain: "base",
+      asset_address: asset.address,
+      backend_ready: true,
+      route_active: false,
+      route_qualified: true,
+      readiness_status: "ready",
+    };
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ underlying_address: state.capacity.asset_address })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol={asset.symbol}
+        assetSlug={slug}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /Accept/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("settlement route is not active");
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
+  });
+
+  it("fails closed on an unknown backend readiness status", async () => {
+    const asset = ASSETS.nvdac;
+    state.capacity = {
+      capacity: 1,
+      capacity_usd: 180,
+      market_open: true,
+      market_status: "active",
+      max_position: 1,
+      mm_count: 1,
+      updated_at: "2026-09-03T00:00:00Z",
+      asset_chain: "base",
+      asset_address: asset.address,
+      backend_ready: true,
+      route_active: true,
+      route_qualified: true,
+      readiness_status: "unknown",
+    } as unknown as Capacity;
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ underlying_address: asset.address })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        initialAmount="11"
+        assetSymbol={asset.symbol}
+        assetSlug={asset.slug}
+      />,
+    );
+
+    await userEvent.click(await screen.findByRole("button", { name: /Accept/i }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("risk checks are incomplete");
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
   });
 
   it("keeps Base confirmation visible and ignores Solana balance and bridge logic", async () => {

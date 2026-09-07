@@ -6,9 +6,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ACTIVE_ASSET_SLUGS, ASSETS, type AssetConfig } from "@/lib/assets";
-import { useCapacity } from "@/hooks/useCapacity";
-import { getAssetActionBlockReason } from "@/lib/marketState";
+import { ACTIVE_ASSET_SLUGS, ASSETS, GATED_BASE_ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 
 const ASSET_LOGOS: Record<string, string> = {
   eth: "/eth.png",
@@ -32,7 +30,7 @@ function AssetIcon({ slug, size = 20 }: { slug: string; size?: number }) {
       style={{ width: size, height: size }}
       className="grid shrink-0 place-items-center rounded-full bg-emerald-400/15 text-[9px] font-bold text-emerald-300"
     >
-      N
+      {ASSETS[slug]?.symbol.charAt(0) ?? "?"}
     </span>
   );
 }
@@ -40,10 +38,10 @@ function AssetIcon({ slug, size = 20 }: { slug: string; size?: number }) {
 export function AssetSelector({ current }: { current: AssetConfig }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
-  const { capacity: nvdacCapacity } = useCapacity("nvdac");
-  const visibleSlugs = getAssetActionBlockReason(ASSETS.nvdac, nvdacCapacity)
-    ? ACTIVE_ASSET_SLUGS
-    : [...ACTIVE_ASSET_SLUGS, "nvdac"];
+  // Keep gated assets discoverable even when backend readiness is unavailable.
+  // PriceMenuV2 still blocks execution until the backend returns affirmative
+  // route/oracle/capacity checks. Avoid duplicate readiness requests here.
+  const visibleSlugs = [...ACTIVE_ASSET_SLUGS, ...GATED_BASE_ASSET_SLUGS];
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -71,6 +69,9 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
               {visibleSlugs.map((slug) => {
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
+                const gated = GATED_BASE_ASSET_SLUGS.includes(
+                  slug as (typeof GATED_BASE_ASSET_SLUGS)[number],
+                );
                 return (
                   <CommandItem
                     key={slug}
@@ -88,7 +89,9 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
                         <span className="font-semibold">{asset.symbol}</span>
                         <span className="truncate text-xs text-[var(--text-secondary)]">{asset.name}</span>
                       </span>
-                      <span className="text-[10px] font-medium text-blue-400">Base · Trading open</span>
+                      <span className={`text-[10px] font-medium ${gated ? "text-amber-300" : "text-blue-400"}`}>
+                        Base · {gated ? "Readiness gated" : "Trading open"}
+                      </span>
                     </span>
                     {isActive ? <Check className="size-4 shrink-0 text-[var(--accent)]" aria-label="Selected" /> : null}
                   </CommandItem>

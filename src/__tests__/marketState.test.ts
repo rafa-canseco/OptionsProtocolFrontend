@@ -9,7 +9,7 @@ async function loadMarketStateModule() {
   return import("@/lib/marketState");
 }
 
-function capacity(overrides: Partial<Capacity> = {}): Capacity {
+function capacity(overrides: Partial<Capacity> = {}, asset = ASSETS.nvdac): Capacity {
   return {
     capacity: 1,
     capacity_usd: 1,
@@ -19,7 +19,7 @@ function capacity(overrides: Partial<Capacity> = {}): Capacity {
     mm_count: 1,
     updated_at: "2026-09-03T00:00:00Z",
     asset_chain: "base",
-    asset_address: ASSETS.nvdac.address,
+    asset_address: asset.address,
     backend_ready: true,
     route_active: true,
     route_qualified: true,
@@ -152,16 +152,17 @@ describe("marketState helpers", () => {
     expect(mod.isRangeExecutableQuote(buildQuote({ deployment_status: "failed" }))).toBe(false);
   });
 
-  it("requires canonical Base address identity for NVDAc quotes", async () => {
+  it.each(["nvdac", "cbzec", "cbhype", "vvv"] as const)("requires canonical Base address identity for %s quotes", async (slug) => {
     const mod = await loadMarketStateModule();
+    const asset = ASSETS[slug];
     const canonical = buildQuote({
       chain: "base",
-      underlying_address: ASSETS.nvdac.address,
+      underlying_address: asset.address,
     });
 
-    expect(mod.isCanonicalQuoteForAsset(canonical, ASSETS.nvdac)).toBe(true);
-    expect(mod.isCanonicalQuoteForAsset({ ...canonical, underlying_address: "0x0000000000000000000000000000000000000001" }, ASSETS.nvdac)).toBe(false);
-    expect(mod.isCanonicalQuoteForAsset({ ...canonical, chain: "solana" }, ASSETS.nvdac)).toBe(false);
+    expect(mod.isCanonicalQuoteForAsset(canonical, asset)).toBe(true);
+    expect(mod.isCanonicalQuoteForAsset({ ...canonical, underlying_address: "0x0000000000000000000000000000000000000001" }, asset)).toBe(false);
+    expect(mod.isCanonicalQuoteForAsset({ ...canonical, chain: "solana" }, asset)).toBe(false);
   });
 
   it.each([
@@ -178,12 +179,41 @@ describe("marketState helpers", () => {
     expect(mod.getAssetActionBlockReason(ASSETS.nvdac, capacity(overrides))).toContain(reason);
   });
 
-  it("allows NVDAc only for an affirmative canonical, active, qualified response", async () => {
+  it("fails closed on malformed readiness status and boolean fields", async () => {
+    const mod = await loadMarketStateModule();
+    expect(mod.getAssetActionBlockReason(
+      ASSETS.nvdac,
+      capacity({ readiness_status: "unknown" } as unknown as Partial<Capacity>),
+    )).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(
+      ASSETS.nvdac,
+      capacity({ backend_ready: "true" } as unknown as Partial<Capacity>),
+    )).toContain("disabled by the backend");
+    expect(mod.getAssetActionBlockReason(
+      ASSETS.nvdac,
+      capacity({ route_active: "true" } as unknown as Partial<Capacity>),
+    )).toContain("route is not active");
+    expect(mod.getAssetActionBlockReason(
+      ASSETS.nvdac,
+      capacity({ route_qualified: "true" } as unknown as Partial<Capacity>),
+    )).toContain("route is not qualified");
+  });
+
+  it("allows every gated asset only for an affirmative canonical, active, qualified response", async () => {
     const mod = await loadMarketStateModule();
 
-    expect(mod.getAssetActionBlockReason(ASSETS.nvdac, null)).toContain("unavailable");
-    expect(mod.getAssetActionBlockReason(ASSETS.nvdac, capacity())).toBeNull();
+    for (const slug of ["nvdac", "cbzec", "cbhype", "vvv"] as const) {
+      expect(mod.getAssetActionBlockReason(ASSETS[slug], null)).toContain("unavailable");
+      expect(mod.getAssetActionBlockReason(ASSETS[slug], capacity({}, ASSETS[slug]))).toBeNull();
+    }
     expect(mod.getAssetActionBlockReason(ASSETS.eth, null)).toBeNull();
+  });
+
+  it("pins the four canonical Base-mainnet asset identities and decimals", () => {
+    expect({ address: ASSETS.nvdac.address, decimals: ASSETS.nvdac.collateralDecimals }).toEqual({ address: "0xb20000000000000000000078ee7ce2fE4908108C", decimals: 8 });
+    expect({ address: ASSETS.cbzec.address, decimals: ASSETS.cbzec.collateralDecimals }).toEqual({ address: "0xB2000000000000000000008501b13360000cb2EC", decimals: 8 });
+    expect({ address: ASSETS.cbhype.address, decimals: ASSETS.cbhype.collateralDecimals }).toEqual({ address: "0xB200000000000000000000451d033a5000cb479e", decimals: 18 });
+    expect({ address: ASSETS.vvv.address, decimals: ASSETS.vvv.collateralDecimals }).toEqual({ address: "0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf", decimals: 18 });
   });
 
   it("uses the required tokenized-stock disclosure without an equity ownership claim", () => {
@@ -193,6 +223,13 @@ describe("marketState helpers", () => {
     expect(ASSETS.nvdac.disclosure?.jurisdiction).toBeTruthy();
     expect(ASSETS.nvdac.disclosure?.eligibility).toBeTruthy();
     expect(ASSETS.nvdac.disclosure?.policyPause).toBeTruthy();
+  });
+
+  it.each(["cbzec", "cbhype", "vvv"] as const)("provides wrapped/token settlement risk disclosure for %s", (slug) => {
+    expect(ASSETS[slug].disclosure?.instrument).toBeTruthy();
+    expect(ASSETS[slug].disclosure?.jurisdiction).toBeTruthy();
+    expect(ASSETS[slug].disclosure?.eligibility).toBeTruthy();
+    expect(ASSETS[slug].disclosure?.policyPause).toBeTruthy();
   });
 
   it("replaces a selected quote when signed fields refresh at the same strike", async () => {

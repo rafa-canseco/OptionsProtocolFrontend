@@ -9,6 +9,7 @@ import {
 } from "viem";
 import { useWallet } from "@/hooks/useWallet";
 import { useBalances } from "@/hooks/useBalances";
+import { useCapacity } from "@/hooks/useCapacity";
 import { useSolanaBalance } from "@/hooks/useSolanaBalance";
 import { useBridgeAndTrade } from "@/hooks/useBridgeAndTrade";
 import { publicClient, ADDRESSES, CHAIN, ERC20_ABI, WETH_ABI } from "@/lib/contracts";
@@ -26,7 +27,7 @@ import {
 import type { BatchCall } from "@/hooks/useWallet";
 import { api, type PriceQuote } from "@/lib/api";
 import { saveOptimistic } from "@/lib/optimisticPositions";
-import { getAssetConfig } from "@/lib/assets";
+import { getAssetConfig, isBackendGatedAssetSlug } from "@/lib/assets";
 import {
   computeAPR,
   computeROI,
@@ -38,6 +39,7 @@ import {
 } from "@/lib/execution";
 import { floorTo, fmtAsset } from "@/lib/utils";
 import {
+  getAssetActionBlockReason,
   isCanonicalQuoteForAsset,
   isLazyOTokenEnabled,
   isProductionReadOnlyAsset,
@@ -63,7 +65,7 @@ interface Props {
   confirmOnly?: boolean;
   maxPositionEth?: number;
   assetSymbol?: string;
-  /** Asset slug ("eth" | "btc") to pick the right collateral token for calls */
+  /** Asset slug used to resolve canonical collateral and quote identity. */
   assetSlug?: string;
   yieldMetric?: YieldMetric;
 }
@@ -93,7 +95,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 
 
 export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
-  const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc" || assetSlug === "nvdac";
+  const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc" || isBackendGatedAssetSlug(assetSlug);
   const { getAccessToken } = usePrivy();
   const {
     address,
@@ -140,6 +142,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
   const isBtc = assetSlug === "btc";
   const lazyOTokenEnabled = isLazyOTokenEnabled();
   const assetConfig = getAssetConfig(assetSlug);
+  const { capacity } = useCapacity(assetSlug);
+  const readinessBlockReason = assetConfig
+    ? getAssetActionBlockReason(assetConfig, capacity)
+    : null;
   const isSol = assetSlug === "sol";
   const marketReadOnly = isProductionReadOnlyAsset(
     assetConfig ?? { slug: assetSlug, chain: quote.chain },
@@ -250,6 +256,10 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     }
     if (marketReadOnly) {
       setError(`${assetSymbol} is visible in production, but trading is still coming soon.`);
+      return;
+    }
+    if (readinessBlockReason) {
+      setError(readinessBlockReason);
       return;
     }
     if (activeBaseAsset && quote.chain !== "base") {
