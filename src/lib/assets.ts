@@ -30,6 +30,8 @@ export interface AssetConfig {
   collateralDecimals: number;
   /** Spot price used when live feed is unavailable */
   fallbackSpot: number;
+  /** Local token icon used consistently across selector and execution UI. */
+  icon: string;
   /** Canonical token address when ticker-only identity is unsafe. */
   address?: `0x${string}`;
   disclosure?: {
@@ -57,6 +59,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 18,
     fallbackSpot: 2621,
+    icon: "/eth.png",
   },
   btc: {
     slug: "btc",
@@ -74,6 +77,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 8,
     fallbackSpot: 95_000,
+    icon: "/cbbtc.webp",
   },
   nvdac: {
     slug: "nvdac",
@@ -90,6 +94,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 8,
     fallbackSpot: 180,
+    icon: "/nvdac.png",
     address: "0xb20000000000000000000078ee7ce2fE4908108C",
     disclosure: {
       instrument: "NVDAc is a tokenized-stock/B20 economic-exposure and redemption instrument. It is not NVIDIA-issued registered equity and does not provide direct ownership of NVIDIA shares.",
@@ -113,6 +118,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 8,
     fallbackSpot: 50,
+    icon: "/cbzec.png",
     address: "0xB2000000000000000000008501b13360000cb2EC",
     disclosure: {
       instrument: "cbZEC is a wrapped-token/B20 representation of ZEC. It is not native ZEC; custody, redemption, and transfer-policy risks apply.",
@@ -136,6 +142,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 18,
     fallbackSpot: 40,
+    icon: "/cbhype.png",
     address: "0xB200000000000000000000451d033a5000cb479e",
     disclosure: {
       instrument: "cbHYPE is a wrapped-token/B20 representation of HYPE. It is not native HYPE; custody, redemption, and transfer-policy risks apply.",
@@ -159,6 +166,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "base",
     collateralDecimals: 18,
     fallbackSpot: 1,
+    icon: "/vvv.png",
     address: "0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf",
     disclosure: {
       instrument: "VVV is a token settlement asset on Base. Smart-contract, custody, and liquidity risks apply; holding it does not guarantee redemption value.",
@@ -182,6 +190,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "solana",
     collateralDecimals: 9,
     fallbackSpot: 180,
+    icon: "/sol.png",
   },
   tslax: {
     slug: "tslax",
@@ -198,6 +207,7 @@ export const ASSETS: Record<string, AssetConfig> = {
     chain: "solana",
     collateralDecimals: 8,
     fallbackSpot: 350,
+    icon: "/tslax.svg",
   },
 };
 

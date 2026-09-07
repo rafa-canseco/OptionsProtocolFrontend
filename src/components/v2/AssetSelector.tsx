@@ -8,13 +8,8 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { ACTIVE_ASSET_SLUGS, ASSETS, GATED_BASE_ASSET_SLUGS, type AssetConfig } from "@/lib/assets";
 
-const ASSET_LOGOS: Record<string, string> = {
-  eth: "/eth.png",
-  btc: "/cbbtc.webp",
-};
-
 function AssetIcon({ slug, size = 20 }: { slug: string; size?: number }) {
-  const logo = ASSET_LOGOS[slug];
+  const logo = ASSETS[slug]?.icon;
   return logo ? (
     <Image
       src={logo}
