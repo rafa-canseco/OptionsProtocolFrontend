@@ -28,7 +28,8 @@ describe("AssetSelector", () => {
     expect(options[0]).toHaveTextContent("ETH");
     expect(options[1]).toHaveTextContent("cbBTC");
     for (const symbol of ["NVDAc", "cbZEC", "cbHYPE", "VVV"]) {
-      expect(screen.getByRole("option", { name: new RegExp(symbol) })).toHaveTextContent("Readiness gated");
+      expect(screen.getByRole("option", { name: new RegExp(symbol) })).not.toHaveTextContent("Readiness gated");
+      expect(screen.getByRole("option", { name: new RegExp(symbol) })).not.toHaveTextContent("Trading open");
     }
     expect(screen.queryByText(/^SOL$/)).not.toBeInTheDocument();
     expect(screen.queryByText("TSLAx")).not.toBeInTheDocument();

@@ -64,9 +64,6 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
               {visibleSlugs.map((slug) => {
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
-                const gated = GATED_BASE_ASSET_SLUGS.includes(
-                  slug as (typeof GATED_BASE_ASSET_SLUGS)[number],
-                );
                 return (
                   <CommandItem
                     key={slug}
@@ -83,9 +80,6 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
                       <span className="flex items-baseline gap-2">
                         <span className="font-semibold">{asset.symbol}</span>
                         <span className="truncate text-xs text-[var(--text-secondary)]">{asset.name}</span>
-                      </span>
-                      <span className={`text-[10px] font-medium ${gated ? "text-amber-300" : "text-blue-400"}`}>
-                        {gated ? "Readiness gated" : "Trading open"}
                       </span>
                     </span>
                     {isActive ? <Check className="size-4 shrink-0 text-[var(--accent)]" aria-label="Selected" /> : null}
