@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { type Address, createPublicClient, http } from "viem";
 import { base } from "viem/chains";
+import { BASE_MAINNET_GATEWAY_URL, CHAIN, RPC_URL } from "@/lib/rpc";
 
 // Always read Aave rates from Base mainnet — rates are the same
 // regardless of which environment (staging/production) the app runs on.
@@ -15,10 +16,7 @@ const MAINNET_WBTC: Address = "0xcbB7C0000aB88B473b1f5aFd9ef808440eed33Bf";
 
 const mainnetClient = createPublicClient({
   chain: base,
-  transport: http(
-    process.env.NEXT_PUBLIC_MAINNET_RPC_URL ??
-      "https://mainnet.base.org",
-  ),
+  transport: http(CHAIN.id === base.id ? RPC_URL : BASE_MAINNET_GATEWAY_URL),
 });
 
 const AAVE_POOL_ABI = [
