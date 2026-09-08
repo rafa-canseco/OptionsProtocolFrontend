@@ -1,14 +1,7 @@
 import { type Address, createPublicClient, http } from "viem";
-import { base, baseSepolia } from "viem/chains";
+import { CHAIN, RPC_URL } from "./rpc";
 
-const rawChainId = process.env.NEXT_PUBLIC_CHAIN_ID ?? "84532";
-const chainId = Number(rawChainId);
-if (Number.isNaN(chainId)) {
-  throw new Error(
-    `[contracts] NEXT_PUBLIC_CHAIN_ID="${rawChainId}" is not a valid number. Use 8453 (Base) or 84532 (Base Sepolia).`,
-  );
-}
-export const CHAIN = chainId === 8453 ? base : baseSepolia;
+export { CHAIN } from "./rpc";
 
 const ADDRESS_ENV: Record<string, string | undefined> = {
   NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS:   process.env.NEXT_PUBLIC_ADDRESS_BOOK_ADDRESS,
@@ -48,17 +41,9 @@ export const ADDRESSES = {
   swapRouter:    (process.env.NEXT_PUBLIC_SWAP_ROUTER_ADDRESS || null) as Address | null,
 } as const;
 
-const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
-if (!rpcUrl) {
-  console.error(
-    "[contracts] NEXT_PUBLIC_RPC_URL is not set. Falling back to the default public RPC, " +
-      "which is rate-limited and unsuitable for production.",
-  );
-}
-
 export const publicClient = createPublicClient({
   chain: CHAIN,
-  transport: http(rpcUrl),
+  transport: http(RPC_URL),
 });
 
 // Minimal ABIs — only the functions the frontend needs to call/read
