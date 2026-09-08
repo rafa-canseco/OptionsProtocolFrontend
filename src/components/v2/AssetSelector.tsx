@@ -50,7 +50,7 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
           <AssetIcon slug={current.slug} />
           <span className="min-w-0">
             <span className="block truncate text-base font-semibold text-[var(--bone)]">{current.symbol}</span>
-            <span className="block truncate text-[10px] text-[var(--text-secondary)]">{current.name} · Base</span>
+            <span className="block truncate text-[10px] text-[var(--text-secondary)]">{current.name}</span>
           </span>
           <ChevronsUpDown className="size-4 shrink-0 text-[var(--text-secondary)]" aria-hidden="true" />
         </button>
@@ -60,7 +60,7 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
           <CommandInput placeholder="Search assets" aria-label="Search assets" className="text-[var(--text)]" />
           <CommandList>
             <CommandEmpty className="text-[var(--text-secondary)]">No asset found.</CommandEmpty>
-            <CommandGroup heading="Available on Base">
+            <CommandGroup heading="Available assets">
               {visibleSlugs.map((slug) => {
                 const asset = ASSETS[slug];
                 const isActive = slug === current.slug;
@@ -70,7 +70,7 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
                 return (
                   <CommandItem
                     key={slug}
-                    value={`${asset.symbol} ${asset.name} Base`}
+                    value={`${asset.symbol} ${asset.name}`}
                     aria-current={isActive ? "page" : undefined}
                     onSelect={() => {
                       if (!isActive) router.push(`/earn/${slug}`);
@@ -85,7 +85,7 @@ export function AssetSelector({ current }: { current: AssetConfig }) {
                         <span className="truncate text-xs text-[var(--text-secondary)]">{asset.name}</span>
                       </span>
                       <span className={`text-[10px] font-medium ${gated ? "text-amber-300" : "text-blue-400"}`}>
-                        Base · {gated ? "Readiness gated" : "Trading open"}
+                        {gated ? "Readiness gated" : "Trading open"}
                       </span>
                     </span>
                     {isActive ? <Check className="size-4 shrink-0 text-[var(--accent)]" aria-label="Selected" /> : null}

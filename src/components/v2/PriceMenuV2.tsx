@@ -640,7 +640,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           <p>{asset.disclosure.instrument}</p>
           <p>{asset.disclosure.jurisdiction} {asset.disclosure.eligibility}</p>
           <p>{asset.disclosure.policyPause}</p>
-          <p className="break-all font-mono">Base · {asset.address}</p>
+          <p className="break-all font-mono">{asset.address}</p>
           {readinessBlockReason && <p className="font-medium text-amber-300">{readinessBlockReason}</p>}
         </section>
       )}

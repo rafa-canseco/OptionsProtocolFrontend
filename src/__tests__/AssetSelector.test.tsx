@@ -12,13 +12,13 @@ describe("AssetSelector", () => {
   beforeEach(() => {
     push.mockClear();
   });
-  it("shows active and gated Base assets and routes to their pages", async () => {
+  it("shows active and gated assets and routes to their pages", async () => {
     const user = userEvent.setup();
     render(<AssetSelector current={ASSETS.eth} />);
 
     const trigger = screen.getByRole("button", { name: "Select asset. Current asset ETH" });
     expect(trigger).toHaveAttribute("aria-expanded", "false");
-    expect(trigger).toHaveTextContent("Ethereum · Base");
+    expect(trigger).toHaveTextContent("Ethereum");
 
     await user.click(trigger);
     expect(trigger).toHaveAttribute("aria-expanded", "true");
@@ -28,7 +28,7 @@ describe("AssetSelector", () => {
     expect(options[0]).toHaveTextContent("ETH");
     expect(options[1]).toHaveTextContent("cbBTC");
     for (const symbol of ["NVDAc", "cbZEC", "cbHYPE", "VVV"]) {
-      expect(screen.getByRole("option", { name: new RegExp(symbol) })).toHaveTextContent("Base · Readiness gated");
+      expect(screen.getByRole("option", { name: new RegExp(symbol) })).toHaveTextContent("Readiness gated");
     }
     expect(screen.queryByText(/^SOL$/)).not.toBeInTheDocument();
     expect(screen.queryByText("TSLAx")).not.toBeInTheDocument();
