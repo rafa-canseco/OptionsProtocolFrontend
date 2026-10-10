@@ -962,10 +962,15 @@ export const api = {
   getB1naryPositionPortfolio: (
     privyUserId: string,
     request?: PositionPortfolioPageRequest,
-  ) =>
-    fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
-      `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}${positionPortfolioQuery(request)}`,
-    ),
+    wallets?: PositionPortfolioWallet[],
+  ) => {
+    const walletQuery = wallets?.length
+      ? `&wallets=${encodeURIComponent(JSON.stringify(wallets))}`
+      : "";
+    return fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
+      `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}${walletQuery}${positionPortfolioQuery(request)}`,
+    );
+  },
 
   getPositionPortfolioBatch: (
     wallets: PositionPortfolioWallet[],

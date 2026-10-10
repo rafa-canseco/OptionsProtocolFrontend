@@ -12,6 +12,7 @@ vi.mock("@/lib/contracts", () => ({
   BATCH_SETTLER_ABI: [],
 }));
 import { buildOptimisticPosition } from "@/lib/execution";
+import { getPositionPremiumUsd } from "@/lib/positionMath";
 
 const quote = (optionExpiry?: number): PriceQuote => ({
   option_type: "put",
@@ -40,6 +41,19 @@ const quote = (optionExpiry?: number): PriceQuote => ({
 });
 
 describe("buildOptimisticPosition", () => {
+  it("stores calculated USDC premium as integer base units", () => {
+    const position = buildOptimisticPosition(
+      { ...quote(), premium: 105_934 },
+      16.02,
+      true,
+      "0x0000000000000000000000000000000000000002",
+      "cbhype",
+    );
+
+    expect(position.net_premium).toBe("21213");
+    expect(getPositionPremiumUsd(position)).toBe(0.021213);
+  });
+
   it("uses option maturity, not the short-lived quote deadline", () => {
     const position = buildOptimisticPosition(
       quote(1_791_792_000),

@@ -25,6 +25,7 @@ export default function PositionsPage() {
   const { user } = usePrivy();
   const {
     address,
+    fundingAddress,
     portfolioAddresses,
     isConnected,
   } = useWallet();
@@ -37,7 +38,7 @@ export default function PositionsPage() {
     settledLoading,
   } = usePositions(
     address,
-    undefined,
+    fundingAddress,
     [],
     15_000,
     portfolioAddresses.base,

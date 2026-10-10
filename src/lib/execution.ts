@@ -173,8 +173,8 @@ export function buildOptimisticPosition(
     ? quote.premium / 1e6
     : quote.premium;
   const optPremium = isBuy
-    ? String(((quotePremiumUsd * amount) / quote.strike) * 1e6)
-    : String(quotePremiumUsd * amount * 1e6);
+    ? String(Math.round(((quotePremiumUsd * amount) / quote.strike) * 1e6))
+    : String(Math.round(quotePremiumUsd * amount * 1e6));
   const optionExpiry = quote.option_expiry ??
     Date.parse(`${quote.expiry_date}T08:00:00Z`) / 1000;
   return {

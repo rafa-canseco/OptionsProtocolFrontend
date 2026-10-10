@@ -21,6 +21,7 @@ const pageState = vi.hoisted(() => ({
   spotCalls: [] as string[],
   spotEnabled: [] as { asset: string; enabled: boolean }[],
   cardProps: [] as { spot?: number; optimistic?: boolean }[],
+  positionCalls: [] as unknown[][],
 }));
 
 const ethPosition = (id: string, date: string): PositionStub => ({
@@ -37,11 +38,20 @@ vi.mock("@privy-io/react-auth", () => ({ usePrivy: () => ({ user: { id: "privy-u
 vi.mock("@/hooks/useWallet", () => ({
   useWallet: () => ({
     address: "0x0000000000000000000000000000000000000001",
-    portfolioAddresses: { base: [], solana: [] },
+    fundingAddress: "0x0000000000000000000000000000000000000003",
+    portfolioAddresses: {
+      base: ["0x0000000000000000000000000000000000000002"],
+      solana: [],
+    },
     isConnected: true,
   }),
 }));
-vi.mock("@/hooks/usePositions", () => ({ usePositions: () => pageState }));
+vi.mock("@/hooks/usePositions", () => ({
+  usePositions: (...args: unknown[]) => {
+    pageState.positionCalls.push(args);
+    return pageState;
+  },
+}));
 vi.mock("@/hooks/useOptimisticPositions", () => ({ useOptimisticPositions: (positions: PositionStub[]) => positions }));
 vi.mock("@/hooks/useSpot", () => ({
   useSpot: (asset: string, _interval?: number, enabled = true) => {
@@ -77,7 +87,22 @@ describe("PositionsPage bounded B1 history", () => {
     pageState.spotCalls = [];
     pageState.spotEnabled = [];
     pageState.cardProps = [];
+    pageState.positionCalls = [];
     pageState.loadMoreSettled.mockClear();
+  });
+
+  it("passes connected, account, and funding wallet identities to Positions", async () => {
+    const PositionsPage = (await import("@/app/positions/page")).default;
+    render(<PositionsPage />);
+
+    expect(pageState.positionCalls.at(-1)).toEqual([
+      "0x0000000000000000000000000000000000000001",
+      "0x0000000000000000000000000000000000000003",
+      [],
+      15_000,
+      ["0x0000000000000000000000000000000000000002"],
+      "privy-user",
+    ]);
   });
 
   it("keeps older history reachable when the current page contains only removed assets", async () => {

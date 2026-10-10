@@ -123,6 +123,26 @@ describe("usePositions", () => {
     apiMock.trackEvent.mockResolvedValue({ ok: true });
   });
 
+  it("sends connected and funding wallets with the account portfolio request", async () => {
+    const smartWallet = "0x0000000000000000000000000000000000000002";
+    const fundingWallet = "0x0000000000000000000000000000000000000001";
+    const { usePositions } = await import("@/hooks/usePositions");
+    const { result, unmount } = renderHook(() =>
+      usePositions(smartWallet, fundingWallet, undefined, 60_000, [smartWallet], "privy-1"),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(apiMock.getB1naryPositionPortfolio).toHaveBeenCalledWith(
+      "privy-1",
+      undefined,
+      [
+        { chain: "base", address: fundingWallet },
+        { chain: "base", address: smartWallet },
+      ],
+    );
+    unmount();
+  });
+
   it("renders the bounded snapshot, drains active, and loads one settled page per action", async () => {
     apiMock.getB1naryPositionPortfolio.mockImplementation(
       async (

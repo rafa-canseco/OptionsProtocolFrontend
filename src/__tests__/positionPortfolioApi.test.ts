@@ -47,13 +47,24 @@ describe("position portfolio API adapter", () => {
     vi.spyOn(api, "getB1naryPositionPortfolio").mockResolvedValue(bounded);
     vi.spyOn(api, "getPositionPortfolioBatch").mockResolvedValue(bounded);
 
-    const account = await createAccountPortfolioSource("privy-user").getSnapshot();
+    const accountWallets = [
+      { chain: "base" as const, address: "0x0000000000000000000000000000000000000001" },
+    ];
+    const account = await createAccountPortfolioSource(
+      "privy-user",
+      accountWallets,
+    ).getSnapshot();
     const batch = await createWalletPortfolioSource([
       { chain: "base", address: "0x0000000000000000000000000000000000000001" },
       { chain: "solana", address: "SolanaCaseSensitive" },
     ]).getSnapshot();
 
     expect(account).toEqual({ ...batch, route: "account" });
+    expect(api.getB1naryPositionPortfolio).toHaveBeenCalledWith(
+      "privy-user",
+      undefined,
+      accountWallets,
+    );
     expect(batch.route).toBe("wallet_batch");
     expect(api.getPositionPortfolioBatch).toHaveBeenCalledTimes(1);
   });
@@ -80,6 +91,7 @@ describe("position portfolio API adapter", () => {
     expect(api.getB1naryPositionPortfolio).toHaveBeenCalledWith(
       "privy-user",
       request,
+      [],
     );
   });
 
