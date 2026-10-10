@@ -8,7 +8,7 @@ import { useRequestGeneration } from "@/hooks/useRequestGeneration";
 
 const SPOT_CACHE_TTL_MS = 4_000;
 
-export function useSpot(asset: string, pollInterval = 10_000) {
+export function useSpot(asset: string, pollInterval = 10_000, enabled = true) {
   const [snapshot, setSnapshot] = useState<{
     asset: string;
     spot: number | undefined;
@@ -41,6 +41,7 @@ export function useSpot(asset: string, pollInterval = 10_000) {
 
   useVisibilityPolling({
     refresh,
+    enabled,
     pollKey: asset,
     intervalMs: pollInterval,
     staleTimeMs: pollInterval,
@@ -49,6 +50,6 @@ export function useSpot(asset: string, pollInterval = 10_000) {
   const snapshotIsCurrent = snapshot.asset === asset;
   return {
     spot: snapshotIsCurrent ? snapshot.spot : undefined,
-    loading: snapshotIsCurrent ? loading : true,
+    loading: enabled ? (snapshotIsCurrent ? loading : true) : false,
   };
 }

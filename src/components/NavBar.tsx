@@ -153,8 +153,8 @@ export function NavBar() {
       : address;
   const { usd, eth, weth, wbtc, loading: balLoading, refetch } =
     useBalances(balanceAddresses);
-  const { spot: ethSpot } = useSpot("eth");
-  const { spot: btcSpot } = useSpot("btc");
+  const { spot: ethSpot } = useSpot("eth", 10_000, isConnected && eth + weth > 0);
+  const { spot: btcSpot } = useSpot("btc", 10_000, isConnected && wbtc > 0);
   const isStaging = typeof window !== "undefined" && window.location.hostname.startsWith("staging");
   const totalUsdc = usd;
   const totalUsd =

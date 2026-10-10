@@ -5,6 +5,7 @@ import { createElement, type ReactNode } from "react";
 const ORIGINAL_ENV = { ...process.env };
 
 const privyProviderSpy = vi.fn();
+const onboardingSpy = vi.fn(() => null);
 const mockUsePathname = vi.fn(() => "/");
 
 vi.mock("next/navigation", () => ({
@@ -14,7 +15,7 @@ vi.mock("next/navigation", () => ({
 vi.mock("@privy-io/react-auth", () => ({
   PrivyProvider: (props: { config: unknown; children: ReactNode }) => {
     privyProviderSpy(props);
-    return null;
+    return createElement("div", null, props.children);
   },
   dataSuffix: (value: unknown) => ({ __dataSuffix: value }),
 }));
@@ -35,6 +36,10 @@ vi.mock("ox/erc8021", () => ({
 vi.mock("@solana/kit", () => ({
   createSolanaRpc: (url: string) => ({ __rpc: url }),
   createSolanaRpcSubscriptions: (url: string) => ({ __sub: url }),
+}));
+
+vi.mock("@/components/B1naryAccountOnboarding", () => ({
+  B1naryAccountOnboarding: onboardingSpy,
 }));
 
 vi.mock("@/lib/contracts", () => ({
@@ -128,6 +133,7 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
     delete process.env.NEXT_PUBLIC_BUILDER_CODE;
     process.env.NEXT_PUBLIC_PRIVY_APP_ID = "test-app-id";
     privyProviderSpy.mockClear();
+    onboardingSpy.mockClear();
     mockUsePathname.mockReturnValue("/vaults");
   });
 
@@ -149,6 +155,21 @@ describe("Providers hands the buildPrivyConfig output to PrivyProvider", () => {
 
     expect(getByText("landing child")).toBeInTheDocument();
     expect(privyProviderSpy).not.toHaveBeenCalled();
+  });
+
+  it("does not force account onboarding on earn routes", async () => {
+    mockUsePathname.mockReturnValue("/earn/cbhype");
+    const { Providers } = await loadProvidersModule();
+
+    render(
+      createElement(
+        Providers,
+        null as unknown as { children: ReactNode },
+        createElement("div", null, "earn child"),
+      ),
+    );
+
+    expect(onboardingSpy).not.toHaveBeenCalled();
   });
 
   it("passes createOnLogin off to PrivyProvider in mainnet", async () => {
