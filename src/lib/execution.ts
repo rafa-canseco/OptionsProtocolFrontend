@@ -175,6 +175,8 @@ export function buildOptimisticPosition(
   const optPremium = isBuy
     ? String(((quotePremiumUsd * amount) / quote.strike) * 1e6)
     : String(quotePremiumUsd * amount * 1e6);
+  const optionExpiry = quote.option_expiry ??
+    Date.parse(`${quote.expiry_date}T08:00:00Z`) / 1000;
   return {
     id: "opt-" + Date.now(),
     tx_hash: "",
@@ -186,7 +188,7 @@ export function buildOptimisticPosition(
     collateral: optCollateral,
     vault_id: null as unknown as number,
     strike_price: quote.strike * 1e8,
-    expiry: quote.expires_at,
+    expiry: Number.isFinite(optionExpiry) ? optionExpiry : 0,
     is_put: isBuy,
     is_settled: false,
     settled_at: null,

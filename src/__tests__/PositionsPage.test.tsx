@@ -18,6 +18,9 @@ const pageState = vi.hoisted(() => ({
   settledHasMore: true,
   settledLoading: false,
   error: null,
+  spotCalls: [] as string[],
+  spotEnabled: [] as { asset: string; enabled: boolean }[],
+  cardProps: [] as { spot?: number; optimistic?: boolean }[],
 }));
 
 const ethPosition = (id: string, date: string): PositionStub => ({
@@ -40,7 +43,13 @@ vi.mock("@/hooks/useWallet", () => ({
 }));
 vi.mock("@/hooks/usePositions", () => ({ usePositions: () => pageState }));
 vi.mock("@/hooks/useOptimisticPositions", () => ({ useOptimisticPositions: (positions: PositionStub[]) => positions }));
-vi.mock("@/hooks/useSpot", () => ({ useSpot: () => ({ spot: 0 }) }));
+vi.mock("@/hooks/useSpot", () => ({
+  useSpot: (asset: string, _interval?: number, enabled = true) => {
+    pageState.spotCalls.push(asset);
+    pageState.spotEnabled.push({ asset, enabled });
+    return { spot: asset === "cbhype" ? 85.1 : 2_509 };
+  },
+}));
 vi.mock("@/hooks/useNotificationStatus", () => ({ useNotificationStatus: () => ({ enabled: false }) }));
 vi.mock("@/components/PortfolioSummary", () => ({
   PortfolioSummary: ({ positions }: { positions: unknown[] }) => <div data-testid="summary-count">{positions.length}</div>,
@@ -52,7 +61,12 @@ vi.mock("@/components/TradeLog", () => ({
   TradeLog: ({ items }: { items: unknown[] }) => <div id="position-history" data-testid="trade-count">{items.length}</div>,
 }));
 vi.mock("@/components/NotificationBanner", () => ({ NotificationBanner: () => null }));
-vi.mock("@/components/PositionCard", () => ({ PositionCard: () => null }));
+vi.mock("@/components/PositionCard", () => ({
+  PositionCard: (props: { spot?: number; optimistic?: boolean }) => {
+    pageState.cardProps.push(props);
+    return null;
+  },
+}));
 vi.mock("@/components/RangePositionCard", () => ({ RangePositionCard: () => null }));
 
 describe("PositionsPage bounded B1 history", () => {
@@ -60,6 +74,9 @@ describe("PositionsPage bounded B1 history", () => {
     pageState.positions = [ethPosition("settled-1", "2026-08-03T10:00:00Z")];
     pageState.settledHasMore = true;
     pageState.settledLoading = false;
+    pageState.spotCalls = [];
+    pageState.spotEnabled = [];
+    pageState.cardProps = [];
     pageState.loadMoreSettled.mockClear();
   });
 
@@ -77,6 +94,31 @@ describe("PositionsPage bounded B1 history", () => {
     expect(screen.getByTestId("summary-count")).toHaveTextContent("0");
     fireEvent.click(screen.getByRole("button", { name: "Load older positions" }));
     expect(pageState.loadMoreSettled).toHaveBeenCalledOnce();
+  });
+
+  it("does not poll cbHYPE spot when there is no cbHYPE position", async () => {
+    pageState.positions = [];
+    pageState.settledHasMore = false;
+    const PositionsPage = (await import("@/app/positions/page")).default;
+    render(<PositionsPage />);
+
+    expect(pageState.spotEnabled).toContainEqual({ asset: "cbhype", enabled: false });
+  });
+
+  it("shows cbHYPE's own spot and marks the unindexed optimistic position as confirming", async () => {
+    pageState.positions = [{
+      ...ethPosition("opt-cbhype", "2026-10-10T18:00:00Z"),
+      is_settled: false,
+      asset: "cbhype",
+      strike_price: 8_000_000_000,
+    }];
+    pageState.settledHasMore = false;
+    const PositionsPage = (await import("@/app/positions/page")).default;
+    render(<PositionsPage />);
+
+    expect(pageState.spotCalls).toContain("cbhype");
+    expect(pageState.spotEnabled.at(-1)).toEqual({ asset: "cbhype", enabled: true });
+    expect(pageState.cardProps.at(-1)).toMatchObject({ spot: 85.1, optimistic: true });
   });
 
   it("loads history incrementally and excludes removed assets from every visible total", async () => {

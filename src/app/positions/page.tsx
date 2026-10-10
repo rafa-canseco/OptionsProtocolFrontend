@@ -43,10 +43,19 @@ export default function PositionsPage() {
     portfolioAddresses.base,
     user?.id,
   );
-  const { spot: ethSpot } = useSpot("eth");
-  const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions).filter((position) =>
     isActivePositionAsset(position.asset, position.strike_price),
+  );
+  const hasCbHypePosition = allPositions.some(
+    (position) =>
+      resolvePositionAsset(position.asset, position.strike_price).slug === "cbhype",
+  );
+  const { spot: ethSpot } = useSpot("eth");
+  const { spot: btcSpot } = useSpot("btc");
+  const { spot: hypeSpot } = useSpot(
+    "cbhype",
+    30_000,
+    isConnected && hasCbHypePosition,
   );
   const [yieldMetric, setYieldMetric] = useState<YieldMetric>("apr");
   const notifStatus = useNotificationStatus(address);
@@ -123,7 +132,11 @@ export default function PositionsPage() {
                   item.positions[0].asset,
                   item.positions[0].strike_price,
                 );
-                const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+                const posSpot = posAsset.slug === "btc"
+                  ? btcSpot
+                  : posAsset.slug === "cbhype"
+                    ? hypeSpot
+                    : ethSpot;
                 return (
                   <RangePositionCard
                     key={item.groupId}
@@ -132,14 +145,18 @@ export default function PositionsPage() {
                     earnBase={`/earn/${posAsset.slug}`}
                     assetSymbol={posAsset.symbol}
                     assetSlug={posAsset.slug}
-                    optimistic={false}
+                    optimistic={item.positions.some((position) => position.id.startsWith("opt-"))}
                     yieldMetric={yieldMetric}
                   />
                 );
               }
               const pos = item.position;
               const posAsset = resolvePositionAsset(pos.asset, pos.strike_price);
-              const posSpot = posAsset.slug === "btc" ? btcSpot : ethSpot;
+              const posSpot = posAsset.slug === "btc"
+                ? btcSpot
+                : posAsset.slug === "cbhype"
+                  ? hypeSpot
+                  : ethSpot;
               return (
                 <PositionCard
                   key={pos.id}
@@ -149,7 +166,7 @@ export default function PositionsPage() {
                   earnBase={`/earn/${posAsset.slug}`}
                   assetSymbol={posAsset.symbol}
                   assetSlug={posAsset.slug}
-                  optimistic={false}
+                  optimistic={pos.id.startsWith("opt-")}
                   yieldMetric={yieldMetric}
                 />
               );

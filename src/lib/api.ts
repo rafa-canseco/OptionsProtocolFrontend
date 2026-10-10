@@ -9,6 +9,8 @@ export interface PriceQuote {
   strike: number;
   expiry_days: number;
   expiry_date: string;
+  /** Exact option maturity; expires_at is only the quote deadline. */
+  option_expiry?: number | null;
   premium: number;
   delta: number;
   iv: number;
