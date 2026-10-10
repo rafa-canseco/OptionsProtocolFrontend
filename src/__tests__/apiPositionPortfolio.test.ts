@@ -36,6 +36,20 @@ describe("position portfolio HTTP contract", () => {
     );
   });
 
+  it("encodes connected wallet filters on account portfolio requests", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+      new Response(JSON.stringify({ positions: [], errors: [] }), { status: 200 }),
+    );
+    const wallets = [
+      { chain: "base" as const, address: "0x0000000000000000000000000000000000000001" },
+    ];
+
+    await api.getB1naryPositionPortfolio("privy-user", undefined, wallets);
+
+    const calledUrl = new URL(String(fetchMock.mock.calls[0][0]));
+    expect(JSON.parse(calledUrl.searchParams.get("wallets") ?? "null")).toEqual(wallets);
+  });
+
   it("preserves direct snapshot headers and sends continuations to the direct route", async () => {
     const fetchMock = vi
       .spyOn(globalThis, "fetch")

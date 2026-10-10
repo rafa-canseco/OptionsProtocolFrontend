@@ -38,7 +38,8 @@ export function PortfolioSummary({
 }: Props) {
   const { locale } = useAppPreferences();
   const t = (en: string, es: string) => locale === "es" ? es : en;
-  const premiumEarned = positions.reduce(
+  const confirmedPositions = positions.filter((position) => !position.id.startsWith("opt-"));
+  const premiumEarned = confirmedPositions.reduce(
     (sum, p) => sum + getPositionPremiumUsd(p),
     0,
   );
@@ -47,12 +48,12 @@ export function PortfolioSummary({
     .filter((p) => !p.is_settled)
     .reduce((sum, p) => sum + capitalUsd(p), 0);
 
-  const totalCapital = positions.reduce(
+  const totalCapital = confirmedPositions.reduce(
     (sum, p) => sum + capitalUsd(p),
     0,
   );
 
-  const totalWeightedApr = positions.reduce((sum, p) => {
+  const totalWeightedApr = confirmedPositions.reduce((sum, p) => {
     const capital = capitalUsd(p);
     const premium = getPositionPremiumUsd(p);
     const days = getPositionTermDays(p.indexed_at, p.expiry);

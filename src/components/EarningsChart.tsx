@@ -67,7 +67,14 @@ export function EarningsChart({ positions }: Props) {
   const [period, setPeriod] = useState<Period>("ALL");
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
-  const allPoints = useMemo(() => buildChartData(positions), [positions]);
+  const confirmedPositions = useMemo(
+    () => positions.filter((position) => !position.id.startsWith("opt-")),
+    [positions],
+  );
+  const allPoints = useMemo(
+    () => buildChartData(confirmedPositions),
+    [confirmedPositions],
+  );
 
   const filtered = useMemo(() => {
     if (period === "ALL") return allPoints;
@@ -103,7 +110,7 @@ export function EarningsChart({ positions }: Props) {
     [points.length],
   );
 
-  if (positions.length === 0) {
+  if (confirmedPositions.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center space-y-2">
         <p className="text-sm text-[var(--text-secondary)]">

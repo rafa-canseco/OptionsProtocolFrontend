@@ -47,7 +47,9 @@ export function normalizeUsdAmount(rawValue: unknown): number {
 }
 
 export function getPositionPremiumUsd(position: Position): number {
-  return normalizeUsdAmount(position.net_premium);
+  const raw = finiteNumber(position.net_premium);
+  if (raw == null || raw <= 0) return 0;
+  return position.id.startsWith("opt-") ? raw / 1e6 : normalizeUsdAmount(position.net_premium);
 }
 
 export function getCallCollateralDecimals(position: Position): number {

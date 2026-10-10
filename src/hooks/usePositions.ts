@@ -111,7 +111,7 @@ export function usePositions(
     [solanaKey],
   );
   const sourceKey = b1naryPrivyUserId
-    ? `privy:${b1naryPrivyUserId}`
+    ? `privy:${b1naryPrivyUserId}:${baseKey}:${solanaKey}`
     : `wallets:${baseKey}:${solanaKey}`;
   const enabled = Boolean(b1naryPrivyUserId || baseKey || solanaKey);
   const wallets = useMemo<PositionPortfolioWallet[]>(
@@ -122,7 +122,9 @@ export function usePositions(
     [baseWallets, solanaWallets],
   );
   const source = useMemo<PositionPortfolioSource | null>(() => {
-    if (b1naryPrivyUserId) return createAccountPortfolioSource(b1naryPrivyUserId);
+    if (b1naryPrivyUserId) {
+      return createAccountPortfolioSource(b1naryPrivyUserId, wallets);
+    }
     if (wallets.length > 0) return createWalletPortfolioSource(wallets);
     return null;
   }, [b1naryPrivyUserId, wallets]);

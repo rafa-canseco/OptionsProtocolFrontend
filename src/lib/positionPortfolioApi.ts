@@ -286,6 +286,7 @@ function unavailableBatch(error: unknown): boolean {
 
 export function createAccountPortfolioSource(
   privyUserId: string,
+  wallets: PositionPortfolioWallet[] = [],
 ): PositionPortfolioSource {
   return {
     kind: "account",
@@ -296,7 +297,7 @@ export function createAccountPortfolioSource(
         );
       }
       return parsePortfolioSnapshot(
-        await api.getB1naryPositionPortfolio(privyUserId),
+        await api.getB1naryPositionPortfolio(privyUserId, undefined, wallets),
         route,
       );
     },
@@ -307,7 +308,7 @@ export function createAccountPortfolioSource(
         );
       }
       return parsePortfolioPage(
-        await api.getB1naryPositionPortfolio(privyUserId, request),
+        await api.getB1naryPositionPortfolio(privyUserId, request, wallets),
         request.stream,
         route,
       );
