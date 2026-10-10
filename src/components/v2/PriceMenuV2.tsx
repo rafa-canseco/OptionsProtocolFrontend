@@ -356,7 +356,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           p.option_type === (side === "buy" ? "put" : "call") &&
           p.expiry_date === activeExpiry &&
           (side === "buy" ? p.strike < (spot ?? Infinity) : p.strike > (spot ?? -Infinity)) &&
-          computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR
+          (isExecutableQuote(p) || computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR)
       )
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [displayPrices, side, activeExpiry, spot]);
