@@ -45,9 +45,54 @@ export function isCanonicalQuoteForAsset(quote: PriceQuote, asset: AssetConfig):
   return !asset.address || quote.underlying_address?.toLowerCase() === asset.address.toLowerCase();
 }
 
-export function getAssetActionBlockReason(asset: AssetConfig, capacity: Capacity | null): string | null {
+function isTrustedLegacyReadinessQuote(quote: PriceQuote, asset: AssetConfig): boolean {
+  if (!isCanonicalQuoteForAsset(quote, asset) || !isExecutableQuote(quote)) return false;
+  if (!/^0x[0-9a-f]{40}$/i.test(quote.otoken_address ?? "")) return false;
+  if (!/^0x[0-9a-f]{40}$/i.test(quote.mm_address ?? "")) return false;
+  if (!/^0x[0-9a-f]{130}$/i.test(quote.signature ?? "")) return false;
+
+  try {
+    const zero = BigInt(0);
+    const uint256Max = BigInt(`0x${"f".repeat(64)}`);
+    const bidPrice = BigInt(quote.bid_price_raw!);
+    const maxAmount = BigInt(quote.max_amount_raw!);
+    const makerNonce = BigInt(quote.maker_nonce!);
+    const quoteId = BigInt(quote.quote_id!);
+    const deadline = BigInt(quote.deadline!);
+    const now = BigInt(Math.floor(Date.now() / 1000));
+    return (
+      bidPrice > zero && bidPrice <= uint256Max &&
+      maxAmount > zero && maxAmount <= uint256Max &&
+      makerNonce >= zero && makerNonce <= uint256Max &&
+      quoteId >= zero && quoteId <= uint256Max &&
+      deadline > now && deadline <= uint256Max &&
+      Number.isFinite(quote.expires_at) &&
+      quote.expires_at > Number(now)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function getAssetActionBlockReason(
+  asset: AssetConfig,
+  capacity: Capacity | null,
+  quote?: PriceQuote,
+): string | null {
   if (!isBackendGatedAssetSlug(asset.slug)) return null;
   if (!capacity) return `${asset.symbol} backend readiness is unavailable.`;
+  const hasReadinessFields =
+    capacity.readiness_status !== undefined ||
+    capacity.backend_ready !== undefined ||
+    capacity.asset_chain !== undefined ||
+    capacity.asset_address !== undefined ||
+    capacity.route_active !== undefined ||
+    capacity.route_qualified !== undefined;
+  if (!hasReadinessFields) {
+    return quote && isTrustedLegacyReadinessQuote(quote, asset)
+      ? null
+      : readinessReason(asset, "unknown");
+  }
   if (capacity.readiness_status !== "ready") {
     return readinessReason(asset, capacity.readiness_status);
   }

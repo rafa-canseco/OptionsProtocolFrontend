@@ -8,6 +8,7 @@ import {
 } from "@/lib/sharedRequest";
 import { useVisibilityPolling } from "@/hooks/useVisibilityPolling";
 import { useRequestGeneration } from "@/hooks/useRequestGeneration";
+import { isBackendGatedAssetSlug } from "@/lib/assets";
 
 const PRICE_REQUEST_TTL_MS = 1_000;
 const EMPTY_RETRY_INTERVAL_MS = 2_000;
@@ -48,6 +49,7 @@ export function usePrices(asset?: string, pollInterval = 10_000) {
         requestKey,
         prices:
           data.length === 0 &&
+          (!asset || !isBackendGatedAssetSlug(asset)) &&
           previous.requestKey === requestKey &&
           previous.prices.length > 0
             ? previous.prices

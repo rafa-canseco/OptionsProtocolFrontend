@@ -264,13 +264,16 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     () => prices.filter((quote) => isCanonicalQuoteForAsset(quote, asset)),
     [asset, prices],
   );
-  const spot = spotFromEndpoint ?? canonicalPrices[0]?.spot ?? asset.fallbackSpot;
+  const spot =
+    spotFromEndpoint ??
+    canonicalPrices[0]?.spot ??
+    (asset.address ? undefined : asset.fallbackSpot);
   const displayPrices = useMemo(
     () => canonicalPrices.length > 0
       ? canonicalPrices
       : asset.address
         ? []
-        : buildPreviewQuotes(asset, spot),
+        : buildPreviewQuotes(asset, spot ?? asset.fallbackSpot),
     [asset, canonicalPrices, spot],
   );
   const indicativeQuotesActive = displayPrices.some((quote) => !isExecutableQuote(quote));
@@ -315,7 +318,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
 
   const isBuy = side === "buy";
   const isBtc = asset.slug === "btc";
-  const readinessBlockReason = getAssetActionBlockReason(asset, capacity);
+  const readinessBlockReason = getAssetActionBlockReason(
+    asset,
+    capacity,
+    canonicalPrices.find(isExecutableQuote),
+  );
   const marketReadOnly = isProductionReadOnlyAsset(asset) || !!readinessBlockReason;
   const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
 
