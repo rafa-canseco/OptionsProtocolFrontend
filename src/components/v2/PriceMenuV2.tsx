@@ -18,8 +18,10 @@ import { OutcomeCards } from "./OutcomeCards";
 import { CHAIN } from "@/lib/contracts";
 import {
   getAssetActionBlockReason,
+  getMaxTradeInput,
   isCanonicalQuoteForAsset,
-  isExecutableQuote,
+  isLiveExecutableQuote,
+  isMarketCapacityBlocked,
   isProductionReadOnlyAsset,
   reconcileSelectedQuote,
 } from "@/lib/marketState";
@@ -259,7 +261,11 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const t = (en: string, es: string) => locale === "es" ? es : en;
   const { prices, loading, error, refresh } = usePrices(asset.slug);
   const { capacity } = useCapacity(asset.slug);
-  const { spot: spotFromEndpoint } = useSpot(asset.slug, 5_000);
+  const { spot: spotFromEndpoint } = useSpot(
+    asset.slug,
+    5_000,
+    !isBackendGatedAssetSlug(asset.slug),
+  );
   const canonicalPrices = useMemo(
     () => prices.filter((quote) => isCanonicalQuoteForAsset(quote, asset)),
     [asset, prices],
@@ -276,7 +282,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         : buildPreviewQuotes(asset, spot ?? asset.fallbackSpot),
     [asset, canonicalPrices, spot],
   );
-  const indicativeQuotesActive = displayPrices.some((quote) => !isExecutableQuote(quote));
+  const indicativeQuotesActive = displayPrices.some((quote) => !isLiveExecutableQuote(quote));
   const { address, isConnected } = useWallet();
   const { login } = useLogin();
   const { wallets: b1naryWallets } = useB1naryAccount({
@@ -321,7 +327,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const readinessBlockReason = getAssetActionBlockReason(
     asset,
     capacity,
-    canonicalPrices.find(isExecutableQuote),
+    canonicalPrices.find(isLiveExecutableQuote),
   );
   const marketReadOnly = isProductionReadOnlyAsset(asset) || !!readinessBlockReason;
   const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
@@ -337,14 +343,15 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
   const [selectedExpiry, setSelectedExpiry] = useState<string | null>(null);
   const activeExpiry = selectedExpiry ?? expiries[0] ?? null;
 
-  const marketClosed = capacity !== null && (!capacity.market_open || capacity.market_status === "full");
+  const reportedMarketClosed = capacity !== null && (
+    !capacity.market_open || capacity.market_status === "full"
+  );
+  const marketClosed = isMarketCapacityBlocked(capacity, canonicalPrices);
   const marketDegraded = capacity !== null && capacity.market_status === "degraded";
-  const capEth = capacity?.max_position ?? asset.maxAmount;
-  const capUsd = spot ? Math.min(asset.maxAmountUsd, capEth * spot) : asset.maxAmountUsd;
-  const capacityLabel = capacity?.market_status === "full"
-    ? "MM at capacity"
-    : marketClosed
-      ? "Market closed"
+  const capacityLabel = marketClosed
+    ? capacity?.market_status === "full" ? "MM at capacity" : "Market closed"
+    : reportedMarketClosed
+      ? "Live quote available"
       : marketDegraded
         ? "Limited capacity"
         : "Open";
@@ -356,7 +363,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           p.option_type === (side === "buy" ? "put" : "call") &&
           p.expiry_date === activeExpiry &&
           (side === "buy" ? p.strike < (spot ?? Infinity) : p.strike > (spot ?? -Infinity)) &&
-          (isExecutableQuote(p) || computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR)
+          (isLiveExecutableQuote(p) || computeAPR(p.premium, p.strike, p.expiry_days) >= MIN_DISPLAY_APR)
       )
       .sort((a, b) => side === "buy" ? b.strike - a.strike : a.strike - b.strike);
   }, [displayPrices, side, activeExpiry, spot]);
@@ -385,14 +392,18 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     ? computeAPR(selectedQuote.premium, selectedQuote.strike, selectedQuote.expiry_days)
     : 0;
 
+  const selectedMaxInput = selectedQuote
+    ? getMaxTradeInput(selectedQuote, side as "buy" | "sell", walletBalance)
+    : 0;
   const canAccept = !!(
     !marketReadOnly &&
     !marketClosed &&
     selectedQuote &&
     amount > 0 &&
-    isExecutableQuote(selectedQuote)
+    amount <= selectedMaxInput &&
+    isLiveExecutableQuote(selectedQuote)
   );
-  const selectedQuoteIsPreview = !!selectedQuote && !isExecutableQuote(selectedQuote);
+  const selectedQuoteIsPreview = !!selectedQuote && !isLiveExecutableQuote(selectedQuote);
   const executionBlocked = marketReadOnly || marketClosed || selectedQuoteIsPreview || !canAccept;
 
   function handleStartTutorial() {
@@ -427,15 +438,19 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     if (!executionBlocked) setConfirming(true);
   }
 
+  function clampAmountToQuote(quote: PriceQuote) {
+    const max = getMaxTradeInput(quote, side as "buy" | "sell", walletBalance);
+    if (amount <= max) return;
+    setAmountStr(floorTo(max, isBuy ? 2 : asset.displayDecimals).toString());
+  }
+
   function handlePercentShortcut(pct: number) {
-    const raw = walletBalance * (pct / 100);
-    if (isBuy) {
-      const truncated = floorTo(raw, 2);
-      setAmountStr((Number.isFinite(capUsd) ? Math.min(truncated, capUsd) : truncated).toString());
-    } else {
-      const truncated = floorTo(raw, asset.displayDecimals);
-      setAmountStr(Math.min(truncated, capEth).toString());
-    }
+    const available = selectedQuote
+      ? getMaxTradeInput(selectedQuote, side as "buy" | "sell", walletBalance)
+      : walletBalance;
+    setAmountStr(
+      floorTo(available * (pct / 100), isBuy ? 2 : asset.displayDecimals).toString(),
+    );
   }
 
   if (loading && prices.length === 0 && !spot) {
@@ -867,7 +882,10 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
                     side={side as "buy" | "sell"}
                     amount={amount}
                     isSelected={selectedQuote?.strike === q.strike}
-                    onSelect={() => setSelectedQuote(q)}
+                    onSelect={() => {
+                      setSelectedQuote(q);
+                      clampAmountToQuote(q);
+                    }}
                     assetSymbol={asset.symbol}
                     spot={spot}
                     yieldMetric={yieldMetric}
@@ -966,7 +984,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           side={side as "buy" | "sell"}
           initialAmount={amountStr}
           confirmOnly
-          maxPositionEth={capacity?.max_position}
           assetSymbol={asset.symbol}
           assetSlug={asset.slug}
           yieldMetric={yieldMetric}

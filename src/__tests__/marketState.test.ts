@@ -46,7 +46,7 @@ function buildQuote(overrides: Partial<PriceQuote> = {}): PriceQuote {
     mm_address: "maker123",
     bid_price_raw: 12_500_000,
     deadline: 1_900_000_030,
-    quote_id: "quote-1",
+    quote_id: "1",
     max_amount_raw: 200_000_000,
     maker_nonce: 7,
     position_count: 0,
@@ -119,6 +119,50 @@ describe("marketState helpers", () => {
         buildQuote({ otoken_address: null, signature: null, quote_id: null }),
       ),
     ).toBe(false);
+  });
+
+  it("uses the signed quote limit for max input", async () => {
+    const mod = await loadMarketStateModule();
+    const quote = buildQuote({ strike: 80, available_amount: 0.19919767 });
+
+    expect(mod.getMaxTradeInput(quote, "buy", 18.32)).toBeCloseTo(15.9358136);
+    expect(mod.getMaxTradeInput(quote, "sell", 0.12)).toBe(0.12);
+    expect(mod.getMaxTradeInput(
+      { ...quote, max_amount_raw: 15_000_000 },
+      "buy",
+      18.32,
+    )).toBe(12);
+    expect(mod.getMaxTradeInput(
+      { ...quote, max_amount_raw: "invalid" },
+      "buy",
+      18.32,
+    )).toBe(0);
+  });
+
+  it("lets a live executable quote override stale aggregate capacity only", async () => {
+    const mod = await loadMarketStateModule();
+    const full = capacity({ market_open: false, market_status: "full" });
+    const liveQuote = buildQuote();
+
+    expect(mod.isMarketCapacityBlocked(full, [liveQuote])).toBe(false);
+    expect(mod.isMarketCapacityBlocked(full, [{ ...liveQuote, deadline: 1 }])).toBe(true);
+    expect(mod.isMarketCapacityBlocked(full, [{ ...liveQuote, available_amount: 0 }])).toBe(true);
+    expect(mod.isMarketCapacityBlocked(full, [])).toBe(true);
+  });
+
+  it("rejects malformed Base execution fields", async () => {
+    const mod = await loadMarketStateModule();
+    const quote = buildQuote({
+      chain: "base",
+      otoken_address: "0x0000000000000000000000000000000000000001",
+      mm_address: "0x0000000000000000000000000000000000000002",
+      signature: `0x${"ab".repeat(65)}`,
+    });
+
+    expect(mod.isLiveExecutableQuote(quote)).toBe(true);
+    expect(mod.isLiveExecutableQuote({ ...quote, signature: "0xmalformed" })).toBe(false);
+    expect(mod.isLiveExecutableQuote({ ...quote, bid_price_raw: "invalid" })).toBe(false);
+    expect(mod.isLiveExecutableQuote({ ...quote, max_amount_raw: "0" })).toBe(false);
   });
 
   it("keeps eager rollout safe by default", async () => {

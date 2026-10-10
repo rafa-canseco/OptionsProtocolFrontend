@@ -9,10 +9,7 @@ import { Attribution } from "ox/erc8021";
 import { CHAIN } from "@/lib/contracts";
 import { SOLANA_CHAIN, SOLANA_RPC_URL, solanaWsUrl } from "@/lib/solana";
 import { createSolanaRpc, createSolanaRpcSubscriptions } from "@solana/kit";
-import { B1naryAccountOnboarding } from "@/components/B1naryAccountOnboarding";
 import { useAppPreferences, type AppTheme } from "@/lib/preferences";
-
-const B1NARY_ACCOUNT_ROUTES = ["/earn", "/positions"];
 
 function getPrivyAppId(): string {
   const id = process.env.NEXT_PUBLIC_PRIVY_APP_ID;
@@ -69,20 +66,13 @@ export function buildPrivyConfig(theme: AppTheme = "dark"): PrivyClientConfig {
 export function Providers({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { theme } = useAppPreferences();
-  const showB1naryAccountOnboarding = B1NARY_ACCOUNT_ROUTES.some((route) =>
-    pathname?.startsWith(route),
-  );
-
   // The public landing page does not need wallet infrastructure. Keeping Privy
   // off this route also allows local HTTP preview; embedded wallets require HTTPS.
   if (pathname === "/") return children;
 
   return (
     <PrivyProvider appId={getPrivyAppId()} config={buildPrivyConfig(theme)}>
-      <SmartWalletsProvider>
-        {children}
-        {showB1naryAccountOnboarding && <B1naryAccountOnboarding />}
-      </SmartWalletsProvider>
+      <SmartWalletsProvider>{children}</SmartWalletsProvider>
     </PrivyProvider>
   );
 }

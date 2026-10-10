@@ -204,12 +204,12 @@ function buildBaseQuote(overrides: Partial<PriceQuote> = {}): PriceQuote {
     ttl: 60,
     expires_at: 1_900_000_000,
     available_amount: 5,
-    otoken_address: "0xOtoken",
-    signature: "0xsig",
-    mm_address: "0xMaker",
+    otoken_address: "0x0000000000000000000000000000000000000011",
+    signature: `0x${"ab".repeat(65)}`,
+    mm_address: "0x0000000000000000000000000000000000000012",
     bid_price_raw: 280_000,
     deadline: 1_900_000_030,
-    quote_id: "quote-1",
+    quote_id: "1",
     max_amount_raw: 200_000_000,
     maker_nonce: 7,
     position_count: 0,
@@ -283,6 +283,46 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "← Back" })).toHaveFocus());
     await user.keyboard("{Escape}");
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
+  });
+
+  it("clamps 100% to the signed quote maximum", async () => {
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({
+          strike: 80,
+          available_amount: 0.19919767,
+          max_amount_raw: 15_000_000,
+        })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        assetSymbol="cbHYPE"
+        assetSlug="cbhype"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "100%" }));
+    expect(screen.getByRole("textbox", { name: "Amount in USDC" })).toHaveValue("12");
+  });
+
+  it("rejects a quote that expires before final confirmation", async () => {
+    const onQuoteInvalid = vi.fn();
+    render(
+      <AcceptModal
+        quote={buildBaseQuote({ deadline: 1, expires_at: 1 })}
+        side="buy"
+        onClose={vi.fn()}
+        onAccepted={vi.fn()}
+        onQuoteInvalid={onQuoteInvalid}
+        initialAmount="11"
+        assetSymbol="ETH"
+        assetSlug="eth"
+      />,
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: /Accept/i }));
+    expect(onQuoteInvalid).toHaveBeenCalledOnce();
+    expect(state.sendBatchTx).not.toHaveBeenCalled();
   });
 
   it.each(["nvdac", "cbzec", "cbhype", "vvv"] as const)("rechecks backend route readiness before confirming %s", async (slug) => {
@@ -393,22 +433,22 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     expect(state.ensureSeries).toHaveBeenCalledWith(
       expect.objectContaining({
         wallet_address: "0xSmartWallet",
-        expected_otoken_address: "0xOtoken",
+        expected_otoken_address: "0x0000000000000000000000000000000000000011",
         amount_raw: "478260",
         quote: expect.objectContaining({
           bid_price_raw: "280000",
           deadline: "1900000030",
-          quote_id: "quote-1",
+          quote_id: "1",
           max_amount_raw: "200000000",
           maker_nonce: "7",
-          signature: "0xsig",
-          mm_address: "0xMaker",
+          signature: `0x${"ab".repeat(65)}`,
+          mm_address: "0x0000000000000000000000000000000000000012",
         }),
       }),
       "privy-token",
       expect.objectContaining({
         signal: expect.any(AbortSignal),
-        idempotencyKey: expect.stringContaining("quote-1"),
+        idempotencyKey: expect.stringContaining(":1:"),
       }),
     );
 

@@ -40,8 +40,10 @@ import {
 import { floorTo, fmtAsset } from "@/lib/utils";
 import {
   getAssetActionBlockReason,
+  getMaxTradeInput,
   isCanonicalQuoteForAsset,
   isLazyOTokenEnabled,
+  isLiveExecutableQuote,
   isProductionReadOnlyAsset,
 } from "@/lib/marketState";
 import {
@@ -63,7 +65,6 @@ interface Props {
   renderExtra?: React.ReactNode | ((amount: number) => React.ReactNode);
   initialAmount?: string;
   confirmOnly?: boolean;
-  maxPositionEth?: number;
   assetSymbol?: string;
   /** Asset slug used to resolve canonical collateral and quote identity. */
   assetSlug?: string;
@@ -94,7 +95,7 @@ function formatSolRawAmount(rawLamports: bigint, decimals = 8): string {
 }
 
 
-export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, maxPositionEth, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
+export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, renderExtra, initialAmount, confirmOnly, assetSymbol = "ETH", assetSlug = "eth", yieldMetric = "apr" }: Props) {
   const activeBaseAsset = assetSlug === "eth" || assetSlug === "btc" || isBackendGatedAssetSlug(assetSlug);
   const { getAccessToken } = usePrivy();
   const {
@@ -162,16 +163,13 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
           ? solTotalBalance
           : isBtc ? wbtc : eth + weth;
 
-  const capEth = maxPositionEth ?? quote.available_amount;
-  const maxAmount = isBuy
-    ? Math.min(quote.available_amount, capEth) * quote.strike
-    : Math.min(quote.available_amount, capEth);
+  const maxAmount = getMaxTradeInput(quote, side, Number.POSITIVE_INFINITY);
   const maxByBalance = isBuy
     ? walletBalance
     : isSol
       ? solTotalBalance
       : walletBalance;
-  const maxInputAmount = Math.min(maxByBalance, maxAmount);
+  const maxInputAmount = getMaxTradeInput(quote, side, maxByBalance);
 
   const [amountStr, setAmountStr] = useState(initialAmount ?? "");
   const amount = Number(amountStr) || 0;
@@ -270,7 +268,6 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       setError("This quote does not match the canonical Base asset. Refresh prices and try again.");
       return;
     }
-
     if (!isConnected) {
       setDepositToken(
         isBuy
@@ -302,6 +299,11 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
       setError("This option series is still being prepared. Refresh and try again shortly.");
       return;
     }
+    if (!isLiveExecutableQuote(quote)) {
+      setError("This quote expired or is invalid. Refresh prices and try again.");
+      onQuoteInvalid?.();
+      return;
+    }
 
     if (amount < minAmount) {
       const label = isBuy ? `$${minAmount}` : `${minAmount} ${assetSymbol}`;
@@ -310,9 +312,9 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     }
     if (amount > maxAmount) {
       const label = isBuy
-        ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+        ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
         : `${fmtAsset(maxAmount)} ${assetSymbol}`;
-      setError(`Exceeds max trade size. Enter ${label} or less.`);
+      setError(`Exceeds signed quote capacity. Enter ${label} or less.`);
       return;
     }
 
@@ -931,8 +933,8 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
 
         {amount > maxAmount && (
           <p className="text-sm text-[var(--danger)]">
-            Exceeds max trade size — enter {isBuy
-              ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}`
+            Exceeds signed quote capacity — enter {isBuy
+              ? `$${maxAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
               : `${fmtAsset(maxAmount)} ${assetSymbol}`} or less.
           </p>
         )}
