@@ -144,12 +144,6 @@ export const ASSETS: Record<string, AssetConfig> = {
     fallbackSpot: 40,
     icon: "/cbhype.png",
     address: "0xB200000000000000000000451d033a5000cb479e",
-    disclosure: {
-      instrument: "cbHYPE is a wrapped-token/B20 representation of HYPE. It is not native HYPE; custody, redemption, and transfer-policy risks apply.",
-      jurisdiction: process.env.NEXT_PUBLIC_CBHYPE_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
-      eligibility: process.env.NEXT_PUBLIC_CBHYPE_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
-      policyPause: process.env.NEXT_PUBLIC_CBHYPE_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
-    },
   },
   vvv: {
     slug: "vvv",

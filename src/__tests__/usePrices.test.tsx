@@ -40,6 +40,20 @@ describe("usePrices", () => {
     unmount();
   });
 
+  it("clears routed quotes when publication returns an empty list", async () => {
+    const quote = [{ quote_id: "cbhype" }] as unknown as PriceQuote[];
+    apiMock.getPrices.mockResolvedValueOnce(quote).mockResolvedValueOnce([]);
+
+    const { usePrices } = await import("@/hooks/usePrices");
+    const { result, unmount } = renderHook(() => usePrices("cbhype", 10_000));
+    await flushRequests();
+    expect(result.current.prices).toBe(quote);
+
+    await act(async () => result.current.refresh());
+    expect(result.current.prices).toEqual([]);
+    unmount();
+  });
+
   it("ignores a stale quote response after the asset changes", async () => {
     const ethQuotes = [{ quote_id: "eth" }] as unknown as PriceQuote[];
     const btcQuotes = [{ quote_id: "btc" }] as unknown as PriceQuote[];
