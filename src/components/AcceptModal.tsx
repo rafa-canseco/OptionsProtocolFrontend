@@ -144,7 +144,7 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
   const assetConfig = getAssetConfig(assetSlug);
   const { capacity } = useCapacity(assetSlug);
   const readinessBlockReason = assetConfig
-    ? getAssetActionBlockReason(assetConfig, capacity)
+    ? getAssetActionBlockReason(assetConfig, capacity, quote)
     : null;
   const isSol = assetSlug === "sol";
   const marketReadOnly = isProductionReadOnlyAsset(

@@ -209,6 +209,55 @@ describe("marketState helpers", () => {
     expect(mod.getAssetActionBlockReason(ASSETS.eth, null)).toBeNull();
   });
 
+  it("accepts a canonical executable quote when the capacity API uses its legacy schema", async () => {
+    const mod = await loadMarketStateModule();
+    const asset = ASSETS.cbhype;
+    const legacyCapacity = capacity({
+      asset_chain: undefined,
+      asset_address: undefined,
+      backend_ready: undefined,
+      route_active: undefined,
+      route_qualified: undefined,
+      readiness_status: undefined,
+    }, asset);
+    const quote = buildQuote({
+      chain: "base",
+      underlying_address: asset.address,
+      otoken_address: "0x0000000000000000000000000000000000000001",
+      mm_address: "0x0000000000000000000000000000000000000002",
+      signature: `0x${"ab".repeat(65)}`,
+      quote_id: "1",
+    });
+
+    expect(mod.getAssetActionBlockReason(asset, legacyCapacity, quote)).toBeNull();
+    expect(mod.getAssetActionBlockReason(asset, legacyCapacity)).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(
+      asset,
+      legacyCapacity,
+      { ...quote, underlying_address: ASSETS.cbzec.address },
+    )).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(
+      asset,
+      legacyCapacity,
+      { ...quote, deadline: 1 },
+    )).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(
+      asset,
+      legacyCapacity,
+      { ...quote, signature: "0xmalformed" },
+    )).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(
+      asset,
+      legacyCapacity,
+      { ...quote, quote_id: "not-a-uint" },
+    )).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(
+      asset,
+      legacyCapacity,
+      { ...quote, max_amount_raw: `0x1${"0".repeat(64)}` },
+    )).toContain("risk checks are incomplete");
+  });
+
   it("pins the four canonical Base-mainnet asset identities and decimals", () => {
     expect({ address: ASSETS.nvdac.address, decimals: ASSETS.nvdac.collateralDecimals }).toEqual({ address: "0xb20000000000000000000078ee7ce2fE4908108C", decimals: 8 });
     expect({ address: ASSETS.cbzec.address, decimals: ASSETS.cbzec.collateralDecimals }).toEqual({ address: "0xB2000000000000000000008501b13360000cb2EC", decimals: 8 });
@@ -225,11 +274,15 @@ describe("marketState helpers", () => {
     expect(ASSETS.nvdac.disclosure?.policyPause).toBeTruthy();
   });
 
-  it.each(["cbzec", "cbhype", "vvv"] as const)("provides wrapped/token settlement risk disclosure for %s", (slug) => {
+  it.each(["cbzec", "vvv"] as const)("provides wrapped/token settlement risk disclosure for %s", (slug) => {
     expect(ASSETS[slug].disclosure?.instrument).toBeTruthy();
     expect(ASSETS[slug].disclosure?.jurisdiction).toBeTruthy();
     expect(ASSETS[slug].disclosure?.eligibility).toBeTruthy();
     expect(ASSETS[slug].disclosure?.policyPause).toBeTruthy();
+  });
+
+  it("does not show a cbHYPE disclosure", () => {
+    expect(ASSETS.cbhype.disclosure).toBeUndefined();
   });
 
   it("replaces a selected quote when signed fields refresh at the same strike", async () => {
