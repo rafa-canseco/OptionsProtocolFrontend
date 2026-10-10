@@ -26,6 +26,14 @@ describe("useSpot", () => {
     second.unmount();
   });
 
+  it("does not request spot when disabled", async () => {
+    const { useSpot } = await import("@/hooks/useSpot");
+    const { result } = renderHook(() => useSpot("cbhype", 10_000, false));
+
+    expect(result.current).toEqual({ spot: undefined, loading: false });
+    expect(apiMock.getSpot).not.toHaveBeenCalled();
+  });
+
   it("ignores a stale asset response after the key changes", async () => {
     let resolveEth!: (value: { asset: string; spot: number }) => void;
     let resolveBtc!: (value: { asset: string; spot: number }) => void;

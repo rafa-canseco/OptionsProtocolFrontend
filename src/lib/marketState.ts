@@ -46,7 +46,7 @@ export function isCanonicalQuoteForAsset(quote: PriceQuote, asset: AssetConfig):
 }
 
 function isTrustedLegacyReadinessQuote(quote: PriceQuote, asset: AssetConfig): boolean {
-  if (!isCanonicalQuoteForAsset(quote, asset) || !isExecutableQuote(quote)) return false;
+  if (!isCanonicalQuoteForAsset(quote, asset) || !isLiveExecutableQuote(quote)) return false;
   if (!/^0x[0-9a-f]{40}$/i.test(quote.otoken_address ?? "")) return false;
   if (!/^0x[0-9a-f]{40}$/i.test(quote.mm_address ?? "")) return false;
   if (!/^0x[0-9a-f]{130}$/i.test(quote.signature ?? "")) return false;
@@ -127,6 +127,75 @@ export function isExecutableQuote(quote: PriceQuote): boolean {
     quote.max_amount_raw != null &&
     quote.maker_nonce != null
   );
+}
+
+const UINT256_MAX = BigInt(`0x${"f".repeat(64)}`);
+const OTOKEN_SCALE = 1e8;
+
+function parseUint256(value: string | number | null | undefined): bigint | null {
+  try {
+    if (typeof value === "number" && (!Number.isSafeInteger(value) || value < 0)) return null;
+    const parsed = BigInt(value ?? "");
+    return parsed >= BigInt(0) && parsed <= UINT256_MAX ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+export function isLiveExecutableQuote(quote: PriceQuote): boolean {
+  const now = Math.floor(Date.now() / 1000);
+  const bidPrice = parseUint256(quote.bid_price_raw);
+  const maxAmount = parseUint256(quote.max_amount_raw);
+  const makerNonce = parseUint256(quote.maker_nonce);
+  const quoteId = parseUint256(quote.quote_id);
+  const deadline = parseUint256(quote.deadline);
+  const baseFieldsValid = quote.chain !== "base" || (
+    /^0x[0-9a-f]{40}$/i.test(quote.otoken_address ?? "") &&
+    /^0x[0-9a-f]{40}$/i.test(quote.mm_address ?? "") &&
+    /^0x[0-9a-f]{130}$/i.test(quote.signature ?? "")
+  );
+
+  return (
+    isExecutableQuote(quote) &&
+    baseFieldsValid &&
+    Number.isFinite(quote.strike) &&
+    quote.strike > 0 &&
+    Number.isFinite(quote.available_amount) &&
+    quote.available_amount > 0 &&
+    bidPrice !== null && bidPrice > BigInt(0) &&
+    maxAmount !== null && maxAmount > BigInt(0) &&
+    makerNonce !== null &&
+    quoteId !== null &&
+    deadline !== null && deadline > BigInt(now) &&
+    Number.isFinite(quote.expires_at) &&
+    quote.expires_at > now
+  );
+}
+
+export function getMaxTradeInput(
+  quote: PriceQuote,
+  side: "buy" | "sell",
+  walletBalance: number,
+): number {
+  const maxAmountRaw = parseUint256(quote.max_amount_raw);
+  if (maxAmountRaw === null || maxAmountRaw === BigInt(0)) return 0;
+  const signedAmount = Number(maxAmountRaw) / OTOKEN_SCALE;
+  const availableAmount = Math.min(quote.available_amount, signedAmount);
+  if (!Number.isFinite(availableAmount) || availableAmount <= 0) return 0;
+  const quoteLimit = side === "buy"
+    ? availableAmount * quote.strike
+    : availableAmount;
+  return Math.max(0, Math.min(walletBalance, quoteLimit));
+}
+
+export function isMarketCapacityBlocked(
+  capacity: Capacity | null,
+  quotes: PriceQuote[],
+): boolean {
+  const reportedClosed = capacity !== null && (
+    !capacity.market_open || capacity.market_status === "full"
+  );
+  return reportedClosed && !quotes.some(isLiveExecutableQuote);
 }
 
 export function isRangeExecutableQuote(quote: PriceQuote): boolean {
