@@ -155,11 +155,13 @@ export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/et
 
           {/* Countdown — prominent */}
           <p className="text-lg font-bold text-[var(--bone)]">
-            <ExpiryCountdown expiryTimestamp={position.expiry} />
+            <ExpiryCountdown expiryTimestamp={position.expiry} pending={optimistic} />
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
-          </p>
+          {!optimistic && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
+            </p>
+          )}
 
           {/* Premium earned — accent + mono */}
           <p className="text-base font-bold font-mono text-[var(--accent)]">

@@ -119,11 +119,13 @@ export function RangePositionCard({
           </div>
 
           <p className="text-lg font-bold text-[var(--bone)]">
-            <ExpiryCountdown expiryTimestamp={putLeg.expiry} />
+            <ExpiryCountdown expiryTimestamp={putLeg.expiry} pending={optimistic} />
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
-          </p>
+          {!optimistic && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
+            </p>
+          )}
 
           <p className="text-base font-bold font-mono text-[var(--accent)]">
             ${fmtUsd(totalPremium)} earned
