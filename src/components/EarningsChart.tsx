@@ -15,6 +15,13 @@ const DANGER = "var(--danger)";
 const GRID = "var(--border)";
 const TEXT_SEC = "var(--text-secondary)";
 const FONT_MONO = "'JetBrains Mono', monospace";
+const W = 480;
+const H = 220;
+const PAD_T = 24;
+const PAD_B = 32;
+const PAD_L = 48;
+const PAD_R = 16;
+const plotW = W - PAD_L - PAD_R;
 
 interface ChartPoint {
   date: Date;
@@ -37,19 +44,25 @@ function formatUsd(value: number): string {
   return `$${fmtUsd(value)}`;
 }
 
-function buildChartData(positions: Position[]): ChartPoint[] {
-  // Sort by indexed_at (oldest first)
-  const sorted = [...positions].sort(
-    (a, b) => new Date(a.indexed_at).getTime() - new Date(b.indexed_at).getTime(),
-  );
+function positionDate(position: Position): Date {
+  return position.block_timestamp != null && Number.isFinite(position.block_timestamp)
+    ? new Date(position.block_timestamp * 1000)
+    : new Date(position.indexed_at);
+}
+
+function buildChartData(positions: Position[], cutoff?: Date): ChartPoint[] {
+  const sorted = [...positions]
+    .filter((position) => !cutoff || positionDate(position) >= cutoff)
+    .sort((a, b) => positionDate(a).getTime() - positionDate(b).getTime());
 
   const points: ChartPoint[] = [];
   let cumulative = 0;
 
   for (const pos of sorted) {
+    const date = positionDate(pos);
+    if (!Number.isFinite(date.getTime())) continue;
     const premium = getPositionPremiumUsd(pos);
     cumulative += premium;
-    const date = new Date(pos.indexed_at);
 
     points.push({
       date,
@@ -71,20 +84,13 @@ export function EarningsChart({ positions }: Props) {
     () => positions.filter((position) => !position.id.startsWith("opt-")),
     [positions],
   );
-  const allPoints = useMemo(
-    () => buildChartData(confirmedPositions),
-    [confirmedPositions],
-  );
-
   const filtered = useMemo(() => {
-    if (period === "ALL") return allPoints;
+    if (period === "ALL") return buildChartData(confirmedPositions);
     const daysBack = period === "1M" ? 30 : 90;
     const cutoff = new Date();
     cutoff.setDate(cutoff.getDate() - daysBack);
-    const subset = allPoints.filter((p) => p.date >= cutoff);
-    // If period filter removes everything, show all
-    return subset.length > 0 ? subset : allPoints;
-  }, [allPoints, period]);
+    return buildChartData(confirmedPositions, cutoff);
+  }, [confirmedPositions, period]);
 
   // Prepend $0 origin so line starts from zero
   const points = useMemo(() => {
@@ -101,9 +107,13 @@ export function EarningsChart({ positions }: Props) {
     (e: React.MouseEvent<SVGSVGElement>) => {
       if (points.length <= 1) return;
       const svg = e.currentTarget;
-      const rect = svg.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const ratio = x / rect.width;
+      const matrix = svg.getScreenCTM();
+      if (!matrix) return;
+      const pointer = svg.createSVGPoint();
+      pointer.x = e.clientX;
+      pointer.y = e.clientY;
+      const x = pointer.matrixTransform(matrix.inverse()).x;
+      const ratio = (x - PAD_L) / plotW;
       const idx = Math.round(ratio * (points.length - 1));
       setHoverIdx(Math.max(0, Math.min(points.length - 1, idx)));
     },
@@ -114,25 +124,40 @@ export function EarningsChart({ positions }: Props) {
     return (
       <div className="rounded-2xl border border-dashed border-[var(--border)] p-8 text-center space-y-2">
         <p className="text-sm text-[var(--text-secondary)]">
-          Earnings will appear after your first settled position
+          Premiums appear after your first confirmed position
         </p>
         <p className="text-xs text-[var(--text-secondary)] opacity-60">
-          Your cumulative earnings chart will show here
+          Confirmed net premiums from open and closed positions
         </p>
       </div>
     );
   }
 
-  if (points.length < 2) return null;
+  if (filtered.length === 0) {
+    return (
+      <div className="rounded-2xl border border-[var(--border)] bg-[var(--bg)] p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] text-[var(--text-secondary)]">Cumulative net premiums</span>
+          <div className="flex gap-1">
+            {PERIODS.map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => { setPeriod(p); setHoverIdx(null); }}
+                aria-pressed={period === p}
+                className="px-2.5 py-1 rounded-lg text-[10px] font-semibold"
+                style={{ color: period === p ? ACCENT : TEXT_SEC }}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-sm text-[var(--text-secondary)]">No confirmed premiums in this period.</p>
+      </div>
+    );
+  }
 
-  // Chart dimensions
-  const W = 480;
-  const H = 220;
-  const PAD_T = 24;
-  const PAD_B = 32;
-  const PAD_L = 48;
-  const PAD_R = 16;
-  const plotW = W - PAD_L - PAD_R;
   const plotH = H - PAD_T - PAD_B;
 
   const values = points.map((p) => p.cumulative);
@@ -196,7 +221,7 @@ export function EarningsChart({ positions }: Props) {
         <div className="flex items-center gap-4 text-[10px]" style={{ color: TEXT_SEC }}>
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-3 h-0.5 rounded-full" style={{ background: ACCENT }} />
-            Cumulative earnings
+            Cumulative net premiums
           </span>
           <span className="flex items-center gap-1.5">
             <span className="inline-block w-2 h-2 rounded-full" style={{ background: DANGER }} />
@@ -208,6 +233,7 @@ export function EarningsChart({ positions }: Props) {
             <button
               key={p}
               onClick={() => { setPeriod(p); setHoverIdx(null); }}
+              aria-pressed={period === p}
               className="px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors duration-150"
               style={{
                 background: period === p ? "rgba(34, 211, 238, 0.15)" : "transparent",

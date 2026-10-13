@@ -17,8 +17,13 @@ function expiryDate(expiryTimestamp: number): Date {
   );
 }
 
-export function getPositionOpenedDate(indexedAt: string): Date {
-  return new Date(indexedAt);
+export function getPositionOpenedDate(
+  indexedAt: string,
+  blockTimestamp?: number | null,
+): Date {
+  return blockTimestamp != null && Number.isFinite(blockTimestamp)
+    ? new Date(blockTimestamp * 1000)
+    : new Date(indexedAt);
 }
 
 export function getPositionExpiryDate(expiryTimestamp: number): Date {
@@ -28,8 +33,9 @@ export function getPositionExpiryDate(expiryTimestamp: number): Date {
 export function getPositionTermDays(
   indexedAt: string,
   expiryTimestamp: number,
+  blockTimestamp?: number | null,
 ): number {
-  const opened = getPositionOpenedDate(indexedAt);
+  const opened = getPositionOpenedDate(indexedAt, blockTimestamp);
   const expiry = getPositionExpiryDate(expiryTimestamp);
   return Math.max(1, Math.round((localDateMs(expiry) - localDateMs(opened)) / DAY_MS));
 }

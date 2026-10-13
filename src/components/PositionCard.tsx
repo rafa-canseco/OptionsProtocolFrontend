@@ -12,6 +12,7 @@ import {
   formatPositionDate,
   formatPositionTerm,
   getPositionExpiryDate,
+  getPositionOpenedDate,
   getPositionTermDays,
 } from "@/lib/positionDates";
 
@@ -93,8 +94,8 @@ export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/et
   const ethAmountDisplay = fmtAsset(ethAmount);
 
   // Expiry: calendar duration from open date to expiry date.
-  const totalDays = getPositionTermDays(position.indexed_at, position.expiry);
-  const openedDisplay = formatPositionDate(new Date(position.indexed_at));
+  const totalDays = getPositionTermDays(position.indexed_at, position.expiry, position.block_timestamp);
+  const openedDisplay = formatPositionDate(getPositionOpenedDate(position.indexed_at, position.block_timestamp));
   const expiryDisplay = formatPositionDate(getPositionExpiryDate(position.expiry));
 
   // APR: annualize the return over the position duration

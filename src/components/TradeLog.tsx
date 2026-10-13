@@ -62,7 +62,10 @@ export function TradeLog({ items }: Props) {
   const sorted = [...items].sort((a, b) => {
     const getTime = (item: DisplayItem) => {
       const p = item.type === "range" ? item.positions[0] : item.position;
-      return p.expiry * 1000;
+      const settledAt = p.settled_at ? Date.parse(p.settled_at) : NaN;
+      return Number.isFinite(settledAt)
+        ? settledAt
+        : getPositionOpenedDate(p.indexed_at, p.block_timestamp).getTime();
     };
     return getTime(b) - getTime(a);
   });
@@ -161,9 +164,9 @@ function RangeTradeRow({
   const callPremium = getPositionPremiumUsd(callLeg);
   const totalPremium = putPremium + callPremium;
 
-  const openedStr = formatPositionDate(getPositionOpenedDate(putLeg.indexed_at));
+  const openedStr = formatPositionDate(getPositionOpenedDate(putLeg.indexed_at, putLeg.block_timestamp));
   const expiredStr = formatPositionDate(getPositionExpiryDate(putLeg.expiry));
-  const expiryDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry);
+  const expiryDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry, putLeg.block_timestamp);
 
   const expiryPriceUsd = getPositionExpiryPrice(putLeg);
 
@@ -302,14 +305,14 @@ function TradeRow({
   const premiumPerEth = ethAmount > 0 ? premiumUsd / ethAmount : 0;
 
   // Date
-  const openedStr = formatPositionDate(getPositionOpenedDate(p.indexed_at));
+  const openedStr = formatPositionDate(getPositionOpenedDate(p.indexed_at, p.block_timestamp));
   const expiredStr = formatPositionDate(getPositionExpiryDate(p.expiry));
 
   // Type
   const type = isBuy ? "Earned on USD" : `Earned on ${assetSymbol}`;
 
   // Expiry duration
-  const expiryDays = getPositionTermDays(p.indexed_at, p.expiry);
+  const expiryDays = getPositionTermDays(p.indexed_at, p.expiry, p.block_timestamp);
 
   // Outcome
   const outcome = isItm ? "Assigned" : "Expired";
