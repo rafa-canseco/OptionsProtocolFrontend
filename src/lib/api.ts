@@ -106,6 +106,8 @@ export interface Position {
   settlement_tx_hash: string | null;
   settlement_tx_url?: string | null;
   indexed_at: string;
+  /** On-chain block time in Unix seconds, when provided by the indexer. */
+  block_timestamp?: number | null;
   /** Revision clock used by bounded portfolio streams. */
   updated_at?: string | null;
   settlement_type: string | null;

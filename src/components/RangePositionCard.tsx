@@ -12,6 +12,7 @@ import {
   formatPositionDate,
   formatPositionTerm,
   getPositionExpiryDate,
+  getPositionOpenedDate,
   getPositionTermDays,
 } from "@/lib/positionDates";
 import { ExpiryCountdown } from "./ExpiryCountdown";
@@ -72,8 +73,8 @@ export function RangePositionCard({
   const totalCommittedUsd = putCommittedUsd + callCommittedUsd;
 
   // ROI / APR
-  const totalDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry);
-  const openedDisplay = formatPositionDate(new Date(putLeg.indexed_at));
+  const totalDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry, putLeg.block_timestamp);
+  const openedDisplay = formatPositionDate(getPositionOpenedDate(putLeg.indexed_at, putLeg.block_timestamp));
   const expiryDisplay = formatPositionDate(getPositionExpiryDate(putLeg.expiry));
   const returnPct =
     totalCommittedUsd > 0
