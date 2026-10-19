@@ -31,6 +31,7 @@ export default function PositionsPage() {
   const {
     positions,
     loading,
+    error,
     refresh,
     loadMoreSettled,
     settledHasMore,
@@ -71,6 +72,26 @@ export default function PositionsPage() {
     );
   }
 
+  if (!loading && error && allPositions.length === 0) {
+    return (
+      <main className="mx-auto max-w-6xl px-6 py-10 space-y-6">
+        <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>
+        <div role="alert" className="rounded-2xl border border-[var(--border)] p-6 text-center">
+          <p className="text-sm text-[var(--text-secondary)]">
+            {t("Positions could not be loaded.", "No se pudieron cargar las posiciones.")}
+          </p>
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="mt-4 min-h-11 rounded-xl bg-[var(--accent)] px-5 py-2.5 text-sm font-semibold text-[var(--bg)]"
+          >
+            {t("Try again", "Intentar de nuevo")}
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   if (!loading && allPositions.length === 0 && !settledHasMore) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-6">
@@ -85,7 +106,7 @@ export default function PositionsPage() {
     );
   }
 
-  if (loading) {
+  if (loading && allPositions.length === 0) {
     return (
       <main className="mx-auto max-w-6xl px-6 py-10 space-y-3">
         <h1 className="sr-only">{t("Your Positions", "Tus posiciones")}</h1>

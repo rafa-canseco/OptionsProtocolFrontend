@@ -792,47 +792,70 @@ export interface FundConfigResponse extends Partial<FundSnapshotMetadata> {
   blockedReasonCode: string | null;
 }
 
+const BOUNDED_READ_TIMEOUT_MS = 10_000;
+
 async function fetchAPIResponse<T>(
   path: string,
   init?: RequestInit,
+  timeoutMs?: number,
 ): Promise<PositionPortfolioHttpResponse<T>> {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...init,
-    headers: { "Content-Type": "application/json", ...init?.headers },
-  });
-  if (!res.ok) {
-    const body = await res.text().catch(() => "");
-    let detail: ApiErrorDetail = {};
-    if (body) {
-      try {
-        const parsed = JSON.parse(body) as {
-          detail?: ApiErrorDetail | string;
-          code?: string;
-          message?: string;
-          retryable?: boolean;
-        };
-        detail =
-          typeof parsed.detail === "object" && parsed.detail !== null
-            ? parsed.detail
-            : {
-                code: parsed.code,
-                message:
-                  typeof parsed.detail === "string"
-                    ? parsed.detail
-                    : parsed.message,
-                retryable: parsed.retryable,
-              };
-      } catch {
-        detail = { message: body };
+  const timeoutController = timeoutMs ? new AbortController() : null;
+  let timedOut = false;
+  const timeout = timeoutController
+    ? setTimeout(() => {
+        timedOut = true;
+        timeoutController.abort();
+      }, timeoutMs)
+    : null;
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      ...init,
+      signal: init?.signal ?? timeoutController?.signal,
+      headers: { "Content-Type": "application/json", ...init?.headers },
+    });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      let detail: ApiErrorDetail = {};
+      if (body) {
+        try {
+          const parsed = JSON.parse(body) as {
+            detail?: ApiErrorDetail | string;
+            code?: string;
+            message?: string;
+            retryable?: boolean;
+          };
+          detail =
+            typeof parsed.detail === "object" && parsed.detail !== null
+              ? parsed.detail
+              : {
+                  code: parsed.code,
+                  message:
+                    typeof parsed.detail === "string"
+                      ? parsed.detail
+                      : parsed.message,
+                  retryable: parsed.retryable,
+                };
+        } catch {
+          detail = { message: body };
+        }
       }
+      throw new ApiError(res.status, detail);
     }
-    throw new ApiError(res.status, detail);
+    return { data: await res.json(), headers: res.headers };
+  } catch (cause) {
+    if (timedOut) throw new Error("Request timed out. Try again.");
+    throw cause;
+  } finally {
+    if (timeout !== null) clearTimeout(timeout);
   }
-  return { data: await res.json(), headers: res.headers };
 }
 
-async function fetchAPI<T>(path: string, init?: RequestInit): Promise<T> {
-  return (await fetchAPIResponse<T>(path, init)).data;
+async function fetchAPI<T>(
+  path: string,
+  init?: RequestInit,
+  timeoutMs?: number,
+): Promise<T> {
+  return (await fetchAPIResponse<T>(path, init, timeoutMs)).data;
 }
 
 function positionPortfolioQuery(
@@ -849,7 +872,11 @@ function positionPortfolioQuery(
 
 export const api = {
   getPrices: (asset?: string) =>
-    fetchAPI<PriceQuote[]>(asset ? `/prices?asset=${asset}` : "/prices"),
+    fetchAPI<PriceQuote[]>(
+      asset ? `/prices?asset=${asset}` : "/prices",
+      undefined,
+      BOUNDED_READ_TIMEOUT_MS,
+    ),
 
   ensureSeries: (
     request: EnsureSeriesRequest,
@@ -869,7 +896,11 @@ export const api = {
     }),
 
   getPositions: (address: string) =>
-    fetchAPI<Position[]>(`/positions/${address}`),
+    fetchAPI<Position[]>(
+      `/positions/${address}`,
+      undefined,
+      BOUNDED_READ_TIMEOUT_MS,
+    ),
 
   getPositionPortfolioDirect: (
     address: string,
@@ -877,6 +908,8 @@ export const api = {
   ) =>
     fetchAPIResponse<Position[] | PositionPortfolioPageResponse>(
       `/positions/${encodeURIComponent(address)}${positionPortfolioQuery(request, "?")}`,
+      undefined,
+      BOUNDED_READ_TIMEOUT_MS,
     ),
 
   getFund: (
@@ -963,6 +996,8 @@ export const api = {
   ) =>
     fetchAPI<PositionPortfolioSnapshotResponse | PositionPortfolioPageResponse>(
       `/b1nary-account/positions?privy_user_id=${encodeURIComponent(privyUserId)}${positionPortfolioQuery(request)}`,
+      undefined,
+      BOUNDED_READ_TIMEOUT_MS,
     ),
 
   getPositionPortfolioBatch: (
@@ -985,6 +1020,7 @@ export const api = {
             : {}),
         }),
       },
+      BOUNDED_READ_TIMEOUT_MS,
     ),
 
   joinWaitlist: (email: string) =>

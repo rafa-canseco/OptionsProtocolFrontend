@@ -128,29 +128,23 @@ export async function fireAndPoll(
   label: string,
 ): Promise<string | null> {
   let hash: string | null = null;
-  const txP = fire().then((h) => {
-    hash = h as string;
+  const txP = fire().then((result) => {
+    hash = result as string;
   });
-  const pollP = pollUntil(check, label);
+  void txP.catch(() => {});
 
-  // Succeed if EITHER the tx hash returns OR the on-chain poll
-  // confirms. Only fail if both fail.
-  await Promise.any([txP, pollP]);
+  // A wallet hash or wallet transport error says nothing conclusive about
+  // execution. The observable on-chain effect is the only success signal.
+  await pollUntil(check, label);
 
-  // If the on-chain poll won, give the wallet response a brief grace
-  // window to land so callers can still capture the tx hash. Without
-  // this, downstream flows that key off the hash (e.g., tagging Range
-  // legs with a shared group_id) silently skip.
   if (hash === null) {
+    // The chain can confirm before a wallet SDK returns. Keep confirmation
+    // authoritative, but briefly wait for the hash used by explorer links.
     await Promise.race([
       txP.catch(() => {}),
       new Promise((resolve) => setTimeout(resolve, 2000)),
     ]);
   }
-
-  // Suppress unhandled rejection from the loser
-  txP.catch(() => {});
-  pollP.catch(() => {});
 
   return hash;
 }

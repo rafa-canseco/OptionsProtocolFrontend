@@ -132,12 +132,22 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     useState<SeriesPreparationError | null>(null);
   const inFlightRef = useRef(false);
   const preparationAbortRef = useRef<AbortController | null>(null);
+  const acceptedRef = useRef(false);
+  const onAcceptedRef = useRef(onAccepted);
+  onAcceptedRef.current = onAccepted;
 
   useEffect(() => {
     return () => {
       preparationAbortRef.current?.abort();
     };
   }, []);
+
+  useEffect(() => {
+    if (step === "confirmed" && completedInfo && !acceptedRef.current) {
+      acceptedRef.current = true;
+      onAcceptedRef.current(completedInfo);
+    }
+  }, [completedInfo, step]);
 
   const isBuy = side === "buy";
   const isBtc = assetSlug === "btc";
@@ -238,8 +248,12 @@ export function AcceptModal({ quote, side, onClose, onAccepted, onQuoteInvalid, 
     : (assetConfig?.minSellAmount ?? 0.005);
 
   function handleClose() {
-    if (completedInfo) onAccepted(completedInfo);
-    else onClose();
+    if (completedInfo && !acceptedRef.current) {
+      acceptedRef.current = true;
+      onAccepted(completedInfo);
+      return;
+    }
+    onClose();
   }
 
   async function handleAccept() {
