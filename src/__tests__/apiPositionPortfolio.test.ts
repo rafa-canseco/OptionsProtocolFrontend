@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "@/lib/api";
 
 describe("position portfolio HTTP contract", () => {
-  afterEach(() => vi.restoreAllMocks());
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
 
   it("encodes account page filters and preserves the opaque cursor value", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValue(
@@ -85,6 +88,24 @@ describe("position portfolio HTTP contract", () => {
     expect(pageUrl.searchParams.get("stream")).toBe("active");
     expect(pageUrl.searchParams.get("cursor")).toBe("opaque-active-cursor");
     expect(pageUrl.searchParams.get("limit")).toBe("100");
+  });
+
+  it("bounds stalled response bodies, not only response headers", async () => {
+    vi.useFakeTimers();
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => ({
+      ok: true,
+      headers: new Headers(),
+      json: () => new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError")),
+        );
+      }),
+    }) as Response);
+
+    const request = api.getB1naryPositionPortfolio("privy-user");
+    const assertion = expect(request).rejects.toThrow("Request timed out. Try again.");
+    await vi.advanceTimersByTimeAsync(10_000);
+    await assertion;
   });
 
   it("sends all direct wallets and continuation fields in one POST", async () => {

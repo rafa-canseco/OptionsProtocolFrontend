@@ -17,7 +17,7 @@ const pageState = vi.hoisted(() => ({
   loadMoreSettled: vi.fn().mockResolvedValue(undefined),
   settledHasMore: true,
   settledLoading: false,
-  error: null,
+  error: null as string | null,
 }));
 
 const ethPosition = (id: string, date: string): PositionStub => ({
@@ -58,9 +58,31 @@ vi.mock("@/components/RangePositionCard", () => ({ RangePositionCard: () => null
 describe("PositionsPage bounded B1 history", () => {
   beforeEach(() => {
     pageState.positions = [ethPosition("settled-1", "2026-08-03T10:00:00Z")];
+    pageState.loading = false;
+    pageState.error = null;
     pageState.settledHasMore = true;
     pageState.settledLoading = false;
+    pageState.refresh.mockClear();
     pageState.loadMoreSettled.mockClear();
+  });
+
+  it("keeps cached positions visible during background refresh", async () => {
+    pageState.loading = true;
+    const PositionsPage = (await import("@/app/positions/page")).default;
+    render(<PositionsPage />);
+
+    expect(screen.getByTestId("summary-count")).toHaveTextContent("1");
+  });
+
+  it("replaces an endless empty skeleton with a retryable error", async () => {
+    pageState.positions = [];
+    pageState.error = "Request timed out. Try again.";
+    pageState.settledHasMore = false;
+    const PositionsPage = (await import("@/app/positions/page")).default;
+    render(<PositionsPage />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Try again" }));
+    expect(pageState.refresh).toHaveBeenCalledOnce();
   });
 
   it("keeps older history reachable when the current page contains only removed assets", async () => {

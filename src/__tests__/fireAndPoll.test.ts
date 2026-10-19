@@ -10,13 +10,40 @@ vi.mock("@/lib/contracts", () => ({
 const { fireAndPoll } = await import("@/lib/execution");
 
 describe("fireAndPoll", () => {
-  it("returns the tx hash when the wallet response wins the race", async () => {
-    const fire = () => Promise.resolve("0xhash-fast");
-    const check = vi.fn().mockResolvedValue(true);
+  it("does not treat a wallet hash as on-chain confirmation", async () => {
+    vi.useFakeTimers();
+    const check = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const result = fireAndPoll(
+      () => Promise.resolve("0xhash-fast"),
+      check,
+      "test-fast",
+    );
+    let settled = false;
+    void result.then(() => { settled = true; });
 
-    const hash = await fireAndPoll(fire, check, "test-fast");
+    await vi.advanceTimersByTimeAsync(0);
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(2_000);
 
-    expect(hash).toBe("0xhash-fast");
+    await expect(result).resolves.toBe("0xhash-fast");
+    expect(check).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("keeps on-chain confirmation authoritative after a wallet transport error", async () => {
+    vi.useFakeTimers();
+    const check = vi.fn().mockResolvedValueOnce(false).mockResolvedValue(true);
+    const result = fireAndPoll(
+      () => Promise.reject(new Error("wallet transport disconnected")),
+      check,
+      "test-wallet-error",
+    );
+
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    await expect(result).resolves.toBeNull();
+    expect(check).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it("waits for the tx hash within the grace window when the on-chain poll wins", async () => {

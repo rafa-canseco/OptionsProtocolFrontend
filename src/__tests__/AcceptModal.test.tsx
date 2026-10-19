@@ -395,13 +395,14 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     expect(state.sendBatchTx).not.toHaveBeenCalled();
   });
 
-  it("keeps Base confirmation visible and ignores Solana balance and bridge logic", async () => {
+  it("reports Base confirmation exactly once and ignores Solana balance and bridge logic", async () => {
     const onAccepted = vi.fn();
+    const onClose = vi.fn();
     render(
       <AcceptModal
         quote={buildBaseQuote()}
         side="buy"
-        onClose={vi.fn()}
+        onClose={onClose}
         onAccepted={onAccepted}
         initialAmount="11"
         assetSymbol="ETH"
@@ -419,7 +420,9 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
     expect(state.getAccessToken).toHaveBeenCalledTimes(1);
     expect(state.checkDeficit).not.toHaveBeenCalled();
     expect(state.executeBridgeAndTrade).not.toHaveBeenCalled();
-    expect(onAccepted).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(onAccepted).toHaveBeenCalledWith({ amount: 11, txHash: "0xsuccess" }),
+    );
     expect(await screen.findByRole("status")).toHaveTextContent("Trade confirmed");
     expect(screen.getByRole("link", { name: "View transaction ↗" })).toHaveAttribute("href", "https://basescan.org/tx/0xsuccess");
     expect(state.ensureSeries).toHaveBeenCalledTimes(1);
@@ -454,9 +457,9 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
 
     // Deposit modal must NOT have been rendered (regression for B1N-309).
     expect(screen.queryByText(/Manage funds/i)).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByRole("button", { name: "Continue" }));
-    expect(onAccepted).toHaveBeenCalledWith({ amount: 11, txHash: "0xsuccess" });
+    await userEvent.click(screen.getByRole("button", { name: "Close confirmation" }));
+    expect(onAccepted).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledOnce();
   });
 
   it("rejects a non-Base quote for an active B1 asset without entering bridge logic", async () => {
