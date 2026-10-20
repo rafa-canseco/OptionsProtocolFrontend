@@ -38,6 +38,11 @@ describe("getPositionPremiumUsd", () => {
 
   it("keeps already-humanized premium strings", () => {
     expect(getPositionPremiumUsd({ ...BASE, net_premium: "0.03" })).toBe(0.03);
+    expect(getPositionPremiumUsd({ ...BASE, net_premium: "12.50" })).toBe(12.5);
+  });
+
+  it("normalizes raw micro-USDC strings with decimal formatting", () => {
+    expect(getPositionPremiumUsd({ ...BASE, net_premium: "47107.000000" })).toBeCloseTo(0.047107);
   });
 
   it("normalizes Solana raw micro-USDC premiums", () => {
