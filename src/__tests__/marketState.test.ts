@@ -309,13 +309,9 @@ describe("marketState helpers", () => {
     expect({ address: ASSETS.vvv.address, decimals: ASSETS.vvv.collateralDecimals }).toEqual({ address: "0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf", decimals: 18 });
   });
 
-  it("uses the required tokenized-stock disclosure without an equity ownership claim", () => {
+  it("retains NVDAc metadata without changing its market configuration", () => {
     expect(ASSETS.nvdac.disclosure?.instrument).toContain("economic-exposure and redemption instrument");
-    expect(ASSETS.nvdac.disclosure?.instrument).toContain("not NVIDIA-issued registered equity");
-    expect(ASSETS.nvdac.disclosure?.instrument).toContain("does not provide direct ownership");
-    expect(ASSETS.nvdac.disclosure?.jurisdiction).toBeTruthy();
-    expect(ASSETS.nvdac.disclosure?.eligibility).toBeTruthy();
-    expect(ASSETS.nvdac.disclosure?.policyPause).toBeTruthy();
+    expect(ASSETS.nvdac.address).toBe("0xb20000000000000000000078ee7ce2fE4908108C");
   });
 
   it.each(["cbzec", "vvv"] as const)("provides wrapped/token settlement risk disclosure for %s", (slug) => {

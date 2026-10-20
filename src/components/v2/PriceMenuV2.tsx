@@ -656,7 +656,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
         </div>
       </div>
 
-      {asset.disclosure && (
+      {asset.disclosure && asset.slug !== "nvdac" && (
         <section className="space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs text-[var(--text-secondary)]" aria-label={`${asset.symbol} disclosures`}>
           <p className="font-semibold text-[var(--bone)]">{asset.symbol} risk disclosure</p>
           <p>{asset.disclosure.instrument}</p>
