@@ -7,7 +7,6 @@ interface Props {
   expiryDays?: number;
   expiryTimestamp?: number;
   pending?: boolean;
-  settlementPending?: boolean;
 }
 
 export function ExpiryCountdown({
@@ -15,7 +14,6 @@ export function ExpiryCountdown({
   expiryDays,
   expiryTimestamp,
   pending = false,
-  settlementPending = false,
 }: Props) {
   const [label, setLabel] = useState("");
 
@@ -38,23 +36,24 @@ export function ExpiryCountdown({
     const tick = () => {
       const remaining = expiryMs - Date.now();
       if (remaining <= 0) {
-        setLabel(settlementPending ? "Settlement pending" : "Expired");
+        setLabel("Expired");
         return;
       }
-      const days = Math.floor(remaining / 86_400_000);
-      const hours = Math.floor((remaining % 86_400_000) / 3_600_000);
+      const totalMinutes = Math.ceil(remaining / 60_000);
+      const days = Math.floor(totalMinutes / 1_440);
+      const hours = Math.floor((totalMinutes % 1_440) / 60);
       if (days > 0) {
-        setLabel(`${days}d ${hours}h left`);
+        setLabel(`Settlement in ${days}d ${hours}h`);
       } else {
-        const mins = Math.floor((remaining % 3_600_000) / 60_000);
-        setLabel(`${hours}h ${mins}m left`);
+        const mins = totalMinutes % 60;
+        setLabel(`Settlement in ${hours}h ${mins}m`);
       }
     };
 
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, [createdAt, expiryDays, expiryTimestamp, pending, settlementPending]);
+  }, [createdAt, expiryDays, expiryTimestamp, pending]);
 
   return <>{label}</>;
 }

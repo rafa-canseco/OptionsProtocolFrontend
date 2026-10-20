@@ -175,7 +175,25 @@ describe("useB1naryAccount", () => {
     expect(result.current.needsOnboarding).toBe(false);
   });
 
-  it("treats an unmapped wallet 404 as a normal lookup miss", async () => {
+  it("treats an empty wallet lookup response as a normal miss", async () => {
+    state.api.getB1naryAccount.mockResolvedValue({
+      account: null,
+      members: [],
+      wallets: [],
+    });
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { useB1naryAccount } = await import("@/hooks/useB1naryAccount");
+    const { result } = renderHook(() => useB1naryAccount());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(state.api.getB1naryAccountByWallet).toHaveBeenCalledTimes(5);
+    expect(result.current.account).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it("logs an unexpected wallet lookup 404 instead of treating it as empty", async () => {
     state.api.getB1naryAccount.mockResolvedValue({
       account: null,
       members: [],
@@ -193,7 +211,7 @@ describe("useB1naryAccount", () => {
 
     expect(state.api.getB1naryAccountByWallet).toHaveBeenCalledTimes(5);
     expect(result.current.account).toBeNull();
-    expect(warn).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(5);
   });
 
   it("recognizes an existing b1nary account from a connected wallet before onboarding", async () => {
