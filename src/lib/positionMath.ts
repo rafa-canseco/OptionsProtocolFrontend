@@ -38,10 +38,7 @@ export function normalizeUsdAmount(rawValue: unknown): number {
   const raw = finiteNumber(rawValue);
   if (raw == null || raw <= 0) return 0;
 
-  if (typeof rawValue === "string" && rawValue.includes(".")) {
-    return raw;
-  }
-  if (raw > 0 && raw < 1) return raw;
+  if (raw < 1) return raw;
 
   return raw / 1e6;
 }
