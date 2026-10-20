@@ -39,6 +39,10 @@ export function normalizeUsdAmount(rawValue: unknown): number {
   if (raw == null || raw <= 0) return 0;
 
   if (raw < 1) return raw;
+  if (typeof rawValue === "string" && rawValue.includes(".")) {
+    const fractionalDigits = rawValue.split(".")[1]?.length ?? 0;
+    if (fractionalDigits <= 2) return raw;
+  }
 
   return raw / 1e6;
 }
