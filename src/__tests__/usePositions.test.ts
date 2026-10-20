@@ -230,6 +230,35 @@ describe("usePositions", () => {
     unmount();
   });
 
+  it("uses linked wallets instead of an unmapped authenticated account", async () => {
+    apiMock.getPositionPortfolioBatch.mockResolvedValue(
+      snapshot([position("indexed-wallet-position")]),
+    );
+    apiMock.getB1naryPositionPortfolio.mockRejectedValue(
+      new ApiError(404, { message: "account not found" }),
+    );
+
+    const { usePositions } = await import("@/hooks/usePositions");
+    const { result, unmount } = renderHook(() =>
+      usePositions(
+        "0x3b1726742142c617156597d8241ca1fa65653452",
+        undefined,
+        undefined,
+        60_000,
+        undefined,
+        "privy-user",
+      ),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.positions.map((item) => item.id)).toEqual([
+      "indexed-wallet-position",
+    ]);
+    expect(apiMock.getPositionPortfolioBatch).toHaveBeenCalledTimes(1);
+    expect(apiMock.getB1naryPositionPortfolio).not.toHaveBeenCalled();
+    unmount();
+  });
+
   it("keeps explicit legacy whole-snapshot replacement", async () => {
     apiMock.getB1naryPositionPortfolio
       .mockResolvedValueOnce({ positions: [position("old")], errors: [] })
