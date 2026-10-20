@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 
 const state = vi.hoisted(() => ({
@@ -51,6 +51,8 @@ vi.mock("@/lib/api", () => ({
 }));
 
 describe("useB1naryAccount", () => {
+  afterEach(() => vi.restoreAllMocks());
+
   beforeEach(() => {
     vi.resetModules();
     vi.clearAllMocks();
@@ -171,6 +173,27 @@ describe("useB1naryAccount", () => {
 
     expect(result.current.trustedWalletCandidates).toHaveLength(0);
     expect(result.current.needsOnboarding).toBe(false);
+  });
+
+  it("treats an unmapped wallet 404 as a normal lookup miss", async () => {
+    state.api.getB1naryAccount.mockResolvedValue({
+      account: null,
+      members: [],
+      wallets: [],
+    });
+    state.api.getB1naryAccountByWallet.mockRejectedValue(
+      Object.assign(new Error("API 404: Not Found"), { status: 404 }),
+    );
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const { useB1naryAccount } = await import("@/hooks/useB1naryAccount");
+    const { result } = renderHook(() => useB1naryAccount());
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(state.api.getB1naryAccountByWallet).toHaveBeenCalledTimes(5);
+    expect(result.current.account).toBeNull();
+    expect(warn).not.toHaveBeenCalled();
   });
 
   it("recognizes an existing b1nary account from a connected wallet before onboarding", async () => {

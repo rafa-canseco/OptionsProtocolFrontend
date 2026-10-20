@@ -170,6 +170,11 @@ async function getB1naryAccountByWalletDeduped(
       return response;
     })
     .catch((err) => {
+      if (err instanceof Error && "status" in err && err.status === 404) {
+        const response = { account: null, members: [], wallets: [] };
+        cacheResponse(walletLookupCache, key, response, WALLET_LOOKUP_CACHE_MS);
+        return response;
+      }
       if (isRateLimitError(err)) {
         markRateLimited(key);
         return { account: null, members: [], wallets: [] };
