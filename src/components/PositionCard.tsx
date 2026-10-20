@@ -158,7 +158,6 @@ export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/et
             <ExpiryCountdown
               expiryTimestamp={position.expiry}
               pending={optimistic}
-              settlementPending={isActive && !optimistic}
             />
           </p>
           <p className="text-xs text-[var(--text-secondary)]">

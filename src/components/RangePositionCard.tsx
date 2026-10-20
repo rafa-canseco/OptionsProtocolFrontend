@@ -122,7 +122,6 @@ export function RangePositionCard({
             <ExpiryCountdown
               expiryTimestamp={putLeg.expiry}
               pending={optimistic}
-              settlementPending={isActive && !optimistic}
             />
           </p>
           <p className="text-xs text-[var(--text-secondary)]">
