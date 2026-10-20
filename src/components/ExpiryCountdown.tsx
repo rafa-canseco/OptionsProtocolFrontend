@@ -6,12 +6,24 @@ interface Props {
   createdAt?: string;
   expiryDays?: number;
   expiryTimestamp?: number;
+  pending?: boolean;
+  settlementPending?: boolean;
 }
 
-export function ExpiryCountdown({ createdAt, expiryDays, expiryTimestamp }: Props) {
+export function ExpiryCountdown({
+  createdAt,
+  expiryDays,
+  expiryTimestamp,
+  pending = false,
+  settlementPending = false,
+}: Props) {
   const [label, setLabel] = useState("");
 
   useEffect(() => {
+    if (pending) {
+      setLabel("Expiry pending reconciliation");
+      return;
+    }
     const expiryMs = expiryTimestamp
       ? expiryTimestamp * 1000
       : createdAt && expiryDays
@@ -26,7 +38,7 @@ export function ExpiryCountdown({ createdAt, expiryDays, expiryTimestamp }: Prop
     const tick = () => {
       const remaining = expiryMs - Date.now();
       if (remaining <= 0) {
-        setLabel("Expired");
+        setLabel(settlementPending ? "Settlement pending" : "Expired");
         return;
       }
       const days = Math.floor(remaining / 86_400_000);
@@ -42,7 +54,7 @@ export function ExpiryCountdown({ createdAt, expiryDays, expiryTimestamp }: Prop
     tick();
     const id = setInterval(tick, 60_000);
     return () => clearInterval(id);
-  }, [createdAt, expiryDays, expiryTimestamp]);
+  }, [createdAt, expiryDays, expiryTimestamp, pending, settlementPending]);
 
   return <>{label}</>;
 }
