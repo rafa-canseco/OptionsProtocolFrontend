@@ -10,6 +10,7 @@ import { EarningsChart } from "@/components/EarningsChart";
 import { TradeLog } from "@/components/TradeLog";
 import { useWallet } from "@/hooks/useWallet";
 import { usePositions } from "@/hooks/usePositions";
+import { useActivity } from "@/hooks/useActivity";
 import { useSpot } from "@/hooks/useSpot";
 import { useOptimisticPositions } from "@/hooks/useOptimisticPositions";
 import { useNotificationStatus } from "@/hooks/useNotificationStatus";
@@ -25,6 +26,7 @@ export default function PositionsPage() {
   const { user } = usePrivy();
   const {
     address,
+    fundingAddress,
     portfolioAddresses,
     isConnected,
   } = useWallet();
@@ -44,6 +46,7 @@ export default function PositionsPage() {
     portfolioAddresses.base,
     user?.id,
   );
+  const { activity } = useActivity(address, fundingAddress);
   const { spot: ethSpot } = useSpot("eth");
   const { spot: btcSpot } = useSpot("btc");
   const allPositions = useOptimisticPositions(positions).filter((position) =>
@@ -123,7 +126,7 @@ export default function PositionsPage() {
 
       <PortfolioSummary
         positions={allPositions}
-        activity={null}
+        activity={activity}
         yieldMetric={yieldMetric}
         onYieldMetricChange={setYieldMetric}
       />
@@ -153,7 +156,7 @@ export default function PositionsPage() {
                     earnBase={`/earn/${posAsset.slug}`}
                     assetSymbol={posAsset.symbol}
                     assetSlug={posAsset.slug}
-                    optimistic={false}
+                    optimistic={item.positions.some((position) => position.id.startsWith("opt-"))}
                     yieldMetric={yieldMetric}
                   />
                 );
@@ -170,7 +173,7 @@ export default function PositionsPage() {
                   earnBase={`/earn/${posAsset.slug}`}
                   assetSymbol={posAsset.symbol}
                   assetSlug={posAsset.slug}
-                  optimistic={false}
+                  optimistic={pos.id.startsWith("opt-")}
                   yieldMetric={yieldMetric}
                 />
               );

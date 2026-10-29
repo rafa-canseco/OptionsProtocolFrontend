@@ -57,7 +57,7 @@ interface Props {
   renderExtra?: (position: Position, strike: number) => ReactNode;
   /** Base path for Earn links, e.g. "/earn/eth" */
   earnBase?: string;
-  /** When true, shows a "Confirming..." badge for optimistic positions */
+  /** Marks optimistic positions as pending expiry reconciliation. */
   optimistic?: boolean;
   /** Which yield metric to display — defaults to "apr" */
   yieldMetric?: YieldMetric;
@@ -93,12 +93,16 @@ export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/et
   const ethAmountDisplay = fmtAsset(ethAmount);
 
   // Expiry: calendar duration from open date to expiry date.
-  const totalDays = getPositionTermDays(position.indexed_at, position.expiry);
+  const totalDays = optimistic ? 0 : getPositionTermDays(position.indexed_at, position.expiry);
   const openedDisplay = formatPositionDate(new Date(position.indexed_at));
-  const expiryDisplay = formatPositionDate(getPositionExpiryDate(position.expiry));
+  const expiryDisplay = optimistic
+    ? null
+    : formatPositionDate(getPositionExpiryDate(position.expiry));
 
   // APR: annualize the return over the position duration
-  const apr = committedUsd > 0 ? (premiumUsd / committedUsd) * (365 / totalDays) * 100 : 0;
+  const apr = !optimistic && committedUsd > 0
+    ? (premiumUsd / committedUsd) * (365 / totalDays) * 100
+    : 0;
 
   // Yield metric display
   const yieldValue = yieldMetric === "apr" ? apr : returnPct;
@@ -160,15 +164,19 @@ export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/et
               pending={optimistic}
             />
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
-          </p>
+          {!optimistic && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
+            </p>
+          )}
 
           {/* Premium earned — accent + mono */}
           <p className="text-base font-bold font-mono text-[var(--accent)]">
             {premiumDisplay} earned
             <span className="text-sm font-normal text-[var(--text-secondary)] ml-2">
-              {yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% {yieldLabel}
+              {optimistic && yieldMetric === "apr"
+                ? "APR pending"
+                : `${yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% ${yieldLabel}`}
             </span>
           </p>
 
@@ -203,14 +211,16 @@ export function PositionCard({ position, spot, renderExtra, earnBase = "/earn/et
                 </a>
               ) : null;
             })()}
-            <a
-              href={buildCalendarUrl(position, assetSymbol, assetSlug)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
-            >
-              📅 Add to calendar
-            </a>
+            {!optimistic && (
+              <a
+                href={buildCalendarUrl(position, assetSymbol, assetSlug)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+              >
+                📅 Add to calendar
+              </a>
+            )}
           </div>
         </>
       )}
