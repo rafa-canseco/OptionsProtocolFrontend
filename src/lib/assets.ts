@@ -120,12 +120,6 @@ export const ASSETS: Record<string, AssetConfig> = {
     fallbackSpot: 50,
     icon: "/cbzec.png",
     address: "0xB2000000000000000000008501b13360000cb2EC",
-    disclosure: {
-      instrument: "cbZEC is a wrapped-token/B20 representation of ZEC. It is not native ZEC; custody, redemption, and transfer-policy risks apply.",
-      jurisdiction: process.env.NEXT_PUBLIC_CBZEC_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
-      eligibility: process.env.NEXT_PUBLIC_CBZEC_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
-      policyPause: process.env.NEXT_PUBLIC_CBZEC_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
-    },
   },
   cbhype: {
     slug: "cbhype",
