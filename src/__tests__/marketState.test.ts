@@ -318,15 +318,15 @@ describe("marketState helpers", () => {
     expect(ASSETS.nvdac.disclosure?.policyPause).toBeTruthy();
   });
 
-  it.each(["cbzec", "vvv"] as const)("provides wrapped/token settlement risk disclosure for %s", (slug) => {
-    expect(ASSETS[slug].disclosure?.instrument).toBeTruthy();
-    expect(ASSETS[slug].disclosure?.jurisdiction).toBeTruthy();
-    expect(ASSETS[slug].disclosure?.eligibility).toBeTruthy();
-    expect(ASSETS[slug].disclosure?.policyPause).toBeTruthy();
+  it("continues to provide the VVV settlement risk disclosure", () => {
+    expect(ASSETS.vvv.disclosure?.instrument).toBeTruthy();
+    expect(ASSETS.vvv.disclosure?.jurisdiction).toBeTruthy();
+    expect(ASSETS.vvv.disclosure?.eligibility).toBeTruthy();
+    expect(ASSETS.vvv.disclosure?.policyPause).toBeTruthy();
   });
 
-  it("does not show a cbHYPE disclosure", () => {
-    expect(ASSETS.cbhype.disclosure).toBeUndefined();
+  it.each(["cbzec", "cbhype"] as const)("does not show a %s disclosure", (slug) => {
+    expect(ASSETS[slug].disclosure).toBeUndefined();
   });
 
   it("replaces a selected quote when signed fields refresh at the same strike", async () => {

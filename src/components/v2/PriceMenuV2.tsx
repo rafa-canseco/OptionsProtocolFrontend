@@ -330,6 +330,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     canonicalPrices.find(isLiveExecutableQuote),
   );
   const marketReadOnly = isProductionReadOnlyAsset(asset) || !!readinessBlockReason;
+  const readinessMessage = asset.slug === "cbzec" && readinessBlockReason
+    ? "Trading is unavailable until readiness checks pass."
+    : readinessBlockReason;
   const walletBalance = isBuy ? usd : isBtc ? wbtc : eth + weth;
 
   const expiries = useMemo(() => {
@@ -913,9 +916,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {acceptButtonLabel}
             </button>
-            {(readinessBlockReason || marketClosed) && (
+            {(readinessMessage || marketClosed) && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                {readinessBlockReason || "Quotes are visible for planning; trading is disabled while capacity is full."}
+                {readinessMessage || "Quotes are visible for planning; trading is disabled while capacity is full."}
               </p>
             )}
           </div>
@@ -967,9 +970,9 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
             >
               {acceptButtonLabel}
             </button>
-            {(readinessBlockReason || marketClosed) && (
+            {(readinessMessage || marketClosed) && (
               <p className="text-xs text-center text-[var(--text-secondary)]">
-                {readinessBlockReason || "Quotes are visible for planning; trading is disabled while capacity is full."}
+                {readinessMessage || "Quotes are visible for planning; trading is disabled while capacity is full."}
               </p>
             )}
           </div>
