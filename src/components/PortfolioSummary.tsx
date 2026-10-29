@@ -52,15 +52,16 @@ export function PortfolioSummary({
     0,
   );
 
-  const totalWeightedApr = positions.reduce((sum, p) => {
+  const verifiedPositions = positions.filter((p) => !p.id.startsWith("opt-"));
+  const aprCapital = verifiedPositions.reduce((sum, p) => sum + capitalUsd(p), 0);
+  const totalWeightedApr = verifiedPositions.reduce((sum, p) => {
     const capital = capitalUsd(p);
     const premium = getPositionPremiumUsd(p);
     const days = getPositionTermDays(p.indexed_at, p.expiry);
-    const apr =
-      capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
+    const apr = capital > 0 ? (premium / capital) * (365 / days) * 100 : 0;
     return sum + apr * capital;
   }, 0);
-  const avgApr = totalCapital > 0 ? totalWeightedApr / totalCapital : 0;
+  const avgApr = aprCapital > 0 ? totalWeightedApr / aprCapital : null;
   const avgRoi =
     totalCapital > 0 ? (premiumEarned / totalCapital) * 100 : 0;
 
@@ -108,10 +109,9 @@ export function PortfolioSummary({
             />
           </div>
           <p className="text-xl font-bold text-[var(--accent)] font-mono">
-            {metricValue < 10
-              ? metricValue.toFixed(1)
-              : Math.round(metricValue)}
-            %
+            {metricValue == null
+              ? "—"
+              : `${metricValue < 10 ? metricValue.toFixed(1) : Math.round(metricValue)}%`}
           </p>
         </div>
         <div>
@@ -123,7 +123,7 @@ export function PortfolioSummary({
         <div>
           <p className="text-xs text-[var(--text-secondary)]">{t("Total Traded", "Total operado")}</p>
           <p className="text-xl font-bold text-[var(--bone)] font-mono">
-            {activity ? formatUSD(activity.totalVolume) : formatUSD(0)}
+            {activity ? formatUSD(activity.totalVolume) : "—"}
           </p>
         </div>
       </div>

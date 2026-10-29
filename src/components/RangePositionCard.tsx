@@ -72,15 +72,17 @@ export function RangePositionCard({
   const totalCommittedUsd = putCommittedUsd + callCommittedUsd;
 
   // ROI / APR
-  const totalDays = getPositionTermDays(putLeg.indexed_at, putLeg.expiry);
+  const totalDays = optimistic ? 0 : getPositionTermDays(putLeg.indexed_at, putLeg.expiry);
   const openedDisplay = formatPositionDate(new Date(putLeg.indexed_at));
-  const expiryDisplay = formatPositionDate(getPositionExpiryDate(putLeg.expiry));
+  const expiryDisplay = optimistic
+    ? null
+    : formatPositionDate(getPositionExpiryDate(putLeg.expiry));
   const returnPct =
     totalCommittedUsd > 0
       ? (totalPremium / totalCommittedUsd) * 100
       : 0;
   const apr =
-    totalCommittedUsd > 0
+    !optimistic && totalCommittedUsd > 0
       ? (totalPremium / totalCommittedUsd) * (365 / totalDays) * 100
       : 0;
   const yieldValue = yieldMetric === "apr" ? apr : returnPct;
@@ -124,17 +126,18 @@ export function RangePositionCard({
               pending={optimistic}
             />
           </p>
-          <p className="text-xs text-[var(--text-secondary)]">
-            Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
-          </p>
+          {!optimistic && (
+            <p className="text-xs text-[var(--text-secondary)]">
+              Expires {expiryDisplay} · {formatPositionTerm(totalDays)} term
+            </p>
+          )}
 
           <p className="text-base font-bold font-mono text-[var(--accent)]">
             ${fmtUsd(totalPremium)} earned
             <span className="text-sm font-normal text-[var(--text-secondary)] ml-2">
-              {yieldValue < 10
-                ? yieldValue.toFixed(1)
-                : Math.round(yieldValue)}
-              % {yieldLabel}
+              {optimistic && yieldMetric === "apr"
+                ? "APR pending"
+                : `${yieldValue < 10 ? yieldValue.toFixed(1) : Math.round(yieldValue)}% ${yieldLabel}`}
             </span>
           </p>
 
@@ -228,19 +231,21 @@ export function RangePositionCard({
             </div>
           )}
 
-          <a
-            href={buildCalendarUrl(
-              putLeg,
-              assetSymbol,
-              assetSlug,
-              `b1nary: ${assetSymbol} range expiry ($${putStrike.toLocaleString("en-US")}–$${callStrike.toLocaleString("en-US")})`,
-            )}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
-          >
-            📅 Add to calendar
-          </a>
+          {!optimistic && (
+            <a
+              href={buildCalendarUrl(
+                putLeg,
+                assetSymbol,
+                assetSlug,
+                `b1nary: ${assetSymbol} range expiry ($${putStrike.toLocaleString("en-US")}–$${callStrike.toLocaleString("en-US")})`,
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-xs text-[var(--text-secondary)] hover:text-[var(--text)] transition-colors"
+            >
+              📅 Add to calendar
+            </a>
+          )}
         </>
       )}
 

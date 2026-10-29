@@ -180,7 +180,8 @@ export function buildOptimisticPosition(
     collateral: optCollateral,
     vault_id: null as unknown as number,
     strike_price: quote.strike * 1e8,
-    expiry: quote.expires_at,
+    // Quote expiry is the signature TTL, not the option's maturity.
+    expiry: 0,
     is_put: isBuy,
     is_settled: false,
     settled_at: null,
