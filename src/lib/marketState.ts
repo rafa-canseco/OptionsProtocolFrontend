@@ -36,7 +36,7 @@ function readinessReason(asset: AssetConfig, status: Capacity["readiness_status"
     case "stale_oracle": return `${symbol} actions are blocked because the price oracle is stale.`;
     case "excessive_impact": return `${symbol} actions are blocked because current price impact exceeds the qualified route limit.`;
     case "unqualified": return `${symbol} actions are blocked because the settlement route is not qualified.`;
-    default: return `${symbol} backend risk checks are incomplete.`;
+    default: return "Trading is unavailable until readiness checks pass.";
   }
 }
 

@@ -34,12 +34,6 @@ export interface AssetConfig {
   icon: string;
   /** Canonical token address when ticker-only identity is unsafe. */
   address?: `0x${string}`;
-  disclosure?: {
-    instrument: string;
-    jurisdiction: string;
-    eligibility: string;
-    policyPause: string;
-  };
 }
 
 export const ASSETS: Record<string, AssetConfig> = {
@@ -96,12 +90,6 @@ export const ASSETS: Record<string, AssetConfig> = {
     fallbackSpot: 180,
     icon: "/nvdac.png",
     address: "0xb20000000000000000000078ee7ce2fE4908108C",
-    disclosure: {
-      instrument: "NVDAc is a tokenized-stock/B20 economic-exposure and redemption instrument. It is not NVIDIA-issued registered equity and does not provide direct ownership of NVIDIA shares.",
-      jurisdiction: process.env.NEXT_PUBLIC_NVDAC_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
-      eligibility: process.env.NEXT_PUBLIC_NVDAC_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
-      policyPause: process.env.NEXT_PUBLIC_NVDAC_POLICY_PAUSE_NOTICE || "Transfers and redemption may pause under the instrument's policy controls.",
-    },
   },
   cbzec: {
     slug: "cbzec",
@@ -156,12 +144,6 @@ export const ASSETS: Record<string, AssetConfig> = {
     fallbackSpot: 1,
     icon: "/vvv.png",
     address: "0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf",
-    disclosure: {
-      instrument: "VVV is a token settlement asset on Base. Smart-contract, custody, and liquidity risks apply; holding it does not guarantee redemption value.",
-      jurisdiction: process.env.NEXT_PUBLIC_VVV_JURISDICTION_NOTICE || "Availability depends on your jurisdiction.",
-      eligibility: process.env.NEXT_PUBLIC_VVV_ELIGIBILITY_NOTICE || "You must satisfy the applicable eligibility requirements before acting.",
-      policyPause: process.env.NEXT_PUBLIC_VVV_POLICY_PAUSE_NOTICE || "Transfers or settlement may pause under applicable token or route controls.",
-    },
   },
   sol: {
     slug: "sol",
