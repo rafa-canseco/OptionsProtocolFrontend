@@ -467,7 +467,7 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
     );
   }
 
-  if (error && displayPrices.length === 0 && !asset.disclosure) {
+  if (error && displayPrices.length === 0) {
     return (
       <div className="rounded-2xl bg-[var(--surface)] p-5 text-sm text-[var(--text-secondary)] text-center">
         {t("Could not load prices. Is the backend running?", "No se pudieron cargar los precios.")}
@@ -658,17 +658,6 @@ export function PriceMenuV2({ asset }: { asset: AssetConfig }) {
           )}
         </div>
       </div>
-
-      {asset.disclosure && (
-        <section className="space-y-2 rounded-xl border border-amber-400/25 bg-amber-400/5 p-4 text-xs text-[var(--text-secondary)]" aria-label={`${asset.symbol} disclosures`}>
-          <p className="font-semibold text-[var(--bone)]">{asset.symbol} risk disclosure</p>
-          <p>{asset.disclosure.instrument}</p>
-          <p>{asset.disclosure.jurisdiction} {asset.disclosure.eligibility}</p>
-          <p>{asset.disclosure.policyPause}</p>
-          <p className="break-all font-mono">{asset.address}</p>
-          {readinessBlockReason && <p className="font-medium text-amber-300">{readinessBlockReason}</p>}
-        </section>
-      )}
 
       {/* Buy/Sell/Range toggle + content */}
       <div className="space-y-5">

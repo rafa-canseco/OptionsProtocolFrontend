@@ -391,7 +391,7 @@ describe("AcceptModal Base buy with sufficient USDC", () => {
 
     await userEvent.click(await screen.findByRole("button", { name: /Accept/i }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("risk checks are incomplete");
+    expect(await screen.findByRole("alert")).toHaveTextContent("readiness checks pass");
     expect(state.sendBatchTx).not.toHaveBeenCalled();
   });
 
