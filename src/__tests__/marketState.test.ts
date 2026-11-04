@@ -228,7 +228,7 @@ describe("marketState helpers", () => {
     expect(mod.getAssetActionBlockReason(
       ASSETS.nvdac,
       capacity({ readiness_status: "unknown" } as unknown as Partial<Capacity>),
-    )).toContain("risk checks are incomplete");
+    )).toContain("readiness checks pass");
     expect(mod.getAssetActionBlockReason(
       ASSETS.nvdac,
       capacity({ backend_ready: "true" } as unknown as Partial<Capacity>),
@@ -274,32 +274,32 @@ describe("marketState helpers", () => {
     });
 
     expect(mod.getAssetActionBlockReason(asset, legacyCapacity, quote)).toBeNull();
-    expect(mod.getAssetActionBlockReason(asset, legacyCapacity)).toContain("risk checks are incomplete");
+    expect(mod.getAssetActionBlockReason(asset, legacyCapacity)).toContain("readiness checks pass");
     expect(mod.getAssetActionBlockReason(
       asset,
       legacyCapacity,
       { ...quote, underlying_address: ASSETS.cbzec.address },
-    )).toContain("risk checks are incomplete");
+    )).toContain("readiness checks pass");
     expect(mod.getAssetActionBlockReason(
       asset,
       legacyCapacity,
       { ...quote, deadline: 1 },
-    )).toContain("risk checks are incomplete");
+    )).toContain("readiness checks pass");
     expect(mod.getAssetActionBlockReason(
       asset,
       legacyCapacity,
       { ...quote, signature: "0xmalformed" },
-    )).toContain("risk checks are incomplete");
+    )).toContain("readiness checks pass");
     expect(mod.getAssetActionBlockReason(
       asset,
       legacyCapacity,
       { ...quote, quote_id: "not-a-uint" },
-    )).toContain("risk checks are incomplete");
+    )).toContain("readiness checks pass");
     expect(mod.getAssetActionBlockReason(
       asset,
       legacyCapacity,
       { ...quote, max_amount_raw: `0x1${"0".repeat(64)}` },
-    )).toContain("risk checks are incomplete");
+    )).toContain("readiness checks pass");
   });
 
   it("pins the four canonical Base-mainnet asset identities and decimals", () => {
@@ -309,24 +309,10 @@ describe("marketState helpers", () => {
     expect({ address: ASSETS.vvv.address, decimals: ASSETS.vvv.collateralDecimals }).toEqual({ address: "0xacfE6019Ed1A7Dc6f7B508C02d1b04ec88cC21bf", decimals: 18 });
   });
 
-  it("uses the required tokenized-stock disclosure without an equity ownership claim", () => {
-    expect(ASSETS.nvdac.disclosure?.instrument).toContain("economic-exposure and redemption instrument");
-    expect(ASSETS.nvdac.disclosure?.instrument).toContain("not NVIDIA-issued registered equity");
-    expect(ASSETS.nvdac.disclosure?.instrument).toContain("does not provide direct ownership");
-    expect(ASSETS.nvdac.disclosure?.jurisdiction).toBeTruthy();
-    expect(ASSETS.nvdac.disclosure?.eligibility).toBeTruthy();
-    expect(ASSETS.nvdac.disclosure?.policyPause).toBeTruthy();
-  });
-
-  it("continues to provide the VVV settlement risk disclosure", () => {
-    expect(ASSETS.vvv.disclosure?.instrument).toBeTruthy();
-    expect(ASSETS.vvv.disclosure?.jurisdiction).toBeTruthy();
-    expect(ASSETS.vvv.disclosure?.eligibility).toBeTruthy();
-    expect(ASSETS.vvv.disclosure?.policyPause).toBeTruthy();
-  });
-
-  it.each(["cbzec", "cbhype"] as const)("does not show a %s disclosure", (slug) => {
-    expect(ASSETS[slug].disclosure).toBeUndefined();
+  it("does not expose risk disclosures for any production asset", () => {
+    for (const slug of ["eth", "btc", "nvdac", "cbzec", "cbhype", "vvv"] as const) {
+      expect("disclosure" in ASSETS[slug]).toBe(false);
+    }
   });
 
   it("replaces a selected quote when signed fields refresh at the same strike", async () => {
