@@ -38,6 +38,7 @@ const ZERO: Balances = {
 };
 
 const BALANCE_CACHE_TTL_MS = 10_000;
+const MAX_ADDRESSES_PER_MULTICALL = 20;
 
 type BalanceCacheEntry = {
   value: Balances;
@@ -74,18 +75,31 @@ async function fetchBalancesForAddresses(addresses: Address[]): Promise<Balances
   const multicall3 = CHAIN.contracts?.multicall3?.address;
   if (!multicall3) throw new Error("Base multicall3 address is unavailable");
 
-  const balancesByAddress = await Promise.all(addresses.map(async (addr) => {
-    const [usdRaw, wethRaw, wbtcRaw, ethRaw] = await publicClient.multicall({
-      contracts: [
-        { address: ADDRESSES.usdc, abi: ERC20_ABI, functionName: "balanceOf", args: [addr] },
-        { address: ADDRESSES.weth, abi: ERC20_ABI, functionName: "balanceOf", args: [addr] },
-        { address: ADDRESSES.wbtc, abi: ERC20_ABI, functionName: "balanceOf", args: [addr] },
-        { address: multicall3, abi: MULTICALL3_ABI, functionName: "getEthBalance", args: [addr] },
-      ],
-      allowFailure: false,
-    });
-    return { usdRaw, wethRaw, wbtcRaw, ethRaw };
-  }));
+  const balancesByAddress = await Promise.all(
+    Array.from(
+      { length: Math.ceil(addresses.length / MAX_ADDRESSES_PER_MULTICALL) },
+      (_, index) => addresses.slice(
+        index * MAX_ADDRESSES_PER_MULTICALL,
+        (index + 1) * MAX_ADDRESSES_PER_MULTICALL,
+      ),
+    ).map(async (batch) => {
+      const results = await publicClient.multicall({
+        contracts: batch.flatMap((addr) => [
+          { address: ADDRESSES.usdc, abi: ERC20_ABI, functionName: "balanceOf" as const, args: [addr] as const },
+          { address: ADDRESSES.weth, abi: ERC20_ABI, functionName: "balanceOf" as const, args: [addr] as const },
+          { address: ADDRESSES.wbtc, abi: ERC20_ABI, functionName: "balanceOf" as const, args: [addr] as const },
+          { address: multicall3, abi: MULTICALL3_ABI, functionName: "getEthBalance" as const, args: [addr] as const },
+        ]),
+        allowFailure: false,
+      });
+      return batch.map((_, index) => ({
+        usdRaw: results[index * 4],
+        wethRaw: results[index * 4 + 1],
+        wbtcRaw: results[index * 4 + 2],
+        ethRaw: results[index * 4 + 3],
+      }));
+    }),
+  ).then((batches) => batches.flat());
 
   const usdRaw = balancesByAddress.reduce(
     (sum, item) => sum + item.usdRaw,
